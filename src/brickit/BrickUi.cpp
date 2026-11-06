@@ -1089,6 +1089,7 @@ void BrickApp::uiTray() {
         ImVec2 a(TX + padX + c * (th + cgap) - m_cardsScroll, y + r * (th + cgap)), b(a.x + th, a.y + th);
         if (b.x < ca.x || a.x > cb.x) continue;
         const int part = parts[k];
+        if (k == 3) m_mtCard = ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);   // (mouse tests: a card on the lower row)
         bool h = live && u.hover(a, b) && u.hover(ca, cb);
         u.dl->AddRectFilled(a, b, alphaOf(h ? C_CARD_HI : C_CARD, alpha), 10 * s);
         ImTextureID tex;
@@ -1125,8 +1126,22 @@ void BrickApp::uiTray() {
     if (m_libPress >= 0 && (swipeTaken(0) || m_swipeDragged == 0)) m_libPress = -1;   // a side drag: no brick
     if (m_libPress >= 0) {
         ImVec2 dm(u.mouse.x - m_libPressPos.x, u.mouse.y - m_libPressPos.y);
-        const bool moved = dm.x * dm.x + dm.y * dm.y > 64 * s * s;
+        const bool moved = dm.x * dm.x + dm.y * dm.y > 49 * s * s;
         if (!m_libLong && !moved && now - m_libPressTime > 0.48) { m_libLong = true; m_infoPart = m_libPress; }
+        if (moved && ImGui::IsMouseDown(ImGuiMouseButton_Left) && u.mouse.y >= p0.y) {   // taken (upwards): its thumbnail follows the pointer
+            ImTextureID tex;
+            ImVec2 uv0, uv1;
+            if (thumbUv(m_libPress, tex, uv0, uv1)) {
+                ImDrawList* fg = ImGui::GetForegroundDrawList();
+                const float g = 84 * s;
+                const ImVec2 c(u.mouse.x, u.mouse.y - g * 0.35f);
+                fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f + 6 * s), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f + 6 * s), IM_COL32(0, 0, 0, 50), 14 * s);
+                fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), IM_COL32(255, 255, 255, 40), 14 * s);
+                const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / 1.4f) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / 1.4f) * 0.5f);   // (the cards zoom x 1.4)
+                fg->AddImage(tex, ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), IM_COL32(255, 255, 255, 235));
+            }
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
         if (moved && u.mouse.y < p0.y) {   // out of the tray: drag and drop
             int part = m_libPress;
             m_libPress = -1;
@@ -2499,9 +2514,11 @@ void BrickApp::drawDropzone() {
 
 
 // --------------------------------------------------------------------------- drag scrolling of the library rows
-// A press in the row starts a gesture; after 6 px the dominant direction decides: sideways = the row slides with the
-// cursor and keeps its speed on release (decelerating, like the touch scrolling of the web), up / down = left to the
-// card (brick in hand when it leaves the tray). Returns true while the row is being dragged.
+// A press in the row starts a gesture; after ~7 px its direction decides, locked until the release. The cards (row 0,
+// Wzx 06/11/2026): upwards within 160 degrees (80 either side of straight up) = the card is taken (its thumbnail follows
+// the pointer at once, the brick in hand when it leaves the tray), any other direction = the row slides with the
+// pointer and keeps its speed on release (decelerating, as the touch scrolling of the web). The other rows: the
+// dominant direction (sideways = slide). Returns true while the row is being dragged.
 bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live) {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 m = io.MousePos;
@@ -2517,7 +2534,10 @@ bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, f
     if (m_swipe.id == id) {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             const float dx = m.x - m_swipe.start.x, dy = m.y - m_swipe.start.y;
-            if (m_swipe.dir == 0 && dx * dx + dy * dy > 36 * s * s) m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 1 : 2;
+            if (m_swipe.dir == 0 && dx * dx + dy * dy > 49 * s * s) {
+                if (id == 0) m_swipe.dir = (dy < 0 && std::fabs(dx) <= -dy * 5.671f) ? 2 : 1;   // tan(80) = 5.671
+                else m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 1 : 2;
+            }
             if (m_swipe.dir == 1) {
                 const float step = m.x - m_swipe.last.x;
                 scroll -= step;

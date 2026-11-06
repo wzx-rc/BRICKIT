@@ -30,7 +30,8 @@ void BrickApp::mouseTestFrame() {
     if (t.empty()) return;
     const float sw = m_stage.z - m_stage.x, sh = m_stage.w - m_stage.y;
     View v = view();
-    if (m_frame == 10) {
+    const bool swipeTest = t.rfind("swipe", 0) == 0;
+    if (m_frame == (swipeTest ? 22 : 10)) {
         m_mouseScript.clear();
         if (t == "marquee") {
             m_mode = 0;
@@ -60,18 +61,30 @@ void BrickApp::mouseTestFrame() {
                 }
                 m_mouseScript.push_back({26, bx, by, 1});
             }
+        } else if (t == "swipediag" || t == "swipeghost") {
+            // up and to the left, 56 degrees from straight up (within the 80 of the take: a brick, not a slide), or a
+            // card pressed and moved 40 px up, held (the thumbnail following the pointer: capture)
+            const ImVec4 tr = m_uiRects.size() > 1 ? m_uiRects[1] : ImVec4(0, sh, sw, sh);
+            const float cy = m_mtCard.y > 0 ? m_mtCard.y : tr.w - 100 * m_ui, cx = m_mtCard.x > 0 ? m_mtCard.x : sw * 0.5f;   // (a card of the lower row)
+            m_mtScroll0 = m_cardsScroll;
+            if (t == "swipediag") { const float ty = m_stage.y + sh * 0.45f; dragScript(m_mouseScript, 24, ImVec2(cx, cy), ImVec2(cx - (cy - ty) * 1.5f, ty)); }
+            else {
+                m_mouseScript.push_back({24, cx, cy, -1});
+                m_mouseScript.push_back({25, cx, cy, 0});
+                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({25 + k, cx + 6.0f * k * m_ui / 10, cy - 40.0f * k * m_ui / 10, -1});
+            }
         } else if (t == "swipe" || t == "swipeup") {
             // the middle of the cards: sideways 400 px (slide, inertia, no brick) or straight up out of the tray (brick)
             const ImVec4 tr = m_uiRects.size() > 1 ? m_uiRects[1] : ImVec4(0, sh, sw, sh);
-            const float cy = tr.w - 60 * m_ui, cx = sw * 0.5f;
+            const float cy = m_mtCard.y > 0 ? m_mtCard.y : tr.w - 100 * m_ui, cx = m_mtCard.x > 0 ? m_mtCard.x : sw * 0.5f;   // (a card of the lower row)
             m_mtScroll0 = m_cardsScroll;
-            if (t == "swipe") dragScript(m_mouseScript, 12, ImVec2(cx, cy), ImVec2(cx - 400 * m_ui, cy + 10 * m_ui));
-            else dragScript(m_mouseScript, 12, ImVec2(cx, cy), ImVec2(cx + 10 * m_ui, m_stage.y + sh * 0.45f));
+            if (t == "swipe") dragScript(m_mouseScript, 24, ImVec2(cx, cy), ImVec2(cx - 400 * m_ui, cy + 10 * m_ui));
+            else dragScript(m_mouseScript, 24, ImVec2(cx, cy), ImVec2(cx + 10 * m_ui, m_stage.y + sh * 0.45f));
         } else if (t == "snap") {
             // a brick taken from the library (drag up out of the tray), then the mouse over the floor (frames 27-30)
             // and over the top of a placed brick (frames 31-33): the target and the snapped connector are recorded
             const ImVec4 tr = m_uiRects.size() > 1 ? m_uiRects[1] : ImVec4(0, sh, sw, sh);
-            const float cy = tr.w - 60 * m_ui, cx = sw * 0.5f;
+            const float cy = m_mtCard.y > 0 ? m_mtCard.y : tr.w - 100 * m_ui, cx = m_mtCard.x > 0 ? m_mtCard.x : sw * 0.5f;   // (a card of the lower row)
             dragScript(m_mouseScript, 12, ImVec2(cx, cy), ImVec2(cx + 10 * m_ui, m_stage.y + sh * 0.45f));
             // the release in the stage must not drop it: the hand follows the mouse until a click
             const ImVec2 fl(m_stage.x + sw * 0.22f, m_stage.y + sh * 0.82f);
@@ -211,7 +224,7 @@ void BrickApp::mouseTestFrame() {
         }
         fclose(f);
     }
-    if (m_frame == 26) m_mtScrollRel = m_cardsScroll;   // the release frame
+    if (m_frame == 38) m_mtScrollRel = m_cardsScroll;   // the release frame (swipes from frame 24)
     if (t == "snap" && m_frame == 26 && !m_holding) {   // the drag missed a card (tray laid out otherwise): a brick in hand
         const ImVec2 mp = ImGui::GetIO().MousePos;
         spawn(m_lib.find("3001"), mp.x, mp.y);
@@ -229,11 +242,12 @@ void BrickApp::mouseTestFrame() {
                    " mouse=" + std::to_string((int)ImGui::GetIO().MousePos.x) + "," + std::to_string((int)ImGui::GetIO().MousePos.y) + " down=" + std::to_string(ImGui::IsMouseDown(0)) +
                    " overUi=" + std::to_string(m_overUi) + " swipe=" + std::to_string(m_swipe.id) + "/" + std::to_string(m_swipe.dir) + " libPress=" + std::to_string(m_libPress) + " tray=" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].y : -1)) + "-" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].w : -1)) + " cardsMax?scroll=" + std::to_string(m_cardsScroll);
     }
-    if (m_frame == 34) {
+    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
         FILE* f = nullptr;
         if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") != 0 || !f) return;
         if (t == "marquee") fprintf(f, "marquee: selected=%zu of %zu bricks (expected all)\n", selection().size(), m_bricks.size());
         else if (t == "swipe") fprintf(f, "swipe: cards scroll %.0f -> %.0f at release, %.0f now (inertia: further), velocity %.0f, brick in hand=%d (expected 0)\n", m_mtScroll0, m_mtScrollRel, m_cardsScroll, m_cardsVel, m_holding);
+        else if (t == "swipediag") fprintf(f, "swipe diagonal (56 deg from up): brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);
         else if (t == "swipeup") fprintf(f, "swipe up: brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);
         else if (t == "gizmo") {
             const float3 d = m_bricks[3].pos - m_mtBefore.pos;

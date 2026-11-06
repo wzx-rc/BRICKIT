@@ -507,6 +507,7 @@ private:
     // drag scrolling of the library rows (cards, families, categories): direction of the first pixels, inertia
     struct Swipe { int id = -1; ImVec2 start, last; int dir = 0; double t = 0; };
     Swipe m_swipe;
+    ImVec2 m_mtCard{0, 0};             // mouse tests: the centre of a card of the library
     int m_swipeDragged = -1;           // row whose drag just ended (its release is not a click)
     float m_cardsVel = 0, m_famVel = 0, m_catVel = 0;
     bool swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live);
