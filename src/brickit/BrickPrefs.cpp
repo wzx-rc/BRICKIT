@@ -211,7 +211,7 @@ void BrickApp::applyPrefs(const std::string& t) {
 void BrickApp::autosave() {
     if (m_cornell) return;
     manualDirty();   // the steps change with the scene
-    if (userSession() && m_autosaveOn) writeText(m_exeDir + L"\\brickit_scene.v3d.json", m_build.toJson(m_scene.camera));
+    if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", m_build.toJson(m_scene.camera));
 }
 
 bool BrickApp::restoreAutosave() {
@@ -220,7 +220,49 @@ bool BrickApp::restoreAutosave() {
     if (!readText(m_exeDir + L"\\brickit_scene.v3d.json", t) && !readText(m_exeDir + L"\\assets\\brickit\\default_scene.v3d.json", t)) return false;
     if (!m_build.fromJson(t, &m_scene.camera, &msg) || m_bricks.empty()) return false;
     toast(msg);
+    // parts of the last session not found (the full library missing, 06/11/2026: the autosave was rewritten without
+    // them): the file is kept as it is, a copy made, and the autosave stays off for this session
+    if (m_build.lastSkipped > 0 && userSession()) {
+        m_autosaveGuard = true;
+        writeText(m_exeDir + L"\\brickit_scene.v3d.json.complet.bak", t);
+        char b[200];
+        snprintf(b, sizeof(b), "%d pièces de la dernière scène introuvables (bibliothèque complète absente ?) : la scène enregistrée n'est pas écrasée", m_build.lastSkipped);
+        toast(b);
+    }
     return true;
+}
+
+#if __has_include("brickit_version.h")
+#include "brickit_version.h"
+#endif
+#ifndef BRICKIT_VERSION
+#define BRICKIT_VERSION L"0.00"
+#define BRICKIT_BRANCH L"local"
+#define BRICKIT_COMMIT L"nogit"
+#define BRICKIT_PLATFORM L"PC Win Local"
+#endif
+std::wstring BrickApp::versionString() {
+    return std::wstring(L"BrickIt - ") + BRICKIT_VERSION + L" - " + BRICKIT_BRANCH + L" - " + BRICKIT_PLATFORM + L" - " + BRICKIT_COMMIT;
+}
+
+void BrickApp::writeStartLog() {
+    if (!userSession()) return;
+    wchar_t la[MAX_PATH] = L"";
+    GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
+    int full = 0;
+    for (const Part& p : m_lib.parts) full += p.pack >= m_lib.technicPacks;
+    std::string o;
+    char b[512];
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    const std::wstring v = versionString();
+    snprintf(b, sizeof(b), "%04d-%02d-%02d %02d:%02d:%02d %ls\nexe: %ls\nLOCALAPPDATA: %ls\nfull library: %ls\nparts: %d (full library %d, packs %d, technic packs %d)\nscene: %d bricks%s\n",
+             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, v.c_str(), m_exeDir.c_str(), la,
+             m_lib.fullDir.empty() ? L"(introuvable)" : m_lib.fullDir.c_str(), (int)m_lib.parts.size(), full, m_lib.packCount, m_lib.technicPacks,
+             (int)m_bricks.size(), m_autosaveGuard ? " (incomplete: autosave kept)" : "");
+    o = b;
+    writeText(m_exeDir + L"\\brickit_start.log", o);
+    if (m_lib.fullDir.empty()) toast("Bibliothèque complète introuvable (%LOCALAPPDATA%\\BrickIt\\full) : seules les pièces de base sont là");
 }
 
 // The scene of a first launch (sampleScene of the web).

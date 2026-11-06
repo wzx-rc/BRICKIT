@@ -52,7 +52,7 @@ if exist %E%\assets\hdri xcopy /E /I /Y /Q %E%\assets\hdri "%OUT%\assets\hdri" >
 if exist %E%\assets\themes xcopy /E /I /Y /Q %E%\assets\themes "%OUT%\assets\themes" >nul
 xcopy /E /I /Y /Q assets "%OUT%\assets" >nul
 
-set "CFLAGS=/nologo /std:c++17 /EHsc /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DIMGUI_DEFINE_MATH_OPERATORS %CFG% /Isrc /I%E%\src /I%E%\third_party\imgui"
+set "CFLAGS=/nologo /std:c++17 /EHsc /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DIMGUI_DEFINE_MATH_OPERATORS %CFG% /Isrc /I%E%\src /I%E%\third_party\imgui /Ibuild\obj"
 del /q build\obj\vp3d\*.obj build\obj\brickit\*.obj 2>nul
 
 echo [2/4] vp3d module (engine)
@@ -67,6 +67,18 @@ if not exist build\lib\imgui_te_mt.lib (
 )
 
 echo [4/4] BrickIt
+rem the version in the title: VERSION, the branch and the commit (git), the platform
+set "VER=0.00"
+if exist VERSION set /p VER=<VERSION
+set "BR=local"
+set "CM=nogit"
+for /f %%b in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "BR=%%b"
+for /f %%c in ('git rev-parse --short HEAD 2^>nul') do set "CM=%%c"
+git diff --quiet HEAD -- src assets 2>nul || set "CM=%CM%+"
+> build\obj\brickit_version.h echo #define BRICKIT_VERSION L"%VER%"
+>> build\obj\brickit_version.h echo #define BRICKIT_BRANCH L"%BR%"
+>> build\obj\brickit_version.h echo #define BRICKIT_COMMIT L"%CM%"
+>> build\obj\brickit_version.h echo #define BRICKIT_PLATFORM L"PC Win Local"
 rc /nologo /fo build\obj\res\wzx.res %E%\src\app\res\wzx.rc || exit /b 1
 cl %CFLAGS% /c src\brickit\*.cpp %E%\src\app\ImGuiLayer.cpp %E%\src\app\Theme.cpp %E%\src\app\Content.cpp /Fo:build\obj\brickit\ || exit /b 1
 link /nologo /OUT:%OUT%\BrickIt.exe build\obj\brickit\*.obj build\obj\res\wzx.res build\lib\vp3d.lib build\lib\imgui_te_mt.lib d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib /SUBSYSTEM:WINDOWS || exit /b 1

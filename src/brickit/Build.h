@@ -116,6 +116,7 @@ public:
 
     // scene file (vp3d-scene v1, compatible with the web builder)
     std::string toJson(const vp3d::Camera& cam) const;
+    int lastSkipped = 0;   // parts of the last scene read that the library does not have
     bool fromJson(const std::string& text, vp3d::Camera* cam, std::string* message);
 
 private:

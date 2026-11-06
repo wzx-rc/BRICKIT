@@ -2833,6 +2833,10 @@ void BrickApp::uiSettings() {
             char ib[96];
             snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil reste fixe", m_hdriLoadMs);
             u.text(ImVec2(x0 + pad, ly), 10, C_DIM, ib);
+            ly += 16 * s;   // à propos: the version (title of the window)
+            const std::wstring vw = versionString();
+            const std::string vs(vw.begin(), vw.end());
+            u.text(ImVec2(x0 + pad, ly), 10, C_DIM, vs.c_str());
             m_lumColumnH = ly + 14 * s + pad - p0.y;
         }
         if (lookChanged) {   // live: the environment and the grid of every renderer (accumulations reset)

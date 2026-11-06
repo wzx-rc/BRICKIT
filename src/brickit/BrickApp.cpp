@@ -90,7 +90,7 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     int winW = r.right - r.left, winH = r.bottom - r.top;
     const bool tooBig = winW > workW || winH > workH;
     if (tooBig && opt.shotPath.empty()) { winW = std::min(winW, workW); winH = std::min(winH, workH); }
-    m_hwnd = CreateWindowExW(0, wc.lpszClassName, L"BrickIt — WZX Engine", WS_OVERLAPPEDWINDOW, opt.shotPath.empty() && tooBig ? mi.rcWork.left : CW_USEDEFAULT,
+    m_hwnd = CreateWindowExW(0, wc.lpszClassName, versionString().c_str(), WS_OVERLAPPEDWINDOW, opt.shotPath.empty() && tooBig ? mi.rcWork.left : CW_USEDEFAULT,
                              opt.shotPath.empty() && tooBig ? mi.rcWork.top : CW_USEDEFAULT, winW, winH, nullptr, nullptr, inst, nullptr);
     if (!m_hwnd) return false;
     m_startMaximized = tooBig && opt.shotPath.empty();
@@ -200,6 +200,7 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     else if (restoreAutosave()) keepCamera = true;   // the scene of the last session (vp3d-builder-scene)
     else { sampleScene(); keepCamera = true; }
     rebuildScene();
+    writeStartLog();
     if (opt.cornell) {   // the very scene of WZX Engine (app::buildCornellBox, its main view, the settings of App::loadScene)
         m_scene = Scene();
         app::buildCornellBox(m_scene);

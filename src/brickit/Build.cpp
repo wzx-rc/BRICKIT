@@ -424,6 +424,7 @@ bool Builder::fromJson(const std::string& text, Camera* cam, std::string* messag
         out.push_back(b);
     }
     bricks.swap(out);
+    lastSkipped = skipped;
     groups.clear();
     if (j["groups"].type == app::Json::Array)
         for (const app::Json& g : j["groups"].a) {

@@ -273,6 +273,9 @@ private:
     void savePrefs();
     void autosave();                 // vp3d-builder-scene: the scene after every change
     bool restoreAutosave();
+    static std::wstring versionString();   // « BrickIt - 0.02 - main - PC Win Local - <commit> » (build.bat: VERSION + git)
+    bool m_autosaveGuard = false;          // the scene restored had parts not found: the autosave file is not overwritten
+    void writeStartLog();                  // brickit_start.log next to the exe: where the libraries were found
     void sampleScene();
     std::string sceneLdr() const;
     void uiSceneSheet();
