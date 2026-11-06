@@ -2,7 +2,7 @@
 // parts are kept as thumbnails in their own colour, placed freely as in PureRef (no grid), zoomed and panned. A card of
 // the library dropped in it, or « Ajouter la sélection » (one thumbnail per selected brick, its colour), adds them; a
 // click or a drag out of it gives the part in 3D with its colour, as the library does. Its content and layout are kept
-// in %LOCALAPPDATA%\BrickIt\bac.json. The thumbnails are path traced in the studio of the library (Thumbs.cpp), at the
+// in %USERPROFILE%\BrickIt\bac.json. The thumbnails are path traced in the studio of the library (Thumbs.cpp), at the
 // start of a frame (the renderer free).
 #include "BrickApp.h"
 #include "app/Json.h"
@@ -17,10 +17,13 @@ bool isGlassPart(const Part& p);   // Thumbs.cpp
 std::wstring BrickApp::bacFile() const {
     if (!m_opt.bacFile.empty()) return m_opt.bacFile;
     if (!m_opt.shotPath.empty()) return L"";   // (captures: never the user's tray)
-    wchar_t la[MAX_PATH];
-    const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return L"";
-    return std::wstring(la) + L"\\BrickIt\\bac.json";
+    const std::wstring d = brickitDataDir();
+    if (d.empty()) return L"";
+    const std::wstring f = d + L"\\bac.json";
+    if (GetFileAttributesW(f.c_str()) == INVALID_FILE_ATTRIBUTES)   // (the tray of an earlier build, in AppData)
+        for (const std::wstring& o : legacyDataDirs())
+            if (CopyFileW((o + L"\\bac.json").c_str(), f.c_str(), TRUE)) break;
+    return f;
 }
 
 void BrickApp::bacAdd(int part, int color, float x, float y) {

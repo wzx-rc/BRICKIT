@@ -55,9 +55,13 @@ bool BrickApp::userSession() const {
 // défaut » (%LOCALAPPDATA%\\BrickIt\\default_prefs.json), else the built-in ones (assets\\brickit\\default_prefs.json, the
 // look Wzx chose)
 static std::wstring userDefaultsPath() {
-    wchar_t la[MAX_PATH];
-    const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
-    return (n == 0 || n >= MAX_PATH) ? std::wstring() : std::wstring(la) + L"\\BrickIt\\default_prefs.json";
+    const std::wstring d = brickitDataDir();
+    if (d.empty()) return std::wstring();
+    const std::wstring f = d + L"\\default_prefs.json";
+    if (GetFileAttributesW(f.c_str()) == INVALID_FILE_ATTRIBUTES)   // (saved by an earlier build in AppData: moved here)
+        for (const std::wstring& o : legacyDataDirs())
+            if (CopyFileW((o + L"\\default_prefs.json").c_str(), f.c_str(), TRUE)) break;
+    return f;
 }
 
 bool BrickApp::readDefaultPrefs(std::string& t) {
@@ -247,8 +251,9 @@ std::wstring BrickApp::versionString() {
 
 void BrickApp::writeStartLog() {
     if (!userSession()) return;
-    wchar_t la[MAX_PATH] = L"";
-    GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
+    const std::wstring dd = brickitDataDir();
+    wchar_t cwd[MAX_PATH] = L"";
+    GetCurrentDirectoryW(MAX_PATH, cwd);
     int full = 0;
     for (const Part& p : m_lib.parts) full += p.pack >= m_lib.technicPacks;
     std::string o;
@@ -256,13 +261,13 @@ void BrickApp::writeStartLog() {
     SYSTEMTIME st;
     GetLocalTime(&st);
     const std::wstring v = versionString();
-    snprintf(b, sizeof(b), "%04d-%02d-%02d %02d:%02d:%02d %ls\nexe: %ls\nLOCALAPPDATA: %ls\nfull library: %ls\nparts: %d (full library %d, packs %d, technic packs %d)\nscene: %d bricks%s\n",
-             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, v.c_str(), m_exeDir.c_str(), la,
+    snprintf(b, sizeof(b), "%04d-%02d-%02d %02d:%02d:%02d %ls\nexe: %ls\ncurrent dir: %ls\ndata: %ls\nfull library: %ls\nparts: %d (full library %d, packs %d, technic packs %d)\nscene: %d bricks%s\n",
+             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, v.c_str(), m_exeDir.c_str(), cwd, dd.c_str(),
              m_lib.fullDir.empty() ? L"(introuvable)" : m_lib.fullDir.c_str(), (int)m_lib.parts.size(), full, m_lib.packCount, m_lib.technicPacks,
              (int)m_bricks.size(), m_autosaveGuard ? " (incomplete: autosave kept)" : "");
     o = b;
     writeText(m_exeDir + L"\\brickit_start.log", o);
-    if (m_lib.fullDir.empty()) toast("Bibliothèque complète introuvable (%LOCALAPPDATA%\\BrickIt\\full) : seules les pièces de base sont là");
+    if (m_lib.fullDir.empty()) toast("Bibliothèque complète introuvable (dossier utilisateur \\BrickIt\\full) : seules les pièces de base sont là");
 }
 
 // The scene of a first launch (sampleScene of the web).

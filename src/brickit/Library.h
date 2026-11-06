@@ -89,6 +89,11 @@ private:
 
 // Folder of the full LDraw library: <assets>\\full, else %LOCALAPPDATA%\\BrickIt\\full (empty when neither exists).
 std::wstring fullLibraryDir(const std::wstring& assets);
+// The data folder of BrickIt (full library, thumbnail overrides, tray, user defaults): %USERPROFILE%\\BrickIt (out of
+// AppData: the programs started by the Claude app see a private copy of AppData, the user's double click the real one,
+// 06/11/2026), created when missing; legacyDataDirs: the older places, read when the data is not there yet.
+std::wstring brickitDataDir();
+std::vector<std::wstring> legacyDataDirs();
 
 // sRGB to linear (one channel).
 float srgbToLinear(float c);

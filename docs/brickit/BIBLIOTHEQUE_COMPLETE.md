@@ -5,7 +5,7 @@ LDraw : 22 545 pièces (pièces imprimées, minifigs, obsolètes compris), conve
 library. Ces fichiers sont générés et **ne sont pas dans git** (≈ 470 Mo) ; ils vivent hors des dossiers synchronisés :
 
 ```
-%LOCALAPPDATA%\BrickIt\
+%USERPROFILE%\BrickIt\
   raw\ldraw_complete\ldraw\      bibliothèque officielle (complete.zip de library.ldraw.org)
   raw\ldcad_shadow\...\          LDCad shadow library (github.com/RolandMelkert/LDCadShadowLibrary)
   raw\rebrickable\*.csv.gz       données Rebrickable (couleurs réelles, tools/brickit/part_colors.py)
@@ -17,7 +17,7 @@ library. Ces fichiers sont générés et **ne sont pas dans git** (≈ 470 Mo) ;
   omr\*.mpd                      modèles officiels téléchargés (OMR)
 ```
 
-`Library::load` cherche `assets\brickit\full` à côté de l'exe, sinon `%LOCALAPPDATA%\BrickIt\full`. Sans ces fichiers,
+`Library::load` cherche `assets\brickit\full` à côté de l'exe, sinon `%USERPROFILE%\BrickIt\full`. Sans ces fichiers,
 BrickIt fonctionne comme avant (base + Technic).
 
 ## Régénérer
@@ -27,11 +27,11 @@ BrickIt fonctionne comme avant (base + Technic).
 ::    https://library.ldraw.org/library/updates/complete.zip  -> raw\ldraw_complete (dézippé)
 ::    https://github.com/RolandMelkert/LDCadShadowLibrary/archive/refs/heads/master.zip -> raw\ldcad_shadow (dézippé)
 :: 2. convertir (≈ 6 min, 16 processus)
-node tools\brickit\build_full.mjs "%LOCALAPPDATA%\BrickIt\raw\ldraw_complete\ldraw" "%LOCALAPPDATA%\BrickIt\raw\ldcad_shadow\LDCadShadowLibrary-main" "%LOCALAPPDATA%\BrickIt\full" 16
-py tools\brickit\ldraw_aliases.py "%LOCALAPPDATA%\BrickIt\raw\ldraw_complete\ldraw" "%LOCALAPPDATA%\BrickIt\full\aliases.txt"
-copy "%LOCALAPPDATA%\BrickIt\raw\ldraw_complete\ldraw\LDConfig.ldr" "%LOCALAPPDATA%\BrickIt\full\"
+node tools\brickit\build_full.mjs "%USERPROFILE%\BrickIt\raw\ldraw_complete\ldraw" "%USERPROFILE%\BrickIt\raw\ldcad_shadow\LDCadShadowLibrary-main" "%USERPROFILE%\BrickIt\full" 16
+py tools\brickit\ldraw_aliases.py "%USERPROFILE%\BrickIt\raw\ldraw_complete\ldraw" "%USERPROFILE%\BrickIt\full\aliases.txt"
+copy "%USERPROFILE%\BrickIt\raw\ldraw_complete\ldraw\LDConfig.ldr" "%USERPROFILE%\BrickIt\full\"
 :: 3. miniatures v3 (path tracing, ≈ 10 min, fenêtre cachée ; écrit aussi full\thumbs_base_v3.pack -> assets\brickit\thumbs_v3.pack)
-build\bin\BrickIt.exe --build-full-thumbs "%LOCALAPPDATA%\BrickIt\full\thumbs.pack"
+build\bin\BrickIt.exe --build-full-thumbs "%USERPROFILE%\BrickIt\full\thumbs.pack"
 ```
 
 ## Limites connues

@@ -16,7 +16,7 @@ build.bat
 Déjà cloné sans le moteur : `git submodule update --init`. Il faut Visual Studio 2022 (outils C++) et le Windows SDK
 (dxc). Sortie : `build\bin\BrickIt.exe` (autre dossier : `set VP3D_OUT=...`). Tests : `build\bin\BrickIt.exe --mechtests`.
 
-La bibliothèque LDraw complète et ses miniatures ne sont pas dans git : `%LOCALAPPDATA%\BrickIt\full`
+La bibliothèque LDraw complète et ses miniatures ne sont pas dans git : `%USERPROFILE%\BrickIt\full`
 (voir `docs/brickit/BIBLIOTHEQUE_COMPLETE.md`). Les préférences et l'autosave sont à côté de l'exe.
 
 ## Contenu

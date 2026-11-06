@@ -1,7 +1,7 @@
 // BrickIt - Edit thumbnail (DEV): a right click on a brick of the scene or on a card of the library opens a menu;
 // « Modifier la miniature » opens a viewer with the part alone in the studio of the thumbnails (v2), orbit (left drag),
 // zoom (wheel), pan (right / middle drag); « Enregistrer comme miniature » renders it (transparent background, contact
-// shadow) into %LOCALAPPDATA%\BrickIt\thumb_overrides\<id>.png with its view (<id>.view), used first by the library.
+// shadow) into %USERPROFILE%\BrickIt\thumb_overrides\<id>.png with its view (<id>.view), used first by the library.
 #include "BrickApp.h"
 #include <algorithm>
 #include <cmath>
@@ -15,10 +15,8 @@ bool encodePng(const std::vector<uint8_t>& rgba, uint32_t w, uint32_t h, std::ve
 
 std::wstring BrickApp::thumbOverrideDir() const {
     if (!m_opt.thumbDir.empty()) return m_opt.thumbDir;
-    wchar_t la[MAX_PATH];
-    const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return L"";
-    return std::wstring(la) + L"\\BrickIt\\thumb_overrides";
+    const std::wstring d = brickitDataDir();
+    return d.empty() ? L"" : d + L"\\thumb_overrides";
 }
 
 // the image of an override: padded to 1.4 x (the cards zoom the thumbnails x 1.4, made with that margin)

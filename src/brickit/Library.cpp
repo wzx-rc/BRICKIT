@@ -1,4 +1,5 @@
 #include "Library.h"
+#include <shlobj.h>
 #include <windows.h>
 #include "app/Json.h"
 #include "vp3d/EnvImage.h"
@@ -138,13 +139,41 @@ bool Library::colorExists(int part, int paletteIndex) const {
     return std::binary_search(v->begin(), v->end(), palette[paletteIndex].id);
 }
 
+std::wstring brickitDataDir() {
+    PWSTR prof = nullptr;
+    std::wstring d;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Profile, 0, nullptr, &prof)) && prof) d = std::wstring(prof) + L"\\BrickIt";
+    if (prof) CoTaskMemFree(prof);
+    if (!d.empty()) CreateDirectoryW(d.c_str(), nullptr);
+    return d;
+}
+
+std::vector<std::wstring> legacyDataDirs() {
+    std::vector<std::wstring> v;
+    PWSTR la = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &la)) && la) {
+        const std::wstring base(la);
+        v.push_back(base + L"\\BrickIt");
+        WIN32_FIND_DATAW fd;   // (the private AppData of the Claude app, where the earlier builds wrote)
+        HANDLE h = FindFirstFileW((base + L"\\Packages\\Claude_*").c_str(), &fd);
+        if (h != INVALID_HANDLE_VALUE) {
+            do v.push_back(base + L"\\Packages\\" + fd.cFileName + L"\\LocalCache\\Local\\BrickIt");
+            while (FindNextFileW(h, &fd));
+            FindClose(h);
+        }
+    }
+    if (la) CoTaskMemFree(la);
+    return v;
+}
+
 std::wstring fullLibraryDir(const std::wstring& assets) {
-    if (GetFileAttributesW((assets + L"\\full\\index.json").c_str()) != INVALID_FILE_ATTRIBUTES) return assets + L"\\full";
-    wchar_t la[MAX_PATH];
-    const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", la, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return L"";
-    const std::wstring d = std::wstring(la) + L"\\BrickIt\\full";
-    return GetFileAttributesW((d + L"\\index.json").c_str()) != INVALID_FILE_ATTRIBUTES ? d : L"";
+    auto has = [](const std::wstring& d) { return GetFileAttributesW((d + L"\\index.json").c_str()) != INVALID_FILE_ATTRIBUTES; };
+    if (has(assets + L"\\full")) return assets + L"\\full";
+    const std::wstring d = brickitDataDir();
+    if (!d.empty() && has(d + L"\\full")) return d + L"\\full";
+    for (const std::wstring& o : legacyDataDirs())
+        if (has(o + L"\\full")) return o + L"\\full";
+    return L"";
 }
 
 bool Library::load(const std::wstring& dir, std::string* error) {
