@@ -17,7 +17,11 @@
 #include <thread>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <objc/objc.h>   // BOOL of Objective-C (bool on arm64): the same type in .cpp and .mm files
+#else
 using BOOL = int;
+#endif
 using UINT = unsigned int;
 using DWORD = uint32_t;
 using HANDLE = void*;
