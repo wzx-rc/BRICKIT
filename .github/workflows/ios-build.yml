@@ -1,0 +1,47 @@
+# BrickIt iPad: builds an unsigned .ipa on a GitHub macOS runner (no Mac needed).
+# Install: download the "BrickIt-iPad-unsigned" artifact of the run, unzip it, open the .ipa in Sideloadly on the PC
+# (free Apple ID, iPad on USB). A free Apple ID signs for 7 days: install again from Sideloadly after that,
+# the data of the app is kept as long as the app is not deleted.
+name: iPad build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: [ios/**, VERSION, .github/workflows/ios-build.yml]
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        # the engine submodule is not needed yet (J0: empty Metal app)
+
+      - name: Configure (Xcode project)
+        run: |
+          cmake -S ios -B build/ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DBRICKIT_GIT="$(git rev-parse --short HEAD)" -DBRICKIT_BUILD="${{ github.run_number }}"
+
+      - name: Build unsigned .app
+        run: |
+          cmake --build build/ios --config Release --target BrickIt -- \
+            -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package .ipa
+        run: |
+          APP=$(find build/ios -path "*Release-iphoneos/BrickIt.app" -maxdepth 3 -type d | head -1)
+          test -n "$APP" || { echo "No .app built"; find build/ios -name "*.app"; exit 1; }
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          NAME="BrickIt-iPad-$(cat VERSION | tr -d '[:space:]')-$(git rev-parse --short HEAD).ipa"
+          (cd build && zip -qr "$NAME" Payload)
+          echo "IPA=build/$NAME" >> "$GITHUB_ENV"
+          ls -la build/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BrickIt-iPad-unsigned
+          path: ${{ env.IPA }}
+          retention-days: 30
