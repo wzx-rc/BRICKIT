@@ -3,7 +3,7 @@
 // the SVG icons (Svg.cpp), the French texts. Everything is drawn with ImDrawList in one window behind the ImGui popups;
 // clicks are hit-tested here. m_ui scales the whole interface (4K: 2).
 #include "BrickApp.h"
-#include <commdlg.h>
+#include "Platform.h"
 #include "Svg.h"
 #include "app/Theme.h"
 #include <algorithm>
@@ -182,7 +182,7 @@ static Ui ui(float s) {
 
 void BrickApp::uiHeader() {
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     const float H = 30 * s;
@@ -403,7 +403,7 @@ void BrickApp::loadHudIcons() {
         fclose(f);
         std::vector<uint8_t> rgba;
         int w = 0, h = 0;
-        if (ok && decodeImage(data.data(), data.size(), rgba, w, h)) m_hudTex[i] = m_gui.createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
+        if (ok && decodeImage(data.data(), data.size(), rgba, w, h)) m_hudTex[i] = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
     }
 }
 
@@ -657,7 +657,7 @@ void BrickApp::uiSelHud() {
 void BrickApp::uiBac() {
     if (!m_bacOpen) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImGuiIO& io = ImGui::GetIO();
@@ -773,7 +773,7 @@ void BrickApp::uiBac() {
     }
     // remove: right click or Suppr on a card
     if (hover >= 0 && m_bacDrag < 0 && (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !m_bacPanned || ImGui::IsKeyPressed(ImGuiKey_Delete))) {
-        if (m_bac[hover].tex && m_bac[hover].tex != (ImTextureID)1) m_gui.releaseTexture(m_bac[hover].tex);
+        if (m_bac[hover].tex && m_bac[hover].tex != (ImTextureID)1) m_gui->releaseTexture(m_bac[hover].tex);
         m_bac.erase(m_bac.begin() + hover);
         m_bacDirty = true;
     }
@@ -885,7 +885,7 @@ void BrickApp::uiColors() {
 void BrickApp::uiTray() {
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, ImGui::GetIO().DisplaySize.y, 0, ImGui::GetIO().DisplaySize.y)); return; }
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     static const float kTh[3] = {64, 84, 112};
@@ -1160,7 +1160,7 @@ void BrickApp::uiTray() {
 void BrickApp::uiMechPanel() {
     if (!m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     const float W = 280 * s, pad = 12 * s;
@@ -1301,7 +1301,7 @@ void BrickApp::uiHud() {
     Ui u = ui(m_ui);
     const float s = m_ui;
     char l1[160], l2[200];
-    snprintf(l1, sizeof(l1), "%d pièces · %d fps · GPU %.2f ms", (int)m_bricks.size(), (int)std::lround(m_frameMs > 0 ? 1000.0 / m_frameMs : 0.0), m_renderer.gpuFrameMs());
+    snprintf(l1, sizeof(l1), "%d pièces · %d fps · GPU %.2f ms", (int)m_bricks.size(), (int)std::lround(m_frameMs > 0 ? 1000.0 / m_frameMs : 0.0), m_renderer->gpuFrameMs());
     const char* st = m_mechOn ? "Mode Mécanique : touches du panneau ou glisse une pièce mobile"
                    : m_holding ? (m_held.suggested ? "Pivot voisin valide proposé" : m_held.blocked ? "Placement refusé (> 50 %)" : "Brique en main")
                    : m_selected >= 0 ? m_lib.parts[m_bricks[m_selected].part].label.c_str() : "Touche une brique pour la prendre";
@@ -1319,7 +1319,7 @@ void BrickApp::uiInfoSheet() {
     if (m_infoPart < 0) return;
     if (m_dev) { uiDevSheet(); return; }   // full sheet (metadata, connectors, Maya export / import)
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));   // .sheet rgba(0, 0, 0, .5)
@@ -1336,7 +1336,7 @@ void BrickApp::uiInfoSheet() {
     ImVec2 va(p0.x + pad, p0.y + pad), vb(va.x + vw, va.y + vh);
     u.dl->AddRectFilled(va, vb, C_CARD, 12 * s);
     m_pvRect = ImVec4(va.x, va.y, vb.x, vb.y);
-    if (m_frozenTex) u.dl->AddImageRounded(m_gui.viewportTexture(), va, vb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 12 * s);
+    if (m_frozenTex) u.dl->AddImageRounded(m_gui->viewportTexture(), va, vb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 12 * s);
     u.text(ImVec2(va.x + 10 * s, vb.y - 8 * s - 13 * s), 10.5f, C_FAINT, "Glisse pour tourner la pièce");
     ImGuiIO& io = ImGui::GetIO();
     const bool overView = u.hover(va, vb);
@@ -1439,7 +1439,7 @@ void BrickApp::uiPopups() {
                 else if (it.id == 2) { setRC(false); m_rs.raster = false; applyLook(); }
                 else { setRC(false); m_quality = it.id; m_rs.msaaSamples = m_quality ? 4 : 1; if (!m_rs.raster) { m_rs.raster = true; applyLook(); } }
             }
-            else if (m_popup == 2) { m_rs.tonemapper = it.id; m_renderer.resetAccumulation(); }
+            else if (m_popup == 2) { m_rs.tonemapper = it.id; m_renderer->resetAccumulation(); }
             else if (m_popup == 3) {
                 PanelState* ps[5] = {&m_pTray, &m_pOpts, &m_pColors, &m_pHud, &m_pManual};
                 if (it.id < 4) ps[it.id]->visible = !ps[it.id]->visible;
@@ -1488,9 +1488,9 @@ void BrickApp::uiSceneSheet() {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(C_CARD_HI));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0x0f / 255.0f, 0x10 / 255.0f, 0x12 / 255.0f, 1));
     ImGui::Begin("##sheet", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
-    if (m_gui.fontBold) ImGui::PushFont(m_gui.fontBold);
+    if (m_gui->fontBold) ImGui::PushFont(m_gui->fontBold);
     ImGui::TextUnformatted("Scène partagée PC · Mac · iPad");
-    if (m_gui.fontBold) ImGui::PopFont();
+    if (m_gui->fontBold) ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(C_DIM));
     ImGui::TextWrapped("Même format que l'application bureau (.v3d.json). Copie ce texte dans un fichier pour l'ouvrir sur PC (Ctrl+O) et lancer le rendu path tracing, ou colle ici une scène exportée du PC.");
     ImGui::PopStyleColor();
@@ -1517,18 +1517,10 @@ void BrickApp::uiSceneSheet() {
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - right + 8 * s));
     if (ImGui::Button("Exporter .ldr")) {
         m_sheetText = sceneLdr();
-        wchar_t file[MAX_PATH] = L"brickit_scene.ldr";
-        OPENFILENAMEW ofn = {sizeof(ofn)};
-        ofn.hwndOwner = m_hwnd;
-        ofn.lpstrFilter = L"LDraw (*.ldr)\0*.ldr\0";
-        ofn.lpstrFile = file;
-        ofn.nMaxFile = MAX_PATH;
-        ofn.lpstrDefExt = L"ldr";
-        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-        if (GetSaveFileNameW(&ofn)) {
+        plat::saveFileDialog(L"LDraw (*.ldr)\0*.ldr\0", L"ldr", L"brickit_scene.ldr", [this](const std::wstring& file) {
             FILE* f = nullptr;
-            if (_wfopen_s(&f, file, L"wb") == 0 && f) { fwrite(m_sheetText.data(), 1, m_sheetText.size(), f); fclose(f); }
-        }
+            if (_wfopen_s(&f, file.c_str(), L"wb") == 0 && f) { fwrite(m_sheetText.data(), 1, m_sheetText.size(), f); fclose(f); }
+        });
         char t[96];
         snprintf(t, sizeof(t), "Scène exportée en .ldr (%d pièces)", (int)m_bricks.size());
         toast(t);
@@ -1568,7 +1560,7 @@ void BrickApp::drawToast() {
 void BrickApp::uiGroups() {
     if (!m_pGroups.visible) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const int G = (int)m_build.groups.size();
     // parent of each group and its number of pieces, from the paths of the bricks
@@ -1711,7 +1703,7 @@ void BrickApp::uiGroups() {
 void BrickApp::uiReader() {
     if (!m_reading) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     // the parts of the step, grouped by part and colour
@@ -1880,7 +1872,7 @@ static bool webButton(Ui& u, ImVec2 a, const char* label, float& w, bool pressed
 void BrickApp::uiDevPanel() {
     if (!m_dev || m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const float W = std::min(340 * s, (m_stage.z - m_stage.x) - 32 * s), pad = 12 * s, gap = 10 * s;
     const float x0 = m_stage.x + 16 * s, inner = W - 2 * pad;
@@ -1977,18 +1969,18 @@ void BrickApp::uiDevPanel() {
     if (webButton(u, ImVec2(x, y), "Importer un maillage… (.obj / .fbx)", w)) devImport(-1);
     if (!removeId.empty()) {
         std::wstring q = L"Retirer le remplacement de " + std::wstring(removeId.begin(), removeId.end()) + L" et revenir à LDraw ?";
-        if (MessageBoxW(m_hwnd, q.c_str(), L"BrickIt Builder", MB_OKCANCEL | MB_ICONQUESTION) == IDOK) {
+        plat::confirm(L"BrickIt Builder", q, [this, removeId] {
             const int part = devPartById(removeId);
             if (part >= 0) devRevert(part);
             else { devDelete(removeId); m_devOverrides.erase(removeId); }
-        }
+        });
     }
 }
 
 // Full part sheet of the DEV mode (web: showInfo + devInfoActions). Box min(640 px), padding 18, gap 12.
 void BrickApp::uiDevSheet() {
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));
@@ -2124,7 +2116,7 @@ void BrickApp::uiDevSheet() {
 void BrickApp::uiDevReview() {
     if (!m_devReview.open) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));
@@ -2269,7 +2261,7 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
         const bool inRange = pb.y > a.y - 600 * s && pa.y < b.y + 600 * s;   // rootMargin: 600px
         PdfTex& t = m_pdfTex[i];
         if (inRange && (!t.tex || std::abs(t.w - want) > 2) && !t.asked && m_pdf) { m_pdf->request((int)i, want); t.asked = true; }
-        if (!inRange && t.tex && std::abs((int)i + 1 - m_pdfPage) > 6) { m_gui.releaseTexture(t.tex); t = PdfTex(); }
+        if (!inRange && t.tex && std::abs((int)i + 1 - m_pdfPage) > 6) { m_gui->releaseTexture(t.tex); t = PdfTex(); }
         if (pb.y < a.y || pa.y > b.y) continue;
         u.dl->AddRectFilled(ImVec2(pa.x, pa.y + 4 * s), ImVec2(pb.x, pb.y + 4 * s), IM_COL32(0, 0, 0, 60), 4 * s);
         u.dl->AddRectFilled(pa, pb, IM_COL32_WHITE, 4 * s);
@@ -2293,7 +2285,7 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
 void BrickApp::uiManual() {
     if (!m_pManual.visible || m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const float stageW = m_stage.z - m_stage.x;
     float W = m_manW >= 260 ? m_manW : std::min(stageW * 0.34f, 500 * s);
@@ -2400,7 +2392,7 @@ void BrickApp::uiManual() {
 void BrickApp::uiManualBig() {
     if (!m_manBig && !m_pdfBig) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
@@ -2566,7 +2558,7 @@ bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, f
 // tone mapping, voxels, animations, automatic save. Saved in brickit_prefs.json.
 void BrickApp::uiSettings() {
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float W = 320 * s, pad = 14 * s, rowH = 30 * s, gap = 10 * s;
@@ -2644,7 +2636,7 @@ void BrickApp::uiSettings() {
                 const char* lab = k == 0 ? "Oui" : "Non";
                 const float tw = u.textW(12, lab, on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                if (h && u.pressed && !on) { m_softGI = k == 0; m_renderer.resetAccumulation(); savePrefs(); }
+                if (h && u.pressed && !on) { m_softGI = k == 0; m_renderer->resetAccumulation(); savePrefs(); }
             }
             ly += rowH + gap;
         }
@@ -2678,7 +2670,7 @@ void BrickApp::uiSettings() {
                 u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
                 const float tw = u.textW(12, kLabels[k], on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, kLabels[k], on);
-                if (h && u.pressed && !on) { m_softGIProbes = kBudgets[k]; m_renderer.resetAccumulation(); savePrefs(); }
+                if (h && u.pressed && !on) { m_softGIProbes = kBudgets[k]; m_renderer->resetAccumulation(); savePrefs(); }
             }
             ly += rowH + gap;
             u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Afficher les sondes");
@@ -2863,7 +2855,7 @@ void BrickApp::uiSettings() {
             m_scene.env.hdriRotation = radians(m_hdriRotDeg);
             m_scene.env.hdriIntensity = m_hdriInt;
             m_scene.gridLine = gridLineValue();
-            m_renderer.resetAccumulation();
+            m_renderer->resetAccumulation();
         }
     }
     if (clickRow >= 0) {
@@ -2887,7 +2879,7 @@ void BrickApp::uiSettings() {
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }
         }
-        m_renderer.resetAccumulation();
+        m_renderer->resetAccumulation();
         savePrefs();
     }
     if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > 30 * s) m_popup = 0;
@@ -2928,7 +2920,7 @@ void BrickApp::uiCtxMenu() {
 void BrickApp::uiThumbEditor() {
     if (m_teditPart < 0) return;
     Ui u = ui(m_ui);
-    if (m_gui.fontBold) u.bold = m_gui.fontBold;
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));
@@ -2944,7 +2936,7 @@ void BrickApp::uiThumbEditor() {
     u.text(ImVec2(p0.x + pad, p0.y + pad - 2 * s), 14, IM_COL32(0xec, 0xec, 0xee, 255), title.c_str(), true);
     ImVec2 va(p0.x + pad, p0.y + pad + 24 * s), vb(va.x + vw, va.y + vw);
     m_teRect = ImVec4(va.x, va.y, vb.x, vb.y);
-    if (m_frozenTex) u.dl->AddImageRounded(m_gui.viewportTexture(), va, vb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 12 * s);
+    if (m_frozenTex) u.dl->AddImageRounded(m_gui->viewportTexture(), va, vb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 12 * s);
     ImGuiIO& io = ImGui::GetIO();
     const bool over = u.hover(va, vb);
     if (over && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle))) m_teDrag = true;

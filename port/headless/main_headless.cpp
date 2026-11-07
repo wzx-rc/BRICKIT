@@ -16,7 +16,6 @@
 #endif
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
 #include <chrono>

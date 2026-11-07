@@ -42,7 +42,7 @@ void BrickApp::mechApplyPose() {
         o.useRot = true;
     }
     ++m_scene.objectsVersion;
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
     m_lastMove = ImGui::GetTime();
 }
 

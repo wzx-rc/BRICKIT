@@ -6,7 +6,7 @@
 #include "Deflate.h"
 #include <algorithm>
 #include <cmath>
-#include <commdlg.h>
+#include "Platform.h"
 #include <cstdio>
 #include <map>
 #include <random>
@@ -312,19 +312,16 @@ void BrickApp::mayaExportScene(const std::wstring& forcedPath) {
     if (!mayaExportScript(py, st, err)) { toast("Export Maya impossible : " + err); return; }
     const std::string nm = "BrickIt_scene";
     const std::string zip = zipStored({{nm + ".py", py}, {"LISEZMOI.txt", mayaReadme(nm, ReadmeStats{st.bricks, st.parts, st.bodies, st.joints, st.cmds, st.coupling})}});
-    std::wstring path = forcedPath;
-    if (path.empty()) {
-        wchar_t file[MAX_PATH] = L"BrickIt_scene_maya.zip";
-        OPENFILENAMEW ofn = {sizeof(ofn)};
-        ofn.hwndOwner = m_hwnd;
-        ofn.lpstrFilter = L"Archive ZIP (*.zip)\0*.zip\0";
-        ofn.lpstrFile = file;
-        ofn.nMaxFile = MAX_PATH;
-        ofn.lpstrDefExt = L"zip";
-        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-        if (!GetSaveFileNameW(&ofn)) return;
-        path = file;
+    if (forcedPath.empty()) {
+        plat::saveFileDialog(L"Archive ZIP (*.zip)\0*.zip\0", L"zip", L"BrickIt_scene_maya.zip",
+                             [this, zip, py, nm, st](const std::wstring& p) { mayaWriteZip(p, std::wstring(), zip, py, nm, st); });
+        return;
     }
+    mayaWriteZip(forcedPath, forcedPath, zip, py, nm, st);
+}
+
+void BrickApp::mayaWriteZip(const std::wstring& path, const std::wstring& forcedPath, const std::string& zip, const std::string& py,
+                            const std::string& nm, const MayaStats& st) {
     FILE* f = nullptr;
     if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Export Maya impossible : fichier non écrit"); return; }
     fwrite(zip.data(), 1, zip.size(), f);

@@ -5,7 +5,7 @@
 #include "BrickApp.h"
 #include <algorithm>
 #include <cmath>
-#include <commdlg.h>
+#include "Platform.h"
 
 namespace brickit {
 
@@ -14,7 +14,7 @@ float acesInverse(float target8, float exposure);   // BrickPreview.cpp
 static const int MW = 960, MH = 600;
 
 void BrickApp::manualDirty() {
-    for (auto& [n, t] : m_stepTex) if (t) m_gui.releaseTexture(t);
+    for (auto& [n, t] : m_stepTex) if (t) m_gui->releaseTexture(t);
     m_stepTex.clear();
 }
 
@@ -71,10 +71,10 @@ void BrickApp::renderSteps() {
         rs.idPass = false;
         rs.pixelScale = 1;
         rs.msaaSamples = 4;
-        m_renderer.renderToTexture(m_scene, rs, ViewRect{0, 0, MW, MH}, -1);
+        m_renderer->renderToTexture(m_scene, rs, ViewRect{0, 0, MW, MH}, -1);
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
-        if (m_renderer.readViewport(img, w, h) && w && h) m_stepTex[n] = m_gui.createTexture(img.data(), w, h);
+        if (m_renderer->readViewport(img, w, h) && w && h) m_stepTex[n] = m_gui->createTexture(img.data(), w, h);
         else m_stepTex[n] = 0;
         // restore
         cur.material = baseMat;
@@ -82,7 +82,7 @@ void BrickApp::renderSteps() {
         m_scene.env = env;
         m_scene.camera = cam;
         ++m_scene.objectsVersion;
-        m_renderer.resetAccumulation();
+        m_renderer->resetAccumulation();
     }
     m_stepWanted.clear();
 }
@@ -103,7 +103,7 @@ void BrickApp::pdfOpen(const std::wstring& path, const std::string& name, bool s
         const std::wstring dst = m_exeDir + L"\\manual_pdf\\current.pdf";
         if (CopyFileW(path.c_str(), dst.c_str(), FALSE)) src = dst;
     }
-    for (auto& t : m_pdfTex) if (t.tex) m_gui.releaseTexture(t.tex);
+    for (auto& t : m_pdfTex) if (t.tex) m_gui->releaseTexture(t.tex);
     m_pdfTex.clear();
     m_pdfSizes.clear();
     m_pdfName = name;
@@ -135,8 +135,8 @@ void BrickApp::pdfPump() {
     while (m_pdf->take(img)) {
         if (img.page < 0 || img.page >= (int)m_pdfTex.size() || img.rgba.empty()) continue;
         PdfTex& t = m_pdfTex[img.page];
-        if (t.tex) m_gui.releaseTexture(t.tex);
-        t.tex = m_gui.createTexture(img.rgba.data(), img.w, img.h);
+        if (t.tex) m_gui->releaseTexture(t.tex);
+        t.tex = m_gui->createTexture(img.rgba.data(), img.w, img.h);
         t.w = img.w;
         t.h = img.h;
         t.asked = false;
@@ -144,19 +144,12 @@ void BrickApp::pdfPump() {
 }
 
 void BrickApp::pdfDialog() {
-    wchar_t file[MAX_PATH] = L"";
-    OPENFILENAMEW ofn = {sizeof(ofn)};
-    ofn.hwndOwner = m_hwnd;
-    ofn.lpstrFilter = L"PDF (*.pdf)\0*.pdf\0";
-    ofn.lpstrFile = file;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-    if (!GetOpenFileNameW(&ofn)) return;
-    if (m_pManual.collapsed) m_pManual.collapsed = false;
-    m_pdfPage = 1;
-    std::wstring p = file;
-    std::wstring n = p.substr(p.find_last_of(L"\\/") + 1);
-    pdfOpen(p, std::string(n.begin(), n.end()), true);
+    plat::openFileDialog(L"PDF (*.pdf)\0*.pdf\0", nullptr, [this](const std::wstring& p) {
+        if (m_pManual.collapsed) m_pManual.collapsed = false;
+        m_pdfPage = 1;
+        std::wstring n = p.substr(p.find_last_of(L"\\/") + 1);
+        pdfOpen(p, std::string(n.begin(), n.end()), true);
+    });
 }
 
 } // namespace brickit

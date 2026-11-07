@@ -82,7 +82,7 @@ void BrickApp::resetToDefaultPrefs() {
     if (!readDefaultPrefs(t)) { toast("Pas de réglages par défaut"); return; }
     applyPrefs(t);
     applyLook();
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
     savePrefs();
     toast("Réglages par défaut rétablis");
 }

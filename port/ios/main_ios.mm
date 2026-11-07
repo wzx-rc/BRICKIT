@@ -1,8 +1,10 @@
-// BrickIt for iPad: a full-screen CAMetalLayer, a Vulkan device through Diligent on MoltenVK (Vulkan translated to
-// Metal) and the BrickViewer (shared BrickIt code + the Lit renderer of the WZX engine + HUD in Dear ImGui).
-// No ray tracing on the iPad Pro 2nd generation (A12Z): the raster image of Lit, the same as the PC's "iPad render".
-// Touch: one finger = the mouse of the HUD, or orbits the camera on the 3D view; two fingers = move, pinch, twist.
-#include "BrickViewer.h"
+// BrickIt for iPad: the very BrickIt of the PC (src/brickit, same sources: UI, library, building, mechanics...) in a
+// full-screen CAMetalLayer, rendered by the Lit renderer of the WZX engine through Diligent on MoltenVK (Vulkan
+// translated to Metal). No ray tracing on the iPad Pro 2nd generation (A12Z): raster image only.
+// This file is the iOS shell, as BrickAppWin.cpp is the Windows one: window, device, display loop, touch -> mouse.
+#include "BrickApp.h"
+#include "GfxLit.h"
+#include "Platform.h"
 #include "imgui.h"
 
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
@@ -11,11 +13,12 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <UIKit/UIKit.h>
 
-#include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <map>
+#include <memory>
 #include <string>
+#include <unistd.h>
 
 using namespace Diligent;
 
@@ -32,20 +35,15 @@ using namespace Diligent;
 @end
 
 @implementation BKViewController {
-    brickit::BrickViewer _viewer;
-    RefCntAutoPtr<IRenderDevice> _device;
-    RefCntAutoPtr<IDeviceContext> _context;
-    RefCntAutoPtr<ISwapChain> _swapChain;
+    std::unique_ptr<brickit::BrickApp> _app;
     CADisplayLink* _displayLink;
-    CFTimeInterval _lastTime;
     BOOL _ready;
     std::map<void*, CGPoint> _touches;   // in pixels, by UITouch
     // one finger: held back a moment so that a second finger turns it into a camera gesture, not a click
     BOOL _pending, _mouseDown, _twoFingers;
     CGPoint _pendingPos;
     CFTimeInterval _pendingTime;
-    BOOL _twoStarted;
-    float _prevDist, _prevAngle, _prevCx, _prevCy;
+    float _prevDist;
 }
 
 - (void)loadView {
@@ -55,66 +53,90 @@ using namespace Diligent;
     self.view = view;
 }
 
-- (BOOL)prefersStatusBarHidden {
-    return YES;
-}
+- (BOOL)prefersStatusBarHidden { return YES; }
+- (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures { return UIRectEdgeAll; }
 
-- (BOOL)prefersHomeIndicatorAutoHidden {
-    return YES;
-}
-
-- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
-    return UIRectEdgeAll;
+// The PC keeps assets/ and shaders/ next to BrickIt.exe and writes its caches and settings there too. The bundle is
+// read only: the app folder is Application Support/BrickIt/app, assets/ and shaders/ links to the bundle in it.
+- (NSString*)prepareAppFolder:(NSString*)data {
+    NSFileManager* fm = [NSFileManager defaultManager];
+    NSString* app = [data stringByAppendingPathComponent:@"app"];
+    [fm createDirectoryAtPath:app withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString* res = [[NSBundle mainBundle] resourcePath];
+    for (NSString* name in @[ @"assets", @"shaders" ]) {
+        NSString* link = [app stringByAppendingPathComponent:name];
+        NSString* target = [res stringByAppendingPathComponent:name];
+        [fm removeItemAtPath:link error:nil];   // the bundle path changes with every install
+        [fm createSymbolicLinkAtPath:link withDestinationPath:target error:nil];
+    }
+    return app;
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     CAMetalLayer* layer = (CAMetalLayer*)self.view.layer;
-    layer.contentsScale = self.view.contentScaleFactor;
+    const CGFloat scale = self.view.contentScaleFactor;
+    layer.contentsScale = scale;
 
-    IEngineFactoryVk* factory = GetEngineFactoryVk();
-    EngineVkCreateInfo ci;
-    ci.Features.ShaderResourceRuntimeArrays = DEVICE_FEATURE_STATE_OPTIONAL;
-    ci.DynamicHeapSize = 32 << 20;
-    ci.DynamicHeapPageSize = 2 << 20;
-    factory->CreateDeviceAndContextsVk(ci, &_device, &_context);
-    if (!_device) {
-        [self showError:@"Pas de périphérique Vulkan (MoltenVK)."];
-        return;
-    }
-    SwapChainDesc sc;
-    sc.ColorBufferFormat = TEX_FORMAT_BGRA8_UNORM;   // the post pass writes sRGB values itself
-    sc.DepthBufferFormat = TEX_FORMAT_UNKNOWN;       // the Lit renderer has its own MSAA depth
-    IOSNativeWindow window{(__bridge void*)layer};
-    factory->CreateSwapChainVk(_device, _context, sc, window, &_swapChain);
-    if (!_swapChain) {
-        [self showError:@"Impossible de créer la swap chain."];
-        return;
-    }
-
-    NSString* res = [[NSBundle mainBundle] resourcePath];
-    // the user's data (full LDraw library in full/, autosave): Application Support/BrickIt, kept across reinstalls
+    // the user's data (full LDraw library in full/, autosave, tray): Application Support/BrickIt, kept across updates
     NSURL* support = [[NSFileManager defaultManager] URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask
                                                    appropriateForURL:nil create:YES error:nil];
     NSString* data = [support.path stringByAppendingPathComponent:@"BrickIt"];
     [[NSFileManager defaultManager] createDirectoryAtPath:data withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString* appDir = [self prepareAppFolder:data];
+    chdir(appDir.fileSystemRepresentation);
+    brickit::plat::setDataDir(brickit::plat::fromUtf8(data.UTF8String));
 
-    brickit::ViewerOptions opt;
-    opt.assets = [res stringByAppendingPathComponent:@"assets/brickit"].UTF8String;
-    opt.dataDir = data.UTF8String;
-    opt.uiScale = (float)self.view.contentScaleFactor;
-    opt.touch = true;
+    IEngineFactoryVk* factory = GetEngineFactoryVk();
+    EngineVkCreateInfo ci;
+    ci.Features.ShaderResourceRuntimeArrays = DEVICE_FEATURE_STATE_OPTIONAL;
+    ci.DynamicHeapSize = 64 << 20;
+    ci.DynamicHeapPageSize = 2 << 20;
+    RefCntAutoPtr<IRenderDevice> device;
+    RefCntAutoPtr<IDeviceContext> context;
+    factory->CreateDeviceAndContextsVk(ci, &device, &context);
+    if (!device) { [self showError:@"Pas de périphérique Vulkan (MoltenVK)."]; return; }
+    SwapChainDesc sc;
+    sc.ColorBufferFormat = TEX_FORMAT_BGRA8_UNORM;   // the post pass writes sRGB values itself
+    sc.DepthBufferFormat = TEX_FORMAT_UNKNOWN;       // the Lit renderer has its own MSAA depth
+    RefCntAutoPtr<ISwapChain> swapChain;
+    IOSNativeWindow window{(__bridge void*)layer};
+    factory->CreateSwapChainVk(device, context, sc, window, &swapChain);
+    if (!swapChain) { [self showError:@"Impossible de créer la swap chain."]; return; }
+
     std::string err;
-    if (!_viewer.init(_device, _context, factory, _swapChain->GetDesc().ColorBufferFormat,
-                      [res stringByAppendingPathComponent:@"shaders"].UTF8String, opt, &err)) {
-        [self showError:[NSString stringWithUTF8String:err.c_str()]];
+    const std::string dir = appDir.UTF8String;
+    auto renderer = std::make_unique<brickit::GfxRendererLit>();
+    if (!renderer->init(device, context, factory, swapChain, 0, 0, sc.ColorBufferFormat, dir + "/shaders", &err)) {
+        [self showError:[NSString stringWithUTF8String:("Lit : " + err).c_str()]];
+        return;
+    }
+    // the UI at the scale of the screen (2 on the iPad Pro), as the DPI scale of the PC
+    auto gui = std::make_unique<brickit::GfxGuiLit>();
+    if (!gui->init(*renderer, (float)scale, dir + "/assets/fonts", &err)) {
+        [self showError:[NSString stringWithUTF8String:("ImGui : " + err).c_str()]];
         return;
     }
     ImGui::GetIO().AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+    brickit::Options opt;
+    opt.touchHud = 1;   // the touch HUD of the PC (Tiny Glade style) on from the start
+    _app = std::make_unique<brickit::BrickApp>();
+    if (!_app->initCommon(opt, std::move(renderer), std::move(gui), brickit::plat::fromUtf8(dir), (float)scale)) {
+        [self showError:@"Initialisation de BrickIt impossible (voir brickit_start.log)."];
+        _app.reset();
+        return;
+    }
     _ready = YES;
-
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(drawFrame:)];
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willResignActive:)
+                                                 name:UIApplicationWillResignActiveNotification object:nil];
+}
+
+// iOS may end the app at any time once it is in the background: settings and autosave as on PC exit
+- (void)willResignActive:(NSNotification*)n {
+    if (_app) _app->saveSession();
 }
 
 - (void)showError:(NSString*)text {
@@ -128,14 +150,13 @@ using namespace Diligent;
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    if (!_swapChain) return;
+    if (!_app) return;
     CGSize s = self.view.bounds.size;
     CGFloat k = self.view.contentScaleFactor;
-    Uint32 w = (Uint32)(s.width * k), h = (Uint32)(s.height * k);
-    if (w > 0 && h > 0) _swapChain->Resize(w, h);
+    _app->resize((uint32_t)(s.width * k), (uint32_t)(s.height * k));
 }
 
-// --------------------------------------------------------------------------- touch
+// --------------------------------------------------------------------------- touch -> the mouse of the PC
 
 - (CGPoint)pixels:(UITouch*)t {
     CGPoint p = [t locationInView:self.view];
@@ -156,12 +177,15 @@ using namespace Diligent;
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     if (!_ready) return;
-    for (UITouch* t in touches) _touches[(__bridge void*)t] = [self pixels:t];
+    for (UITouch* t in touches) {
+        _touches[(__bridge void*)t] = [self pixels:t];
+        ImGui::GetIO().AddMouseSourceEvent(t.type == UITouchTypePencil ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+    }
     if (_touches.size() >= 2) {
         _pending = NO;
         if (_mouseDown) [self mouseUp];
         _twoFingers = YES;
-        _twoStarted = NO;
+        _prevDist = 0;
     } else if (!_twoFingers && !_mouseDown) {
         _pending = YES;
         _pendingPos = _touches.begin()->second;
@@ -187,7 +211,6 @@ using namespace Diligent;
         [self mouseUp];
     }
     if (_touches.empty()) _twoFingers = NO;
-    if (_touches.size() < 2) _twoStarted = NO;
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
@@ -201,12 +224,8 @@ using namespace Diligent;
 // --------------------------------------------------------------------------- frame
 
 - (void)drawFrame:(CADisplayLink*)link {
-    if (!_ready) return;
-    CFTimeInterval now = link.timestamp;
-    float dt = _lastTime > 0 ? (float)(now - _lastTime) : 1.0f / 60.0f;
-    _lastTime = now;
-
-    // a finger held still or moving: the press goes to ImGui (HUD, or orbit on the 3D view)
+    if (!_ready || !_app) return;
+    // a finger held still or moving: the press goes to BrickIt (UI, or the view)
     if (_pending && _touches.size() == 1) {
         CGPoint p = _touches.begin()->second;
         float dx = (float)(p.x - _pendingPos.x), dy = (float)(p.y - _pendingPos.y);
@@ -219,36 +238,17 @@ using namespace Diligent;
             _mouseDown = YES;
         }
     }
-
-    brickit::TouchCamera cam;
+    // two fingers: pinch = the mouse wheel of the PC at their centre (the other gestures follow the web rules, next)
     if (_twoFingers && _touches.size() >= 2) {
         auto it = _touches.begin();
         CGPoint a = it->second, b = (++it)->second;
-        float dist = std::hypot((float)(b.x - a.x), (float)(b.y - a.y));
-        float angle = std::atan2((float)(b.y - a.y), (float)(b.x - a.x));
-        float cx = (float)(a.x + b.x) * 0.5f, cy = (float)(a.y + b.y) * 0.5f;
-        cam.twoFingers = true;
-        cam.centerX = cx;
-        cam.centerY = cy;
-        if (_twoStarted && _prevDist > 1.0f && dist > 1.0f) {
-            cam.pinch = dist / _prevDist;
-            float d = angle - _prevAngle;
-            if (d > (float)M_PI) d -= 2.0f * (float)M_PI;
-            if (d < -(float)M_PI) d += 2.0f * (float)M_PI;
-            cam.twist = d;
-            cam.moveX = cx - _prevCx;
-            cam.moveY = cy - _prevCy;
-        }
+        const float dist = std::hypot((float)(b.x - a.x), (float)(b.y - a.y));
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent((float)(a.x + b.x) * 0.5f, (float)(a.y + b.y) * 0.5f);
+        if (_prevDist > 1.0f && dist > 1.0f) io.AddMouseWheelEvent(0.0f, std::log(dist / _prevDist) * 8.0f);
         _prevDist = dist;
-        _prevAngle = angle;
-        _prevCx = cx;
-        _prevCy = cy;
-        _twoStarted = YES;
     }
-
-    const SwapChainDesc& d = _swapChain->GetDesc();
-    _viewer.frame(_swapChain->GetCurrentBackBufferRTV(), d.Width, d.Height, std::min(dt, 0.1f), cam);
-    _swapChain->Present(1);
+    _app->frame();
 }
 
 @end

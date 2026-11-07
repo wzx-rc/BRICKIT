@@ -73,7 +73,7 @@ void BrickApp::renderPreview() {
     rs.pixelScale = 1;
     const float w = std::max(16.0f, m_pvRect.z - m_pvRect.x), h = std::max(16.0f, m_pvRect.w - m_pvRect.y);
     ViewRect vp{0, 0, (int)(m_pvRect.z > 0 ? w : 404 * m_ui), (int)(m_pvRect.z > 0 ? h : 323 * m_ui)};
-    m_renderer.renderToTexture(m_pv, rs, vp, -1);
+    m_renderer->renderToTexture(m_pv, rs, vp, -1);
 }
 
 } // namespace brickit

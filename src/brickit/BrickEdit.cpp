@@ -1,7 +1,7 @@
 // BrickIt - viewport editing: the brick in hand (typed snap), selection, duplicate, rotate, colours, undo, files.
 #include "BrickApp.h"
 #include <algorithm>
-#include <commdlg.h>
+#include "Platform.h"
 #include <cstdio>
 
 namespace brickit {
@@ -431,29 +431,14 @@ bool BrickApp::openScene(const std::wstring& path) {
     return true;
 }
 
-static std::wstring fileDialog(HWND hwnd, bool save, const std::wstring& current) {
-    wchar_t file[MAX_PATH] = L"";
-    if (!current.empty()) wcsncpy_s(file, current.c_str(), _TRUNCATE);
-    OPENFILENAMEW ofn = {sizeof(ofn)};
-    ofn.hwndOwner = hwnd;
-    ofn.lpstrFilter = save ? L"Scène BrickIt (*.v3d.json)\0*.v3d.json;*.json\0Tous les fichiers\0*.*\0"
-                           : L"Scène BrickIt ou modèle LDraw (*.v3d.json, *.ldr, *.mpd)\0*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0";
-    ofn.lpstrFile = file;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrDefExt = L"v3d.json";
-    ofn.Flags = save ? (OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST) : (OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST);
-    BOOL ok = save ? GetSaveFileNameW(&ofn) : GetOpenFileNameW(&ofn);
-    return ok ? std::wstring(file) : std::wstring();
-}
-
 void BrickApp::saveDialog() {
-    std::wstring p = fileDialog(m_hwnd, true, m_scenePath);
-    if (!p.empty()) saveScene(p);
+    plat::saveFileDialog(L"Scène BrickIt (*.v3d.json)\0*.v3d.json;*.json\0Tous les fichiers\0*.*\0", L"v3d.json", m_scenePath,
+                         [this](const std::wstring& p) { if (!p.empty()) saveScene(p); });
 }
 
 void BrickApp::openDialog() {
-    std::wstring p = fileDialog(m_hwnd, false, m_scenePath);
-    if (!p.empty()) openScene(p);
+    plat::openFileDialog(L"Scène BrickIt ou modèle LDraw (*.v3d.json, *.ldr, *.mpd)\0*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0",
+                         L"v3d.json", [this](const std::wstring& p) { if (!p.empty()) openScene(p); }, m_scenePath);
 }
 
 // --------------------------------------------------------------------------- input

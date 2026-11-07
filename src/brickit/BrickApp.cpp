@@ -1,11 +1,11 @@
 #include "BrickApp.h"
 #include "Stage.h"
+#include "Image.h"
+#include "Platform.h"
 #include <chrono>
-#include <commdlg.h>
 #include "app/Content.h"
 #include "MeshLod.h"
 #include "app/Theme.h"
-#include "backends/imgui_impl_win32.h"
 #include "vp3d/AssetImport.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
@@ -13,109 +13,42 @@
 #include <cstdio>
 #include <map>
 #include <random>
-#include <shellapi.h>
-#include <wincodec.h>
-
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 namespace brickit {
 
 namespace th = app::th;
-static BrickApp* g_app = nullptr;
-
-static LRESULT CALLBACK StaticWndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
-    if (g_app) return g_app->wndProc(h, m, w, l);
-    return DefWindowProcW(h, m, w, l);
-}
-
 static bool fileExists(const std::wstring& p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; }
 
 bool BrickApp::savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint32_t w, uint32_t h) {
     for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-    ComPtr<IWICImagingFactory> f;
-    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&f)))) return false;
-    ComPtr<IWICStream> st;
-    f->CreateStream(&st);
-    if (FAILED(st->InitializeFromFilename(path.c_str(), GENERIC_WRITE))) return false;
-    ComPtr<IWICBitmapEncoder> enc;
-    f->CreateEncoder(GUID_ContainerFormatPng, nullptr, &enc);
-    enc->Initialize(st.Get(), WICBitmapEncoderNoCache);
-    ComPtr<IWICBitmapFrameEncode> fr;
-    ComPtr<IPropertyBag2> props;
-    enc->CreateNewFrame(&fr, &props);
-    fr->Initialize(props.Get());
-    fr->SetSize(w, h);
-    WICPixelFormatGUID fmt = GUID_WICPixelFormat32bppRGBA;
-    fr->SetPixelFormat(&fmt);
-    if (fmt != GUID_WICPixelFormat32bppRGBA)
-        for (size_t i = 0; i + 3 < rgba.size(); i += 4) std::swap(rgba[i], rgba[i + 2]);
-    fr->WritePixels(h, w * 4, (UINT)rgba.size(), rgba.data());
-    fr->Commit();
-    enc->Commit();
-    return true;
+    std::vector<uint8_t> png;
+    if (!encodePng(rgba, w, h, png)) return false;
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) return false;
+    const bool ok = fwrite(png.data(), 1, png.size(), f) == png.size();
+    fclose(f);
+    return ok;
 }
 
 // --------------------------------------------------------------------------- init / loop
 
-bool BrickApp::init(HINSTANCE inst, const Options& opt) {
-    g_app = this;
+bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
+                          const std::wstring& exeDir, float dpi) {
     m_opt = opt;
-    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    m_renderer = std::move(renderer);
+    m_gui = std::move(gui);
+    m_exeDir = exeDir;
+    m_dpi = dpi;
     QueryPerformanceFrequency(&m_qpf);
-
-    wchar_t exe[MAX_PATH];
-    GetModuleFileNameW(nullptr, exe, MAX_PATH);
-    m_exeDir = exe;
-    m_exeDir = m_exeDir.substr(0, m_exeDir.find_last_of(L"\\/"));
-    SetCurrentDirectoryW(m_exeDir.c_str());
-
-    WNDCLASSEXW wc = {sizeof(wc)};
-    wc.style = CS_DBLCLKS;
-    wc.lpfnWndProc = StaticWndProc;
-    wc.hInstance = inst;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hIcon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0);
-    wc.lpszClassName = L"WzxBrickIt";
-    RegisterClassExW(&wc);
-
-    UINT sysDpi = GetDpiForSystem();
-    m_dpi = sysDpi / 96.0f;
-    RECT r = {0, 0, (LONG)(opt.width * m_dpi), (LONG)(opt.height * m_dpi)};
-    AdjustWindowRectExForDpi(&r, WS_OVERLAPPEDWINDOW, FALSE, 0, sysDpi);
-    // never larger than the work area of the screen (1600 x 900 at 200 % is 3200 x 1800 px: wider than a 3072 px
-    // screen, the header tools, the colours and the library ended up off screen); interactive runs open maximised then
-    MONITORINFO mi = {sizeof(mi)};
-    GetMonitorInfoW(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY), &mi);
-    const int workW = mi.rcWork.right - mi.rcWork.left, workH = mi.rcWork.bottom - mi.rcWork.top;
-    int winW = r.right - r.left, winH = r.bottom - r.top;
-    const bool tooBig = winW > workW || winH > workH;
-    if (tooBig && opt.shotPath.empty()) { winW = std::min(winW, workW); winH = std::min(winH, workH); }
-    m_hwnd = CreateWindowExW(0, wc.lpszClassName, versionString().c_str(), WS_OVERLAPPEDWINDOW, opt.shotPath.empty() && tooBig ? mi.rcWork.left : CW_USEDEFAULT,
-                             opt.shotPath.empty() && tooBig ? mi.rcWork.top : CW_USEDEFAULT, winW, winH, nullptr, nullptr, inst, nullptr);
-    if (!m_hwnd) return false;
-    m_startMaximized = tooBig && opt.shotPath.empty();
-    m_dpi = GetDpiForWindow(m_hwnd) / 96.0f;
-
-    RECT cr;
-    GetClientRect(m_hwnd, &cr);
     std::string err;
-    if (!m_renderer.init(m_hwnd, cr.right - cr.left, cr.bottom - cr.top, m_exeDir + L"\\shaders", &err)) {
-        MessageBoxA(m_hwnd, err.c_str(), "BrickIt - DirectX 12", MB_ICONERROR);
-        return false;
-    }
     m_ui = m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi;   // fonts and layout at the UI scale (100 % / 150 % tests)
-    if (!m_gui.init(m_hwnd, m_renderer, m_ui)) {
-        MessageBoxA(m_hwnd, "Dear ImGui initialisation failed", "BrickIt", MB_ICONERROR);
-        return false;
-    }
     th::loadThemes(m_exeDir + L"\\assets\\themes");
     th::loadSettings(m_exeDir + L"\\brickit_settings.ini");
     th::apply(m_ui);
     if (opt.shotPath.empty()) {   // .loading of the web while the library and the thumbnails load
-        ShowWindow(m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT);
+        showWindow();
         for (int f = 0; f < 2; ++f) {
-            m_gui.newFrame();
+            m_gui->newFrame();
             ImDrawList* dl = ImGui::GetBackgroundDrawList();
             const ImVec2 ds = ImGui::GetIO().DisplaySize;
             dl->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
@@ -123,13 +56,13 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
             const float px = 14 * m_ui * 1.22f;
             const ImVec2 sz = ImGui::GetFont()->CalcTextSizeA(px, 1e9f, 0, t);
             dl->AddText(ImGui::GetFont(), px, ImVec2((ds.x - sz.x) * 0.5f, (ds.y - sz.y) * 0.5f), IM_COL32(0x9a, 0x9c, 0xa4, 255), t);
-            m_gui.render(false);
-            m_renderer.present(true);
+            m_gui->render(false);
+            m_renderer->present(true);
         }
     }
 
     if (!m_lib.load(m_exeDir + L"\\assets\\brickit", &err)) {
-        MessageBoxA(m_hwnd, err.c_str(), "BrickIt - library", MB_ICONERROR);
+        plat::errorBox("BrickIt - library", err);
         return false;
     }
     m_rs.raster = !opt.pathTrace;
@@ -182,7 +115,7 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     if (opt.gridAlpha >= 0) m_gridAlpha = opt.gridAlpha;
     if (opt.softGI >= 0) m_softGI = opt.softGI != 0;
     if (opt.giStrength >= 0) m_softGIStrength = opt.giStrength;
-    if (!opt.mouseTest.empty()) m_gui.beforeNewFrame = [this] { mouseTestInput(); };
+    if (!opt.mouseTest.empty()) m_gui->beforeNewFrame = [this] { mouseTestInput(); };
     if (opt.floatTray) { m_pTray.floating = true; m_pTray.x = opt.floatX; m_pTray.y = opt.floatY; }
     if (opt.optsRight) m_optsRight = true;
     devApplyAll();
@@ -269,52 +202,26 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     }
 
     if (opt.mechTests) { runMechTests(); return false; }   // (quits: the results are in mech_tests.txt)
-    ShowWindow(m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT);
-    UpdateWindow(m_hwnd);
     return true;
 }
 
-int BrickApp::run() {
-    MSG msg;
-    while (m_running) {
-        while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) m_running = false;
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-        if (!m_running) break;
-        if (m_minimized) { Sleep(30); continue; }
-        frame();
-    }
-    m_renderer.waitIdle();
-    if (userSession()) { savePrefs(); autosave(); }
-    m_gui.shutdown();
-    m_renderer.shutdown();
-    return 0;
+
+#ifndef _WIN32
+void BrickApp::showWindow() {}   // (iPad: the view is on screen from the start)
+#endif
+
+void BrickApp::resize(uint32_t width, uint32_t height) {
+    if (!m_renderer || !m_renderer->ready() || width == 0 || height == 0) return;
+    if (width == m_renderer->width() && height == m_renderer->height()) return;
+    m_renderer->resize(width, height);
+    m_gui->onResize();
 }
 
-LRESULT BrickApp::wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    if (ImGui::GetCurrentContext() && ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp)) return 1;
-    switch (msg) {
-    case WM_CLOSE: m_running = false; DestroyWindow(hwnd); return 0;
-    case WM_DESTROY: PostQuitMessage(0); return 0;
-    case WM_SIZE:
-        m_minimized = wp == SIZE_MINIMIZED;
-        if (!m_minimized && m_renderer.device()) {
-            UINT w = LOWORD(lp), h = HIWORD(lp);
-            if (w > 0 && h > 0 && (w != m_renderer.width() || h != m_renderer.height())) {
-                m_renderer.resize(w, h);
-                m_gui.onResize();
-            }
-        }
-        return 0;
-    case WM_DPICHANGED: {
-        RECT* r = (RECT*)lp;
-        SetWindowPos(hwnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
-        return 0;
-    }
-    }
-    return DefWindowProcW(hwnd, msg, wp, lp);
+void BrickApp::shutdownCommon() {
+    m_renderer->waitIdle();
+    if (userSession()) { savePrefs(); autosave(); }
+    m_gui->shutdown();
+    m_renderer->shutdown();
 }
 
 // --------------------------------------------------------------------------- scene
@@ -540,7 +447,7 @@ void BrickApp::setLookdev(bool on) {
         }
     }
     ++m_scene.objectsVersion;   // (the materials are uploaded again, the accumulations restart)
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
 }
 
 void BrickApp::openOfficialHouse() {   // Dossier › Ouvrir la maison officielle (31153)
@@ -550,10 +457,7 @@ void BrickApp::openOfficialHouse() {   // Dossier › Ouvrir la maison officiell
 }
 
 void BrickApp::openTestHouse() {
-    wchar_t exe[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, exe, MAX_PATH);
-    std::wstring dir(exe);
-    dir = dir.substr(0, dir.find_last_of(L"\\/"));   // build\bin
+    const std::wstring dir = m_exeDir;   // build\bin
     const std::wstring path = dir + L"\\..\\..\\docs\\brickit\\tests\\maison_gi.v3d.json";
     if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Maison test introuvable (docs\\brickit\\tests\\maison_gi.v3d.json)"); return; }
     openScene(path);
@@ -594,24 +498,17 @@ void BrickApp::setHdri(const std::wstring& path) {
     m_hdriPath = path;
     m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
 }
 
 void BrickApp::loadHdriDialog() {
-    wchar_t file[MAX_PATH] = L"";
-    OPENFILENAMEW ofn = {sizeof(ofn)};
-    ofn.hwndOwner = m_hwnd;
-    ofn.lpstrFilter = L"HDRI (*.hdr, *.exr)\0*.hdr;*.exr\0Tous les fichiers\0*.*\0";
-    ofn.lpstrFile = file;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-    if (!GetOpenFileNameW(&ofn)) return;
-    const std::wstring p = file;
-    if (std::find(m_hdriCustom.begin(), m_hdriCustom.end(), p) == m_hdriCustom.end()) m_hdriCustom.push_back(p);
-    buildHdriList();
-    setHdri(p);
-    toast("HDRI chargée");
-    savePrefs();
+    plat::openFileDialog(L"HDRI (*.hdr, *.exr)\0*.hdr;*.exr\0Tous les fichiers\0*.*\0", nullptr, [this](const std::wstring& p) {
+        if (std::find(m_hdriCustom.begin(), m_hdriCustom.end(), p) == m_hdriCustom.end()) m_hdriCustom.push_back(p);
+        buildHdriList();
+        setHdri(p);
+        toast("HDRI chargée");
+        savePrefs();
+    });
 }
 
 uint32_t BrickApp::gridLineValue() const {
@@ -621,7 +518,7 @@ uint32_t BrickApp::gridLineValue() const {
 }
 
 void BrickApp::applyLook() {
-    if (m_cornell) { m_renderer.resetAccumulation(); return; }   // (the scene keeps its own look)
+    if (m_cornell) { m_renderer->resetAccumulation(); return; }   // (the scene keeps its own look)
     auto lin = [](int hex) { return float3(srgbToLinear(((hex >> 16) & 255) / 255.0f), srgbToLinear(((hex >> 8) & 255) / 255.0f), srgbToLinear((hex & 255) / 255.0f)); };
     Material& g = m_scene.materials[0];
     {   // every mode (Wzx: the dark floor of the Lit views in Radiance Cascades and path tracing too)
@@ -643,7 +540,7 @@ void BrickApp::applyLook() {
         m_rs.tonemapper = 0;
     }
     ++m_scene.objectsVersion;
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
 }
 
 int BrickApp::meshOf(int part) {
@@ -732,7 +629,7 @@ void BrickApp::syncObjects() {
         }
     }
     ++m_scene.objectsVersion;
-    m_renderer.resetAccumulation();
+    m_renderer->resetAccumulation();
     if (!m_holding && !m_mechOn) autosave();
 }
 
@@ -975,7 +872,7 @@ void BrickApp::cameraInput() {
             changed = true;
         }
     }
-    if (changed) { cam.focusDistance = cam.distance; m_renderer.resetAccumulation(); m_lastMove = ImGui::GetTime(); }
+    if (changed) { cam.focusDistance = cam.distance; m_renderer->resetAccumulation(); m_lastMove = ImGui::GetTime(); }
 }
 
 // --------------------------------------------------------------------------- frame
@@ -988,7 +885,7 @@ void BrickApp::frame() {
     if (m_teSave) saveThumbOverride();   // (Edit thumbnail: before anything is drawn this frame)
     bacRenderPending();                  // (the thumbnails of the tray, likewise)
 
-    m_gui.newFrame();
+    m_gui->newFrame();
     if (m_frame == 2 && !m_opt.spawnPart.empty()) {   // scripted test: a part in hand at a point of the view
         int pi = m_lib.find(m_opt.spawnPart);
         ImVec2 d = ImGui::GetIO().DisplaySize;
@@ -1080,7 +977,7 @@ void BrickApp::frame() {
              // one more sample per frame while the GPU stays under 9 ms (up to 8), one less above 22 ms
         if (moving) { m_adaptiveSpp = 1; m_rs.traceStride = m_opt.stride > 0 ? m_opt.stride : 4; }
         else {
-            const float g = m_renderer.gpuFrameMs();
+            const float g = m_renderer->gpuFrameMs();
             if (g < 9.0f && m_adaptiveSpp < 8) ++m_adaptiveSpp;
             else if (g > 22.0f && m_adaptiveSpp > 1) --m_adaptiveSpp;
             m_rs.traceStride = m_opt.stride > 0 ? m_opt.stride : 1;
@@ -1124,7 +1021,7 @@ void BrickApp::frame() {
     if (!m_rcMode || m_opt.noGiBounds) m_rs.giBoundsFade = 0.0f;   // rounded edges in the real time views: HQ and RC (inline ray queries, about 1 ms)
     std::vector<int> extra;
     for (int i : m_multi) extra.push_back(m_firstBrickObject + i);
-    m_renderer.setExtraSelection(extra);
+    m_renderer->setExtraSelection(extra);
     {   // edge outline of the selected / held brick and the rest of the selection (thin white lines, red when blocked)
         std::vector<int> edge;
         const int fb = focusBrick();
@@ -1134,7 +1031,7 @@ void BrickApp::frame() {
             if (!m_mechOn) for (int i : m_multi) edge.push_back(m_firstBrickObject + i);
         }
         // (Réglages › Lumière: Contour / Voile de sélection; red stays readable when the brick in hand is blocked)
-        m_renderer.setEdgeOutline(edge, m_holding && m_held.blocked, m_holding && m_held.blocked ? std::max(0.35f, m_selOutline) : m_selOutline);
+        m_renderer->setEdgeOutline(edge, m_holding && m_held.blocked, m_holding && m_held.blocked ? std::max(0.35f, m_selOutline) : m_selOutline);
         m_rs.selectionFill = m_selFill;
     }
     const int selObj = (m_selected >= 0 && !m_holding) ? m_firstBrickObject + m_selected : -1;
@@ -1149,12 +1046,12 @@ void BrickApp::frame() {
     if (sheet && !m_frozenTex && m_frame > 0) {
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
-        if (m_renderer.readViewport(img, w, h) && w && h) m_frozenTex = m_gui.createTexture(img.data(), w, h);
+        if (m_renderer->readViewport(img, w, h) && w && h) m_frozenTex = m_gui->createTexture(img.data(), w, h);
     }
     if (!sheet && m_frozenTex) {
-        m_gui.releaseTexture(m_frozenTex);
+        m_gui->releaseTexture(m_frozenTex);
         m_frozenTex = 0;
-        m_renderer.resetAccumulation();
+        m_renderer->resetAccumulation();
     }
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
     if (m_frozenTex) {
@@ -1223,8 +1120,8 @@ void BrickApp::frame() {
             frs.giBoundsMax = m_softHi;
             frs.giBoundsFade = m_softMargin * 0.5f;
         }
-        m_renderer.renderToTexture(m_scene, frs, m_vp, selObj);
-        ImGui::GetBackgroundDrawList()->AddImage(m_gui.viewportTexture(), ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
+        m_renderer->renderToTexture(m_scene, frs, m_vp, selObj);
+        ImGui::GetBackgroundDrawList()->AddImage(m_gui->viewportTexture(), ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
         drawVoxels();          // over the 3D view, under the panels
         drawHoldOverlay();
         drawPivots();
@@ -1235,7 +1132,7 @@ void BrickApp::frame() {
     LARGE_INTEGER t1;
     QueryPerformanceCounter(&t1);
     m_cpuMs = m_cpuMs * 0.9 + 0.1 * (t1.QuadPart - t0.QuadPart) * 1000.0 / m_qpf.QuadPart;
-    m_gui.render(true);
+    m_gui->render(true);
     ++m_frame;
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
@@ -1280,11 +1177,11 @@ void BrickApp::frame() {
     }
 
     if (!m_opt.shotPath.empty()) {
-        bool ready = (m_rs.raster || m_rcMode) ? m_frame >= m_opt.shotFrames : (int)m_renderer.sampleCount() >= m_opt.shotSpp;
+        bool ready = (m_rs.raster || m_rcMode) ? m_frame >= m_opt.shotFrames : (int)m_renderer->sampleCount() >= m_opt.shotSpp;
         if (ready && m_frame > 6) {
             std::vector<uint8_t> img;
             uint32_t w, h;
-            if (m_renderer.readBackBuffer(img, w, h)) savePng(m_opt.shotPath, img, w, h);
+            if (m_renderer->readBackBuffer(img, w, h)) savePng(m_opt.shotPath, img, w, h);
             if (!m_opt.savePath.empty()) saveScene(m_opt.savePath);
             // timings next to the capture (benchmarks): bricks, triangles drawn, GPU and CPU ms
             // picking cost: 64 rays over the view (the boxes are already cached by the first one)
@@ -1301,32 +1198,27 @@ void BrickApp::frame() {
             FILE* f = nullptr;
             if (_wfopen_s(&f, (m_opt.shotPath + L".txt").c_str(), L"w") == 0 && f) {
                 fprintf(f, "bricks=%d mode=%s gpu_ms=%.2f cpu_ms=%.2f frame_ms=%.2f tris_drawn=%.2fM spp=%u pick_ms=%.3f gi_update_ms=%.3f gi_blend_ms=%.3f\n", (int)m_bricks.size(),
-                        m_rcMode ? "radiance_cascades" : (m_rs.raster ? "raster" : "pathtrace"), m_renderer.gpuFrameMs(), m_cpuMs, m_frameMs,
-                        m_renderer.rasterTriangles() / 1e6, m_renderer.sampleCount(), pickMs, m_renderer.giUpdateMs(), m_renderer.giBlendMs());
+                        m_rcMode ? "radiance_cascades" : (m_rs.raster ? "raster" : "pathtrace"), m_renderer->gpuFrameMs(), m_cpuMs, m_frameMs,
+                        m_renderer->rasterTriangles() / 1e6, m_renderer->sampleCount(), pickMs, m_renderer->giUpdateMs(), m_renderer->giBlendMs());
                 fclose(f);
             }
             m_running = false;
         }
     }
-    m_renderer.present(m_opt.shotPath.empty());
+    m_renderer->present(m_opt.shotPath.empty());
     if (!m_opt.ptTrace.empty()) {   // convergence: samples accumulated and the cost of each frame
         static FILE* tf = nullptr;
         if (!tf) _wfopen_s(&tf, m_opt.ptTrace.c_str(), L"w");
-        if (tf) { fprintf(tf, "%d %u %.2f %.2f %d %d\n", m_frame, m_renderer.sampleCount(), m_renderer.gpuFrameMs(), m_frameMs, m_vp.w, m_vp.h); fflush(tf); }
+        if (tf) { fprintf(tf, "%d %u %.2f %.2f %d %d\n", m_frame, m_renderer->sampleCount(), m_renderer->gpuFrameMs(), m_frameMs, m_vp.w, m_vp.h); fflush(tf); }
     }
 }
 
-} // namespace brickit
-
-// --------------------------------------------------------------------------- entry point
-
-int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
-    brickit::Options opt;
-    int argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+// The command line of BrickIt (tests, captures, tools): the same options on every platform.
+void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
+    const int argc = (int)args.size();
     for (int i = 1; i < argc; ++i) {
-        std::wstring a = argv[i];
-        auto next = [&]() -> std::wstring { return i + 1 < argc ? std::wstring(argv[++i]) : std::wstring(); };
+        std::wstring a = args[i];
+        auto next = [&]() -> std::wstring { return i + 1 < argc ? args[++i] : std::wstring(); };
         if (a == L"--shot") opt.shotPath = next();
         else if (a == L"--spp") opt.shotSpp = _wtoi(next().c_str());
         else if (a == L"--frames") opt.shotFrames = _wtoi(next().c_str());
@@ -1433,8 +1325,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             swscanf_s(s.c_str(), L"%dx%d", &opt.width, &opt.height);
         }
     }
-    LocalFree(argv);
-    brickit::BrickApp app;
-    if (!app.init(inst, opt)) return 1;
-    return app.run();
 }
+
+} // namespace brickit

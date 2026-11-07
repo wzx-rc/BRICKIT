@@ -1,3 +1,5 @@
+// Windows: the PDF renderer of Windows (Windows.Data.Pdf). Other systems: PdfPortable.cpp.
+#ifdef _WIN32
 // C++/WinRT under /std:c++17 includes <experimental/coroutine> (only the blocking .get() is used here)
 #define _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
 #include "Pdf.h"
@@ -121,3 +123,4 @@ void PdfReader::run() {
 }
 
 } // namespace brickit
+#endif

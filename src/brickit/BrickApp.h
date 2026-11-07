@@ -8,9 +8,8 @@
 #include "Pdf.h"
 #include "Mech.h"
 #include "Library.h"
-#include "app/ImGuiLayer.h"
-#include "vp3d/Renderer.h"
-#include <windows.h>
+#include "Gfx.h"
+#include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
 #include <memory>
@@ -126,15 +125,29 @@ struct Options {
     float motor = 0;          // --motor deg: value of the first command (Mechanical mode test)
 };
 
+void parseOptions(const std::vector<std::wstring>& args, Options& opt);   // args[0] = the program
+
 class BrickApp {
 public:
+#ifdef _WIN32
+    // BrickAppWin.cpp: the PC shell (window, DirectX 12, message loop)
     bool init(HINSTANCE inst, const Options& opt);
     int run();
     LRESULT wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
+#endif
+    // The shared part, the same on every platform: the shell creates the window and the graphics backend, then
+    // initCommon loads everything; frame() once per display refresh; shutdownCommon on exit.
+    bool initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
+                    const std::wstring& exeDir, float dpi);
+    void frame();
+    void shutdownCommon();
+    bool running() const { return m_running; }
+    void saveSession() { if (userSession()) { savePrefs(); autosave(); } }   // iPad: before the app may be ended
+    void resize(uint32_t width, uint32_t height);   // the drawable changed size (iPad rotation, split view)
 
 private:
     // BrickApp.cpp
-    void frame();
+    void showWindow();   // the platform window becomes visible (PC; nothing on the iPad)
     void cameraInput();
     void rebuildScene();      // bricks -> vp3d scene (meshes once per part, one object per brick)
     void syncObjects();       // brick transforms and materials only
@@ -353,6 +366,7 @@ private:
     bool devSave(const DevOverride& o, const std::string& obj);
     void devDelete(const std::string& id);
     void devImport(int forcedPart);
+    void devImportFile(const std::wstring& path, int forcedPart);   // (after the file dialog)
     void devReviewCancel();
     void devReviewRecenter();
     void devReviewKeep();
@@ -368,6 +382,8 @@ private:
     struct MayaStats { int bricks = 0, parts = 0, bodies = 0, joints = 0, cmds = 0; std::vector<std::string> fails; double coupling = 0; };
     bool mayaExportScript(std::string& py, MayaStats& st, std::string& err);
     void mayaExportScene(const std::wstring& forcedPath = std::wstring());
+    void mayaWriteZip(const std::wstring& path, const std::wstring& forcedPath, const std::string& zip, const std::string& py,
+                      const std::string& nm, const MayaStats& st);   // (after the file dialog)
 
     // BrickManual.cpp / BrickUi.cpp: instruction manual of the web (steps of the scene read vertically, large book,
     // imported PDF read vertically, resizable window)
@@ -478,13 +494,15 @@ private:
     ImTextureID m_frozenTex = 0;
     bool thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1);
 
+#ifdef _WIN32
     HWND m_hwnd = nullptr;
+#endif
     Options m_opt;
     std::wstring m_exeDir;
     float m_dpi = 1.0f;
     bool m_running = true, m_minimized = false;
-    Renderer m_renderer;
-    app::ImGuiLayer m_gui;
+    std::unique_ptr<GfxRenderer> m_renderer;   // DirectX 12 (PC) or Lit (iPad), see Gfx.h
+    std::unique_ptr<GfxGui> m_gui;
     RenderSettings m_rs;
     Scene m_scene;
     Library m_lib;

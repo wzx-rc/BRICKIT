@@ -111,7 +111,7 @@ void BrickApp::updateAnim(float dt) {
     }
     if (changed) {
         ++m_scene.objectsVersion;
-        m_renderer.resetAccumulation();
+        m_renderer->resetAccumulation();
     }
 }
 

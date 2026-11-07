@@ -24,7 +24,7 @@ ImTextureID BrickApp::overrideTexture(const std::vector<uint8_t>& rgba, int w, i
     const int W = (int)std::lround(w * 1.4f), H = (int)std::lround(h * 1.4f), ox = (W - w) / 2, oy = (H - h) / 2;
     std::vector<uint8_t> big((size_t)W * H * 4, 0);
     for (int y = 0; y < h; ++y) memcpy(&big[((size_t)(y + oy) * W + ox) * 4], &rgba[(size_t)y * w * 4], (size_t)w * 4);
-    return m_gui.createTexture(big.data(), (uint32_t)W, (uint32_t)H);
+    return m_gui->createTexture(big.data(), (uint32_t)W, (uint32_t)H);
 }
 
 void BrickApp::loadThumbOverrides() {
@@ -100,7 +100,7 @@ void BrickApp::renderThumbEditor() {
     RenderSettings rs = thumbSettings();
     rs.pixelScale = 1;
     const int side = (int)std::max(64.0f, m_teRect.z - m_teRect.x);
-    m_renderer.renderToTexture(m_te, rs, ViewRect{0, 0, side, side}, -1);
+    m_renderer->renderToTexture(m_te, rs, ViewRect{0, 0, side, side}, -1);
 }
 
 // « Enregistrer comme miniature »: at the start of the next frame (the renderer is free: no frame being recorded)
@@ -150,7 +150,7 @@ void BrickApp::saveThumbOverride() {
     }
     if (saved) {
         auto it = m_thumbOverride.find(m_teditPart);
-        if (it != m_thumbOverride.end()) m_gui.releaseTexture(it->second);
+        if (it != m_thumbOverride.end()) m_gui->releaseTexture(it->second);
         m_thumbOverride[m_teditPart] = overrideTexture(rgba, px, px);
         toast("Miniature enregistrée (thumb_overrides)");
     } else toast("Miniature non enregistrée");

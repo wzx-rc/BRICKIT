@@ -4,6 +4,7 @@
 // so the shared code (Library, Builder, scenes) compiles unchanged.
 #pragma once
 #include <cstdio>
+#include <functional>
 #include <string>
 
 namespace brickit::plat {
@@ -17,6 +18,17 @@ bool makeDir(const std::wstring& path);
 // folder given by setDataDir (iPad: Application Support/BrickIt), else $HOME/BrickIt. Created when missing.
 std::wstring dataDir();
 void setDataDir(const std::wstring& dir);
+
+// ---- system dialogs. The answer comes through a callback: at once on Windows (modal dialogs, as before), later on
+// the iPad (the document picker / alert run while the app keeps drawing). Filters use the Windows format:
+// L"Name\0*.a;*.b\0...\0"; defExt without the dot. The callback only runs when the user picked a file / said OK.
+void setWindow(void* nativeWindow);   // owner of the dialogs (HWND on Windows)
+void errorBox(const std::string& title, const std::string& text);
+void confirm(const std::wstring& title, const std::wstring& text, std::function<void()> onOk);
+void openFileDialog(const wchar_t* filter, const wchar_t* defExt, std::function<void(const std::wstring&)> done,
+                    const std::wstring& initial = std::wstring());
+void saveFileDialog(const wchar_t* filter, const wchar_t* defExt, const std::wstring& suggested,
+                    std::function<void(const std::wstring&)> done);
 
 } // namespace brickit::plat
 

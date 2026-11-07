@@ -1,8 +1,7 @@
 ﻿// BrickIt - part thumbnails: every part rendered once by the engine (raster, same studio lighting and plastic as the
 // viewport), packed in atlases of 21 x 21 cells and cached on disk (cache/thumbs_<px>_<count>.bin next to the exe).
 #include "BrickApp.h"
-#include <wincodec.h>
-#include <wrl/client.h>
+#include "Image.h"
 #include "vp3d/AssetImport.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
@@ -56,27 +55,9 @@ int BrickApp::setupStudio(Scene& ts) {
     return ts.addMaterial(m);
 }
 
-// PNG (or any WIC format) in memory -> RGBA8.
+// PNG (or any image format of the system) in memory -> RGBA8 (Image.cpp).
 bool BrickApp::decodeImage(const uint8_t* data, size_t size, std::vector<uint8_t>& rgba, int& w, int& h) {
-    using Microsoft::WRL::ComPtr;
-    static ComPtr<IWICImagingFactory> fac;
-    if (!fac) {
-        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-        if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&fac)))) return false;
-    }
-    ComPtr<IWICStream> st;
-    ComPtr<IWICBitmapDecoder> dec;
-    ComPtr<IWICBitmapFrameDecode> fr;
-    ComPtr<IWICFormatConverter> cv;
-    if (FAILED(fac->CreateStream(&st)) || FAILED(st->InitializeFromMemory((BYTE*)data, (DWORD)size))) return false;
-    if (FAILED(fac->CreateDecoderFromStream(st.Get(), nullptr, WICDecodeMetadataCacheOnLoad, &dec)) || FAILED(dec->GetFrame(0, &fr))) return false;
-    if (FAILED(fac->CreateFormatConverter(&cv)) || FAILED(cv->Initialize(fr.Get(), GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom))) return false;
-    UINT uw = 0, uh = 0;
-    cv->GetSize(&uw, &uh);
-    w = (int)uw;
-    h = (int)uh;
-    rgba.resize((size_t)uw * uh * 4);
-    return SUCCEEDED(cv->CopyPixels(nullptr, uw * 4, (UINT)rgba.size(), rgba.data()));
+    return image::decode(data, size, rgba, w, h);
 }
 
 void BrickApp::buildThumbs() {
@@ -197,12 +178,12 @@ void BrickApp::buildThumbs() {
             uint32_t w = 0, h = 0, w2 = 0, h2 = 0;
             ts.env.top = ts.env.horizon = ts.env.bottom = float3(0);
             ++ts.objectsVersion;
-            m_renderer.render(ts, rs, vp, -1, false);
-            bool ok = m_renderer.readViewport(img, w, h);
+            m_renderer->render(ts, rs, vp, -1, false);
+            bool ok = m_renderer->readViewport(img, w, h);
             ts.env.top = ts.env.horizon = ts.env.bottom = float3(1000);
             ++ts.objectsVersion;
-            m_renderer.render(ts, rs, vp, -1, false);
-            ok = ok && m_renderer.readViewport(imgW, w2, h2);
+            m_renderer->render(ts, rs, vp, -1, false);
+            ok = ok && m_renderer->readViewport(imgW, w2, h2);
             ts.objects[objOf[i]].visible = false;
             if (!ok || (int)w != px || (int)h != px || imgW.size() != img.size()) continue;
             for (size_t q = 0; q + 3 < img.size(); q += 4) {
@@ -225,7 +206,7 @@ void BrickApp::buildThumbs() {
             fclose(f);
         }
     }
-    for (auto& a : pix) m_thumbAtlas.push_back(m_gui.createTexture(a.data(), atlasPx, atlasPx));
+    for (auto& a : pix) m_thumbAtlas.push_back(m_gui->createTexture(a.data(), atlasPx, atlasPx));
 }
 
 bool BrickApp::thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1) {
@@ -251,37 +232,6 @@ bool BrickApp::thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1) {
 // The thumbnails of the whole LDraw library (21 000 parts): rendered once by --build-full-thumbs into
 // assets/brickit/full/thumbs.pack (PNG per part, "BTF1"), then decoded on demand, a few per frame, for the cards on
 // screen (one texture each, the least recently used released beyond 900).
-
-bool encodePng(const std::vector<uint8_t>& rgba, uint32_t w, uint32_t h, std::vector<uint8_t>& out) {
-    ComPtr<IWICImagingFactory> f;
-    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&f)))) return false;
-    ComPtr<IStream> mem;
-    if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &mem))) return false;
-    ComPtr<IWICBitmapEncoder> enc;
-    f->CreateEncoder(GUID_ContainerFormatPng, nullptr, &enc);
-    if (!enc || FAILED(enc->Initialize(mem.Get(), WICBitmapEncoderNoCache))) return false;
-    ComPtr<IWICBitmapFrameEncode> fr;
-    ComPtr<IPropertyBag2> props;
-    enc->CreateNewFrame(&fr, &props);
-    fr->Initialize(props.Get());
-    fr->SetSize(w, h);
-    WICPixelFormatGUID fmt = GUID_WICPixelFormat32bppRGBA;
-    fr->SetPixelFormat(&fmt);
-    std::vector<uint8_t> px = rgba;
-    if (fmt != GUID_WICPixelFormat32bppRGBA)
-        for (size_t i = 0; i + 3 < px.size(); i += 4) std::swap(px[i], px[i + 2]);
-    fr->WritePixels(h, w * 4, (UINT)px.size(), px.data());
-    fr->Commit();
-    enc->Commit();
-    STATSTG st = {};
-    mem->Stat(&st, STATFLAG_NONAME);
-    out.resize((size_t)st.cbSize.QuadPart);
-    LARGE_INTEGER zero = {};
-    mem->Seek(zero, STREAM_SEEK_SET, nullptr);
-    ULONG got = 0;
-    mem->Read(out.data(), (ULONG)out.size(), &got);
-    return got == out.size();
-}
 
 // ------------------------------------------------------------------------------------------------- thumbnails v2
 // Wzx (05/11/2026): the same look for every part: the grey of the studio (glass parts stay glass, prints kept), a
@@ -413,10 +363,10 @@ bool BrickApp::renderThumb2(Scene& ts, int obj, const Part& p, const ThumbView& 
     auto pass = [&](float bg, std::vector<uint8_t>& out8, uint32_t& ow, uint32_t& oh) {
         ts.env.top = ts.env.horizon = ts.env.bottom = float3(bg);
         ++ts.objectsVersion;
-        if (lk.spp <= 0) { m_renderer.render(ts, prs, vp, -1, false); return m_renderer.readViewport(out8, ow, oh); }
-        m_renderer.resetAccumulation();
-        for (int k = 0; k < 64 && (int)m_renderer.sampleCount() < lk.spp; ++k) m_renderer.render(ts, prs, vp, -1, false);
-        return m_renderer.readViewport(out8, ow, oh);
+        if (lk.spp <= 0) { m_renderer->render(ts, prs, vp, -1, false); return m_renderer->readViewport(out8, ow, oh); }
+        m_renderer->resetAccumulation();
+        for (int k = 0; k < 64 && (int)m_renderer->sampleCount() < lk.spp; ++k) m_renderer->render(ts, prs, vp, -1, false);
+        return m_renderer->readViewport(out8, ow, oh);
     };
     bool ok = pass(0.0f, img, w, h);
     ok = ok && pass(1000.0f, imgW, w2, h2);
@@ -671,10 +621,10 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;
-        m_gui.releaseTexture(old->second.first);
+        m_gui->releaseTexture(old->second.first);
         m_lazyThumbs.erase(old);
     }
-    tex = m_gui.createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
+    tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
     m_lazyThumbs[part] = {tex, m_frame};
     return true;
 }

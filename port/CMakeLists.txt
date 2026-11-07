@@ -44,18 +44,11 @@ add_library(brickit_lit STATIC
     ${E}/vp3d/AssetImport.cpp
     ${E}/vp3d/LitPrep.cpp
     ${E}/lit/LitRenderer.cpp
-    ${BRICKIT_ROOT}/src/brickit/Platform.cpp
-    ${BRICKIT_ROOT}/src/brickit/Library.cpp
-    ${BRICKIT_ROOT}/src/brickit/Build.cpp
-    ${BRICKIT_ROOT}/src/brickit/Deflate.cpp
-    ${BRICKIT_ROOT}/src/brickit/MeshLod.cpp
-    ${BRICKIT_ROOT}/src/brickit/Stage.cpp
     ${WZX_ENGINE_DIR}/player/src/ImGuiDiligent.cpp
     ${WZX_ENGINE_DIR}/third_party/imgui/imgui.cpp
     ${WZX_ENGINE_DIR}/third_party/imgui/imgui_draw.cpp
     ${WZX_ENGINE_DIR}/third_party/imgui/imgui_tables.cpp
-    ${WZX_ENGINE_DIR}/third_party/imgui/imgui_widgets.cpp
-    BrickViewer.cpp)
+    ${WZX_ENGINE_DIR}/third_party/imgui/imgui_widgets.cpp)
 target_include_directories(brickit_lit PUBLIC ${E} ${BRICKIT_ROOT}/src/brickit ${CMAKE_CURRENT_SOURCE_DIR}
     ${WZX_ENGINE_DIR}/player/src ${DILIGENT_CORE_DIR} ${WZX_ENGINE_DIR}/third_party/imgui)
 target_compile_definitions(brickit_lit PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE IMGUI_DEFINE_MATH_OPERATORS)
@@ -65,6 +58,27 @@ if(MSVC)
 endif()
 if(APPLE)
     target_link_libraries(brickit_lit PUBLIC "-framework ImageIO" "-framework CoreGraphics" "-framework CoreFoundation")
+endif()
+
+
+# ---------------------------------------------------------------- BrickIt itself: the very sources of the PC app
+# (src/brickit/*.cpp, compiled unchanged; Windows-only files are empty here) on the Lit backend (GfxLit.cpp).
+file(GLOB BRICKIT_APP_SOURCES ${BRICKIT_ROOT}/src/brickit/*.cpp)
+add_library(brickit_app STATIC ${BRICKIT_APP_SOURCES}
+    ${E}/app/Theme.cpp
+    ${E}/app/Content.cpp
+    GfxLit.cpp
+    BrickViewer.cpp)
+# compat/: <windows.h> of the shared code -> the portable subset (WinCompat.h)
+target_include_directories(brickit_app PUBLIC ${BRICKIT_ROOT}/src/brickit/compat ${BRICKIT_ROOT}/third_party/stb)
+target_link_libraries(brickit_app PUBLIC brickit_lit)
+if(NOT MSVC)
+    target_compile_options(brickit_app PRIVATE -Wno-format-security)
+endif()
+if(APPLE)
+    target_sources(brickit_app PRIVATE ${BRICKIT_ROOT}/src/brickit/PdfApple.mm ${BRICKIT_ROOT}/src/brickit/PlatformApple.mm)
+    set_source_files_properties(${BRICKIT_ROOT}/src/brickit/PdfApple.mm ${BRICKIT_ROOT}/src/brickit/PlatformApple.mm
+                                PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
 set(BRICKIT_BACKENDS)
@@ -79,13 +93,29 @@ endif()
 file(GLOB BRICKIT_SHADERS ${E}/vp3d/shaders/*.hlsl ${E}/vp3d/shaders/*.hlsli ${E}/vp3d/shaders/Shared.h
                           ${E}/lit/shaders/*.hlsl)
 
+file(GLOB BRICKIT_TECHNIC_FILES ${BRICKIT_ROOT}/docs/brickit/web/technic/index.json ${BRICKIT_ROOT}/docs/brickit/web/technic/g*.wasm)
+
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_executable(BrickItLitHeadless headless/main_headless.cpp)
     target_include_directories(BrickItLitHeadless PRIVATE ${DILIGENT_CORE_DIR}/ThirdParty/stb)
-    target_link_libraries(BrickItLitHeadless PRIVATE brickit_lit ${BRICKIT_BACKENDS})
+    target_link_libraries(BrickItLitHeadless PRIVATE brickit_lit brickit_app ${BRICKIT_BACKENDS})
     add_custom_command(TARGET BrickItLitHeadless POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:BrickItLitHeadless>/shaders
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BRICKIT_SHADERS} $<TARGET_FILE_DIR:BrickItLitHeadless>/shaders)
+endif()
+
+
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT WIN32)
+    # BrickIt (the real app) without a window: renders its frames offscreen, --shot file.png writes the screen.
+    add_executable(BrickItLinux linux/main_linux.cpp)
+    target_link_libraries(BrickItLinux PRIVATE brickit_app ${BRICKIT_BACKENDS})
+    add_custom_command(TARGET BrickItLinux POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:BrickItLinux>/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BRICKIT_SHADERS} $<TARGET_FILE_DIR:BrickItLinux>/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${WZX_ENGINE_DIR}/assets/themes $<TARGET_FILE_DIR:BrickItLinux>/assets/themes
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${BRICKIT_ROOT}/assets $<TARGET_FILE_DIR:BrickItLinux>/assets
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:BrickItLinux>/assets/brickit/technic
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BRICKIT_TECHNIC_FILES} $<TARGET_FILE_DIR:BrickItLinux>/assets/brickit/technic)
 endif()
 
 # ---------------------------------------------------------------- the iPad app (Metal through MoltenVK)
@@ -93,17 +123,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     file(READ ${BRICKIT_ROOT}/VERSION BRICKIT_VERSION)
     string(STRIP "${BRICKIT_VERSION}" BRICKIT_VERSION)
     set(BRICKIT_BUILD "1" CACHE STRING "Build number (CFBundleVersion)")
-    set(BRICKIT_ASSETS
-        ${BRICKIT_ROOT}/assets/brickit/base.json
-        ${BRICKIT_ROOT}/assets/brickit/base.bin
-        ${BRICKIT_ROOT}/assets/brickit/part_colors.txt
-        ${BRICKIT_ROOT}/assets/brickit/default_scene.v3d.json
-        ${BRICKIT_ROOT}/assets/brickit/default_prefs.json)
-    file(GLOB BRICKIT_TECHNIC ${BRICKIT_ROOT}/docs/brickit/web/technic/index.json ${BRICKIT_ROOT}/docs/brickit/web/technic/g*.wasm)
-    add_executable(BrickIt MACOSX_BUNDLE ios/main_ios.mm ${BRICKIT_SHADERS} ${BRICKIT_ASSETS} ${BRICKIT_TECHNIC})
+    # the assets of build\bin on the PC: BrickIt's (library, thumbnails, HUD, HDRI, fonts), the engine's themes, Technic
+    file(GLOB_RECURSE BRICKIT_ASSET_FILES RELATIVE ${BRICKIT_ROOT}/assets ${BRICKIT_ROOT}/assets/*)
+    set(BRICKIT_BUNDLE_FILES)
+    foreach(f ${BRICKIT_ASSET_FILES})
+        get_filename_component(d ${f} DIRECTORY)
+        set_source_files_properties(${BRICKIT_ROOT}/assets/${f} PROPERTIES MACOSX_PACKAGE_LOCATION assets/${d})
+        list(APPEND BRICKIT_BUNDLE_FILES ${BRICKIT_ROOT}/assets/${f})
+    endforeach()
+    file(GLOB BRICKIT_THEMES ${WZX_ENGINE_DIR}/assets/themes/*)
+    set_source_files_properties(${BRICKIT_THEMES} PROPERTIES MACOSX_PACKAGE_LOCATION assets/themes)
+    set_source_files_properties(${BRICKIT_TECHNIC_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION assets/brickit/technic)
     set_source_files_properties(${BRICKIT_SHADERS} PROPERTIES MACOSX_PACKAGE_LOCATION shaders)
-    set_source_files_properties(${BRICKIT_ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION assets/brickit)
-    set_source_files_properties(${BRICKIT_TECHNIC} PROPERTIES MACOSX_PACKAGE_LOCATION assets/brickit/technic)
+    add_executable(BrickIt MACOSX_BUNDLE ios/main_ios.mm ${BRICKIT_SHADERS} ${BRICKIT_BUNDLE_FILES} ${BRICKIT_THEMES}
+                   ${BRICKIT_TECHNIC_FILES})
     set_target_properties(BrickIt PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${BRICKIT_ROOT}/ios/Info.plist.in
         MACOSX_BUNDLE_GUI_IDENTIFIER com.wzx.brickit
@@ -116,6 +149,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER com.wzx.brickit
         XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
     target_compile_options(BrickIt PRIVATE -fobjc-arc)
-    target_link_libraries(BrickIt PRIVATE brickit_lit ${BRICKIT_BACKENDS}
-        "-framework UIKit" "-framework QuartzCore" "-framework Metal" "-framework IOSurface" "-framework CoreGraphics")
+    target_link_libraries(BrickIt PRIVATE brickit_app ${BRICKIT_BACKENDS}
+        "-framework UIKit" "-framework QuartzCore" "-framework Metal" "-framework IOSurface" "-framework CoreGraphics"
+        "-framework UniformTypeIdentifiers")
 endif()

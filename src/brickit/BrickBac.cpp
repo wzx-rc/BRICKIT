@@ -84,7 +84,7 @@ void BrickApp::bacRenderPending() {
         ++m_bacScene.geometryVersion;
         std::vector<uint8_t> rgba;
         const int px = 128;
-        if (renderThumb2(m_bacScene, ob, *p, defaultThumbView(), px, rgba)) it.tex = m_gui.createTexture(rgba.data(), px, px);
+        if (renderThumb2(m_bacScene, ob, *p, defaultThumbView(), px, rgba)) it.tex = m_gui->createTexture(rgba.data(), px, px);
         else it.tex = (ImTextureID)1;
     }
 }

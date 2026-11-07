@@ -7,7 +7,7 @@
 #include "Deflate.h"
 #include <algorithm>
 #include <cmath>
-#include <commdlg.h>
+#include "Platform.h"
 #include <cstdio>
 #include <ctime>
 #include <map>
@@ -178,18 +178,10 @@ void BrickApp::devExport(int part) {
     const std::string obj = devObjText(part, pp->mesh, pp->ldrawOrigin, true);
     const std::string zip = zipStored({{id + ".obj", obj}, {"LISEZMOI.txt", devReadme(part)}});
     const bool replaced = m_devOverrides.count(id) && m_devUseOverrides;
-    wchar_t file[MAX_PATH];
-    wcsncpy_s(file, widen(id + "_maya.zip").c_str(), _TRUNCATE);
-    OPENFILENAMEW ofn = {sizeof(ofn)};
-    ofn.hwndOwner = m_hwnd;
-    ofn.lpstrFilter = L"Archive ZIP (*.zip)\0*.zip\0";
-    ofn.lpstrFile = file;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrDefExt = L"zip";
-    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-    if (!GetSaveFileNameW(&ofn)) return;   // (web: e.code === "declined")
-    if (!writeAll(file, zip)) { toast("Enregistrement impossible : " + narrow(file)); return; }
-    toast(id + "_maya.zip enregistré (" + (replaced ? "le remplacement actuel" : "la géométrie LDraw") + ")");
+    plat::saveFileDialog(L"Archive ZIP (*.zip)\0*.zip\0", L"zip", widen(id + "_maya.zip"), [this, zip, id, replaced](const std::wstring& file) {
+        if (!writeAll(file, zip)) { toast("Enregistrement impossible : " + narrow(file)); return; }
+        toast(id + "_maya.zip enregistré (" + (replaced ? "le remplacement actuel" : "la géométrie LDraw") + ")");
+    });   // (web: e.code === "declined": nothing)
 }
 
 // ---------- OBJ import (devParseObj): faces of ref_ groups skipped, polygons fanned, flat normals when missing
@@ -309,7 +301,7 @@ void BrickApp::devSetGeometry(int part, const MeshData& g) {
         if (mesh < (int)m_scene.lods.size()) m_scene.lods[mesh].lod1 = -1;   // the box level of detail stays
         ++m_scene.geometryVersion;
         ++m_scene.objectsVersion;
-        m_renderer.resetAccumulation();
+        m_renderer->resetAccumulation();
     }
 }
 
@@ -370,15 +362,10 @@ void BrickApp::devDelete(const std::string& id) {
 
 // ---------- import (devImportFile / devReview)
 void BrickApp::devImport(int forced) {
-    wchar_t file[MAX_PATH] = L"";
-    OPENFILENAMEW ofn = {sizeof(ofn)};
-    ofn.hwndOwner = m_hwnd;
-    ofn.lpstrFilter = L"Maillage (*.obj;*.fbx;*.txt)\0*.obj;*.fbx;*.txt\0";
-    ofn.lpstrFile = file;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-    if (!GetOpenFileNameW(&ofn)) return;
-    std::wstring path = file;
+    plat::openFileDialog(L"Maillage (*.obj;*.fbx;*.txt)\0*.obj;*.fbx;*.txt\0", nullptr, [this, forced](const std::wstring& path) { devImportFile(path, forced); });
+}
+
+void BrickApp::devImportFile(const std::wstring& path, int forced) {
     std::string fileName = narrow(path.substr(path.find_last_of(L"\\/") + 1));
     std::string lower = fileName;
     for (char& c : lower) c = (char)tolower((unsigned char)c);
