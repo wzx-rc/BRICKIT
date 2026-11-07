@@ -1,6 +1,9 @@
 #include "Library.h"
+#include "Platform.h"
+#ifdef _WIN32
 #include <shlobj.h>
 #include <windows.h>
+#endif
 #include "app/Json.h"
 #include "vp3d/EnvImage.h"
 #include <algorithm>
@@ -139,17 +142,11 @@ bool Library::colorExists(int part, int paletteIndex) const {
     return std::binary_search(v->begin(), v->end(), palette[paletteIndex].id);
 }
 
-std::wstring brickitDataDir() {
-    PWSTR prof = nullptr;
-    std::wstring d;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Profile, 0, nullptr, &prof)) && prof) d = std::wstring(prof) + L"\\BrickIt";
-    if (prof) CoTaskMemFree(prof);
-    if (!d.empty()) CreateDirectoryW(d.c_str(), nullptr);
-    return d;
-}
+std::wstring brickitDataDir() { return plat::dataDir(); }
 
 std::vector<std::wstring> legacyDataDirs() {
     std::vector<std::wstring> v;
+#ifdef _WIN32
     PWSTR la = nullptr;
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &la)) && la) {
         const std::wstring base(la);
@@ -163,11 +160,12 @@ std::vector<std::wstring> legacyDataDirs() {
         }
     }
     if (la) CoTaskMemFree(la);
+#endif
     return v;
 }
 
 std::wstring fullLibraryDir(const std::wstring& assets) {
-    auto has = [](const std::wstring& d) { return GetFileAttributesW((d + L"\\index.json").c_str()) != INVALID_FILE_ATTRIBUTES; };
+    auto has = [](const std::wstring& d) { return plat::fileExists(d + L"\\index.json"); };
     if (has(assets + L"\\full")) return assets + L"\\full";
     const std::wstring d = brickitDataDir();
     if (!d.empty() && has(d + L"\\full")) return d + L"\\full";

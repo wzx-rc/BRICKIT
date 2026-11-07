@@ -2,27 +2,70 @@
 # Install: download the "BrickIt-iPad-unsigned" artifact of the run, unzip it, open the .ipa in Sideloadly on the PC
 # (free Apple ID, iPad on USB). A free Apple ID signs for 7 days: install again from Sideloadly after that,
 # the data of the app is kept as long as the app is not deleted.
+#
+# The app (port/): the shared BrickIt code drawn by the Lit renderer of the WZX engine (Diligent Engine, Vulkan
+# translated to Metal by MoltenVK). The engine is the private submodule engine/: the repository secret ENGINE_TOKEN
+# (a fine-grained token, contents read-only on wzx-rc/WZX-ENGINE) lets the runner fetch it. Without the secret, the
+# J0 test app (ios/: Metal only, no engine) is built instead.
 name: iPad build
 
 on:
   workflow_dispatch:
   push:
     branches: [main, 'claude/**']
-    paths: [ios/**, VERSION, .github/workflows/ios-build.yml]
+    paths: [ios/**, port/**, src/brickit/**, engine, assets/brickit/**, VERSION, .github/workflows/ios-build.yml]
+
+env:
+  MOLTENVK_VERSION: v1.4.1
 
 jobs:
   build-ipa:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        # the engine submodule is not needed yet (J0: empty Metal app)
+
+      - name: Engine submodule (private, ENGINE_TOKEN)
+        id: engine
+        env:
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+        run: |
+          if [ -z "$ENGINE_TOKEN" ]; then
+            echo "::warning::No ENGINE_TOKEN secret: the J0 test app is built (see docs/brickit/PORTAGE_IPAD.md)"
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git submodule update --init --depth 1 engine
+          git -C engine log --oneline -1
+          echo "have=true" >> "$GITHUB_OUTPUT"
+
+      - name: MoltenVK (static library for iOS)
+        if: steps.engine.outputs.have == 'true'
+        run: |
+          curl -sSL -o MoltenVK-ios.tar \
+            "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-ios.tar"
+          tar xf MoltenVK-ios.tar
+          echo "MOLTENVK_LIBRARY=$PWD/MoltenVK/MoltenVK/static/MoltenVK.xcframework/ios-arm64/libMoltenVK.a" >> "$GITHUB_ENV"
+
+      # Diligent Engine (hundreds of files) is rebuilt only when its setup changes: the Xcode build folder is cached,
+      # our own sources recompile incrementally. Saved even when the build fails.
+      - name: Restore the build directory
+        if: steps.engine.outputs.have == 'true'
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/ios
+          key: ipad-${{ env.MOLTENVK_VERSION }}-${{ hashFiles('port/CMakeLists.txt', '.github/workflows/ios-build.yml') }}-${{ github.sha }}
+          restore-keys: |
+            ipad-${{ env.MOLTENVK_VERSION }}-${{ hashFiles('port/CMakeLists.txt', '.github/workflows/ios-build.yml') }}-
+            ipad-${{ env.MOLTENVK_VERSION }}-
 
       - name: Configure (Xcode project)
         run: |
-          cmake -S ios -B build/ios -G Xcode \
+          if [ "${{ steps.engine.outputs.have }}" = "true" ]; then SRC=port; EXTRA="-DMOLTENVK_LIBRARY=$MOLTENVK_LIBRARY"; else SRC=ios; EXTRA="-DBRICKIT_GIT=$(git rev-parse --short HEAD)"; fi
+          cmake -S $SRC -B build/ios -G Xcode \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
-            -DBRICKIT_GIT="$(git rev-parse --short HEAD)" -DBRICKIT_BUILD="${{ github.run_number }}"
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DBRICKIT_BUILD="${{ github.run_number }}" $EXTRA
 
       - name: Build unsigned .app
         run: |
@@ -33,12 +76,26 @@ jobs:
         run: |
           APP=$(find build/ios -path "*Release-iphoneos/BrickIt.app" -maxdepth 3 -type d | head -1)
           test -n "$APP" || { echo "No .app built"; find build/ios -name "*.app"; exit 1; }
+          if [ "${{ steps.engine.outputs.have }}" = "true" ]; then
+            test -f "$APP/assets/brickit/base.json" && test -f "$APP/shaders/Raster.hlsl" || { ls -R "$APP" | head -50; exit 1; }
+            KIND=lit
+          else
+            KIND=j0
+          fi
           mkdir -p build/Payload
+          rm -rf build/Payload/BrickIt.app
           cp -R "$APP" build/Payload/
-          NAME="BrickIt-iPad-$(cat VERSION | tr -d '[:space:]')-$(git rev-parse --short HEAD).ipa"
-          (cd build && zip -qr "$NAME" Payload)
+          NAME="BrickIt-iPad-$(cat VERSION | tr -d '[:space:]')-$KIND-$(git rev-parse --short HEAD).ipa"
+          (cd build && rm -f *.ipa && zip -qr "$NAME" Payload)
           echo "IPA=build/$NAME" >> "$GITHUB_ENV"
           ls -la build/*.ipa
+
+      - name: Save the build directory
+        if: always() && steps.engine.outputs.have == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/ios
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
       - uses: actions/upload-artifact@v4
         with:
