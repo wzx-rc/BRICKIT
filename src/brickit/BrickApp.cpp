@@ -504,7 +504,7 @@ void BrickApp::setHdri(const std::wstring& path) {
         m_hdriCache[path] = img;
     }
     m_hdriPath = path;
-    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)
+    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_renderer->resetAccumulation();
 }
@@ -547,22 +547,27 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
-    if (m_ipad) {   // iPad (maquette v5): a bright warm stage, cream floor, Matin / Midi / Soir
-        static const int sky[3] = {0xf3e6cf, 0xeef0ec, 0xf0d2b0}, floor_[3] = {0xe9dcc4, 0xe4e1d8, 0xe2cdb2};
-        static const int sun[3] = {0xffe2b8, 0xfff8ee, 0xffc48a};
+    if (m_ipad) {   // iPad (maquette v5): a bright stage, white floor, Matin / Midi / Soir, a low sun
+        static const int top[3] = {0xdde3e6, 0xd8e4ee, 0xc9c3d6}, hor[3] = {0xf8dcc0, 0xf4ece0, 0xf6c49a}, floor_[3] = {0xf8f6f2, 0xf7f7f5, 0xf6eee4};   // white (Wzx: « moins crème, plus blanc »)
+        static const int sun[3] = {0xffe0b0, 0xfff8ee, 0xffbe80};
         const int i = std::clamp(m_lightPreset, 0, 2);
-        m_scene.env.top = m_scene.env.horizon = m_scene.env.bottom = lin(sky[i]);
+        // (the HDRI keeps the light and the shadows of the PC; the gradient only shows where the HDRI does not)
+        m_scene.env.top = lin(top[i]);
+        m_scene.env.horizon = lin(hor[i]);
+        m_scene.env.bottom = lin(floor_[i]);
         g.baseColor = lin(floor_[i]);
         g.roughness = 0.9f;
-        const float elev[3] = {28, 62, 14};
+        const float elev[3] = {24, 58, 12};
         const float az = radians(i == 2 ? 230.0f : 140.0f), el = radians(elev[i]);
         m_scene.sun.direction = normalize(float3(std::cos(el) * std::cos(az), std::sin(el), std::cos(el) * std::sin(az)));
         m_scene.sun.color = lin(sun[i]);
         m_scene.sun.intensity = 3.0f;
-        m_scene.env.hemiSky = lin(sky[i]);
+        m_scene.env.hemiSky = lin(top[i]);
         m_scene.env.hemiGround = lin(floor_[i]);
-        m_scene.env.hemiIntensity = 0.55f;
-        m_gridRgb = float3(0.55f, 0.45f, 0.35f);
+        m_scene.env.hemiIntensity = 0.6f;
+        m_gridRgb = float3(0.70f, 0.68f, 0.65f);
+        m_gridAlpha = 0.10f;
+        m_rs.exposure = 1.12f;   // (whiter)   // a grid you barely see
         m_scene.gridLine = gridLineValue();
     }
     ++m_scene.objectsVersion;

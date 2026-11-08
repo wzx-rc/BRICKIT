@@ -312,6 +312,7 @@ private:
     // iPad interface v5 (BrickUiIpad.inl)
     void drawUiIpad();
     void ipadPucks();
+    void ipadDrawer();                      // the library drawer (m_uiRects[1])
     void ipadBubbles();
     void ipadColorArc();
     void ipadNuancier();

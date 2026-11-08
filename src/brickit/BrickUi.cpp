@@ -1799,7 +1799,7 @@ void BrickApp::drawToast() {
     ImVec2 ts = f->CalcTextSizeA(12 * s, 1e9f, 0, m_toast.c_str());
     ImVec2 d = ImGui::GetIO().DisplaySize;
     float a = (float)std::clamp(3.2 - (ImGui::GetTime() - m_toastTime), 0.0, 0.4) / 0.4f;
-    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, 30 * s + 8 * s), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
+    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, (m_ipad ? 20 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
     dl->AddRectFilled(p0, p1, alphaOf(IM_COL32(15, 16, 19, 224), a), 18 * s);
     dl->AddRect(p0, p1, alphaOf(IM_COL32(247, 197, 30, 115), a), 18 * s);
     dl->AddText(f, 12 * s, ImVec2(p0.x + 12 * s, p0.y + 5 * s), alphaOf(C_TEXT, a), m_toast.c_str());
