@@ -15,6 +15,6 @@ Icons: `undo redo library colours rotate_left rotate_right duplicate delete move
 - Recraft drew some arrows the wrong way, so a few icons are mirrored copies: A `redo` and `rotate_right`, B `redo` and `rotate_left`, C `redo` and `rotate_left`.
 - `preview.html` / `preview.png` show each set on a cosy background.
 
-## Chosen set (Wzx, 08/11/2026): A everywhere, thickened
+## Superseded: Wzx finally kept the neutral icons of the mockup (../icones_maquette). Earlier pick: A everywhere, thickened
 
 `A_bold_white_thick/` is the set to use in the iPad app: the A icons with a 44-unit white stroke (viewBox 2048) on every shape, so the lines read as bold as Tiny Glade. `preview.png` compares each icon with the original and shows them on the 46 pt brown translucent bubbles of the mockup (https://claude.ai/artifact/EfypNaC8b69RfpSS6TAVCt).
