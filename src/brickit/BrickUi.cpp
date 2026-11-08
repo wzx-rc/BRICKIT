@@ -227,6 +227,11 @@ void BrickApp::uiHeader() {
         {3, svg::I_UNDO, "Bac", "Bac à briques temporaire : garde des pièces sous la main (glisse-les depuis la bibliothèque)", m_bacOpen, true, 21},
         {0, svg::I_SETTINGS, nullptr, "Réglages : échelle de l'interface, miniatures, qualité, transformation de vue…", m_popup == 5, true, 20},
     };
+    if (m_ipad) {   // the iPad: no render modes, no view transform, no DEV mode (Maya), no tray of bricks
+        bs.erase(std::remove_if(bs.begin(), bs.end(), [](const B& b) { return b.id == 14 || b.id == 15 || b.id == 17 || b.id == 21; }), bs.end());
+        for (size_t i = 1; i < bs.size(); ++i)   // (no two separators in a row)
+            if (bs[i].kind == 4 && bs[i - 1].kind == 4) bs.erase(bs.begin() + i--);
+    }
     auto width = [&](const B& b) {
         switch (b.kind) {
         case 0: return 26 * s;
@@ -281,7 +286,9 @@ void BrickApp::uiHeader() {
         case 16: if (m_mechOn) mechExit(); else mechEnter(); break;
         case 17: devSetOn(!m_dev); break;
         case 18: m_popup = m_popup == 3 ? 0 : 3; m_popupAt = ImVec2(d.x - 220 * s, y1 + 4 * s); break;
-        case 19: m_popup = 0; m_sheetOpen = true; m_sheetText = m_build.toJson(m_scene.camera); break;
+        case 19:
+            if (m_ipad) { m_popup = m_popup == 4 ? 0 : 4; m_popupAt = ImVec2(a.x, y1 + 4 * s); break; }   // iPad: the simple scene menu
+            m_popup = 0; m_sheetOpen = true; m_sheetText = m_build.toJson(m_scene.camera); break;
         case 21: m_bacOpen = !m_bacOpen; m_bacDirty = true; break;
         case 20: m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 330 * s, y1 + 4 * s); break;
         }
@@ -655,7 +662,7 @@ void BrickApp::uiSelHud() {
 // A card of the library (the brick in hand) released over it is added.
 
 void BrickApp::uiBac() {
-    if (!m_bacOpen) return;
+    if (!m_bacOpen || m_ipad) return;
     Ui u = ui(m_ui);
     if (m_gui->fontBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
@@ -1401,7 +1408,11 @@ void BrickApp::uiPopups() {
     else if (m_popup == 3) items = {{"Bibliothèque", m_pTray.visible, 0}, {"Manuel d'instructions", m_pManual.visible, 4}, {"Infos (pièces, fps)", m_pHud.visible, 3},
                                     {"Couleurs", m_pColors.visible, 2}, {"Actions de la brique", m_pOpts.visible, 1}, {"Groupes", m_pGroups.visible, 6},
                                     {"Réinitialiser la disposition", false, 5}};
-    else {
+    else if (m_ipad) {   // the iPad: the scene in a few big words (files in « Sur mon iPad › BrickIt »)
+        items = {{"Nouvelle scène", false, 0}, {"Ouvrir une scène…", false, 1}, {"Enregistrer", false, 2}, {"Exporter en LDraw (.ldr)", false, 6},
+                 {"Ouvrir la maison officielle (31153)", false, 5}};
+        if (hasSteps()) items.push_back({m_reading ? "Fermer la notice" : "Lire la notice (étapes du modèle)", false, 4});
+    } else {
         items = {{"Nouvelle scène", false, 0}, {"Ouvrir… (.v3d.json, .ldr, .mpd)", false, 1}, {"Enregistrer… (.v3d.json)", false, 2}, {"Ouvrir la maison test (GI)", false, 3},
                  {"Ouvrir la maison officielle (31153)", false, 5}};
         if (hasSteps()) items.push_back({m_reading ? "Fermer la notice" : "Lire la notice (étapes du modèle)", false, 4});
@@ -1452,6 +1463,7 @@ void BrickApp::uiPopups() {
                 else if (it.id == 3) openTestHouse();
                 else if (it.id == 4) { if (m_reading) stopReading(); else startReading(1); }
                 else if (it.id == 5) openOfficialHouse();
+                else if (it.id == 6) exportLdrDialog();
                 else saveDialog();
             }
         }
@@ -1515,16 +1527,7 @@ void BrickApp::uiSceneSheet() {
     const char* rb[4] = {"Exporter .ldr", "Exporter vers Maya", "Nouvelle scène", "Fermer"};
     for (const char* t : rb) right += ImGui::CalcTextSize(t).x + 20 * s + 8 * s;
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - right + 8 * s));
-    if (ImGui::Button("Exporter .ldr")) {
-        m_sheetText = sceneLdr();
-        plat::saveFileDialog(L"LDraw (*.ldr)\0*.ldr\0", L"ldr", L"brickit_scene.ldr", [this](const std::wstring& file) {
-            FILE* f = nullptr;
-            if (_wfopen_s(&f, file.c_str(), L"wb") == 0 && f) { fwrite(m_sheetText.data(), 1, m_sheetText.size(), f); fclose(f); }
-        });
-        char t[96];
-        snprintf(t, sizeof(t), "Scène exportée en .ldr (%d pièces)", (int)m_bricks.size());
-        toast(t);
-    }
+    if (ImGui::Button("Exporter .ldr")) { m_sheetText = sceneLdr(); exportLdrDialog(); }
     ImGui::SameLine();
     if (ImGui::Button("Exporter vers Maya")) mayaExportScene();
     ImGui::SameLine();
@@ -1535,6 +1538,19 @@ void BrickApp::uiSceneSheet() {
     ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(5);
     m_overUi = true;
+}
+
+void BrickApp::exportLdrDialog() {
+    plat::saveFileDialog(L"LDraw (*.ldr)\0*.ldr\0", L"ldr", L"brickit_scene.ldr", [this](const std::wstring& file) {
+        const std::string text = sceneLdr();
+        FILE* f = nullptr;
+        if (file.empty() || _wfopen_s(&f, file.c_str(), L"wb") != 0 || !f) return;
+        fwrite(text.data(), 1, text.size(), f);
+        fclose(f);
+        char t[96];
+        snprintf(t, sizeof(t), "Scène exportée en .ldr (%d pièces)", (int)m_bricks.size());
+        toast(t);
+    });
 }
 
 void BrickApp::drawToast() {
@@ -1785,7 +1801,7 @@ void BrickApp::drawUi() {
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
     uiHeader();      // m_uiRects[0]
     uiTray();        // m_uiRects[1]
-    if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {   // the focus reticle (DOF Auto): a thin white circle in the middle of the view
+    if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi && !m_ipad) {   // the focus reticle (DOF Auto): a thin white circle in the middle of the view
         const ImVec2 c((m_stage.x + m_stage.z) * 0.5f, (m_stage.y + m_stage.w) * 0.5f);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddCircle(ImVec2(c.x, c.y + 1), 9 * m_ui, IM_COL32(0, 0, 0, 60), 32, 2.4f * m_ui);
@@ -2584,13 +2600,15 @@ void BrickApp::uiSettings() {
         {"Animations", {{"Oui", m_animOn}, {"Non", !m_animOn}}, 7},
         {"Sauvegarde automatique", {{"Oui", m_autosaveOn}, {"Non", !m_autosaveOn}}, 8},
     };
+    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform)
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
     const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
     // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
     const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);
     const float H2 = (16 * s + rowH + gap) + pad + 20 * s + gap + 16 * s + hdriRowsN * (rowH + 4 * s) + gap + rowH + gap + 2 * (16 * s + rowH + gap) + 16 * s + rowH + gap + 16 * s + rowH + gap + 18 * s + pad;
-    const float W2 = 2 * W;
+    const float W2 = m_ipad ? W : 2 * W;   // (the iPad: no Lumière column)
     // (the Lumière column as tall as it was drawn last frame: its rows depend on the settings)
-    ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, std::min(p0.y + std::max(H, std::max(H2, m_lumColumnH)), d.y - 8 * s));
+    ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, std::min(p0.y + (m_ipad ? H : std::max(H, std::max(H2, m_lumColumnH))), d.y - 8 * s));
     u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), IM_COL32(0, 0, 0, 60), 12 * s);
     u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, 12 * s);
     u.dl->AddRect(p0, p1, C_LINE, 12 * s);
@@ -2617,7 +2635,7 @@ void BrickApp::uiSettings() {
         y += rowH + gap;
     }
     // ---- Lumière (native addition): the same scene for every renderer
-    {
+    if (!m_ipad) {
         const float x0 = p0.x + W, x1 = p1.x;
         u.dl->AddLine(ImVec2(x0, p0.y + pad), ImVec2(x0, p1.y - pad), C_LINE, 1.0f);
         float ly = p0.y + pad;

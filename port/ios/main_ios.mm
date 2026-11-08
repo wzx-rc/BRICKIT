@@ -1,7 +1,7 @@
 // BrickIt for iPad: the very BrickIt of the PC (src/brickit, same sources: UI, library, building, mechanics...) in a
 // full-screen CAMetalLayer, rendered by the Lit renderer of the WZX engine through Diligent on MoltenVK (Vulkan
 // translated to Metal). No ray tracing on the iPad Pro 2nd generation (A12Z): raster image only.
-// This file is the iOS shell, as BrickAppWin.cpp is the Windows one: window, device, display loop, touch -> mouse.
+// This file is the iOS shell, as BrickAppWin.cpp is the Windows one: window, device, display loop, raw touches.
 #include "BrickApp.h"
 #include "GfxLit.h"
 #include "Platform.h"
@@ -38,12 +38,6 @@ using namespace Diligent;
     std::unique_ptr<brickit::BrickApp> _app;
     CADisplayLink* _displayLink;
     BOOL _ready;
-    std::map<void*, CGPoint> _touches;   // in pixels, by UITouch
-    // one finger: held back a moment so that a second finger turns it into a camera gesture, not a click
-    BOOL _pending, _mouseDown, _twoFingers;
-    CGPoint _pendingPos;
-    CFTimeInterval _pendingTime;
-    float _prevDist;
 }
 
 - (void)loadView {
@@ -120,6 +114,7 @@ using namespace Diligent;
     }
     ImGui::GetIO().AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
     brickit::Options opt;
+    opt.ipad = true;    // touch gestures of the web, the simpler interface of the iPad
     opt.touchHud = 1;   // the touch HUD of the PC (Tiny Glade style) on from the start
     _app = std::make_unique<brickit::BrickApp>();
     if (!_app->initCommon(opt, std::move(renderer), std::move(gui), brickit::plat::fromUtf8(dir), (float)scale)) {
@@ -156,7 +151,9 @@ using namespace Diligent;
     _app->resize((uint32_t)(s.width * k), (uint32_t)(s.height * k));
 }
 
-// --------------------------------------------------------------------------- touch -> the mouse of the PC
+// --------------------------------------------------------------------------- fingers and Pencil -> BrickApp
+// The raw touches go to the shared code (BrickTouch.cpp): the touch gestures of the web builder in the 3D view, the
+// mouse of the PC on the panels.
 
 - (CGPoint)pixels:(UITouch*)t {
     CGPoint p = [t locationInView:self.view];
@@ -164,90 +161,44 @@ using namespace Diligent;
     return CGPointMake(p.x * k, p.y * k);
 }
 
-- (void)mouseAt:(CGPoint)p {
-    ImGui::GetIO().AddMousePosEvent((float)p.x, (float)p.y);
-}
-
-- (void)mouseUp {
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddMouseButtonEvent(0, false);
-    io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);   // a finger does not hover once lifted
-    _mouseDown = NO;
-}
+static uint64_t touchId(UITouch* t) { return (uint64_t)(uintptr_t)(__bridge void*)t; }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     if (!_ready) return;
     for (UITouch* t in touches) {
-        _touches[(__bridge void*)t] = [self pixels:t];
-        ImGui::GetIO().AddMouseSourceEvent(t.type == UITouchTypePencil ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
-    }
-    if (_touches.size() >= 2) {
-        _pending = NO;
-        if (_mouseDown) [self mouseUp];
-        _twoFingers = YES;
-        _prevDist = 0;
-    } else if (!_twoFingers && !_mouseDown) {
-        _pending = YES;
-        _pendingPos = _touches.begin()->second;
-        _pendingTime = CACurrentMediaTime();
+        const CGPoint p = [self pixels:t];
+        _app->touchBegan(touchId(t), (float)p.x, (float)p.y, t.type == UITouchTypePencil);
     }
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     if (!_ready) return;
-    for (UITouch* t in touches) _touches[(__bridge void*)t] = [self pixels:t];
-    if (_mouseDown && _touches.size() == 1) [self mouseAt:_touches.begin()->second];
+    for (UITouch* t in touches) {
+        const CGPoint p = [self pixels:t];
+        _app->touchMoved(touchId(t), (float)p.x, (float)p.y);
+    }
 }
 
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     if (!_ready) return;
-    for (UITouch* t in touches) _touches.erase((__bridge void*)t);
-    if (_pending) {   // a tap: press and release at once (ImGui spreads them over the next frames)
-        [self mouseAt:_pendingPos];
-        ImGui::GetIO().AddMouseButtonEvent(0, true);
-        _pending = NO;
-        [self mouseUp];
-    } else if (_mouseDown) {
-        [self mouseUp];
+    for (UITouch* t in touches) {
+        const CGPoint p = [self pixels:t];
+        _app->touchEnded(touchId(t), (float)p.x, (float)p.y, false);
     }
-    if (_touches.empty()) _twoFingers = NO;
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
     if (!_ready) return;
-    for (UITouch* t in touches) _touches.erase((__bridge void*)t);
-    _pending = NO;
-    if (_mouseDown) [self mouseUp];
-    if (_touches.empty()) _twoFingers = NO;
+    for (UITouch* t in touches) {
+        const CGPoint p = [self pixels:t];
+        _app->touchEnded(touchId(t), (float)p.x, (float)p.y, true);
+    }
 }
 
 // --------------------------------------------------------------------------- frame
 
 - (void)drawFrame:(CADisplayLink*)link {
     if (!_ready || !_app) return;
-    // a finger held still or moving: the press goes to BrickIt (UI, or the view)
-    if (_pending && _touches.size() == 1) {
-        CGPoint p = _touches.begin()->second;
-        float dx = (float)(p.x - _pendingPos.x), dy = (float)(p.y - _pendingPos.y);
-        float slop = 10.0f * (float)self.view.contentScaleFactor;
-        if (CACurrentMediaTime() - _pendingTime > 0.12 || dx * dx + dy * dy > slop * slop) {
-            [self mouseAt:_pendingPos];
-            ImGui::GetIO().AddMouseButtonEvent(0, true);
-            [self mouseAt:p];
-            _pending = NO;
-            _mouseDown = YES;
-        }
-    }
-    // two fingers: pinch = the mouse wheel of the PC at their centre (the other gestures follow the web rules, next)
-    if (_twoFingers && _touches.size() >= 2) {
-        auto it = _touches.begin();
-        CGPoint a = it->second, b = (++it)->second;
-        const float dist = std::hypot((float)(b.x - a.x), (float)(b.y - a.y));
-        ImGuiIO& io = ImGui::GetIO();
-        io.AddMousePosEvent((float)(a.x + b.x) * 0.5f, (float)(a.y + b.y) * 0.5f);
-        if (_prevDist > 1.0f && dist > 1.0f) io.AddMouseWheelEvent(0.0f, std::log(dist / _prevDist) * 8.0f);
-        _prevDist = dist;
-    }
     _app->frame();
 }
 

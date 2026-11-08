@@ -39,6 +39,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_gui = std::move(gui);
     m_exeDir = exeDir;
     m_dpi = dpi;
+    m_ipad = opt.ipad;
     QueryPerformanceFrequency(&m_qpf);
     std::string err;
     m_ui = m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi;   // fonts and layout at the UI scale (100 % / 150 % tests)
@@ -166,6 +167,13 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.duplicate) duplicateSelected();   // scripted test of Ctrl+D
     for (int k = 0; k < std::abs(opt.freeRot); ++k) turnSelectedFree(opt.freeRot > 0 ? 1 : -1);
     if (opt.touchHud >= 0) m_touchHud = opt.touchHud != 0;
+    if (m_ipad) {   // the iPad version: no DOF reticle, no tray of bricks, no DEV mode (Maya), the raster view as it is
+        m_focusReticle = false;
+        m_bacOpen = false;
+        m_dev = false;
+        setRC(false);
+        m_rs.raster = true;
+    }
     if (opt.colorArc) m_arcOpen = true;
     if (opt.mech) {
         mechEnter();
@@ -885,6 +893,7 @@ void BrickApp::frame() {
     if (m_teSave) saveThumbOverride();   // (Edit thumbnail: before anything is drawn this frame)
     bacRenderPending();                  // (the thumbnails of the tray, likewise)
 
+    touchPump();   // fingers and Pencil (iPad), before the UI reads the mouse
     m_gui->newFrame();
     if (m_frame == 2 && !m_opt.spawnPart.empty()) {   // scripted test: a part in hand at a point of the view
         int pi = m_lib.find(m_opt.spawnPart);
@@ -898,6 +907,7 @@ void BrickApp::frame() {
     pdfPump();
     if (m_prefsDirty && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { m_prefsDirty = false; savePrefs(); }
     mouseTestFrame();
+    touchTestFrame();
     if (m_frame == 1 && !m_opt.ttBase.empty()) {   // self-test: a turntable base and its top on one axis -> one pivot
         Part* b = m_lib.get(m_opt.ttBase);
         Part* t = m_lib.get(m_opt.ttTop);
@@ -1038,7 +1048,7 @@ void BrickApp::frame() {
     m_rs.pixelScale = scale;
     m_rs.sharpen = (!pathTraced() && scale < 0.99f) ? std::min(0.6f, (1.0f - scale) * 1.1f) : 0.0f;
     // Réglages › Lumière: depth of field (HQ, RC) and bloom (the raster views); the path tracer has its own lens
-    m_rs.dof = (m_quality == 1 || m_rcMode) ? (m_opt.dof >= 0 ? m_opt.dof : m_dof) : 0.0f;
+    m_rs.dof = m_ipad ? 0.0f : (m_quality == 1 || m_rcMode) ? (m_opt.dof >= 0 ? m_opt.dof : m_dof) : 0.0f;
     m_rs.bloom = m_opt.bloom >= 0 ? m_opt.bloom : m_bloom;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
@@ -1251,6 +1261,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--group-snap-test") opt.groupSnapTest = next();
         else if (a == L"--still-aa") opt.stillAA = _wtoi(next().c_str());
         else if (a == L"--touch-hud") opt.touchHud = _wtoi(next().c_str());
+        else if (a == L"--ipad") opt.ipad = true;
+        else if (a == L"--touch-test") { std::wstring w = next(); opt.touchTest.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--free-rot") opt.freeRot = _wtoi(next().c_str());
         else if (a == L"--color-arc") opt.colorArc = true;
         else if (a == L"--arc-phase") opt.arcPhase = (float)_wtof(next().c_str());

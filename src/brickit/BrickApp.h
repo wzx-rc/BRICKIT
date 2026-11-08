@@ -62,6 +62,8 @@ struct Options {
     bool useDefaults = false;   // --use-defaults: a capture with the default settings (assets / %LOCALAPPDATA%)
     int stillAA = -1;   // --still-aa 0 / 1
     int touchHud = -1;  // --touch-hud 0 / 1
+    bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
+    std::string touchTest;   // --touch-test orbit | pinch | undo | pick | hold2: scripted finger gestures (BrickTouch.cpp)
     int freeRot = 0;    // --free-rot n: the selection turned n x 15 degrees at start (captures)
     bool colorArc = false;   // --color-arc: the colour arc of the touch HUD open (captures)
     float arcPhase = -1;     // --arc-phase t: the arrival of the swatches frozen at t (0..1, captures of the animation)
@@ -144,6 +146,12 @@ public:
     bool running() const { return m_running; }
     void saveSession() { if (userSession()) { savePrefs(); autosave(); } }   // iPad: before the app may be ended
     void resize(uint32_t width, uint32_t height);   // the drawable changed size (iPad rotation, split view)
+    // Fingers and Apple Pencil (iPad shell; BrickTouch.cpp): raw touches in pixels, queued and read at the next frame.
+    // A touch that starts on a panel is the mouse of the PC for the UI; one that starts in the 3D view follows the touch
+    // gestures of the web builder (orbit, pinch / pan, press to take a brick, second finger turns it, two-finger tap undo).
+    void touchBegan(uint64_t id, float x, float y, bool pen) { m_touchQueue.push_back({0, id, x, y, pen}); }
+    void touchMoved(uint64_t id, float x, float y) { m_touchQueue.push_back({1, id, x, y, false}); }
+    void touchEnded(uint64_t id, float x, float y, bool cancelled) { m_touchQueue.push_back({cancelled ? 3 : 2, id, x, y, false}); }
 
 private:
     // BrickApp.cpp
@@ -177,6 +185,43 @@ private:
     void frameAll();
     bool savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint32_t w, uint32_t h);
     void toast(const std::string& text);
+
+    // BrickTouch.cpp: the touch gestures of the web (canvas pointer events), iPad
+    enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM };
+    struct TouchEvent { int type; uint64_t id; float x, y; bool pen; };   // type 0 began, 1 moved, 2 ended, 3 cancelled
+    struct TouchPt { float x, y, sx, sy; double t; bool pen; };
+    struct TouchGesture {
+        int type = 0;                 // TG_* (BrickTouch.cpp)
+        uint64_t pid = 0;             // the finger that leads it
+        bool hasPid = false;          // a finger leads it
+        bool kept = false;            // a brick kept in hand after the Pencil was cancelled: the next touch carries it
+        int hit = -1;                 // press: the brick touched
+        float3 hitPoint;
+        float sx = 0, sy = 0, moved = 0;
+        bool tap = false;
+        bool second = false, rotated = false;   // a second finger while a brick is in hand: swipe turns / tilts, tap turns
+        uint64_t secondId = 0;
+        float ax = 0, ay = 0;
+        float d = 0, mx = 0, my = 0;  // two fingers: last distance and middle
+        double t0 = 0;
+        int fingers = 0;              // most fingers down at once (tap of 2 = undo, 3 = redo)
+        bool still = true;            // no finger moved since the second came
+    };
+    std::vector<TouchEvent> m_touchQueue;
+    std::map<uint64_t, TouchPt> m_touches;
+    TouchGesture m_tg;
+    double m_lastTapTime = -10;
+    int m_lastTapBrick = -1;
+    void touchPump();                 // frame(), before the UI: the queued touches
+    void touchDown(const TouchEvent& e);
+    void touchMove(const TouchEvent& e);
+    void touchUp(const TouchEvent& e);
+    bool touchOverUi(float x, float y) const;
+    void touchCamera();               // after a camera change by the fingers
+    void touchTestFrame();            // --touch-test
+    void finishMarquee(bool add);     // the selection rectangle released (mouse and finger)
+    ImVec2 m_holdPos{0, 0};           // where the brick in hand was last aimed (screen pixels)
+    bool m_ipad = false;              // Options::ipad
 
     // BrickEdit.cpp
     View view() const;
@@ -265,6 +310,7 @@ private:
     void uiInfoSheet();
     void uiPopups();
     void drawToast();
+    void exportLdrDialog();                 // the scene as an LDraw model (.ldr)
     void buildNav();                        // library families / categories counts
     std::vector<int> visibleParts() const;  // parts of the current family / category / search
     const std::string& partCat(int part) const;    // LDraw category of a part

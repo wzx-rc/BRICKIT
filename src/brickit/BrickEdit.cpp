@@ -136,6 +136,7 @@ void BrickApp::beginMove(int brick, float sx, float sy) {
 
 void BrickApp::updateHeld(float sx, float sy) {
     if (!m_holding) return;
+    m_holdPos = ImVec2(sx, sy);
     float3 hit;
     const bool over = pickBrick(sx, sy, &hit, m_held.brick) >= 0;
     const bool wasBlocked = m_held.blocked;
@@ -249,8 +250,7 @@ void BrickApp::duplicateSelected() {
 void BrickApp::rotateSelected(int dir) {
     if (m_holding) {
         m_build.rotateHeld(m_held, float3(0, 1, 0), dir);
-        ImVec2 mp = ImGui::GetIO().MousePos;
-        updateHeld(mp.x, mp.y);
+        updateHeld(m_holdPos.x, m_holdPos.y);   // (the finger or the cursor that aims it)
         return;
     }
     std::vector<int> s = selection();
@@ -268,8 +268,7 @@ void BrickApp::tiltSelected(int dir) {
     float3 axis = std::fabs(r.x) > std::fabs(r.z) ? float3(r.x > 0 ? 1.0f : -1.0f, 0, 0) : float3(0, 0, r.z > 0 ? 1.0f : -1.0f);
     if (m_holding) {
         m_build.rotateHeld(m_held, axis, -dir);
-        ImVec2 mp = ImGui::GetIO().MousePos;
-        updateHeld(mp.x, mp.y);
+        updateHeld(m_holdPos.x, m_holdPos.y);
         syncObjects();
         return;
     }
@@ -432,7 +431,15 @@ bool BrickApp::openScene(const std::wstring& path) {
 }
 
 void BrickApp::saveDialog() {
-    plat::saveFileDialog(L"Scène BrickIt (*.v3d.json)\0*.v3d.json;*.json\0Tous les fichiers\0*.*\0", L"v3d.json", m_scenePath,
+    std::wstring suggested = m_scenePath;
+    if (suggested.empty() && m_ipad) {   // the iPad saves without a dialog (Documents): a new name for every new scene
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        wchar_t name[64];
+        swprintf(name, 64, L"BrickIt %04d-%02d-%02d %02dh%02d.v3d.json", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
+        suggested = name;
+    }
+    plat::saveFileDialog(L"Scène BrickIt (*.v3d.json)\0*.v3d.json;*.json\0Tous les fichiers\0*.*\0", L"v3d.json", suggested,
                          [this](const std::wstring& p) { if (!p.empty()) saveScene(p); });
 }
 
@@ -442,6 +449,30 @@ void BrickApp::openDialog() {
 }
 
 // --------------------------------------------------------------------------- input
+
+// the selection rectangle released (mode Sélection): bricks whose box centre falls inside, add = Shift / Ctrl
+void BrickApp::finishMarquee(bool add) {
+    m_marquee = false;
+    const float x0 = std::min(m_marquee0.x, m_marquee1.x), x1 = std::max(m_marquee0.x, m_marquee1.x);
+    const float y0 = std::min(m_marquee0.y, m_marquee1.y), y1 = std::max(m_marquee0.y, m_marquee1.y);
+    if (x1 - x0 < 4 && y1 - y0 < 4) { if (!add) select(-1); return; }
+    std::vector<int> all = add ? selection() : std::vector<int>();
+    View v = view();
+    int hits = 0;
+    for (int i = 0; i < (int)m_bricks.size(); ++i) {
+        Box bx = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
+        float sx, sy;
+        if (!v.project((bx.mn + bx.mx) * 0.5f, sx, sy)) continue;
+        if (sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1) { ++hits; if (std::find(all.begin(), all.end(), i) == all.end()) all.push_back(i); }
+    }
+    m_selected = all.empty() ? -1 : all[0];
+    m_multi.assign(all.size() > 1 ? all.begin() + 1 : all.end(), all.end());
+    syncObjects();
+    char t[64];
+    snprintf(t, sizeof(t), "%d briques sélectionnées", (int)all.size());
+    if (!all.empty()) toast(t);
+}
+
 
 void BrickApp::editInput() {
     ImGuiIO& io = ImGui::GetIO();
@@ -488,6 +519,7 @@ void BrickApp::editInput() {
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grille : oui" : "Grille : non"); }
     }
 
+    if (m_tg.type >= TG_ORBIT) return;   // iPad: a finger gesture in the view (BrickTouch.cpp) has the bricks
     const ImVec2 mp = io.MousePos;
     const bool inView = !io.WantCaptureMouse && !m_overUi;
     // the brick in hand follows the cursor
@@ -555,27 +587,7 @@ void BrickApp::editInput() {
     }
     if (m_marquee) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds
         m_marquee1 = mp;
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-            m_marquee = false;
-            const float x0 = std::min(m_marquee0.x, m_marquee1.x), x1 = std::max(m_marquee0.x, m_marquee1.x);
-            const float y0 = std::min(m_marquee0.y, m_marquee1.y), y1 = std::max(m_marquee0.y, m_marquee1.y);
-            if (x1 - x0 < 4 && y1 - y0 < 4) { if (!io.KeyShift && !io.KeyCtrl) select(-1); return; }
-            std::vector<int> all = (io.KeyShift || io.KeyCtrl) ? selection() : std::vector<int>();
-            View v = view();
-            int hits = 0;
-            for (int i = 0; i < (int)m_bricks.size(); ++i) {
-                Box bx = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
-                float sx, sy;
-                if (!v.project((bx.mn + bx.mx) * 0.5f, sx, sy)) continue;
-                if (sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1) { ++hits; if (std::find(all.begin(), all.end(), i) == all.end()) all.push_back(i); }
-            }
-            m_selected = all.empty() ? -1 : all[0];
-            m_multi.assign(all.size() > 1 ? all.begin() + 1 : all.end(), all.end());
-            syncObjects();
-            char t[64];
-            snprintf(t, sizeof(t), "%d briques sélectionnées", (int)all.size());
-            if (!all.empty()) toast(t);
-        }
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) finishMarquee(io.KeyShift || io.KeyCtrl);
         return;
     }
     if (m_groupDrag) {   // a group dragged: it follows the cursor until the button is released

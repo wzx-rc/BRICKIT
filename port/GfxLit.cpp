@@ -163,7 +163,7 @@ bool GfxRendererLit::readBackBuffer(std::vector<uint8_t>& rgba, uint32_t& w, uin
 
 void GfxRendererLit::present(bool vsync) {
     if (m_swapChain) m_swapChain->Present(vsync ? 1 : 0);
-    else m_ctx->Flush();
+    else { m_ctx->Flush(); m_ctx->FinishFrame(); m_device->ReleaseStaleResources(); }   // headless: the frame ends here (dynamic heap pages released)
 }
 
 // --------------------------------------------------------------------------- Dear ImGui
