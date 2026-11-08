@@ -1,1 +1,4 @@
 build/
+
+# the full LDraw library, fetched from the data branch bibliotheque (tools/brickit/library_fetch.py)
+assets/brickit/full/

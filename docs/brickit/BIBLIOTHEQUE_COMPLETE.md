@@ -34,6 +34,16 @@ copy "%USERPROFILE%\BrickIt\raw\ldraw_complete\ldraw\LDConfig.ldr" "%USERPROFILE
 build\bin\BrickIt.exe --build-full-thumbs "%USERPROFILE%\BrickIt\full\thumbs.pack"
 ```
 
+## Une seule source pour le PC et l'iPad : la branche `bibliotheque`
+
+Le dossier `full` (sans `thumbs_v3_parts` ni les sauvegardes) est publié dans la branche de données `bibliotheque` du
+repo BRICKIT, sans historique (chaque publication la remplace ; `thumbs.pack` y est coupé en morceaux de 95 Mo) :
+
+```
+py tools\brickit\library_publish.py          :: après une régénération, depuis le PC
+python tools/brickit/library_fetch.py <dossier> :: récupère et recolle (la CI iPad : assets/brickit/full, dans le .ipa)
+```
+
 ## Limites connues
 
 - Pièces imprimées : rendues (couleur par sommet) ; quelques pièces anciennes superposent deux impressions dans le même plan et scintillent.

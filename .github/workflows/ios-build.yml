@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, 'claude/**']
-    paths: [ios/**, port/**, src/brickit/**, engine, assets/brickit/**, VERSION, .github/workflows/ios-build.yml]
+    paths: [ios/**, port/**, src/brickit/**, engine, assets/brickit/**, tools/brickit/library_fetch.py, VERSION, .github/workflows/ios-build.yml]
 
 env:
   MOLTENVK_VERSION: v1.4.1
@@ -38,6 +38,18 @@ jobs:
           git submodule update --init --depth 1 engine
           git -C engine log --oneline -1
           echo "have=true" >> "$GITHUB_OUTPUT"
+
+      # The full LDraw library (22 545 parts, thumbnails): the data branch bibliotheque, published from the PC by
+      # tools/brickit/library_publish.py; bundled in the .ipa as assets/brickit/full (Library::fullLibraryDir).
+      - name: Full library (branch bibliotheque)
+        if: steps.engine.outputs.have == 'true'
+        run: |
+          if git ls-remote --exit-code --heads origin bibliotheque >/dev/null; then
+            python3 tools/brickit/library_fetch.py assets/brickit/full
+            du -sh assets/brickit/full
+          else
+            echo "::warning::No branch bibliotheque: the iPad gets the base and Technic parts only"
+          fi
 
       - name: MoltenVK (static library for iOS)
         if: steps.engine.outputs.have == 'true'
