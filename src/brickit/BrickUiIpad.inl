@@ -173,10 +173,12 @@ static ImVec2 g_morePos(0, 0);
 static ImFont* g_kf = nullptr;
 static ImFont* g_kfm = nullptr;
 static ImFont* kF(bool med) { ImFont* f = med ? g_kfm : g_kf; return f ? f : ImGui::GetFont(); }
-static ImVec2 kSize(float px, const char* t, bool med = false) { return kF(med)->CalcTextSizeA(px, 1e9f, 0, t); }
-static void kText(ImDrawList* dl, ImVec2 p, float px, ImU32 col, const char* t, bool med = false) { dl->AddText(kF(med), px, p, col, t); }
+// The kit's sizes are CSS sizes (em); ImGui sizes a font by its ascent - descent, 1.21 em for Fredoka (974 + 236 / 1000)
+static const float kEm = 1.21f;
+static ImVec2 kSize(float px, const char* t, bool med = false) { return kF(med)->CalcTextSizeA(px * kEm, 1e9f, 0, t); }
+static void kText(ImDrawList* dl, ImVec2 p, float px, ImU32 col, const char* t, bool med = false) { dl->AddText(kF(med), px * kEm, p, col, t); }
 static void kTextC(ImDrawList* dl, float x, float cy, float px, ImU32 col, const char* t, bool med = false) {   // vertically centred on cy
-    kText(dl, ImVec2(x, cy - px * 0.62f), px, col, t, med);
+    kText(dl, ImVec2(x, cy - px * kEm * 0.52f), px, col, t, med);
 }
 static std::string upperFr(std::string t) {   // ASCII + the accents of the families (É È Ê À)
     for (size_t i = 0; i < t.size(); ++i) {
@@ -676,7 +678,7 @@ void BrickApp::ipadBubbles() {
             if (h && u.pressed && !hit) { hit = true; m_paletteOpen = true; m_homeOpen = false; }
         }
         const std::vector<int> sel = selection();
-        kitLabel(u.dl, ImVec2(c.x, c.y + 50 * s), colorNameFr(cur) + " · " + std::to_string(std::max<size_t>(1, sel.size())));
+        kitLabel(u.dl, ImVec2(c.x, std::max(c.y + 50 * s, b.y + 22 * s)), colorNameFr(cur) + " · " + std::to_string(std::max<size_t>(1, sel.size())));
         return;
     }
     // 3. the cross: Tourner above, Déplacer below, Dupliquer left, Couleur right, « … » small in the top right corner
@@ -829,7 +831,7 @@ void BrickApp::ipadDrawer() {
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(T_BRUN));
         ImGui::PushStyleColor(ImGuiCol_TextDisabled, ImGui::ColorConvertU32ToFloat4(T_BRUN_PALE));
         ImGui::Begin("##ipadsearch", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground);
-        ImGui::PushFont(kF(false), 15 * s);
+        ImGui::PushFont(kF(false), 15 * s * kEm);
         char buf[128];
         snprintf(buf, sizeof(buf), "%s", m_search.c_str());
         ImGui::SetNextItemWidth(-1);

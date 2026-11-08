@@ -549,7 +549,7 @@ void BrickApp::applyLook() {
     }
     if (m_ipad) {   // iPad (maquette v5): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
-        static const int top[3] = {0xd9dcdc, 0xd6e0e8, 0xc9c3d6}, hor[3] = {0xf3d0aa, 0xf1e4d2, 0xf4bc8e}, floor_[3] = {0xeedfca, 0xefe6d8, 0xf0dcc4};
+        static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf8d8b4, 0xf6ead8, 0xf8c49a}, floor_[3] = {0xfbe0bf, 0xf8e8d2, 0xfad8b4};   // (warm: the neutral HDRI greys it)
         static const int sun[3] = {0xffe0b0, 0xfff8ee, 0xffbe80};
         const int i = std::clamp(m_lightPreset, 0, 2);
         // (the HDRI keeps the light and the shadows of the PC; the gradient only shows where the HDRI does not)
@@ -569,7 +569,7 @@ void BrickApp::applyLook() {
         m_scene.env.hemiIntensity = 0.6f;
         m_gridRgb = float3(0.62f, 0.55f, 0.47f);
         m_gridAlpha = 0.07f;     // a grid you barely see
-        m_rs.exposure = 1.05f;
+        m_rs.exposure = 1.2f;
         m_scene.gridLine = gridLineValue();
     }
     ++m_scene.objectsVersion;
