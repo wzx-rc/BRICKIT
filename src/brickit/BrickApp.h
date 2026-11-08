@@ -326,6 +326,35 @@ private:
     int m_paletteFilter = 0;                // 0 all, 1 in the scene, 2 for this part
     int m_lightPreset = 0;                  // 0 morning, 1 noon, 2 evening
     bool m_pencilOnly = false;              // fingers never build (camera only)
+    // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
+    struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
+    std::map<std::string, ImTextureID> m_kitTex;
+    std::vector<KitColor> m_kitColorList;
+    bool m_kitColorsLoaded = false;
+    std::vector<int> m_drawerParts;         // the parts of the drawer's tab (cached)
+    std::string m_drawerKey;
+    int m_libSel = -1;                      // the part last taken from the drawer / the dock
+    int m_selKey = -1;                      // the selection the bubbles appeared for
+    double m_selT0 = 0;
+    ImTextureID kitTex(const std::string& name);
+    void kitColors();
+    std::string colorNameFr(int index);
+    void kitIcon(ImDrawList* dl, const char* name, ImVec2 c, float size, ImU32 tint, bool shadow = false);
+    void kitShadowCircle(ImDrawList* dl, ImVec2 c, float diam, ImU32 tint, float dy);
+    void kitShadowRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 tint, float dy, float blur);
+    void kitStud(ImDrawList* dl, ImVec2 c, float size, int color, int where, bool current);   // where: 0 scene, 1 sheet
+    bool kitGalet(Ui& u, ImVec2 c, float diam, const char* icon, int state);                  // 0 normal 1 active 2 inactive 3 white
+    bool kitBubble(Ui& u, ImVec2 c, float diam, const char* icon, float scale, bool red = false);
+    void kitSheet(ImDrawList* dl, ImVec2 a, ImVec2 b, ImDrawFlags flags = 0);
+    int kitSegmented(Ui& u, ImVec2 a, float h, const std::vector<const char*>& opts, int cur, bool alignRight);
+    bool kitRow(Ui& u, ImVec2 a, float w, const char* icon, const char* label, const char* note, bool red = false);
+    void kitLabel(ImDrawList* dl, ImVec2 centre, const std::string& t);
+    void ipadTopBar();
+    void ipadCorners();
+    void ipadDock();
+    void ipadMoreMenu(ImVec2 bubble);
+    void ipadMessage();
+    void shareImage();
     void uiTray();
     void uiMechPanel();
     void uiHud();

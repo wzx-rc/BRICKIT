@@ -6,6 +6,8 @@
 #include "Platform.h"
 #include "Svg.h"
 #include "app/Theme.h"
+#include "app/Json.h"
+#include "Image.h"
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -1792,6 +1794,7 @@ void BrickApp::exportLdrDialog() {
 
 void BrickApp::drawToast() {
     // .toast: top 8 px of the view, round, dark, thin yellow border
+    if (m_ipad) { ipadMessage(); return; }
     if (m_toast.empty() || ImGui::GetTime() - m_toastTime > 3.2) return;
     const float s = m_ui;
     ImDrawList* dl = ImGui::GetForegroundDrawList();

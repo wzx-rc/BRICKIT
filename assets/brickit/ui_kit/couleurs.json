@@ -1,0 +1,230 @@
+[
+ {
+  "ldraw": 15,
+  "nom": "Blanc",
+  "hex": "#FFFFFF",
+  "famille": "Blancs et gris"
+ },
+ {
+  "ldraw": 71,
+  "nom": "Gris clair",
+  "hex": "#A0A5A9",
+  "famille": "Blancs et gris"
+ },
+ {
+  "ldraw": 72,
+  "nom": "Gris foncé",
+  "hex": "#6C6E68",
+  "famille": "Blancs et gris"
+ },
+ {
+  "ldraw": 0,
+  "nom": "Noir",
+  "hex": "#1B2A34",
+  "famille": "Blancs et gris"
+ },
+ {
+  "ldraw": 4,
+  "nom": "Rouge",
+  "hex": "#C91A09",
+  "famille": "Rouges et roses"
+ },
+ {
+  "ldraw": 320,
+  "nom": "Rouge foncé",
+  "hex": "#720E0F",
+  "famille": "Rouges et roses"
+ },
+ {
+  "ldraw": 13,
+  "nom": "Rose",
+  "hex": "#FC97AC",
+  "famille": "Rouges et roses"
+ },
+ {
+  "ldraw": 5,
+  "nom": "Rose foncé",
+  "hex": "#C870A0",
+  "famille": "Rouges et roses"
+ },
+ {
+  "ldraw": 26,
+  "nom": "Magenta",
+  "hex": "#923978",
+  "famille": "Rouges et roses"
+ },
+ {
+  "ldraw": 14,
+  "nom": "Jaune",
+  "hex": "#F2CD37",
+  "famille": "Jaunes et oranges"
+ },
+ {
+  "ldraw": 226,
+  "nom": "Jaune clair",
+  "hex": "#FFF03A",
+  "famille": "Jaunes et oranges"
+ },
+ {
+  "ldraw": 25,
+  "nom": "Orange",
+  "hex": "#FE8A18",
+  "famille": "Jaunes et oranges"
+ },
+ {
+  "ldraw": 191,
+  "nom": "Orange clair",
+  "hex": "#F8BB3D",
+  "famille": "Jaunes et oranges"
+ },
+ {
+  "ldraw": 2,
+  "nom": "Vert",
+  "hex": "#237841",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 10,
+  "nom": "Vert clair",
+  "hex": "#4B9F4A",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 27,
+  "nom": "Citron vert",
+  "hex": "#BBE90B",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 378,
+  "nom": "Vert sable",
+  "hex": "#A0BCAC",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 288,
+  "nom": "Vert foncé",
+  "hex": "#184632",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 1,
+  "nom": "Bleu",
+  "hex": "#0055BF",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 73,
+  "nom": "Bleu moyen",
+  "hex": "#5A93DB",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 322,
+  "nom": "Azur moyen",
+  "hex": "#36AEBF",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 212,
+  "nom": "Bleu ciel",
+  "hex": "#9FC3E9",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 272,
+  "nom": "Bleu foncé",
+  "hex": "#0A3463",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 22,
+  "nom": "Violet",
+  "hex": "#81007B",
+  "famille": "Violets"
+ },
+ {
+  "ldraw": 85,
+  "nom": "Violet foncé",
+  "hex": "#3F3691",
+  "famille": "Violets"
+ },
+ {
+  "ldraw": 31,
+  "nom": "Lavande clair",
+  "hex": "#CDA4DE",
+  "famille": "Violets"
+ },
+ {
+  "ldraw": 30,
+  "nom": "Lavande",
+  "hex": "#AC78BA",
+  "famille": "Violets"
+ },
+ {
+  "ldraw": 19,
+  "nom": "Beige",
+  "hex": "#E4CD9E",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 28,
+  "nom": "Beige foncé",
+  "hex": "#958A73",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 70,
+  "nom": "Brun",
+  "hex": "#582A12",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 308,
+  "nom": "Brun foncé",
+  "hex": "#352100",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 92,
+  "nom": "Nougat",
+  "hex": "#D09168",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 47,
+  "nom": "Transparent",
+  "hex": "#FCFCFC",
+  "famille": "Transparentes"
+ },
+ {
+  "ldraw": 43,
+  "nom": "Bleu clair transparent",
+  "hex": "#AEE9EF",
+  "famille": "Transparentes"
+ },
+ {
+  "ldraw": 36,
+  "nom": "Rouge transparent",
+  "hex": "#C91A09",
+  "famille": "Transparentes"
+ },
+ {
+  "ldraw": 46,
+  "nom": "Jaune transparent",
+  "hex": "#F5CD2F",
+  "famille": "Transparentes"
+ },
+ {
+  "ldraw": 297,
+  "nom": "Or perlé",
+  "hex": "#AA7F2E",
+  "famille": "Métal"
+ },
+ {
+  "ldraw": 179,
+  "nom": "Argent",
+  "hex": "#898788",
+  "famille": "Métal"
+ }
+]

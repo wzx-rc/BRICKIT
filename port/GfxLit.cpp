@@ -197,6 +197,8 @@ bool GfxGuiLit::init(GfxRendererLit& renderer, float dpiScale, const std::string
     if (!addFont("Inter-Regular.otf", size)) io.Fonts->AddFontDefault();
     fontBold = addFont("Inter-SemiBold.otf", size);
     fontSmall = addFont("Inter-Regular.otf", 13.0f * dpi);
+    fontKit = addFont("Fredoka-400.ttf", 22.0f * dpi);      // the iPad UI kit (baked large: titles up to 28 pt)
+    fontKitMed = addFont("Fredoka-500.ttf", 22.0f * dpi);
     if (!fontBold) fontBold = io.Fonts->Fonts[0];
     if (!fontSmall) fontSmall = io.Fonts->Fonts[0];
     return m_imgui.init(renderer.device(), renderer.context(), renderer.format(), error);

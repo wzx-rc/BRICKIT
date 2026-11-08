@@ -58,6 +58,8 @@ public:
 
     ImFont* fontBold = nullptr;
     ImFont* fontSmall = nullptr;
+    ImFont* fontKit = nullptr;      // iPad UI kit 2.0: Fredoka 400 / 500 (Lit only; nullptr on the PC)
+    ImFont* fontKitMed = nullptr;
     float dpi = 1.0f;
     std::function<void()> beforeNewFrame;   // self-test: scripted input between the platform backend and NewFrame
 };
