@@ -9,29 +9,31 @@
 #include <algorithm>
 #include <functional>
 #include <map>
+#include <set>
 #include <cctype>
 #include <cmath>
 #include <cstring>
 
 namespace brickit {
 
+static void uiTheme(bool warm);   // BrickUiIpad.inl
 // ------------------------------------------------------------------ web CSS colours
-static const ImU32 C_BG = IM_COL32(0x13, 0x14, 0x17, 255);
-static const ImU32 C_PANEL = IM_COL32(24, 25, 29, 235);           // rgba(24, 25, 29, 0.92)
-static const ImU32 C_PANEL_SOLID = IM_COL32(0x1b, 0x1c, 0x20, 255);
-static const ImU32 C_CARD = IM_COL32(0x25, 0x26, 0x2b, 255);
-static const ImU32 C_CARD_HI = IM_COL32(0x30, 0x32, 0x3a, 255);
-static const ImU32 C_LINE = IM_COL32(0x2f, 0x31, 0x37, 255);
-static const ImU32 C_TEXT = IM_COL32(0xec, 0xec, 0xee, 255);
-static const ImU32 C_DIM = IM_COL32(0x9a, 0x9c, 0xa4, 255);
-static const ImU32 C_FAINT = IM_COL32(0x67, 0x6a, 0x72, 255);
-static const ImU32 C_ACCENT = IM_COL32(0xf7, 0xc5, 0x1e, 255);
-static const ImU32 C_INK = IM_COL32(0x17, 0x17, 0x1a, 255);
-static const ImU32 C_LYEL = IM_COL32(0xf2, 0xcd, 0x37, 255);
-static const ImU32 C_LBLU = IM_COL32(0x00, 0x55, 0xbf, 255);
-static const ImU32 C_OVERLAY = IM_COL32(15, 16, 19, 219);        // rgba(15, 16, 19, 0.86)
-static const ImU32 C_HUD = IM_COL32(15, 16, 19, 184);            // rgba(15, 16, 19, 0.72)
-static const ImU32 C_DEV = IM_COL32(0x7f, 0xe3, 0xff, 255);
+static ImU32 C_BG = IM_COL32(0x13, 0x14, 0x17, 255);
+static ImU32 C_PANEL = IM_COL32(24, 25, 29, 235);           // rgba(24, 25, 29, 0.92)
+static ImU32 C_PANEL_SOLID = IM_COL32(0x1b, 0x1c, 0x20, 255);
+static ImU32 C_CARD = IM_COL32(0x25, 0x26, 0x2b, 255);
+static ImU32 C_CARD_HI = IM_COL32(0x30, 0x32, 0x3a, 255);
+static ImU32 C_LINE = IM_COL32(0x2f, 0x31, 0x37, 255);
+static ImU32 C_TEXT = IM_COL32(0xec, 0xec, 0xee, 255);
+static ImU32 C_DIM = IM_COL32(0x9a, 0x9c, 0xa4, 255);
+static ImU32 C_FAINT = IM_COL32(0x67, 0x6a, 0x72, 255);
+static ImU32 C_ACCENT = IM_COL32(0xf7, 0xc5, 0x1e, 255);
+static ImU32 C_INK = IM_COL32(0x17, 0x17, 0x1a, 255);
+static ImU32 C_LYEL = IM_COL32(0xf2, 0xcd, 0x37, 255);
+static ImU32 C_LBLU = IM_COL32(0x00, 0x55, 0xbf, 255);
+static ImU32 C_OVERLAY = IM_COL32(15, 16, 19, 219);        // rgba(15, 16, 19, 0.86)
+static ImU32 C_HUD = IM_COL32(15, 16, 19, 184);            // rgba(15, 16, 19, 0.72)
+static ImU32 C_DEV = IM_COL32(0x7f, 0xe3, 0xff, 255);
 
 static ImU32 alphaOf(ImU32 c, float a) { return (c & 0x00FFFFFF) | ((ImU32)(((c >> 24) & 0xFF) * a) << 24); }
 
@@ -2034,6 +2036,20 @@ void BrickApp::drawUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+    uiTheme(m_ipad);
+    if (m_ipad) {
+        drawUiIpad();
+        uiCtxMenu();
+        drawDropzone();
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+        drawToast();
+        const ImVec2 mp = ImGui::GetIO().MousePos;
+        m_overUi = m_libPress >= 0 || ImGui::GetIO().WantCaptureMouse;
+        for (const ImVec4& r : m_uiRects)
+            if (mp.x >= r.x && mp.y >= r.y && mp.x < r.z && mp.y < r.w) m_overUi = true;
+        return;
+    }
     uiHeader();      // m_uiRects[0]
     uiTray();        // m_uiRects[1]
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi && !m_ipad) {   // the focus reticle (DOF Auto): a thin white circle in the middle of the view
@@ -3214,5 +3230,7 @@ void BrickApp::uiThumbEditor() {
     if (webButton(u, ImVec2(p1.x - pad - sw, y), "Enregistrer comme miniature", sw, true)) m_teSave = true;
     if (webButton(u, ImVec2(p1.x - pad - sw - 8 * s - cw, y), "Annuler", cw) || ImGui::IsKeyPressed(ImGuiKey_Escape)) m_teditPart = -1;
 }
+
+#include "BrickUiIpad.inl"
 
 } // namespace brickit

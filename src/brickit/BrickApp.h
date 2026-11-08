@@ -63,6 +63,7 @@ struct Options {
     int stillAA = -1;   // --still-aa 0 / 1
     int touchHud = -1;  // --touch-hud 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
+    std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
     std::string touchTest;   // --touch-test orbit | pinch | undo | pick | hold2: scripted finger gestures (BrickTouch.cpp)
     int freeRot = 0;    // --free-rot n: the selection turned n x 15 degrees at start (captures)
     bool colorArc = false;   // --color-arc: the colour arc of the touch HUD open (captures)
@@ -308,6 +309,22 @@ private:
     void uiToolDock();                      // iPad: the tools of the selection, big labelled buttons on the left
     std::vector<int> m_recentColors;        // the last colours applied, most recent first
     bool m_paletteOpen = false;
+    // iPad interface v5 (BrickUiIpad.inl)
+    void drawUiIpad();
+    void ipadPucks();
+    void ipadBubbles();
+    void ipadColorArc();
+    void ipadNuancier();
+    void ipadHomeMenu();
+    void ipadNewScene();
+    void newScene(int kind);                // 0 green baseplate, 1 free floor
+    bool selectionRect(ImVec2& a, ImVec2& b) const;   // the screen rectangle of the selection
+    bool m_libOpen = false, m_homeOpen = false, m_newSceneOpen = false;
+    int m_dockPress = -1;                   // the dock button pressed (drag up = take the part)
+    ImVec2 m_dockPressPos{0, 0};
+    int m_paletteFilter = 0;                // 0 all, 1 in the scene, 2 for this part
+    int m_lightPreset = 0;                  // 0 morning, 1 noon, 2 evening
+    bool m_pencilOnly = false;              // fingers never build (camera only)
     void uiTray();
     void uiMechPanel();
     void uiHud();

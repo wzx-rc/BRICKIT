@@ -179,6 +179,11 @@ void BrickApp::touchDown(const TouchEvent& e) {
         g.tap = hit < 0;
         return;
     }
+    if (hit >= 0 && m_pencilOnly && !e.pen) {   // « Construire au stylet seulement »: a finger selects, never takes
+        select(hit);
+        g.type = TG_ORBIT;
+        return;
+    }
     if (hit >= 0) { g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; return; }   // Viseur: tap selects, drag takes
     g.type = TG_ORBIT;
     g.tap = true;

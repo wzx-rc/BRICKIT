@@ -547,6 +547,24 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
+    if (m_ipad) {   // iPad (maquette v5): a bright warm stage, cream floor, Matin / Midi / Soir
+        static const int sky[3] = {0xf3e6cf, 0xeef0ec, 0xf0d2b0}, floor_[3] = {0xe9dcc4, 0xe4e1d8, 0xe2cdb2};
+        static const int sun[3] = {0xffe2b8, 0xfff8ee, 0xffc48a};
+        const int i = std::clamp(m_lightPreset, 0, 2);
+        m_scene.env.top = m_scene.env.horizon = m_scene.env.bottom = lin(sky[i]);
+        g.baseColor = lin(floor_[i]);
+        g.roughness = 0.9f;
+        const float elev[3] = {28, 62, 14};
+        const float az = radians(i == 2 ? 230.0f : 140.0f), el = radians(elev[i]);
+        m_scene.sun.direction = normalize(float3(std::cos(el) * std::cos(az), std::sin(el), std::cos(el) * std::sin(az)));
+        m_scene.sun.color = lin(sun[i]);
+        m_scene.sun.intensity = 3.0f;
+        m_scene.env.hemiSky = lin(sky[i]);
+        m_scene.env.hemiGround = lin(floor_[i]);
+        m_scene.env.hemiIntensity = 0.55f;
+        m_gridRgb = float3(0.55f, 0.45f, 0.35f);
+        m_scene.gridLine = gridLineValue();
+    }
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -908,6 +926,14 @@ void BrickApp::frame() {
     if (m_prefsDirty && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { m_prefsDirty = false; savePrefs(); }
     mouseTestFrame();
     touchTestFrame();
+    if (!m_opt.ipadOpen.empty() && m_frame == 20) {
+        const std::string& o = m_opt.ipadOpen;
+        m_homeOpen = o == "home";
+        m_libOpen = o == "lib";
+        m_paletteOpen = o == "palette";
+        m_newSceneOpen = o == "new";
+        m_arcOpen = o == "arc";
+    }
     if (m_frame == 1 && !m_opt.ttBase.empty()) {   // self-test: a turntable base and its top on one axis -> one pivot
         Part* b = m_lib.get(m_opt.ttBase);
         Part* t = m_lib.get(m_opt.ttTop);
@@ -1262,6 +1288,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--still-aa") opt.stillAA = _wtoi(next().c_str());
         else if (a == L"--touch-hud") opt.touchHud = _wtoi(next().c_str());
         else if (a == L"--ipad") opt.ipad = true;
+        else if (a == L"--ipad-open") { std::wstring w = next(); opt.ipadOpen.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--touch-test") { std::wstring w = next(); opt.touchTest.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--free-rot") opt.freeRot = _wtoi(next().c_str());
         else if (a == L"--color-arc") opt.colorArc = true;
