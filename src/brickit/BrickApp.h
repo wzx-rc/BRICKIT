@@ -304,6 +304,10 @@ private:
     void uiHeader();
     void uiRadial();
     void uiColors();
+    void uiColorsTouch();                   // iPad: a column of round swatches, the whole palette beside it on a tap
+    void uiToolDock();                      // iPad: the tools of the selection, big labelled buttons on the left
+    std::vector<int> m_recentColors;        // the last colours applied, most recent first
+    bool m_paletteOpen = false;
     void uiTray();
     void uiMechPanel();
     void uiHud();

@@ -298,7 +298,9 @@ void BrickApp::uiHeader() {
 // ------------------------------------------------------------------ left-hand radial menu
 
 void BrickApp::uiRadial() {
-    if (!m_touchHud || !m_pOpts.visible || m_mechOn) return;
+    if (!m_pOpts.visible || m_mechOn) return;
+    if (m_ipad) { uiToolDock(); return; }
+    if (!m_touchHud) return;
     Ui u = ui(m_ui);
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
@@ -424,8 +426,9 @@ void BrickApp::uiSelHud() {
         return;
     }
     if (m_opt.colorArc) m_arcOpen = true;   // (captures)
-    Ui u = ui(m_ui);
-    const float s = m_ui;
+    // (the iPad: the whole HUD and its colour arc at 72 %, Wzx 08/11/2026: too big on the iPad screen)
+    const float s = m_ui * (m_ipad ? 0.72f : 1.0f);
+    Ui u = ui(s);
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const double now = ImGui::GetTime();
     // screen bounds of the selection
@@ -804,8 +807,240 @@ void BrickApp::uiBac() {
 
 // ------------------------------------------------------------------ colours panel (right)
 
+// ------------------------------------------------------------------ iPad: colours (right) and tools (left)
+// Wzx (08/11/2026): the colour column of the PC is too long for the iPad and the radial pad reads badly. The iPad gets
+// a thin column of round swatches (the current colour, then the last ones used; a tap on the current one opens the
+// whole palette beside it) and a dock of big labelled buttons on the left (turn, tilt, duplicate, delete).
+
+static ImU32 colU32(const Color& c, int a = 255) { return IM_COL32((int)(c.srgb.x * 255), (int)(c.srgb.y * 255), (int)(c.srgb.z * 255), a); }
+
+static void swatch(ImDrawList* dl, ImVec2 c, float r, const Color& col, float s) {
+    dl->AddCircleFilled(ImVec2(c.x, c.y + 1.5f * s), r + 1 * s, IM_COL32(0, 0, 0, 70), 32);
+    dl->AddCircleFilled(c, r, colU32(col), 32);
+    if (col.group == "transparent") dl->AddCircleFilled(ImVec2(c.x - r * 0.3f, c.y - r * 0.3f), r * 0.35f, IM_COL32(255, 255, 255, 90), 20);
+    if (col.group == "metallic") dl->AddCircle(c, r * 0.62f, IM_COL32(255, 255, 255, 80), 24, 1.5f * s);
+    dl->AddCircle(c, r, IM_COL32(255, 255, 255, 34), 32, 1.0f * s);
+}
+
+void BrickApp::uiColorsTouch() {
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const int fbp = focusBrick();
+    const int fpart = fbp >= 0 && fbp < (int)m_bricks.size() ? m_bricks[fbp].part : -1;
+    const bool filter = !m_allColors && fpart >= 0 && m_lib.hasColorTable(fpart);
+    // the last colours used (7), the usual ones while there are fewer
+    std::vector<int> recent;
+    for (int c : m_recentColors) if (c != m_color && (int)recent.size() < 7) recent.push_back(c);
+    static const int kUsual[] = {15, 0, 4, 1, 14, 2, 71, 72, 19, 25};
+    for (int id : kUsual) {
+        const int c = colorIndex(id);
+        if ((int)recent.size() >= 7) break;
+        if (c >= 0 && c != m_color && std::find(recent.begin(), recent.end(), c) == recent.end()) recent.push_back(c);
+    }
+    const float W = 52 * s, rCur = 18 * s, r = 14 * s, step = 36 * s, pad = 10 * s;
+    const float H = pad + 2 * rCur + 14 * s + 10 * s + recent.size() * step + pad - 6 * s;
+    const float top = m_stage.y, bot = m_stage.w;
+    const ImVec2 p0(d.x - 12 * s - W, std::max(top + 12 * s, (top + bot - H) * 0.5f)), p1(d.x - 12 * s, p0.y + H);
+    u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 6 * s), ImVec2(p1.x, p1.y + 6 * s), IM_COL32(0, 0, 0, 50), W * 0.5f);
+    u.dl->AddRectFilled(p0, p1, C_OVERLAY, W * 0.5f);
+    m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
+    const float cx = (p0.x + p1.x) * 0.5f;
+    // the current colour: a bigger swatch ringed in yellow, a tap opens the palette
+    const Color& cur = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
+    ImVec2 cc(cx, p0.y + pad + rCur);
+    swatch(u.dl, cc, rCur, cur, s);
+    u.dl->AddCircle(cc, rCur + 3.5f * s, m_paletteOpen ? C_ACCENT : IM_COL32(255, 255, 255, 120), 40, 2.0f * s);
+    {   // « + » badge: the whole palette
+        const ImVec2 b(cc.x + rCur * 0.72f, cc.y + rCur * 0.72f);
+        u.dl->AddCircleFilled(b, 7 * s, C_ACCENT, 20);
+        u.dl->AddLine(ImVec2(b.x - 3.5f * s, b.y), ImVec2(b.x + 3.5f * s, b.y), C_INK, 1.8f * s);
+        u.dl->AddLine(ImVec2(b.x, b.y - 3.5f * s), ImVec2(b.x, b.y + 3.5f * s), C_INK, 1.8f * s);
+    }
+    const bool hitCur = u.pressed && u.hover(ImVec2(cc.x - rCur - 6 * s, cc.y - rCur - 6 * s), ImVec2(cc.x + rCur + 6 * s, cc.y + rCur + 6 * s));
+    if (hitCur) m_paletteOpen = !m_paletteOpen;
+    float y = cc.y + rCur + 14 * s;
+    u.dl->AddLine(ImVec2(p0.x + 12 * s, y - 4 * s), ImVec2(p1.x - 12 * s, y - 4 * s), C_LINE, 1.0f);
+    y += 6 * s + r;
+    for (int c : recent) {
+        const ImVec2 pc(cx, y);
+        const bool exists = !filter || m_lib.colorExists(fpart, c);
+        swatch(u.dl, pc, r, m_lib.palette[c], s);
+        if (!exists) u.dl->AddCircleFilled(pc, r, IM_COL32(0x13, 0x14, 0x17, 170), 32);
+        if (exists && u.pressed && u.hover(ImVec2(p0.x, y - step * 0.5f), ImVec2(p1.x, y + step * 0.5f))) applyColor(c);
+        y += step;
+    }
+    if (!m_paletteOpen) return;
+    // the whole palette, beside the column: groups of round swatches, « Toutes les couleurs » for the impossible ones
+    const int cols = 7;
+    const float sr = 15 * s, sg = 38 * s, ppad = 14 * s, labH = 20 * s;
+    struct G { const char* title; const char* key; std::vector<int> idx; };
+    G groups[3] = {{"Unies", "standard", {}}, {"Transparentes", "transparent", {}}, {"Métal", "metallic", {}}};
+    for (int i = 0; i < (int)m_lib.palette.size(); ++i)
+        for (G& g : groups) if (m_lib.palette[i].group == g.key) g.idx.push_back(i);
+    float PH = ppad + 22 * s + 28 * s;
+    for (G& g : groups) if (!g.idx.empty()) PH += labH + ((g.idx.size() + cols - 1) / cols) * sg;
+    PH += ppad - 6 * s;
+    const float PW = ppad * 2 + cols * sg - (sg - 2 * sr);
+    ImVec2 q0(p0.x - 10 * s - PW, std::clamp((p0.y + p1.y - PH) * 0.5f, top + 8 * s, std::max(top + 8 * s, bot - 8 * s - PH))), q1(q0.x + PW, q0.y + PH);
+    u.dl->AddRectFilled(ImVec2(q0.x, q0.y + 8 * s), ImVec2(q1.x, q1.y + 8 * s), IM_COL32(0, 0, 0, 60), 18 * s);
+    u.dl->AddRectFilled(q0, q1, C_PANEL_SOLID, 18 * s);
+    u.dl->AddRect(q0, q1, C_LINE, 18 * s);
+    m_uiRects.push_back(ImVec4(q0.x, q0.y, q1.x, q1.y));
+    float py = q0.y + ppad;
+    char nm[96];
+    snprintf(nm, sizeof(nm), "%s · %d", cur.name.c_str(), cur.id);
+    u.text(ImVec2(q0.x + ppad, py), 13, C_TEXT, nm, true);
+    py += 22 * s;
+    {   // toggle « Toutes les couleurs »
+        ImVec2 ca(q0.x + ppad, py + 3 * s), cb(ca.x + 16 * s, ca.y + 16 * s);
+        if (m_allColors) {
+            u.dl->AddRectFilled(ca, cb, C_ACCENT, 4 * s);
+            u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(ca.x + 4 * s, ca.y + 8 * s), ImVec2(ca.x + 7 * s, ca.y + 12 * s), ImVec2(ca.x + 12.5f * s, ca.y + 4 * s)}.data(), 3, C_INK, 0, 2 * s);
+        } else u.dl->AddRect(ca, cb, C_FAINT, 4 * s, 0, 1.5f * s);
+        u.text(ImVec2(cb.x + 8 * s, py + 2 * s), 11, C_DIM, filter || m_allColors ? "Toutes les couleurs (même inexistantes pour cette pièce)" : "Toutes les couleurs");
+        if (u.pressed && u.hover(ImVec2(q0.x, py), ImVec2(q1.x, py + 22 * s))) m_allColors = !m_allColors;
+        py += 28 * s;
+    }
+    bool picked = false;
+    for (G& g : groups) {
+        if (g.idx.empty()) continue;
+        u.text(ImVec2(q0.x + ppad, py), 10, C_FAINT, g.title, true);
+        py += labH;
+        for (size_t k = 0; k < g.idx.size(); ++k) {
+            const int i = g.idx[k];
+            const ImVec2 pc(q0.x + ppad + sr + (k % cols) * sg, py + sr + (k / cols) * sg);
+            const bool exists = !filter || m_lib.colorExists(fpart, i);
+            swatch(u.dl, pc, sr, m_lib.palette[i], s);
+            if (!exists) {
+                u.dl->AddCircleFilled(pc, sr, IM_COL32(0x13, 0x14, 0x17, 180), 32);
+                u.dl->AddLine(ImVec2(pc.x - sr * 0.5f, pc.y + sr * 0.5f), ImVec2(pc.x + sr * 0.5f, pc.y - sr * 0.5f), IM_COL32(255, 255, 255, 70), 1.5f * s);
+            }
+            if (i == m_color) u.dl->AddCircle(pc, sr + 3.5f * s, C_ACCENT, 32, 2.2f * s);
+            if (exists && u.pressed && u.hover(ImVec2(pc.x - sg * 0.5f, pc.y - sg * 0.5f), ImVec2(pc.x + sg * 0.5f, pc.y + sg * 0.5f))) { applyColor(i); picked = true; }
+        }
+        py += ((g.idx.size() + cols - 1) / cols) * sg;
+    }
+    if (picked || (u.pressed && !hitCur && !u.hover(q0, q1) && !u.hover(p0, p1))) m_paletteOpen = false;
+}
+
+// the tools of the selection, left (iPad): big buttons with a word, grouped; dimmed while nothing is selected
+static void dockIcon(ImDrawList* dl, int kind, ImVec2 c, float s, ImU32 col) {
+    const float t = 2.2f * s;
+    auto arrowHead = [&](ImVec2 tip, ImVec2 dir) {   // a filled head pointing along dir
+        const float l = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+        dir = ImVec2(dir.x / l, dir.y / l);
+        const ImVec2 n(-dir.y, dir.x);
+        const float h = 5.5f * s, w = 4.5f * s;
+        dl->AddTriangleFilled(ImVec2(tip.x + dir.x * 1.5f * s, tip.y + dir.y * 1.5f * s), ImVec2(tip.x - dir.x * h + n.x * w, tip.y - dir.y * h + n.y * w),
+                              ImVec2(tip.x - dir.x * h - n.x * w, tip.y - dir.y * h - n.y * w), col);
+    };
+    switch (kind) {
+    case 0: case 1: {   // turn left / right: a flat brick seen from above circled by an arrow
+        dl->AddRect(ImVec2(c.x - 5 * s, c.y - 3.5f * s), ImVec2(c.x + 5 * s, c.y + 3.5f * s), col, 2 * s, 0, 1.6f * s);
+        const float R = 9.5f * s, dir = kind == 0 ? -1.0f : 1.0f;
+        const float a0 = -1.5708f - dir * 0.35f, a1 = a0 + dir * 4.9f;
+        dl->PathArcTo(c, R, a0, a1, 28);
+        dl->PathStroke(col, 0, t);
+        const ImVec2 tip(c.x + std::cos(a1) * R, c.y + std::sin(a1) * R);
+        arrowHead(tip, ImVec2(-std::sin(a1) * dir, std::cos(a1) * dir));
+        break;
+    }
+    case 2: case 3: {   // tilt up / down: a brick seen from the side, an arrow arcing over (or under) it
+        const float dy = kind == 2 ? 1.0f : -1.0f;
+        dl->AddRect(ImVec2(c.x - 7 * s, c.y + dy * 1 * s - 3 * s), ImVec2(c.x + 7 * s, c.y + dy * 1 * s + 3 * s), col, 1.5f * s, 0, 1.6f * s);
+        for (int k = -1; k <= 1; k += 2) dl->AddRectFilled(ImVec2(c.x + k * 3.5f * s - 1.5f * s, c.y + dy * 1 * s - 3 * s - 2 * s), ImVec2(c.x + k * 3.5f * s + 1.5f * s, c.y + dy * 1 * s - 3 * s), col);
+        const ImVec2 ac(c.x, c.y + dy * 6 * s);
+        const float R = 9 * s;
+        const float a0 = dy > 0 ? 3.4f : -3.4f + 6.2832f, a1 = dy > 0 ? 3.4f + 2.6f : 6.2832f - 3.4f - 2.6f;
+        dl->PathArcTo(ac, R, kind == 2 ? 3.6f : 2.68f, kind == 2 ? 5.82f : 0.46f, 20);
+        dl->PathStroke(col, 0, t);
+        (void)a0; (void)a1;
+        const float ae = kind == 2 ? 5.82f : 0.46f;
+        const ImVec2 tip(ac.x + std::cos(ae) * R, ac.y + std::sin(ae) * R);
+        arrowHead(tip, kind == 2 ? ImVec2(-std::sin(ae), std::cos(ae)) : ImVec2(std::sin(ae), -std::cos(ae)));
+        break;
+    }
+    case 4:   // duplicate: two rounded squares, the front one with a +
+        dl->AddRect(ImVec2(c.x - 9 * s, c.y - 9 * s), ImVec2(c.x + 3 * s, c.y + 3 * s), col, 3 * s, 0, 1.8f * s);
+        dl->AddRectFilled(ImVec2(c.x - 3 * s, c.y - 3 * s), ImVec2(c.x + 9 * s, c.y + 9 * s), col, 3 * s);
+        dl->AddLine(ImVec2(c.x + 3 * s, c.y), ImVec2(c.x + 3 * s, c.y + 6 * s), IM_COL32(0x1b, 0x1c, 0x20, 255), 1.8f * s);
+        dl->AddLine(ImVec2(c.x, c.y + 3 * s), ImVec2(c.x + 6 * s, c.y + 3 * s), IM_COL32(0x1b, 0x1c, 0x20, 255), 1.8f * s);
+        break;
+    case 5:   // delete: a bin
+        dl->AddLine(ImVec2(c.x - 9 * s, c.y - 6 * s), ImVec2(c.x + 9 * s, c.y - 6 * s), col, t);
+        dl->AddLine(ImVec2(c.x - 3 * s, c.y - 9 * s), ImVec2(c.x + 3 * s, c.y - 9 * s), col, t);
+        dl->AddQuad(ImVec2(c.x - 7 * s, c.y - 6 * s), ImVec2(c.x + 7 * s, c.y - 6 * s), ImVec2(c.x + 5.5f * s, c.y + 9 * s), ImVec2(c.x - 5.5f * s, c.y + 9 * s), col, 1.8f * s);
+        dl->AddLine(ImVec2(c.x - 2 * s, c.y - 2 * s), ImVec2(c.x - 2 * s, c.y + 5 * s), col, 1.6f * s);
+        dl->AddLine(ImVec2(c.x + 2 * s, c.y - 2 * s), ImVec2(c.x + 2 * s, c.y + 5 * s), col, 1.6f * s);
+        break;
+    case 6:   // place: a check
+        dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 8 * s, c.y), ImVec2(c.x - 2.5f * s, c.y + 6 * s), ImVec2(c.x + 9 * s, c.y - 7 * s)}.data(), 3, col, 0, 2.8f * s);
+        break;
+    case 7:   // cancel: a cross
+        dl->AddLine(ImVec2(c.x - 7 * s, c.y - 7 * s), ImVec2(c.x + 7 * s, c.y + 7 * s), col, 2.6f * s);
+        dl->AddLine(ImVec2(c.x + 7 * s, c.y - 7 * s), ImVec2(c.x - 7 * s, c.y + 7 * s), col, 2.6f * s);
+        break;
+    }
+}
+
+void BrickApp::uiToolDock() {
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const int focus = m_holding ? m_held.brick : m_selected;
+    const bool active = focus >= 0 || !m_multi.empty();
+    struct T { int icon; const char* label; int act; };   // act: 0..3 turn L / R, tilt up / down, 4 duplicate, 5 delete, 6 place, 7 cancel
+    std::vector<std::vector<T>> groups;
+    if (m_holding) groups = {{{6, "Poser", 6}, {7, "Annuler", 7}}, {{0, "Tourner", 0}, {1, "Tourner", 1}}, {{2, "Basculer", 2}, {3, "Basculer", 3}}};
+    else groups = {{{0, "Tourner", 0}, {1, "Tourner", 1}}, {{2, "Basculer", 2}, {3, "Basculer", 3}}, {{4, "Dupliquer", 4}, {5, "Supprimer", 5}}};
+    const float B = 54 * s, gap = 6 * s, sep = 14 * s, pad = 8 * s;
+    int n = 0;
+    for (auto& g : groups) n += (int)g.size();
+    const float H = pad * 2 + n * B + (n - (int)groups.size()) * gap + ((int)groups.size() - 1) * sep;
+    const float top = m_stage.y, bot = m_stage.w;
+    const ImVec2 p0(12 * s, std::max(top + 12 * s, (top + bot - H) * 0.5f)), p1(p0.x + B + 2 * pad, p0.y + H);
+    u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 6 * s), ImVec2(p1.x, p1.y + 6 * s), IM_COL32(0, 0, 0, 50), 20 * s);
+    u.dl->AddRectFilled(p0, p1, C_OVERLAY, 20 * s);
+    m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
+    float y = p0.y + pad;
+    for (size_t gi = 0; gi < groups.size(); ++gi) {
+        if (gi) {
+            u.dl->AddLine(ImVec2(p0.x + 14 * s, y + sep * 0.5f - gap), ImVec2(p1.x - 14 * s, y + sep * 0.5f - gap), C_LINE, 1.0f);
+            y += sep - gap;
+        }
+        for (const T& t : groups[gi]) {
+            const ImVec2 a(p0.x + pad, y), b(a.x + B, y + B);
+            const bool on = active || t.act >= 6;
+            const bool h = on && u.hover(a, b) && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+            const ImU32 bg = t.act == 6 ? C_ACCENT : (h ? C_CARD_HI : IM_COL32(255, 255, 255, 10));
+            u.dl->AddRectFilled(a, b, bg, 14 * s);
+            const ImU32 fg = t.act == 6 ? C_INK : (t.act == 5 ? IM_COL32(0xff, 0x8a, 0x80, 255) : C_TEXT);
+            const ImU32 fgA = on ? fg : alphaOf(fg, 0.3f);
+            dockIcon(u.dl, t.icon, ImVec2((a.x + b.x) * 0.5f, a.y + 21 * s), s, fgA);
+            const float tw = u.textW(8.5f, t.label, t.act == 6);
+            u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, b.y - 16 * s), 8.5f, on ? (t.act == 6 ? C_INK : C_DIM) : alphaOf(C_DIM, 0.4f), t.label, t.act == 6);
+            if (on && u.pressed && u.hover(a, b)) {
+                switch (t.act) {
+                case 0: rotateSelected(1); break;
+                case 1: rotateSelected(-1); break;
+                case 2: tiltSelected(-1); break;
+                case 3: tiltSelected(1); break;
+                case 4: duplicateSelected(); break;
+                case 5: deleteSelected(); break;
+                case 6: dropHeld(); break;
+                case 7: cancelHeld(); break;
+                }
+            }
+            y += B + gap;
+        }
+    }
+}
+
 void BrickApp::uiColors() {
     if (!m_pColors.visible || m_mechOn) return;
+    if (m_ipad) { uiColorsTouch(); return; }
     Ui u = ui(m_ui);
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;

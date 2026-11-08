@@ -351,6 +351,9 @@ void BrickApp::drawVoxels() {
 
 void BrickApp::applyColor(int color) {
     m_color = color;
+    m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), color), m_recentColors.end());
+    m_recentColors.insert(m_recentColors.begin(), color);
+    if (m_recentColors.size() > 12) m_recentColors.resize(12);
     std::vector<int> s = selection();
     if (m_holding) s.push_back(m_held.brick);
     if (s.empty()) return;
