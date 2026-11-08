@@ -66,15 +66,15 @@
   "famille": "Jaunes et oranges"
  },
  {
-  "ldraw": 191,
-  "nom": "Orange clair",
-  "hex": "#F8BB3D",
-  "famille": "Jaunes et oranges"
- },
- {
   "ldraw": 25,
   "nom": "Orange",
   "hex": "#FE8A18",
+  "famille": "Jaunes et oranges"
+ },
+ {
+  "ldraw": 191,
+  "nom": "Orange clair",
+  "hex": "#F8BB3D",
   "famille": "Jaunes et oranges"
  },
  {
@@ -96,15 +96,15 @@
   "famille": "Verts"
  },
  {
-  "ldraw": 288,
-  "nom": "Vert foncé",
-  "hex": "#184632",
-  "famille": "Verts"
- },
- {
   "ldraw": 378,
   "nom": "Vert sable",
   "hex": "#A0BCAC",
+  "famille": "Verts"
+ },
+ {
+  "ldraw": 288,
+  "nom": "Vert foncé",
+  "hex": "#184632",
   "famille": "Verts"
  },
  {
@@ -120,15 +120,15 @@
   "famille": "Bleus"
  },
  {
-  "ldraw": 321,
-  "nom": "Azur foncé",
-  "hex": "#078BC9",
-  "famille": "Bleus"
- },
- {
   "ldraw": 322,
   "nom": "Azur moyen",
   "hex": "#36AEBF",
+  "famille": "Bleus"
+ },
+ {
+  "ldraw": 212,
+  "nom": "Bleu ciel",
+  "hex": "#9FC3E9",
   "famille": "Bleus"
  },
  {
@@ -150,15 +150,15 @@
   "famille": "Violets"
  },
  {
-  "ldraw": 30,
-  "nom": "Lavande",
-  "hex": "#AC78BA",
+  "ldraw": 31,
+  "nom": "Lavande clair",
+  "hex": "#CDA4DE",
   "famille": "Violets"
  },
  {
-  "ldraw": 31,
-  "nom": "Lavande clair",
-  "hex": "#E1D5ED",
+  "ldraw": 30,
+  "nom": "Lavande",
+  "hex": "#AC78BA",
   "famille": "Violets"
  },
  {
@@ -174,18 +174,6 @@
   "famille": "Terres"
  },
  {
-  "ldraw": 92,
-  "nom": "Nougat",
-  "hex": "#D09168",
-  "famille": "Terres"
- },
- {
-  "ldraw": 84,
-  "nom": "Nougat moyen",
-  "hex": "#AA7D55",
-  "famille": "Terres"
- },
- {
   "ldraw": 70,
   "nom": "Brun",
   "hex": "#582A12",
@@ -195,6 +183,12 @@
   "ldraw": 308,
   "nom": "Brun foncé",
   "hex": "#352100",
+  "famille": "Terres"
+ },
+ {
+  "ldraw": 92,
+  "nom": "Nougat",
+  "hex": "#D09168",
   "famille": "Terres"
  },
  {
@@ -219,12 +213,6 @@
   "ldraw": 46,
   "nom": "Jaune transparent",
   "hex": "#F5CD2F",
-  "famille": "Transparentes"
- },
- {
-  "ldraw": 34,
-  "nom": "Vert transparent",
-  "hex": "#237841",
   "famille": "Transparentes"
  },
  {
