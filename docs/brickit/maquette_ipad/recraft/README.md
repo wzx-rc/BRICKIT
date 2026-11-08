@@ -14,3 +14,7 @@ Icons: `undo redo library colours rotate_left rotate_right duplicate delete move
 - The root SVGs were restyled by a script. Each variant was recoloured to its palette (A white, B cream + brown #6B4A32, C terracotta #E08A5C / #C9693F / #8E4529 + cream #F1E4CC) and given an SVG drop-shadow on A and B.
 - Recraft drew some arrows the wrong way, so a few icons are mirrored copies: A `redo` and `rotate_right`, B `redo` and `rotate_left`, C `redo` and `rotate_left`.
 - `preview.html` / `preview.png` show each set on a cosy background.
+
+## Chosen set (Wzx, 08/11/2026): A everywhere, thickened
+
+`A_bold_white_thick/` is the set to use in the iPad app: the A icons with a 44-unit white stroke (viewBox 2048) on every shape, so the lines read as bold as Tiny Glade. `preview.png` compares each icon with the original and shows them on the 46 pt brown translucent bubbles of the mockup (https://claude.ai/artifact/EfypNaC8b69RfpSS6TAVCt).
