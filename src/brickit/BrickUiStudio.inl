@@ -668,9 +668,10 @@ void BrickApp::stPaintColors() {
     const float sw = std::clamp(step - 4 * s, 12 * s, 26 * s);
     struct P { int i; ImVec2 p; float e; };
     std::vector<P> ps;
+    std::vector<float> gaps;   // the angles of the gaps between two groups (a small line: Wzx 09/11/2026)
     float t = 0;
     for (int k = 0; k < (int)order.size(); ++k) {
-        if (order[k] < 0) { t += step * gapW; continue; }
+        if (order[k] < 0) { gaps.push_back(-th + (t + step * (gapW - 1) * 0.5f) / R); t += step * gapW; continue; }
         const float ang = -th + t / R;   // 0 = straight down
         const ImVec2 p(cxm + std::sin(ang) * R, cy + std::cos(ang) * R);
         const float rank = std::fabs(t - L * 0.5f) / std::max(1.0f, step);   // out from the middle
@@ -706,6 +707,12 @@ void BrickApp::stPaintColors() {
         else u.dl->AddRectFilled(ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), cc, 4 * s);
         if (q.i == m_color) u.dl->AddRect(ImVec2(p.x - hs - 3 * s, p.y - hs - 3 * s), ImVec2(p.x + hs + 3 * s, p.y + hs + 3 * s), C_ACCENT, 5 * s, 0, 1.5f * s);
     };
+    for (float ga : gaps) {   // between unies, transparentes, métallisées: a small line across the arc
+        const float a = std::clamp((tIn - 0.15f) / 0.25f, 0.0f, 1.0f);
+        const ImVec2 p(cxm + std::sin(ga) * R, cy + std::cos(ga) * R), n(std::sin(ga), std::cos(ga));
+        const float h = sw * 0.75f;
+        u.dl->AddLine(ImVec2(p.x - n.x * h, p.y - n.y * h), ImVec2(p.x + n.x * h, p.y + n.y * h), IM_COL32(255, 255, 255, (int)(70 * a)), 1.5f * s);
+    }
     for (const P& q : ps) if (m_paintHov[q.i] < 0.01f) draw(q);
     for (const P& q : ps) if (m_paintHov[q.i] >= 0.01f && q.i != hot) draw(q);
     for (const P& q : ps) if (q.i == hot) draw(q);   // (the hovered one on top)
