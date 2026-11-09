@@ -234,6 +234,9 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
         t.hudBtn = red ? IM_COL32(120, 24, 30, 205) : IM_COL32(64, 66, 72, 205);
         t.hudBtnWhiteIcon = true;
         t.brickSwatch = true;
+        // the stage: a grey studio (Glass) or a dark red one (Red), as the backdrop of the mock-up
+        if (red) t.stage = {true, alt ? 0x2a2224u : 0x3a1b1eu, alt ? 0x1c1718u : 0x241315u, alt ? 0x131011u : 0x170c0eu, alt ? 0x1d1819u : 0x22121au, alt ? 0x1d1819u : 0x22141au, 0xc4a3a5u, 0.12f};
+        else t.stage = {true, 0x6a707au, 0x4c5058u, 0x26282cu, 0x2e3035u, 0x34363bu, 0xa4aab2u, 0.13f};
         return t;
     }
 

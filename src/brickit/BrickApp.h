@@ -66,7 +66,8 @@ struct Options {
     int touchHud = -1;  // --touch-hud 0 / 1
     int theme = -1;     // --theme 1 clair / 2 sombre (captures)
     std::string skin;   // --skin classic | creme | minimal | sommet (captures; the theme of Réglages › Thème)
-    int skinTint = -1, skinAccent = -1, settingsTab = -1;   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
+    int skinTint = -1, skinAccent = -1, settingsTab = -1;
+    bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
     std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
     std::string touchTest;   // --touch-test orbit | pinch | undo | pick | hold2: scripted finger gestures (BrickTouch.cpp)
@@ -695,7 +696,7 @@ private:
     double m_sysThemeT = -1;
     // the theme module (BrickTheme.h): Réglages › Thème, the theme, and its tint and accent remembered per theme
     struct ThemeLook { int tint = 0, accent = 0; };
-    std::string m_themeId = "creme";
+    std::string m_themeId = "glass";
     std::map<std::string, ThemeLook> m_themeLooks;
     theme::Tokens m_th;               // the theme resolved for this frame (BrickUi.cpp applyTheme)
     std::string m_thKey;              // what m_th was resolved for (id, mode, tint, accent)
@@ -705,6 +706,28 @@ private:
     void loadThemeFonts();
     ImTextureID themeTex(const char* file);
     void uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1);
+    // the Studio interface (BrickUiStudio.inl, Maquette 4.0, Wzx 09/11/2026)
+    bool m_studioUi = true;           // Réglages › Interface: Studio (new) / Classique
+    bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
+    std::string m_stFam = "briques";  // the family of the drawer
+    int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
+    std::vector<int> m_stParts;
+    std::string m_stKey;
+    bool m_stMenu = false;            // the marking menu open (a press held still on a brick)
+    bool m_stMenuShown = false;
+    ImVec2 m_stMenuAt;
+    double m_pressT = 0;
+    void drawUiStudio();
+    void stHeader();
+    void stTools();
+    void stTool(int id);
+    void stBadge();
+    void stMore();
+    void stColors();
+    void stDrawer();
+    void stSelHud();
+    void stHeld();
+    std::vector<int> stArcColors() const;
     bool settingsTabs(Ui& u, ImVec2 p);   // Réglages | Thème; true when clicked
     bool m_tabClicked = false;
     float m_themeTabH = 0;            // height of the Thème tab, as drawn last frame

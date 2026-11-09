@@ -520,7 +520,12 @@ void BrickApp::editInput() {
             else if (!leaveGroup()) select(-1);   // inside a group: Échap leaves it first
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grille : oui" : "Grille : non"); }
+        if (m_studioUi && !m_ipad && !ctrl) {   // Studio: the tools on 1 to 6 (Sélection, Construire, Pinceau, Pipette, Déplacer, Tourner)
+            static const ImGuiKey kKeys[6] = {ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5, ImGuiKey_6};
+            for (int k = 0; k < 6; ++k) if (ImGui::IsKeyPressed(kKeys[k])) stTool(k);
+        }
     }
+    if (m_stMenu) return;   // the marking menu of the Studio interface has the mouse until it is released (stSelHud)
 
     if (m_tg.type >= TG_ORBIT) return;   // iPad: a finger gesture in the view (BrickTouch.cpp) has the bricks
     const ImVec2 mp = io.MousePos;
@@ -559,6 +564,11 @@ void BrickApp::editInput() {
         }
         return;
     }
+    if (m_paintTool && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // Studio, Pinceau: the colour on the brick clicked
+        const int b = pickBrick(mp.x, mp.y);
+        if (b >= 0) { select(b); applyColor(m_color); }
+        return;
+    }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (m_holding) { dropHeld(io.KeyCtrl); return; }
         if (!m_pivotEdit) {
@@ -594,6 +604,7 @@ void BrickApp::editInput() {
         m_pressed = true;
         m_dragStarted = false;
         m_pressPos = mp;
+        m_pressT = ImGui::GetTime();
         m_pressBrick = pickBrick(mp.x, mp.y, &m_pressPoint);
         if (m_mode == 0 && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
         if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
@@ -606,6 +617,14 @@ void BrickApp::editInput() {
     if (m_groupDrag) {   // a group dragged: it follows the cursor until the button is released
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (io.MouseDelta.x != 0 || io.MouseDelta.y != 0) updateGroupDrag(mp.x, mp.y); }
         else endGroupDrag();
+        return;
+    }
+    if (m_studioUi && !m_ipad && m_pressed && m_pressBrick >= 0 && !m_dragStarted && ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+        (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) <= 6 && ImGui::GetTime() - m_pressT > 0.26) {
+        m_pressed = false;   // Studio: a press held still on a brick opens the marking menu where it is held
+        if (m_selected != m_pressBrick) select(m_pressBrick);
+        m_stMenu = true;
+        m_stMenuAt = m_pressPos;
         return;
     }
     if (m_pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && m_pressBrick >= 0 && unitGroup(m_pressBrick) >= 0) {

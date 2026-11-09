@@ -1882,7 +1882,7 @@ void BrickApp::uiInfoSheet() {
 }
 
 void BrickApp::uiPopups() {
-    if (!m_popup) return;
+    if (!m_popup || m_popup == 7) return;   // (7: « … » of the Studio interface, stMore)
     if (m_popup == 5) { uiSettings(); return; }
     Ui u = ui(m_ui);
     const float s = m_ui;
@@ -2300,6 +2300,8 @@ void BrickApp::drawUi() {
             if (mp.x >= r.x && mp.y >= r.y && mp.x < r.z && mp.y < r.w) m_overUi = true;
         return;
     }
+    if (m_studioUi) drawUiStudio();   // the Studio interface (Maquette 4.0, BrickUiStudio.inl)
+    else {
     uiHeader();      // m_uiRects[0]
     uiTray();        // m_uiRects[1]
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi && !m_ipad) {   // the focus reticle (DOF Auto): a thin white circle in the middle of the view
@@ -2326,6 +2328,7 @@ void BrickApp::drawUi() {
     uiDevReview();
     uiManualBig();
     drawDropzone();
+    }
     ImGui::End();
     ImGui::PopStyleVar(2);
     uiSceneSheet();
@@ -3343,6 +3346,7 @@ void BrickApp::uiSettings() {
     std::vector<Row> rows = {
         {"Échelle de l'interface", scales, 0},
         {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
+        {"Interface", {{"Studio", m_studioUi}, {"Classique", !m_studioUi}}, 18},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
         {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
@@ -3653,6 +3657,7 @@ void BrickApp::uiSettings() {
         case 12: m_stillAA = clickOpt == 0; break;
         case 14: m_touchHud = clickOpt == 0; m_arcOpen = false; break;
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
+        case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }
         }
@@ -3741,5 +3746,6 @@ void BrickApp::uiThumbEditor() {
 }
 
 #include "BrickUiIpad.inl"
+#include "BrickUiStudio.inl"
 
 } // namespace brickit
