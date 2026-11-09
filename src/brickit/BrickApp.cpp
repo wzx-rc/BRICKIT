@@ -940,7 +940,7 @@ void BrickApp::cameraInput() {
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_leftOrbit = false;
     // left drag on empty space (and in the Move / Rotate modes) orbits, as the web
     // Studio: the right button never moves the camera (it is the marking menu, Wzx 09/11/2026)
-    const bool rmbCam = !m_studioUi && ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    const bool rmbCam = false;   // (every interface: the right button never moves the camera, Wzx 09/11/2026)
     const bool orbit = rmbCam || (ImGui::IsMouseDown(ImGuiMouseButton_Left) && (io.KeyAlt || m_leftOrbit));
     const bool pan = ImGui::IsMouseDown(ImGuiMouseButton_Middle) || (io.KeyShift && rmbCam);
     if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
