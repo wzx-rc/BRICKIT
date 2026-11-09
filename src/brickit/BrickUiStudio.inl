@@ -1594,11 +1594,14 @@ void BrickApp::stSelHud() {
         if (ang < 0) ang += 360;
         const std::vector<int> cols = stArcColors();
         int hot = -1;   // 0..5 an action, 100 + k a colour
-        if (dist > 30 * s && dist < 104 * s) {   // the nearest action within 30°
+        // quick mode (as Maya): in the first instants a short flick is enough, the nearest action within 45°
+        const bool quick = ImGui::GetTime() - m_stMenuT0 < 0.35 && !m_stMenuSticky;
+        if (dist > (quick ? 12 : 30) * s && dist < 104 * s) {   // the nearest action within 30° (quick: 45°)
+            float bestA = quick ? 45.0f : 30.0f;
             for (int k = 0; k < 4; ++k) {
                 float da = std::fabs(ang - kStActs[k].ang);
                 da = std::min(da, 360 - da);
-                if (da <= 30) hot = k;
+                if (da <= bestA) { bestA = da; hot = k; }
             }
         }
         else if (dist >= 104 * s && dist < 186 * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty()) {
@@ -1676,6 +1679,7 @@ void BrickApp::stSelHud() {
         if (m_opt.stMenu) return;   // (captures: stays open)
         const bool act = m_stMenuSticky ? (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                                         : !ImGui::IsMouseDown(m_stMenuBtn == 1 ? ImGuiMouseButton_Right : ImGuiMouseButton_Left);
+        if (act && m_stMenuBtn == 1 && !m_stMenuSticky && hot < 0 && dist < 12 * s) { m_stMenuSticky = true; return; }   // released in place: stays open, the next click acts
         if (act) {   // released (or, opened by a quick right click, the next click): the action
             m_stMenu = false;
             if (m_stMenuSticky) m_stMenuEat = ImGui::GetFrameCount();

@@ -579,14 +579,13 @@ void BrickApp::editInput() {
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbPos = mp; m_rmbMoved = false; }
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && (std::fabs(mp.x - m_rmbPos.x) + std::fabs(mp.y - m_rmbPos.y)) > 4) m_rmbMoved = true;
-    // Studio: the right button on a brick does what the held left press does, the marking menu (Wzx 09/11/2026).
-    // Held still: the menu opens at once where it is held, its release acts; a quick click: the menu stays open and
-    // the next click acts. Dragging still orbits the camera.
+    // Studio: the right button on a brick opens the marking menu at once (Wzx 09/11/2026, as Maya): released on an
+    // action it acts, a quick flick in a direction acts at once (stSelHud), released in place it stays open and the
+    // next click acts. Off a brick, the right drag orbits the camera.
     if (m_studioUi && !m_ipad && !m_holding && !m_mechOn && !m_reading) {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbBrick = inView ? pickBrick(mp.x, mp.y) : -1; m_rmbT = ImGui::GetTime(); }
-        if (m_rmbBrick >= 0 && !m_rmbMoved && (ImGui::IsMouseReleased(ImGuiMouseButton_Right) ||
-                                               (ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::GetTime() - m_rmbT > 0.16))) {
-            const bool sticky = !ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        if (m_rmbBrick >= 0) {
+            const bool sticky = false;
             if (m_selected != m_rmbBrick) select(m_rmbBrick);
             m_stMenu = true;
             m_stMenuT0 = ImGui::GetTime();
