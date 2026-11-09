@@ -609,7 +609,14 @@ int BrickApp::buildHqThumbs() {
         for (char& c : t) c = (char)std::tolower((unsigned char)c);
         return t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos;
     };
-    for (const Part& p : m_lib.parts) total += p.category == m_opt.hqCat && !deco(p) ? 1 : 0;
+    auto duplo = [](const Part& p) {   // (Duplo, Hubelino: never in the library)
+        std::string t = p.label;
+        for (char& c : t) c = (char)std::tolower((unsigned char)c);
+        return p.category == "Duplo" || t.find("duplo") != std::string::npos || t.find("hubelino") != std::string::npos;
+    };
+    const bool all = m_opt.hqCat == "*";   // --hq-cat * : the whole library (Wzx 09/11/2026)
+    auto inCat = [&](const Part& p) { return (all || p.category == m_opt.hqCat) && !duplo(p); };
+    for (const Part& p : m_lib.parts) total += inCat(p) && !deco(p) ? 1 : 0;
     auto log = [&](const char* state) {
         FILE* lf = nullptr;
         if (_wfopen_s(&lf, (packPath + L".txt").c_str(), L"w") != 0 || !lf) return;
@@ -626,7 +633,7 @@ int BrickApp::buildHqThumbs() {
         std::vector<std::pair<int, int>> objs;
         for (int i : set) {
             const Part& p = m_lib.parts[i];
-            if (p.category != m_opt.hqCat || !p.loaded) continue;
+            if (!inCat(p) || !p.loaded) continue;
             if (deco(p)) continue;   // (the stickers and printed patterns: hidden from the library, not rendered)
             if (GetFileAttributesW(pngOf(p).c_str()) != INVALID_FILE_ATTRIBUTES) { ++skipped; continue; }
             Object o;
@@ -662,7 +669,7 @@ int BrickApp::buildHqThumbs() {
     renderSet(base);
     for (int pk = m_lib.technicPacks; pk < m_lib.packCount; ++pk) {
         bool any = false;
-        for (const Part& p : m_lib.parts) if (p.pack == pk && p.category == m_opt.hqCat) { any = true; break; }
+        for (const Part& p : m_lib.parts) if (p.pack == pk && inCat(p) && !deco(p)) { any = true; break; }
         if (!any) continue;
         m_lib.loadPack(pk);
         std::vector<int> set;
@@ -674,7 +681,7 @@ int BrickApp::buildHqThumbs() {
     std::vector<uint8_t> pack = {'B', 'T', 'F', '1', 0, 0, 0, 0};
     uint32_t count = 0;
     for (const Part& p : m_lib.parts) {
-        if (p.category != m_opt.hqCat) continue;
+        if (!all && p.category != m_opt.hqCat) continue;   // (* : every image rendered, the old ones too)
         std::vector<uint8_t> png;
         if (!readAll(pngOf(p), png)) continue;
         const uint16_t nl = (uint16_t)p.name.size();
