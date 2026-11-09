@@ -131,6 +131,12 @@ static bool partDeco(const Part& p) {
     for (char& c : t) c = (char)std::tolower((unsigned char)c);
     return t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos;
 }
+// a Duplo part (and the Hubelino ones, Duplo compatible): never in the library (Wzx 09/11/2026)
+static bool partDuplo(const Part& p) {
+    std::string t = p.label;
+    for (char& c : t) c = (char)std::tolower((unsigned char)c);
+    return p.category == "Duplo" || t.find("duplo") != std::string::npos || t.find("hubelino") != std::string::npos;
+}
 
 std::vector<int> BrickApp::visibleParts() const {
     std::vector<int> out;
@@ -140,7 +146,7 @@ std::vector<int> BrickApp::visibleParts() const {
         for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
             const Part& p = m_lib.parts[i];
             if (!p.available()) continue;
-            if (m_hideDeco && partDeco(p)) continue;
+            if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
             const std::string& c = partCat(i);
             if (lower(p.name).find(q) != std::string::npos || lower(p.label).find(q) != std::string::npos || lower(catFr(c)).find(q) != std::string::npos ||
                 lower(c).find(q) != std::string::npos)
@@ -155,7 +161,7 @@ std::vector<int> BrickApp::visibleParts() const {
     for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
         const Part& p = m_lib.parts[i];
         if (!p.available()) continue;
-        if (m_hideDeco && partDeco(p)) continue;
+        if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
         if (m_fam == "all") { out.push_back(i); continue; }
         if (!fam) continue;
         const std::string& c = partCat(i);
@@ -1891,7 +1897,7 @@ void BrickApp::uiInfoSheet() {
 }
 
 void BrickApp::uiPopups() {
-    if (!m_popup || m_popup == 7) return;   // (7: « … » of the Studio interface, stMore)
+    if (!m_popup || m_popup == 7 || m_popup == 8) return;   // (7: « … » of the Studio interface, stMore; 8: its scene menu, stFile)
     if (m_popup == 5) { uiSettings(); return; }
     Ui u = ui(m_ui);
     const float s = m_ui;
@@ -2823,10 +2829,15 @@ void BrickApp::uiManual() {
     float W = m_manW >= 260 ? m_manW : std::min(stageW * 0.34f, 500 * s);
     W = std::min(W, std::max(300 * s, stageW - 40 * s));
     const float padT = 8 * s, padX = 10 * s, padB = 10 * s, gap = 8 * s, headH = 28 * s;
-    const float x1 = m_stage.z - 14 * s, x0 = x1 - W, y0 = m_stage.y + 12 * s;
+    float x1 = m_stage.z - 14 * s, x0 = x1 - W, y0 = m_stage.y + 12 * s;
+    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+    if (m_pManual.floating) {   // moved by its grip (Wzx 09/11/2026: « le grip notice ne fonctionne pas »)
+        x0 = std::clamp(m_pManual.x, 0.0f, std::max(0.0f, ds.x - W));
+        y0 = std::clamp(m_pManual.y, 0.0f, std::max(0.0f, ds.y - 60 * s));
+        x1 = x0 + W;
+    }
     const bool folded = m_pManual.collapsed;
     const float innerW = W - 2 * padX;
-    const ImVec2 ds = ImGui::GetIO().DisplaySize;
     // body height: sized (m_manH) or the pages up to min(70vh, 900) / the PDF up to min(72vh, 920)
     const int total = (int)m_bricks.size();
     m_manRight = std::clamp(m_manRight, 2, std::max(2, total));
@@ -2843,6 +2854,8 @@ void BrickApp::uiManual() {
     u.dl->AddRectFilled(p0, p1, C_PANEL, rr(16 * s));
     u.dl->AddRect(p0, p1, C_LINE, rr(16 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
+    if (gripPanel(3, m_pManual, p0, ImVec2(p0.x + 34 * s + 2 * padX, p0.y + padT + headH), p0)) return;
+    if (u.hover(p0, ImVec2(p0.x + 34 * s + 2 * padX, p0.y + padT + headH)) || m_grip.id == 3) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
     // header: dots, Manuel, step / page, buttons
     float x = p0.x + padX, y = p0.y + padT;
     for (int rr = 0; rr < 2; ++rr)
@@ -3741,7 +3754,7 @@ void BrickApp::uiThumbEditor() {
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
     const Part& p = m_lib.parts[m_teditPart];
     const float pad = 18 * s, vw = std::min(420 * s, d.y * 0.6f);
-    const float W = vw + 2 * pad, H = pad + 24 * s + vw + 10 * s + 16 * s + 12 * s + 30 * s + pad;
+    const float W = vw + 2 * pad, H = pad + 24 * s + vw + 10 * s + 16 * s + 12 * s + 30 * s + 34 * s + pad;
     ImVec2 p0((d.x - W) * 0.5f, (d.y - H) * 0.5f), p1(p0.x + W, p0.y + H);
     u.dl->AddRectFilled(p0, p1, IM_COL32(0x1d, 0x1e, 0x22, 255), 14 * s);
     u.dl->AddRect(p0, p1, IM_COL32(0x3a, 0x3b, 0x42, 255), 14 * s);
@@ -3753,7 +3766,7 @@ void BrickApp::uiThumbEditor() {
     if (m_frozenTex) u.dl->AddImageRounded(m_gui->viewportTexture(), va, vb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 12 * s);
     ImGuiIO& io = ImGui::GetIO();
     const bool over = u.hover(va, vb);
-    if (over && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle))) m_teDrag = true;
+    if (over && !m_teLightDrag && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle))) m_teDrag = true;
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsMouseDown(ImGuiMouseButton_Right) && !ImGui::IsMouseDown(ImGuiMouseButton_Middle)) m_teDrag = false;
     if (m_teDrag) {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
@@ -3768,7 +3781,24 @@ void BrickApp::uiThumbEditor() {
     char hint[96];
     snprintf(hint, sizeof(hint), "Glisser : tourner · clic droit : déplacer · molette : zoom (x%.2f)", m_teView.zoom);
     u.text(ImVec2(va.x, vb.y + 8 * s), 10.5f, IM_COL32(0x8a, 0x8c, 0x96, 255), hint);
-    float y = vb.y + 10 * s + 16 * s + 12 * s, bw = 0;
+    {   // the lights turned around the part, 0 to 360° (Wzx 09/11/2026)
+        const float ly = vb.y + 10 * s + 16 * s + 10 * s;
+        u.text(ImVec2(va.x, ly), 11, IM_COL32(0xc8, 0xca, 0xd2, 255), "Lumière");
+        char deg[16];
+        snprintf(deg, sizeof(deg), "%d°", (int)std::lround(m_teView.light));
+        const float dw = u.textW(11, deg);
+        u.text(ImVec2(vb.x - dw, ly), 11, IM_COL32(0xc8, 0xca, 0xd2, 255), deg);
+        const float tx0 = va.x + 70 * s, tx1 = vb.x - 48 * s, ty = ly + u.fs(11) * 0.55f;
+        const float k = std::clamp(m_teView.light / 360.0f, 0.0f, 1.0f), kx = tx0 + (tx1 - tx0) * k;
+        u.dl->AddLine(ImVec2(tx0, ty), ImVec2(tx1, ty), IM_COL32(255, 255, 255, 40), 3 * s);
+        u.dl->AddLine(ImVec2(tx0, ty), ImVec2(kx, ty), C_ACCENT, 3 * s);
+        const bool ho = u.hover(ImVec2(tx0 - 8 * s, ty - 10 * s), ImVec2(tx1 + 8 * s, ty + 10 * s));
+        if (ho && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) m_teLightDrag = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_teLightDrag = false;
+        if (m_teLightDrag) m_teView.light = std::clamp((u.mouse.x - tx0) / (tx1 - tx0), 0.0f, 1.0f) * 360.0f;
+        u.dl->AddCircleFilled(ImVec2(kx, ty), (ho || m_teLightDrag ? 8 : 7) * s, IM_COL32(0xf4, 0xf4, 0xf6, 255), 20);
+    }
+    float y = vb.y + 10 * s + 16 * s + 12 * s + 34 * s, bw = 0;
     const ImVec2 bp(p0.x + pad, y);
     if (webButton(u, bp, "Réinitialiser", bw)) m_teView = defaultThumbView();
     float sw = u.textW(12, "Enregistrer comme miniature", true) + 20 * s, cw = u.textW(12, "Annuler") + 20 * s;

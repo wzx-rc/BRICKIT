@@ -21,7 +21,7 @@ namespace brickit {
 
 struct Ui;   // drawing helper of BrickUi.cpp
 // view of a thumbnail (Thumbs.cpp): angles, zoom (1 = the box at 85 % of the image), pan (fractions of the half view)
-struct ThumbView { float yaw = 0, pitch = 0, zoom = 1, panX = 0, panY = 0; };
+struct ThumbView { float yaw = 0, pitch = 0, zoom = 1, panX = 0, panY = 0, light = 0; };   // (light: the lights turned around the part, degrees)
 struct ThumbLook { float key = 32.0f, rim = 4.0f, env = 1.05f, exposure = 1.0f, bevel = 0.04f; int spp = 256, bounces = 4, neutral = 1; float base = 0.85f; int tm = 0; };   // (neutral: Wzx chose B, 06/11/2026)   // light of the thumbnails (spp > 0: path traced)   // light of the thumbnails
 
 using namespace vp3d;
@@ -72,7 +72,10 @@ struct Options {
     int skinTint = -1, skinAccent = -1, settingsTab = -1;
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
-    int stSub = -2;        // --st-sub N: its category (-1: Toutes) (captures)
+    int stSub = -2;
+    bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
+    int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
     bool ipadCreme = false;   // --ipad-creme: the cream touch kit instead of Studio (implied by --ipad-open)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
@@ -553,6 +556,10 @@ private:
     int buildFullThumbs();       // --build-full-thumbs pack: the thumbnails of the full library
     void loadFullThumbIndex();
     bool lazyThumb(int part, ImTextureID& tex);
+    bool thumbRgba(int part, std::vector<uint8_t>& rgba, int& w, int& h);   // the image of a part from the packs (HD first)
+    ImTextureID sheetTexture(int part, int px);   // the image of the sheet of a card, at the size it is drawn
+    ImTextureID m_sheetTex = 0;
+    int m_sheetTexPart = -1, m_sheetTexPx = 0;
     std::vector<uint8_t> m_fullThumbData;
     std::vector<std::pair<uint32_t, uint32_t>> m_fullThumbAt;   // per part: offset, size in m_fullThumbData
     std::unordered_map<int, std::pair<ImTextureID, int>> m_lazyThumbs;   // part -> texture, frame last used
@@ -564,7 +571,7 @@ private:
     static ThumbView defaultThumbView();
     static RenderSettings thumbSettings();
     static ThumbLook thumbLook();
-    static void placeThumbLights(Scene& ts, const Part& p);
+    static void placeThumbLights(Scene& ts, const Part& p, float lightDeg = 0.0f);
     static void fitThumbCamera(Camera& c, const Part& p, const ThumbView& v);
     // Edit thumbnail (DEV, BrickThumbEdit.cpp): right click menu, viewer, overrides in %LOCALAPPDATA%\\BrickIt\\thumb_overrides
     std::wstring thumbOverrideDir() const;
@@ -611,6 +618,7 @@ private:
     bool m_pvDrag = false;
     ImVec4 m_pvRect{0, 0, 0, 0};
     ImTextureID m_frozenTex = 0;
+    bool m_teLightDrag = false;     // Modifier la miniature: the slider of the lights held
     bool thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1);
 
 #ifdef _WIN32
@@ -724,9 +732,12 @@ private:
     void uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1);
     // the Studio interface (BrickUiStudio.inl, Maquette 4.0, Wzx 09/11/2026)
     bool m_studioUi = true;           // Réglages › Interface: Studio (new) / Classique
+    bool m_paintMode = false;         // the mode PEINDRE of the header (its panel in place of the tools)
+    bool m_paintGroup = true;         // Peindre › Groupe entier: a click paints the whole group of the brick (off: the brick alone)
     bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
     std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
     int m_stSub = -1;
+    std::unordered_map<std::string, int> m_stFamSub;   // the last category of each family (back on a family: there)
     bool m_hideDeco = true;           // Réglages: the decorated parts (stickers, printed patterns) hidden from the library (Wzx 09/11/2026)                 // its category (-1: Toutes, the tiles of its categories)
     float m_stSubScroll = 0;
     std::unordered_map<std::string, float> m_stScrollMem;   // the scroll of the cards, kept per family and category
@@ -734,6 +745,8 @@ private:
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
+    float m_stCardScale = 1.0f;       // the size of the cards of the drawer (its slider, 0.6 to 2)
+    bool m_stCardDrag = false;
     int m_stCardMode = 0;             // Réglages › Bibliothèque: 0 Image (the image alone), 1 Fiche (image, size, name, id)
     std::vector<int> m_stParts;
     std::string m_stKey;
@@ -749,6 +762,16 @@ private:
     void drawUiStudio();
     void stHeader();
     void stTools();
+    void stPaintPanel();
+    void stPaintColors();   // PEINDRE: every colour in a strip under the header
+    void nudgeSelected(int dx, int dy, int dz);   // the arrows of the keyboard: the selection moved by a stud (a plate up / down)
+    double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
+    void paintOne(int brick);
+    void stFile();         // the scene menu (m_popup 8): Nouvelle scène, Ouvrir, Enregistrer, Enregistrer sous
+    void newScene();
+    void saveNow();
+    void stGroups();       // Groupes, Studio style
+    float m_groupsScroll = 0;
     void stTool(int id);
     void stBadge();
     void stMore();

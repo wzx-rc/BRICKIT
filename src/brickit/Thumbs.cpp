@@ -319,19 +319,22 @@ void BrickApp::fitThumbCamera(Camera& c, const Part& p, const ThumbView& v) {
 }
 
 // the lights around the part (the web rig: key (-2.2, 4, 2.6) x radius, rim (3, 1.5, -3)), sizes in proportion
-void BrickApp::placeThumbLights(Scene& ts, const Part& p) {
+void BrickApp::placeThumbLights(Scene& ts, const Part& p, float lightDeg) {
     const ThumbLook lk = thumbLook();
     const float3 ctr = (p.bmin + p.bmax) * 0.5f;
     const float rad = std::max(length(p.bmax - p.bmin) * 0.5f, 0.2f);
-    ts.lights[0].position = ctr + float3(-2.2f, 4.0f, 2.6f) * rad;
+    const float ra = radians(lightDeg), cr = std::cos(ra), sr = std::sin(ra);
+    auto turn = [&](float3 v) { return float3(v.x * cr + v.z * sr, v.y, -v.x * sr + v.z * cr); };
+    ts.lights[0].position = ctr + turn(float3(-2.2f, 4.0f, 2.6f)) * rad;
     ts.lights[0].width = ts.lights[0].height = rad * 2.2f;
     ts.lights[0].intensity = lk.key;
-    ts.lights[1].position = ctr + float3(3.0f, 1.5f, -3.0f) * rad;
+    ts.lights[1].position = ctr + turn(float3(3.0f, 1.5f, -3.0f)) * rad;
     ts.lights[1].width = ts.lights[1].height = rad * 2.0f;
     ts.lights[1].intensity = lk.rim;
     for (AreaLight& l : ts.lights) l.target = ctr;
     for (size_t k = 2; k < ts.lights.size(); ++k) ts.lights[k].enabled = false;
     ts.env.hdriIntensity = lk.env;
+    ts.env.hdriRotation = ra;
     for (Material& m : ts.materials) if (m.transmission < 0.5f) m.bevelRadius = lk.bevel;
 }
 
@@ -339,7 +342,7 @@ bool BrickApp::renderThumb2(Scene& ts, int obj, const Part& p, const ThumbView& 
     const RenderSettings rs = thumbSettings();
     Camera& c = ts.camera;
     fitThumbCamera(c, p, v);
-    placeThumbLights(ts, p);
+    placeThumbLights(ts, p, v.light);
     const ViewRect vp{0, 0, px, px};
     std::vector<uint8_t> img, imgW;
     uint32_t w = 0, h = 0, w2 = 0, h2 = 0;
@@ -746,6 +749,51 @@ void BrickApp::loadFullThumbIndex() {
     }
 }
 
+// an image reduced to W x H by area (every source pixel weighted by how much of it falls in the target pixel), alpha
+// weighted: the exact size it is drawn at, so the GPU (no mipmaps) only shows it 1:1 (no aliasing of the edges)
+static void areaResize(const std::vector<uint8_t>& src, int w, int h, std::vector<uint8_t>& dst, int W, int H) {
+    std::vector<float> tmp((size_t)W * h * 4, 0.0f);   // horizontal pass: premultiplied colour + alpha
+    const float kx = (float)w / W, ky = (float)h / H;
+    for (int y = 0; y < h; ++y)
+        for (int X = 0; X < W; ++X) {
+            const float x0 = X * kx, x1 = x0 + kx;
+            float acc[4] = {0, 0, 0, 0};
+            for (int x = (int)x0; x < (int)std::ceil(x1) && x < w; ++x) {
+                const float wt = std::min(x1, x + 1.0f) - std::max(x0, (float)x);
+                const uint8_t* q = &src[((size_t)y * w + x) * 4];
+                const float a = q[3] / 255.0f * wt;
+                for (int c = 0; c < 3; ++c) acc[c] += q[c] * a;
+                acc[3] += a;
+            }
+            float* o = &tmp[((size_t)y * W + X) * 4];
+            for (int c = 0; c < 4; ++c) o[c] = acc[c] / kx;
+        }
+    dst.assign((size_t)W * H * 4, 0);
+    for (int Y = 0; Y < H; ++Y)
+        for (int X = 0; X < W; ++X) {
+            const float y0 = Y * ky, y1 = y0 + ky;
+            float acc[4] = {0, 0, 0, 0};
+            for (int y = (int)y0; y < (int)std::ceil(y1) && y < h; ++y) {
+                const float wt = std::min(y1, y + 1.0f) - std::max(y0, (float)y);
+                const float* q = &tmp[((size_t)y * W + X) * 4];
+                for (int c = 0; c < 4; ++c) acc[c] += q[c] * wt;
+            }
+            uint8_t* o = &dst[((size_t)Y * W + X) * 4];
+            const float a = acc[3] / ky;
+            for (int c = 0; c < 3; ++c) o[c] = acc[3] > 0 ? (uint8_t)std::clamp(acc[c] / acc[3] + 0.5f, 0.0f, 255.0f) : 0;
+            o[3] = (uint8_t)std::clamp(a * 255.0f + 0.5f, 0.0f, 255.0f);
+        }
+}
+
+// the image of a part from the packs (the HD one first), decoded
+bool BrickApp::thumbRgba(int part, std::vector<uint8_t>& rgba, int& w, int& h) {
+    const bool hq = part >= 0 && part < (int)m_hqThumbAt.size() && m_hqThumbAt[part].second > 0;
+    if (!hq && (part < 0 || part >= (int)m_fullThumbAt.size() || m_fullThumbAt[part].second == 0)) return false;
+    const std::vector<uint8_t>& src = hq ? m_hqThumbData : m_fullThumbData;
+    const std::pair<uint32_t, uint32_t> at = hq ? m_hqThumbAt[part] : m_fullThumbAt[part];
+    return decodeImage(&src[at.first], at.second, rgba, w, h) && w > 0 && h > 0;
+}
+
 bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     const bool hq = part >= 0 && part < (int)m_hqThumbAt.size() && m_hqThumbAt[part].second > 0;
     if (!hq && (part < 0 || part >= (int)m_fullThumbAt.size() || m_fullThumbAt[part].second == 0)) return false;
@@ -755,9 +803,7 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     --m_lazyThumbBudget;
     std::vector<uint8_t> rgba;
     int w = 0, h = 0;
-    const std::vector<uint8_t>& src = hq ? m_hqThumbData : m_fullThumbData;
-    const std::pair<uint32_t, uint32_t> at = hq ? m_hqThumbAt[part] : m_fullThumbAt[part];
-    if (!decodeImage(&src[at.first], at.second, rgba, w, h) || w <= 0 || h <= 0) return false;
+    if (!thumbRgba(part, rgba, w, h)) return false;
     // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
     // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
     // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).
@@ -768,33 +814,34 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
         m_gui->releaseTexture(old->second.first);
         m_lazyThumbs.erase(old);
     }
-    // the HD images (512 px) reduced by 2 on the CPU, alpha weighted: the GPU draws them smaller still without mipmaps,
-    // straight from 512 px the edges shimmered (the aliasing of the sheet, Wzx 09/11/2026)
-    while (w >= 400 && h >= 400) {
-        const int w2 = w / 2, h2 = h / 2;
-        std::vector<uint8_t> half((size_t)w2 * h2 * 4);
-        for (int y = 0; y < h2; ++y)
-            for (int x = 0; x < w2; ++x) {
-                float acc[4] = {0, 0, 0, 0};
-                for (int dy = 0; dy < 2; ++dy)
-                    for (int dx = 0; dx < 2; ++dx) {
-                        const uint8_t* q = &rgba[((size_t)(2 * y + dy) * w + 2 * x + dx) * 4];
-                        const float a = q[3] / 255.0f;
-                        for (int c = 0; c < 3; ++c) acc[c] += q[c] * a;
-                        acc[3] += a;
-                    }
-                uint8_t* o = &half[((size_t)y * w2 + x) * 4];
-                for (int c = 0; c < 3; ++c) o[c] = acc[3] > 0 ? (uint8_t)std::min(255.0f, acc[c] / acc[3] + 0.5f) : 0;
-                o[3] = (uint8_t)std::min(255.0f, acc[3] / 4 * 255.0f + 0.5f);
-            }
-        rgba.swap(half);
-        w = w2;
-        h = h2;
+    // reduced to the size the cards draw it at (88 pt, the image zoomed x 1.5-1.6: ~140 pt of image), Wzx 09/11/2026:
+    // « la brique aliase quand l'image est réduite pour fit les dimensions du thumb »
+    const int T = std::clamp((int)std::lround(140 * m_ui * std::clamp(m_stCardScale, 0.6f, 2.0f)), 64, 512);
+    if (w > T && h > T) {
+        std::vector<uint8_t> small;
+        areaResize(rgba, w, h, small, T, T * h / w);
+        h = T * h / w;
+        w = T;
+        rgba.swap(small);
     }
     tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
     if (!tex) return false;   // (no slot left: not kept, tried again later)
     m_lazyThumbs[part] = {tex, m_frame};
     return true;
+}
+
+// the image of the sheet (a card held 0.5 s): one texture, at the size the sheet draws it
+ImTextureID BrickApp::sheetTexture(int part, int px) {
+    if (part == m_sheetTexPart && px == m_sheetTexPx) return m_sheetTex;
+    if (m_sheetTex) { m_gui->releaseTexture(m_sheetTex); m_sheetTex = 0; }
+    m_sheetTexPart = part;
+    m_sheetTexPx = px;
+    std::vector<uint8_t> rgba, small;
+    int w = 0, h = 0;
+    if (!thumbRgba(part, rgba, w, h)) return 0;
+    if (w > px && h > px) { areaResize(rgba, w, h, small, px, px * h / w); h = px * h / w; w = px; rgba.swap(small); }
+    m_sheetTex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
+    return m_sheetTex;
 }
 
 } // namespace brickit

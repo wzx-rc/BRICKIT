@@ -37,6 +37,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_opt = opt;
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
+    ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
     m_exeDir = exeDir;
     m_dpi = dpi;
     m_ipad = opt.ipad;
@@ -112,6 +113,10 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (!opt.stFam.empty()) { m_stFam = opt.stFam; m_stSub = -1; }
     if (opt.stSub >= -1) m_stSub = opt.stSub;
+    if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
+    if (opt.stGroups) m_pGroups.visible = true;
+    if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
+    if (opt.stPopup > 0) { m_popup = opt.stPopup; m_popupAt = ImVec2(10 * m_ui, 52 * m_ui); }
     if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
     if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
@@ -1110,7 +1115,8 @@ void BrickApp::frame() {
     m_rs.bloom = m_opt.bloom >= 0 ? m_opt.bloom : m_bloom;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
-    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0;   // (or the thumbnail editor)
+    const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
+    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || uiDrag;   // (or the thumbnail editor)
     if (sheet && !m_frozenTex && m_frame > 0) {
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
@@ -1124,7 +1130,7 @@ void BrickApp::frame() {
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
     if (m_frozenTex) {
         if (m_teditPart >= 0) renderThumbEditor();
-        else renderPreview();
+        else if (!uiDrag || m_infoPart >= 0) renderPreview();
         ImGui::GetBackgroundDrawList()->AddImage(m_frozenTex, ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
     } else {
         renderSteps();   // images of the manual asked by the UI this frame
@@ -1287,6 +1293,17 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
     for (int i = 1; i < argc; ++i) {
         std::wstring a = args[i];
         auto next = [&]() -> std::wstring { return i + 1 < argc ? args[++i] : std::wstring(); };
+        // (the Studio and HD thumbnail flags apart: the chain below is at the nesting limit of the compiler)
+        if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
+        if (a == L"--st-paint") { opt.stPaint = true; continue; }
+        if (a == L"--st-groups") { opt.stGroups = true; continue; }
+        if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }
+        if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
+        if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }
+        if (a == L"--build-hq-thumbs") { opt.hqThumbs = next(); continue; }
+        if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); continue; }
+        if (a == L"--hq-px") { opt.hqPx = _wtoi(next().c_str()); continue; }
+        if (a == L"--hq-spp") { opt.hqSpp = _wtoi(next().c_str()); continue; }
         if (a == L"--shot") opt.shotPath = next();
         else if (a == L"--spp") opt.shotSpp = _wtoi(next().c_str());
         else if (a == L"--frames") opt.shotFrames = _wtoi(next().c_str());
@@ -1306,10 +1323,6 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--show-probes") opt.showProbes = _wtoi(next().c_str());
         else if (a == L"--soft-gi-probes") opt.softGIProbes = _wtoi(next().c_str());
         else if (a == L"--build-full-thumbs") opt.fullThumbs = next();
-        else if (a == L"--build-hq-thumbs") opt.hqThumbs = next();
-        else if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); }
-        else if (a == L"--hq-px") opt.hqPx = _wtoi(next().c_str());
-        else if (a == L"--hq-spp") opt.hqSpp = _wtoi(next().c_str());
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
         else if (a == L"--thumb-dir") opt.thumbDir = next();
@@ -1329,8 +1342,6 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--st-menu") opt.stMenu = true;
         else if (a == L"--card-sheet") opt.cardSheet = _wtoi(next().c_str());
         else if (a == L"--lib-cards") opt.libCards = _wtoi(next().c_str());
-        else if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); }
-        else if (a == L"--st-sub") opt.stSub = _wtoi(next().c_str());
         else if (a == L"--skin-accent") opt.skinAccent = _wtoi(next().c_str());
         else if (a == L"--settings-tab") { opt.settingsTab = _wtoi(next().c_str()); opt.settings = true; }
         else if (a == L"--ipad") opt.ipad = true;

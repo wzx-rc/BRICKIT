@@ -362,6 +362,20 @@ void BrickApp::applyColor(int color) {
     syncObjects();
 }
 
+// the selection moved by dx / dz studs and dy plates (the arrows of the keyboard), kept above the floor
+void BrickApp::nudgeSelected(int dx, int dy, int dz) {
+    const std::vector<int> s = selection();
+    if (s.empty()) return;
+    pushUndo();
+    const float3 d(dx * kPitch, dy * kPlate, dz * kPitch);
+    float low = 1e30f;
+    for (int i : s) low = std::min(low, m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos + d).mn.y);
+    const float3 dd = low < -1e-3f ? float3(d.x, d.y - low, d.z) : d;
+    for (int i : s) m_bricks[i].pos = m_bricks[i].pos + dd;
+    syncObjects();
+    autosave();
+}
+
 void BrickApp::pushUndo() {
     m_undo.push_back(m_bricks);
     if (m_undo.size() > 100) m_undo.erase(m_undo.begin());
@@ -491,12 +505,35 @@ void BrickApp::editInput() {
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y)) redo();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) duplicateSelected();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_G) && !m_holding) { if (io.KeyShift) ungroupSelected(); else groupSelected(); }
-        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) saveDialog();
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) { if (io.KeyShift) saveDialog(); else saveNow(); }
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N)) newScene();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O)) openDialog();
         // keys of the web: R or E = turn +90, Q = -90, C = pivot voxel, V = voxels, P = pivot edit, A = animations,
         // F = focus mode, Space = take the selected brick in hand
         if (!ctrl && (ImGui::IsKeyPressed(ImGuiKey_R) || ImGui::IsKeyPressed(ImGuiKey_E))) rotateSelected(1);
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_Q)) rotateSelected(-1);
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) rotateSelected(1);   // (Q / S: Wzx 09/11/2026)
+        if (!m_reading && !m_holding) {   // the arrows: the selection moves by a stud, along the view; Page up / down: a plate
+            int ax = 0, az = 0, ay = 0;
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
+            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ax = 1;
+            if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) az = 1;
+            if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) az = -1;
+            if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) ay = 1;
+            if (ImGui::IsKeyPressed(ImGuiKey_PageDown)) ay = -1;
+            if (ax || az || ay) {
+                float3 r, u, f;
+                m_scene.camera.basis(r, u, f);
+                // the right and the forward of the view, snapped to the axes of the grid
+                const float3 fw(f.x, 0, f.z);
+                const bool rx = std::fabs(r.x) >= std::fabs(r.z);
+                const int rs = rx ? (r.x >= 0 ? 1 : -1) : (r.z >= 0 ? 1 : -1);
+                const int fs = rx ? (fw.z >= 0 ? 1 : -1) : (fw.x >= 0 ? 1 : -1);
+                int dx = 0, dz = 0;
+                if (rx) { dx = ax * rs; dz = az * fs; } else { dz = ax * rs; dx = az * fs; }
+                nudgeSelected(dx, ay, dz);
+            }
+        }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_C)) cycleGrab();
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
@@ -552,6 +589,7 @@ void BrickApp::editInput() {
             const bool sticky = !ImGui::IsMouseDown(ImGuiMouseButton_Right);
             if (m_selected != m_rmbBrick) select(m_rmbBrick);
             m_stMenu = true;
+            m_stMenuT0 = ImGui::GetTime();
             m_stMenuAt = m_rmbPos;
             m_stMenuBtn = 1;
             m_stMenuSticky = sticky;
@@ -580,13 +618,14 @@ void BrickApp::editInput() {
         if (b >= 0) {
             m_color = m_bricks[b].color;
             m_pipette = false;
+            if (m_paintMode) m_paintTool = true;   // (PEINDRE: back to the Pinceau with the colour taken)
             toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
         }
         return;
     }
     if (m_paintTool && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // Studio, Pinceau: the colour on the brick clicked
         const int b = pickBrick(mp.x, mp.y);
-        if (b >= 0) { select(b); applyColor(m_color); }
+        if (b >= 0) { if (m_paintGroup || unitGroup(b) < 0) { select(b); applyColor(m_color); } else paintOne(b); }   // (Peindre › Groupe entier off: the brick alone)
         return;
     }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -644,6 +683,7 @@ void BrickApp::editInput() {
         m_pressed = false;   // Studio: a press held still on a brick opens the marking menu where it is held
         if (m_selected != m_pressBrick) select(m_pressBrick);
         m_stMenu = true;
+        m_stMenuT0 = ImGui::GetTime();
         m_stMenuAt = m_pressPos;
         m_stMenuBtn = 0;
         m_stMenuSticky = false;

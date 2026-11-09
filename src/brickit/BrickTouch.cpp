@@ -69,6 +69,7 @@ void BrickApp::touchPump() {
         m_stMenuBtn = 0;
         m_stMenuSticky = false;
         m_stMenuWait = true;
+        m_stMenuT0 = ImGui::GetTime();
         const uint64_t pid = g.pid;
         g = TouchGesture();
         g.type = TG_MENU;
