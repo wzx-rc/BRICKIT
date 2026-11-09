@@ -763,6 +763,17 @@ private:
     void stPaintPanel();
     void stPaintColors();   // PEINDRE: every colour in a strip under the header
     void nudgeSelected(int dx, int dy, int dz);   // the arrows of the keyboard: the selection moved by a stud (a plate up / down)
+    struct PaintFx { ImVec2 p; int color; double t0; int kind; };   // 0 Pipette (a drop to the active colour), 1 / 2 a splash
+    std::vector<PaintFx> m_paintFx;
+    void stPaintFx();
+    bool paintHit(int brick, ImVec2 at, bool fx);
+    ImVec2 m_paintSwatchAt = ImVec2(-1, -1);   // the active colour of the panel Peindre (where the drop of the Pipette lands)
+    double m_paintSwatchPop = -10;
+    bool m_paintStroke = false, m_paintCircle = false, m_paintUndo = false;   // the Pinceau held: a stroke; past a moment, the circle
+    double m_paintStrokeT0 = 0, m_paintSampleT = 0;
+    ImVec2 m_paintStrokeAt, m_paintSampleAt;
+    std::vector<int> m_paintDone;     // the bricks of the stroke already painted
+    float m_paintRadius = 34;         // the circle of the brush (px at the scale 1)
     double m_paintT0 = -1;            // PEINDRE: when its colours came out (the arc pops like the marking menu)
     std::vector<float> m_paintHov;    // PEINDRE: the hover of each colour (it grows)
     double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »

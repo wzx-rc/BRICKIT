@@ -47,12 +47,14 @@ static std::string stUpper(std::string t) { return upperFr(t); }
 // the line icons of the mock-up (24 x 24, stroked), centred on c
 static void stIcon(ImDrawList* dl, const char* d, ImVec2 c, float size, ImU32 col, float thick) {
     const float k = size / 24.0f;
+    if (d[0] == 'F') { svg::shape(dl, d + 1, ImVec2(c.x - 12 * k, c.y - 12 * k), k, col, 0, 0); return; }   // a filled icon (Recraft: Pipette, Pinceau)
     svg::path(dl, d, ImVec2(c.x - 12 * k, c.y - 12 * k), k, col, thick);
 }
 static const char* ST_SEL = "M5 3l6 16 2-6 6-2z";
 static const char* ST_BUILD = "M4 10h16v9H4zM7 10V7M12 10V7M17 10V7";
-static const char* ST_PAINT = "M14 4l6 6-8 8H6v-6zM4 20h4";
-static const char* ST_PICK = "M14 4a2.8 2.8 0 0 1 4 4l-2 2 1 1-2 2-6 6H5v-4l6-6 2-2 1 1z";
+// Pinceau and Pipette: filled, drawn with Recraft (Wzx 09/11/2026: « plus lisibles »), the 24 box
+static const char* ST_PAINT = "FM9.49 12.65C9.58 12.57 9.7 12.44 9.79 12.35L17.8 4.35C18.25 3.9 18.67 3.35 19.34 3.31C20.64 3.33 21.05 4.7 20.17 5.53C19.87 5.81 19.59 6.11 19.3 6.41L12.42 13.27C12.02 13.67 11.56 14.16 11.15 14.53C11.09 14.47 11.03 14.4 10.98 14.34C10.49 13.77 9.96 13.22 9.49 12.65zM3.29 20.24C3.49 19.41 3.7 18.58 3.92 17.76C4.13 16.99 4.23 16.34 4.64 15.64C5.33 14.46 6.18 13.9 7.48 13.56C7.48 13.56 7.9 14 7.94 14.04L9.55 15.62C9.81 15.87 10.2 16.21 10.43 16.47C10.11 18.54 8.41 20.24 6.26 20.24L3.29 20.24z";
+static const char* ST_PICK = "FM13.53 5.27C13.97 4.81 14.44 4.37 14.89 3.92C15.5 3.31 15.94 2.71 16.89 2.68C18.68 2.49 19.79 4.78 18.67 6C17.96 6.77 17.11 7.47 16.43 8.23C17.07 8.46 17.1 9.25 16.4 9.34C16.12 9.37 15.69 8.84 15.48 8.64C15.25 8.41 15.03 8.18 14.81 7.95L12.58 5.74C12.17 5.34 12.76 4.35 13.53 5.27zM7.51 15.48C7.17 15.57 6.42 15.81 6.12 15.83C5.46 15.89 5.62 15.17 5.71 14.8L6.06 13.38C6.12 13.11 6.39 12.92 6.58 12.73L10.4 8.91C11.05 8.27 11.76 7.6 12.38 6.95C12.66 7.2 12.96 7.52 13.23 7.78L14.06 8.6C14.18 8.73 14.5 9.08 14.62 9.15C14.37 9.43 14.05 9.73 13.78 10L11.36 12.41C10.5 13.28 9.53 14.27 8.62 15.11C8.49 15.23 7.73 15.42 7.51 15.48zM6.24 20.87C5.34 20.85 4.65 19.98 4.98 19.11C5.26 18.38 5.71 18.06 6.19 17.53C6.63 17.93 7.17 18.54 7.42 19.08C7.82 19.92 7.14 20.82 6.24 20.87z";
 static const char* ST_MOVE = "M12 3v18M3 12h18M12 3 9 6M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3";
 static const char* ST_ROT = "M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5";
 static const char* ST_ROTL = "M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5";
@@ -446,7 +448,7 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
-    if (!m_paintMode) m_paintT0 = -1;   // (the colours of PEINDRE come out again next time)
+    if (!m_paintMode) { m_paintT0 = -1; m_paintSwatchAt = ImVec2(-1, -1); }   // (the colours of PEINDRE come out again next time)
     if (m_paintMode) { stPaintPanel(); stPaintColors(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
     Ui u = ui(m_ui);
     const float s = m_ui;
@@ -585,7 +587,10 @@ void BrickApp::stPaintPanel() {
     float x = a.x + pad;
     if (!m_lib.palette.empty()) {   // the colour taken, in big: a 1x1 brick, its name under it
         const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
-        const float sz = 50 * s, cx = x + cw * 0.5f, y0 = a.y + pad + 3 * s;
+        const float tp = (float)(ImGui::GetTime() - m_paintSwatchPop);   // the drop of the Pipette landed: a pop
+        const float pop = tp >= 0 && tp < 0.35f ? 1.0f + 0.22f * std::sin(tp / 0.35f * 3.14159f) : 1.0f;
+        const float sz = 50 * s * pop, cx = x + cw * 0.5f, y0 = a.y + pad + 3 * s + 25 * s - sz * 0.5f;
+        m_paintSwatchAt = ImVec2(cx, a.y + pad + 28 * s);
         const ImVec2 p0(cx - sz * 0.5f, y0), p1(cx + sz * 0.5f, y0 + sz);
         u.dl->AddRectFilled(ImVec2(p0.x + 2 * s, p0.y + 4 * s), ImVec2(p1.x + 2 * s, p1.y + 4 * s), IM_COL32(0, 0, 0, 70), 6 * s);
         const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
@@ -719,6 +724,89 @@ void BrickApp::stPaintColors() {
 }
 
 // the brick alone painted (Peindre, Groupe entier off): its group stays as it is
+// PEINDRE: what confirms a gesture (Wzx 09/11/2026). The Pipette: a ring closes on the brick, a drop of its colour flies
+// to the active colour (which pops). The Pinceau: a splash, a ring and drops; held, the circle of the brush
+void BrickApp::stPaintFx() {
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const float s = m_ui;
+    const double now = ImGui::GetTime();
+    auto colU = [&](int i, float a) {
+        if (i < 0 || i >= (int)m_lib.palette.size()) return IM_COL32(255, 255, 255, (int)(255 * a));
+        const Color& c = m_lib.palette[i];
+        return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), (int)(255 * std::clamp(a, 0.0f, 1.0f)));
+    };
+    for (size_t n = 0; n < m_paintFx.size(); ++n) {
+        const PaintFx& f = m_paintFx[n];
+        const float t = (float)(now - f.t0);
+        if (f.kind == 0) {   // Pipette
+            const float e1 = std::clamp(t / 0.22f, 0.0f, 1.0f);
+            if (e1 < 1) {   // a ring that closes on the brick, the colour inside
+                const float r = (30 - 22 * e1 * e1) * s;
+                dl->AddCircleFilled(f.p, r, colU(f.color, 0.35f * (1 - e1)), 32);
+                dl->AddCircle(f.p, r, IM_COL32(255, 255, 255, (int)(230 * (1 - e1 * 0.5f))), 32, 2.0f * s);
+            }
+            const float e2 = std::clamp((t - 0.18f) / 0.42f, 0.0f, 1.0f);
+            if (t >= 0.18f && e2 < 1) {   // the drop flies to the active colour (or up, out of the mode Peindre)
+                const ImVec2 to = m_paintSwatchAt.x >= 0 ? m_paintSwatchAt : ImVec2(f.p.x, f.p.y - 60 * s);
+                const float k = e2 < 0.5f ? 2 * e2 * e2 : 1 - 2 * (1 - e2) * (1 - e2);   // ease in-out
+                const ImVec2 mid((f.p.x + to.x) * 0.5f, std::min(f.p.y, to.y) - 90 * s);
+                const float u = 1 - k;
+                const ImVec2 q(u * u * f.p.x + 2 * u * k * mid.x + k * k * to.x, u * u * f.p.y + 2 * u * k * mid.y + k * k * to.y);
+                const float r = (9 - 3 * k) * s, a = m_paintSwatchAt.x >= 0 ? 1.0f : 1 - k;
+                dl->AddCircleFilled(ImVec2(q.x + 1.5f * s, q.y + 2.5f * s), r, IM_COL32(0, 0, 0, (int)(80 * a)), 24);
+                dl->AddCircleFilled(q, r, colU(f.color, a), 24);
+                dl->AddCircle(q, r, IM_COL32(255, 255, 255, (int)(220 * a)), 24, 1.5f * s);
+                dl->AddCircleFilled(ImVec2(q.x - r * 0.35f, q.y - r * 0.35f), r * 0.25f, IM_COL32(255, 255, 255, (int)(150 * a)), 12);
+            }
+        } else {   // Pinceau: a splash
+            const float e = std::clamp(t / 0.45f, 0.0f, 1.0f), o = 1 - (1 - e) * (1 - e);
+            const float big = f.kind == 1 ? 1.0f : 0.6f;
+            dl->AddCircle(f.p, (6 + 30 * o) * s * big, colU(f.color, 0.9f * (1 - e)), 32, (3.0f - 2.0f * e) * s);
+            dl->AddCircle(f.p, (6 + 30 * o) * s * big + 1.5f * s, IM_COL32(255, 255, 255, (int)(110 * (1 - e))), 32, 1.0f * s);
+            const uint32_t seed = (uint32_t)(f.p.x * 13 + f.p.y * 7);
+            for (int k = 0; k < 7; ++k) {   // drops thrown out
+                const float ang = (k / 7.0f + ((seed >> (k * 3)) & 7) / 56.0f) * 6.2831853f;
+                const float d = (8 + 26 * o * (0.7f + 0.3f * (((seed >> k) & 3) / 3.0f))) * s * big;
+                const ImVec2 q(f.p.x + std::cos(ang) * d, f.p.y + std::sin(ang) * d + 10 * s * e * e);
+                dl->AddCircleFilled(q, (3.2f * (1 - e) + 0.6f) * s * big, colU(f.color, 1 - e), 12);
+            }
+        }
+    }
+    m_paintFx.erase(std::remove_if(m_paintFx.begin(), m_paintFx.end(), [&](const PaintFx& f) { return now - f.t0 > 0.7; }), m_paintFx.end());
+    if (m_paintStroke && m_paintTool) {   // the brush held: its circle (grows while the press waits)
+        const ImVec2 mp = ImGui::GetIO().MousePos;
+        const float g = m_paintCircle ? 1.0f : std::clamp((float)(now - m_paintStrokeT0) / 0.18f, 0.0f, 1.0f);
+        const float r = m_paintRadius * s * g;
+        if (r > 2) {
+            dl->AddCircleFilled(mp, r, colU(m_color, m_paintCircle ? 0.18f : 0.1f), 48);
+            dl->AddCircle(mp, r, colU(m_color, 0.95f), 48, 2.0f * s);
+            dl->AddCircle(mp, r + 1.5f * s, IM_COL32(255, 255, 255, 120), 48, 1.0f * s);
+        }
+    }
+}
+
+// the Pinceau on a brick (its whole group with « Groupe entier »): the colour, once per stroke, one undo for the stroke
+bool BrickApp::paintHit(int b, ImVec2 at, bool fx) {
+    if (b < 0 || b >= (int)m_bricks.size() || std::find(m_paintDone.begin(), m_paintDone.end(), b) != m_paintDone.end()) return false;
+    const std::vector<int> unit = m_paintGroup ? unitOf(b) : std::vector<int>{b};
+    bool changed = false;
+    for (int i : unit) {
+        if (std::find(m_paintDone.begin(), m_paintDone.end(), i) == m_paintDone.end()) m_paintDone.push_back(i);
+        if (m_bricks[i].color != m_color) {
+            if (!m_paintUndo) { pushUndo(); m_paintUndo = true; }
+            m_bricks[i].color = m_color;
+            changed = true;
+        }
+    }
+    if (fx && m_paintFx.size() < 40) m_paintFx.push_back({at, m_color, ImGui::GetTime(), m_paintCircle ? 2 : 1});
+    if (changed) {
+        m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
+        m_recentColors.insert(m_recentColors.begin(), m_color);
+        if (m_recentColors.size() > 12) m_recentColors.resize(12);
+    }
+    return changed;
+}
+
 void BrickApp::paintOne(int brick) {
     if (brick < 0 || brick >= (int)m_bricks.size()) return;
     m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
@@ -1780,6 +1868,7 @@ void BrickApp::drawUiStudio() {
     stBadge();
     stColors();
     stSelHud();
+    stPaintFx();
     stHeld();
     uiMechPanel();
     uiReader();

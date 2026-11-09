@@ -612,19 +612,53 @@ void BrickApp::editInput() {
         return;
     }
     if (m_pipette && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_pipette = false;
+    if (m_paintStroke) {   // the Pinceau held: held a moment (or moved), a circle of rays paints all it covers
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !m_paintTool) {
+            m_paintStroke = false;
+            m_paintCircle = false;
+            if (m_paintUndo) autosave();
+            m_paintUndo = false;
+        } else {
+            const double now = ImGui::GetTime();
+            if (!m_paintCircle && (now - m_paintStrokeT0 > 0.18 || std::fabs(mp.x - m_paintStrokeAt.x) + std::fabs(mp.y - m_paintStrokeAt.y) > 6 * m_ui)) {
+                m_paintCircle = true;
+                m_paintSampleT = -1;
+            }
+            if (m_paintCircle && (std::fabs(mp.x - m_paintSampleAt.x) + std::fabs(mp.y - m_paintSampleAt.y) > 3 || now - m_paintSampleT > 0.08)) {
+                m_paintSampleAt = mp;
+                m_paintSampleT = now;
+                const float R = m_paintRadius * m_ui;
+                bool changed = false;
+                auto ray = [&](float x, float y) { const int b = pickBrick(x, y); if (b >= 0) changed |= paintHit(b, ImVec2(x, y), true); };
+                ray(mp.x, mp.y);
+                for (int k = 0; k < 6; ++k) ray(mp.x + std::cos(k * 1.0472f) * R * 0.5f, mp.y + std::sin(k * 1.0472f) * R * 0.5f);
+                for (int k = 0; k < 12; ++k) ray(mp.x + std::cos(k * 0.5236f + 0.26f) * R * 0.92f, mp.y + std::sin(k * 0.5236f + 0.26f) * R * 0.92f);
+                if (changed) syncObjects();
+            }
+            return;   // (the stroke has the mouse)
+        }
+    }
     if (m_pipette && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // the pipette of the HUD: the colour of the brick clicked
         const int b = pickBrick(mp.x, mp.y);
         if (b >= 0) {
             m_color = m_bricks[b].color;
             m_pipette = false;
+            m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});   // (a ring, a drop to the active colour)
+            m_paintSwatchPop = ImGui::GetTime() + 0.58;
             if (m_paintMode) m_paintTool = true;   // (PEINDRE: back to the Pinceau with the colour taken)
-            toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
+            if (!m_paintMode) toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
         }
         return;
     }
     if (m_paintTool && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // Studio, Pinceau: the colour on the brick clicked
         const int b = pickBrick(mp.x, mp.y);
-        if (b >= 0) { if (m_paintGroup || unitGroup(b) < 0) { select(b); applyColor(m_color); } else paintOne(b); }   // (Peindre › Groupe entier off: the brick alone)
+        m_paintStroke = true;   // (held: the circle; editInput above)
+        m_paintCircle = false;
+        m_paintUndo = false;
+        m_paintStrokeT0 = ImGui::GetTime();
+        m_paintStrokeAt = m_paintSampleAt = mp;
+        m_paintDone.clear();
+        if (b >= 0 && paintHit(b, mp, true)) syncObjects();
         return;
     }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
