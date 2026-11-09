@@ -525,6 +525,7 @@ void BrickApp::editInput() {
             for (int k = 0; k < 6; ++k) if (ImGui::IsKeyPressed(kKeys[k])) stTool(k);
         }
     }
+    if (m_stMenuEat == ImGui::GetFrameCount()) { m_pressed = false; return; }   // the click that closed a sticky marking menu
     if (m_stMenu) return;   // the marking menu of the Studio interface has the mouse until it is released (stSelHud)
 
     if (m_tg.type >= TG_ORBIT) return;   // iPad: a finger gesture in the view (BrickTouch.cpp) has the bricks
@@ -541,6 +542,25 @@ void BrickApp::editInput() {
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbPos = mp; m_rmbMoved = false; }
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && (std::fabs(mp.x - m_rmbPos.x) + std::fabs(mp.y - m_rmbPos.y)) > 4) m_rmbMoved = true;
+    // Studio: the right button on a brick does what the held left press does, the marking menu (Wzx 09/11/2026).
+    // Held still: the menu opens at once where it is held, its release acts; a quick click: the menu stays open and
+    // the next click acts. Dragging still orbits the camera.
+    if (m_studioUi && !m_ipad && !m_holding && !m_mechOn && !m_reading) {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbBrick = inView ? pickBrick(mp.x, mp.y) : -1; m_rmbT = ImGui::GetTime(); }
+        if (m_rmbBrick >= 0 && !m_rmbMoved && (ImGui::IsMouseReleased(ImGuiMouseButton_Right) ||
+                                               (ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::GetTime() - m_rmbT > 0.16))) {
+            const bool sticky = !ImGui::IsMouseDown(ImGuiMouseButton_Right);
+            if (m_selected != m_rmbBrick) select(m_rmbBrick);
+            m_stMenu = true;
+            m_stMenuAt = m_rmbPos;
+            m_stMenuBtn = 1;
+            m_stMenuSticky = sticky;
+            m_rmbBrick = -1;
+            m_pressed = false;
+            return;
+        }
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Right) || m_rmbMoved) m_rmbBrick = -1;
+    }
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !m_rmbMoved && inView) {
         if (m_holding) cancelHeld();
         else if (m_dev) { const int b = pickBrick(mp.x, mp.y); if (b >= 0) { m_ctxPart = m_bricks[b].part; m_ctxPos = mp; } }   // DEV: Edit thumbnail
@@ -625,6 +645,8 @@ void BrickApp::editInput() {
         if (m_selected != m_pressBrick) select(m_pressBrick);
         m_stMenu = true;
         m_stMenuAt = m_pressPos;
+        m_stMenuBtn = 0;
+        m_stMenuSticky = false;
         return;
     }
     if (m_pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && m_pressBrick >= 0 && unitGroup(m_pressBrick) >= 0) {

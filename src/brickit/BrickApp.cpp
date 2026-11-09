@@ -894,6 +894,7 @@ void BrickApp::updateGridFade() {
 void BrickApp::cameraInput() {
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureMouse || m_overUi) return;
+    if (m_stMenu || m_stMenuEat == ImGui::GetFrameCount()) return;   // the marking menu has the mouse (right held on a brick: no orbit)
     if (!m_opt.shotPath.empty()) return;   // a capture (--shot): the camera of the command line, whatever the mouse does
     Camera& cam = m_scene.camera;
     bool changed = false;

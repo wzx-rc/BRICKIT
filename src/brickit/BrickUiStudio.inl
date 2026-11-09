@@ -1027,8 +1027,12 @@ void BrickApp::stSelHud() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_stMenu = false; return; }
         if (m_opt.stMenu) return;   // (captures: stays open)
-        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {   // released: the action
+        const bool act = m_stMenuSticky ? (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                                        : !ImGui::IsMouseDown(m_stMenuBtn == 1 ? ImGuiMouseButton_Right : ImGuiMouseButton_Left);
+        if (act) {   // released (or, opened by a quick right click, the next click): the action
             m_stMenu = false;
+            if (m_stMenuSticky) m_stMenuEat = ImGui::GetFrameCount();
+            m_stMenuSticky = false;
             if (hot == 0) rotateSelected(1);
             else if (hot == 3) rotateSelected(-1);
             else if (hot == 1) duplicateSelected();

@@ -720,6 +720,11 @@ private:
     bool m_stMenuShown = false;
     ImVec2 m_stMenuAt;
     double m_pressT = 0;
+    int m_stMenuBtn = 0;              // the button that opened it (0 left held, 1 right held): its release acts
+    bool m_stMenuSticky = false;      // opened by a quick right click: stays open, the next click acts
+    int m_stMenuEat = -1;             // the frame whose click closed a sticky menu: that click is not passed to the view
+    int m_rmbBrick = -1;              // the brick under a right press (Studio: right held still = the marking menu)
+    double m_rmbT = 0;
     void drawUiStudio();
     void stHeader();
     void stTools();

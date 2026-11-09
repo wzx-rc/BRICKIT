@@ -182,7 +182,7 @@ void BrickApp::applyPrefs(const std::string& t) {
             if (lt["softGI"].type == app::Json::Bool) m_softGI = lt["softGI"].b;
         if (lt["giStrength"].type == app::Json::Number) m_softGIStrength = std::clamp((float)lt["giStrength"].n, 0.0f, 2.0f);
         if (lt["giHold"].type == app::Json::Bool) m_softGIHold = lt["giHold"].b;
-        if (lt["dof"].type == app::Json::Number) m_dof = std::clamp((float)lt["dof"].n, 0.0f, 1.0f);
+        // (the depth of field is not taken back: the app always opens without it, Wzx 09/11/2026)
         if (lt["focusMode"].type == app::Json::Number) m_focusMode = std::clamp((int)lt["focusMode"].n, 0, 2);
         if (lt["focusReticle"].type == app::Json::Bool) m_focusReticle = lt["focusReticle"].b;
         if (lt["focusCm"].type == app::Json::Number) m_focusManual = std::clamp((float)lt["focusCm"].n, 2.0f, 400.0f);

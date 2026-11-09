@@ -617,7 +617,10 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     std::vector<uint8_t> rgba;
     int w = 0, h = 0;
     if (!decodeImage(&m_fullThumbData[m_fullThumbAt[part].first], m_fullThumbAt[part].second, rgba, w, h) || w <= 0 || h <= 0) return false;
-    if (m_lazyThumbs.size() >= 900) {   // the least recently used
+    // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
+    // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
+    // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).
+    if (m_lazyThumbs.size() >= 140) {
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;
@@ -625,6 +628,7 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
         m_lazyThumbs.erase(old);
     }
     tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
+    if (!tex) return false;   // (no slot left: not kept, tried again later)
     m_lazyThumbs[part] = {tex, m_frame};
     return true;
 }
