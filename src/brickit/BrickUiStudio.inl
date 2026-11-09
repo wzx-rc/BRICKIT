@@ -695,7 +695,16 @@ void BrickApp::stDrawer() {
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
             stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 17 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
-            if (h && u.pressed) { m_stFam = f.key; m_stSub = -1; m_stW = m_stL = 0; m_searchOpen = false; m_search.clear(); m_stSubScroll = 0; }
+            if (h && u.pressed) {   // back on a family: its last category (Wzx 09/11/2026)
+                m_stFamSub[m_stFam] = m_stSub;
+                m_stFam = f.key;
+                auto it = m_stFamSub.find(f.key);
+                m_stSub = it != m_stFamSub.end() ? it->second : -1;
+                m_stW = m_stL = 0;
+                m_searchOpen = false;
+                m_search.clear();
+                m_stSubScroll = 0;
+            }
         }
     }
     y += famH + 8 * s;
@@ -1014,10 +1023,16 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
     u.dl->AddRectFilled(a, b, stA(IM_COL32(24, 25, 28, 240), ease), 16 * s);
     u.dl->AddRect(a, b, stA(IM_COL32(255, 255, 255, 46), ease), 16 * s, 0, 1.0f);
     const ImVec2 ia(a.x + pad, a.y + pad), ib(b.x - pad, a.y + pad + 168 * s);
-    u.dl->AddRectFilled(ia, ib, stA(IM_COL32(255, 255, 255, 10), ease), 12 * s);
-    ImTextureID tex;
+    u.dl->AddRectFilled(ia, ib, stA(IM_COL32(18, 19, 24, 255), ease), 12 * s);   // the ground of the cards
+    u.dl->AddRect(ia, ib, stA(IM_COL32(255, 255, 255, 30), ease), 12 * s, 0, 1.0f);
+    ImTextureID tex = 0;
     ImVec2 uv0, uv1;
-    if (thumbUv(part, tex, uv0, uv1)) {
+    {   // the image at the size it is drawn (no aliasing), else the thumbnail of the cards
+        const float side0 = std::min(ib.x - ia.x, ib.y - ia.y);
+        const ImTextureID st = sheetTexture(part, (int)std::lround(side0 * 1.2f));
+        if (st) { tex = st; uv0 = ImVec2(0, 0); uv1 = ImVec2(1, 1); }
+    }
+    if (tex || thumbUv(part, tex, uv0, uv1)) {
         const float z = 1.2f, side = std::min(ib.x - ia.x, ib.y - ia.y);
         const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
         const ImVec2 m((ia.x + ib.x) * 0.5f, (ia.y + ib.y) * 0.5f);

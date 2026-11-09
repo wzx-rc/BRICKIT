@@ -59,6 +59,7 @@ bool BrickApp::readThumbView(int part, ThumbView& v) {
     FILE* f = nullptr;
     if (_wfopen_s(&f, (thumbOverrideDir() + L"\\" + std::wstring(id.begin(), id.end()) + L".view").c_str(), L"r") != 0 || !f) return false;
     const bool ok = fscanf_s(f, "%f %f %f %f %f", &v.yaw, &v.pitch, &v.zoom, &v.panX, &v.panY) == 5;
+    if (ok && fscanf_s(f, "%f", &v.light) != 1) v.light = 0;   // (the lights turned: optional, newer files)
     fclose(f);
     if (!ok) v = defaultThumbView();
     return ok;
@@ -95,7 +96,7 @@ void BrickApp::renderThumbEditor() {
     const float bg[3] = {acesInverse(0x2a, 1.12f), acesInverse(0x2b, 1.12f), acesInverse(0x30, 1.12f)};   // the card colour
     m_te.env.top = m_te.env.horizon = m_te.env.bottom = float3(bg[0], bg[1], bg[2]);
     fitThumbCamera(m_te.camera, p, m_teView);
-    placeThumbLights(m_te, p);
+    placeThumbLights(m_te, p, m_teView.light);
     ++m_te.objectsVersion;
     RenderSettings rs = thumbSettings();
     rs.pixelScale = 1;
@@ -145,7 +146,7 @@ void BrickApp::saveThumbOverride() {
     bool saved = false;
     if (ok && _wfopen_s(&f, (base + L".png").c_str(), L"wb") == 0 && f) { saved = fwrite(png.data(), 1, png.size(), f) == png.size(); fclose(f); }
     if (saved && _wfopen_s(&f, (base + L".view").c_str(), L"w") == 0 && f) {
-        fprintf(f, "%.5f %.5f %.4f %.4f %.4f\n", m_teView.yaw, m_teView.pitch, m_teView.zoom, m_teView.panX, m_teView.panY);
+        fprintf(f, "%.5f %.5f %.4f %.4f %.4f %.1f\n", m_teView.yaw, m_teView.pitch, m_teView.zoom, m_teView.panX, m_teView.panY, m_teView.light);
         fclose(f);
     }
     if (saved) {

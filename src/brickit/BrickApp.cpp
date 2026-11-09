@@ -37,6 +37,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_opt = opt;
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
+    ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
     m_exeDir = exeDir;
     m_dpi = dpi;
     m_ipad = opt.ipad;

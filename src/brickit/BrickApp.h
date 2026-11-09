@@ -21,7 +21,7 @@ namespace brickit {
 
 struct Ui;   // drawing helper of BrickUi.cpp
 // view of a thumbnail (Thumbs.cpp): angles, zoom (1 = the box at 85 % of the image), pan (fractions of the half view)
-struct ThumbView { float yaw = 0, pitch = 0, zoom = 1, panX = 0, panY = 0; };
+struct ThumbView { float yaw = 0, pitch = 0, zoom = 1, panX = 0, panY = 0, light = 0; };   // (light: the lights turned around the part, degrees)
 struct ThumbLook { float key = 32.0f, rim = 4.0f, env = 1.05f, exposure = 1.0f, bevel = 0.04f; int spp = 256, bounces = 4, neutral = 1; float base = 0.85f; int tm = 0; };   // (neutral: Wzx chose B, 06/11/2026)   // light of the thumbnails (spp > 0: path traced)   // light of the thumbnails
 
 using namespace vp3d;
@@ -548,6 +548,10 @@ private:
     int buildFullThumbs();       // --build-full-thumbs pack: the thumbnails of the full library
     void loadFullThumbIndex();
     bool lazyThumb(int part, ImTextureID& tex);
+    bool thumbRgba(int part, std::vector<uint8_t>& rgba, int& w, int& h);   // the image of a part from the packs (HD first)
+    ImTextureID sheetTexture(int part, int px);   // the image of the sheet of a card, at the size it is drawn
+    ImTextureID m_sheetTex = 0;
+    int m_sheetTexPart = -1, m_sheetTexPx = 0;
     std::vector<uint8_t> m_fullThumbData;
     std::vector<std::pair<uint32_t, uint32_t>> m_fullThumbAt;   // per part: offset, size in m_fullThumbData
     std::unordered_map<int, std::pair<ImTextureID, int>> m_lazyThumbs;   // part -> texture, frame last used
@@ -559,7 +563,7 @@ private:
     static ThumbView defaultThumbView();
     static RenderSettings thumbSettings();
     static ThumbLook thumbLook();
-    static void placeThumbLights(Scene& ts, const Part& p);
+    static void placeThumbLights(Scene& ts, const Part& p, float lightDeg = 0.0f);
     static void fitThumbCamera(Camera& c, const Part& p, const ThumbView& v);
     // Edit thumbnail (DEV, BrickThumbEdit.cpp): right click menu, viewer, overrides in %LOCALAPPDATA%\\BrickIt\\thumb_overrides
     std::wstring thumbOverrideDir() const;
@@ -606,6 +610,7 @@ private:
     bool m_pvDrag = false;
     ImVec4 m_pvRect{0, 0, 0, 0};
     ImTextureID m_frozenTex = 0;
+    bool m_teLightDrag = false;     // Modifier la miniature: the slider of the lights held
     bool thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1);
 
 #ifdef _WIN32
@@ -722,6 +727,7 @@ private:
     bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
     std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
     int m_stSub = -1;
+    std::unordered_map<std::string, int> m_stFamSub;   // the last category of each family (back on a family: there)
     bool m_hideDeco = true;           // Réglages: the decorated parts (stickers, printed patterns) hidden from the library (Wzx 09/11/2026)                 // its category (-1: Toutes, the tiles of its categories)
     float m_stSubScroll = 0;
     std::unordered_map<std::string, float> m_stScrollMem;   // the scroll of the cards, kept per family and category
