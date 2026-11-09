@@ -1646,7 +1646,8 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
 struct StAct { float ang; const char* label; const char* icon; bool danger; };
 static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {90, "DUPLIQUER", ST_DUP, false}, {135, "SUPPRIMER", ST_DEL, true},   // (Dupliquer straight down, Supprimer bottom left and smaller: Wzx)
                                  {180, "TOURNER", ST_ROTL, false}};   // (no Basculer, no Fiche: Wzx 09/11/2026)
-static const float ST_R_ACT = 74, ST_R_COL = 132, ST_ARC0 = 204, ST_ARC1 = 336;
+static const float ST_R_ACT = 100, ST_R_COL = 156,   // (the actions further out: Wzx 09/11/2026)
+    ST_ARC0 = 204, ST_ARC1 = 336;
 
 // the colours of the arc: the recent ones, then the usual ones
 std::vector<int> BrickApp::stArcColors() const {
@@ -1684,17 +1685,20 @@ void BrickApp::stSelHud() {
         int hot = -1;   // 0..5 an action, 100 + k a colour
         // quick mode (as Maya): in the first instants a short flick is enough, the nearest action within 45°
         const bool quick = ImGui::GetTime() - m_stMenuT0 < 0.35 && !m_stMenuSticky;
-        if (dist > (quick ? 12 : 30) * s && dist < 104 * s) {   // the nearest action within 30° (quick: 45°)
+        // the colours: their band of the upper arc; elsewhere, past the middle, the nearest action, however far the
+        // gesture goes (the line stops at the button, the button still acts: Wzx 09/11/2026)
+        const bool inCols = dist >= (ST_R_ACT + 24) * s && dist < (ST_R_COL + 54) * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty();
+        if (inCols) {
+            const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
+            hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
+        }
+        else if (dist > (quick ? 12 : 30) * s) {   // the nearest action within 30° (quick: 45°)
             float bestA = quick ? 45.0f : 30.0f;
             for (int k = 0; k < 4; ++k) {
                 float da = std::fabs(ang - kStActs[k].ang);
                 da = std::min(da, 360 - da);
                 if (da <= bestA) { bestA = da; hot = k; }
             }
-        }
-        else if (dist >= 104 * s && dist < 186 * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty()) {
-            const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
-            hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
         }
         // quick mode, a flick under way: not the whole menu, only the action aimed (Wzx 09/11/2026); the menu is drawn
         // into a list thrown away
@@ -1723,16 +1727,19 @@ void BrickApp::stSelHud() {
             u.dl = keep;
         }
         // a dark halo, the guides, the gesture
-        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 160 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
-        dl->AddCircleFilled(c, 160 * s, IM_COL32(6, 7, 9, 70), 64);
-        dl->AddCircle(c, 100 * s, IM_COL32(255, 255, 255, 30), 64, 1.0f);
+        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 184 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
+        dl->AddCircleFilled(c, 184 * s, IM_COL32(6, 7, 9, 70), 64);
+        dl->AddCircle(c, ST_R_ACT * s, IM_COL32(255, 255, 255, 30), 64, 1.0f);
         dl->AddCircle(c, 34 * s, IM_COL32(255, 255, 255, 50), 40, 1.0f);
         for (float a = ST_ARC0; a < ST_ARC1; a += 4) {   // the dotted guide of the arc
             const float r = a * 0.0174533f;
             dl->AddCircleFilled(ImVec2(c.x + std::cos(r) * ST_R_COL * s, c.y + std::sin(r) * ST_R_COL * s), 0.8f * s, stA(C_ACCENT, 0.4f), 6);
         }
-        if (dist > 4 * s) {   // the dashed line of the gesture
-            const int n = (int)(dist / (6 * s));
+        if (dist > 4 * s) {   // the dashed line of the gesture (stops at the button of the action aimed)
+            const float lim = hot >= 0 && hot < 4 ? std::min(dist, ST_R_ACT * s) : hot >= 100 ? std::min(dist, ST_R_COL * s) : dist;
+            const float kq = lim / dist;
+            const float dx = (u.mouse.x - c.x) * kq, dy = (u.mouse.y - c.y) * kq;
+            const int n = (int)(lim / (6 * s));
             for (int i = 0; i < n; i += 2) {
                 const float t0 = i / (float)n, t1 = std::min(1.0f, (i + 1) / (float)n);
                 dl->AddLine(ImVec2(c.x + dx * t0, c.y + dy * t0), ImVec2(c.x + dx * t1, c.y + dy * t1), C_ACCENT, 1.3f * s);
@@ -1785,7 +1792,7 @@ void BrickApp::stSelHud() {
             const float tw = stTrackW(u, 9.5f, t.c_str(), 1.8f * s, true);
             ImDrawList* keep = u.dl;
             u.dl = dl;
-            stTrack(u, ImVec2(c.x - tw * 0.5f, c.y - 178 * s), 9.5f, C_ACCENT_TXT, t.c_str(), 1.8f * s);
+            stTrack(u, ImVec2(c.x - tw * 0.5f, c.y - 202 * s), 9.5f, C_ACCENT_TXT, t.c_str(), 1.8f * s);
             u.dl = keep;
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_stMenu = false; return; }
