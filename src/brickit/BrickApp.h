@@ -67,6 +67,7 @@ struct Options {
     int theme = -1;     // --theme 1 clair / 2 sombre (captures)
     std::string skin;   // --skin classic | creme | minimal | sommet (captures; the theme of Réglages › Thème)
     int skinTint = -1, skinAccent = -1, settingsTab = -1;
+    int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
     std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
@@ -727,6 +728,10 @@ private:
     void stDrawer();
     void stSelHud();
     void stHeld();
+    void stCardSheet(int part, ImVec2 a, ImVec2 b, float t);
+    int m_stHov = -1;                 // the card under the cursor, since m_stHovT (its sheet after 0.5 s)
+    double m_stHovT = 0;
+    ImVec2 m_stHovA, m_stHovB;
     std::vector<int> stArcColors() const;
     bool settingsTabs(Ui& u, ImVec2 p);   // Réglages | Thème; true when clicked
     bool m_tabClicked = false;

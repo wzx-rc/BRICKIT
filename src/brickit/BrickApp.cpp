@@ -1317,6 +1317,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--skin") { std::wstring w = next(); opt.skin.assign(w.begin(), w.end()); }
         else if (a == L"--skin-tint") opt.skinTint = _wtoi(next().c_str());
         else if (a == L"--st-menu") opt.stMenu = true;
+        else if (a == L"--card-sheet") opt.cardSheet = _wtoi(next().c_str());
         else if (a == L"--skin-accent") opt.skinAccent = _wtoi(next().c_str());
         else if (a == L"--settings-tab") { opt.settingsTab = _wtoi(next().c_str()); opt.settings = true; }
         else if (a == L"--ipad") opt.ipad = true;
