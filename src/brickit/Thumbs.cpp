@@ -601,7 +601,12 @@ int BrickApp::buildHqThumbs() {
     QueryPerformanceFrequency(&qf);
     QueryPerformanceCounter(&q0);
     int done = 0, skipped = 0, failed = 0, total = 0;
-    for (const Part& p : m_lib.parts) total += p.category == m_opt.hqCat ? 1 : 0;
+    auto deco = [](const Part& p) {   // a sticker or a printed pattern (as the filter of the library)
+        std::string t = p.label;
+        for (char& c : t) c = (char)std::tolower((unsigned char)c);
+        return t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos;
+    };
+    for (const Part& p : m_lib.parts) total += p.category == m_opt.hqCat && !deco(p) ? 1 : 0;
     auto log = [&](const char* state) {
         FILE* lf = nullptr;
         if (_wfopen_s(&lf, (packPath + L".txt").c_str(), L"w") != 0 || !lf) return;
@@ -619,6 +624,7 @@ int BrickApp::buildHqThumbs() {
         for (int i : set) {
             const Part& p = m_lib.parts[i];
             if (p.category != m_opt.hqCat || !p.loaded) continue;
+            if (deco(p)) continue;   // (the stickers and printed patterns: hidden from the library, not rendered)
             if (GetFileAttributesW(pngOf(p).c_str()) != INVALID_FILE_ATTRIBUTES) { ++skipped; continue; }
             Object o;
             o.mesh = ts.addMesh(p.name, p.mesh);
