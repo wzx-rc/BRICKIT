@@ -600,8 +600,8 @@ void BrickApp::stPaintPanel() {
         x += 7 * s;
     }
     struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
-    const B bs[2] = {{ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2},
-                     {ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3}};
+    const B bs[2] = {{ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3},
+                     {ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2}};   // (Pipette left, Pinceau right: Wzx)
     for (const B& t : bs) {
         const ImVec2 ba(x, a.y + pad), bb(x + bw, a.y + pad + bh);
         const bool h = u.hover(ba, bb) && m_popup == 0;
