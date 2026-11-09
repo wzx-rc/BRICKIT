@@ -119,6 +119,7 @@ std::string BrickApp::prefsJson() {
         j += "}, \"studioUi\": ";
         j += m_studioUi ? "true" : "false";
         j += ", \"libCards\": " + std::to_string(m_stCardMode);
+        j += ", \"cardScale\": " + std::to_string(m_stCardScale);
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
         j += ", \"hideDeco\": ";
@@ -216,6 +217,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libCards"].type == app::Json::Number) m_stCardMode = std::clamp((int)tj["libCards"].n, 0, 1);
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
+        if (tj["cardScale"].type == app::Json::Number) m_stCardScale = std::clamp((float)tj["cardScale"].n, 0.6f, 2.0f);
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
         else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
         for (const auto& kv : tj["looks"].o)

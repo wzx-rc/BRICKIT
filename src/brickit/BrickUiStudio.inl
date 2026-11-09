@@ -990,8 +990,13 @@ void BrickApp::stDrawer() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
-    const float famH = 58 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, tileW = 140 * s, gap = 8 * s, padX = 14 * s;
-    const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + 2 * cardH + gap + 12 * s;
+    // the cards at the size of the slider of the drawer (Wzx 09/11/2026); the drawer keeps its height: as many rows as fit
+    const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
+    const float famH = 58 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
+    const float bodyH = 2 * tileH + gap;
+    const int nRows = std::max(1, (int)((bodyH + gap) / (cardH + gap)));
+    const float rowsY = (bodyH - (nRows * (cardH + gap) - gap)) * 0.5f;
+    const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + bodyH + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
     u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(10, 11, 13, 235), IM_COL32(10, 11, 13, 235), IM_COL32(14, 15, 17, 245), IM_COL32(14, 15, 17, 245));
@@ -1149,7 +1154,28 @@ void BrickApp::stDrawer() {
         stTrack(u, ImVec2(ka.x + 12 * s, ka.y + 28 * s), 9, C_TEXT, path.c_str(), 1.2f * s);
     }
     if (!tiles) {   // the display of the cards: IMAGE / FICHE (also in Réglages)
-        const float ty = y + 2 * cardH + gap - 24 * s;
+        const float ty = y + bodyH - 24 * s;
+        {   // the size of the cards: a slider (small brick, big brick), released: the thumbnails made again at that size
+            const float sy = ty - 22 * s, x0 = padX + 2 * s, tx0 = x0 + 22 * s, tx1 = padX + colW - 22 * s;
+            stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
+            stIco(u.dl, "brick", ImVec2(padX + colW - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
+            const float k = (cs - 0.6f) / 1.4f, kx = tx0 + (tx1 - tx0) * k;
+            u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), IM_COL32(255, 255, 255, 40), 2 * s);
+            u.dl->AddLine(ImVec2(tx0, sy), ImVec2(kx, sy), stA(C_ACCENT, 0.9f), 2 * s);
+            const bool hs = live && u.hover(ImVec2(tx0 - 8 * s, sy - 10 * s), ImVec2(tx1 + 8 * s, sy + 10 * s));
+            if (hs && u.pressed) m_stCardDrag = true;
+            if (m_stCardDrag) {
+                m_stCardScale = 0.6f + std::clamp((u.mouse.x - tx0) / (tx1 - tx0), 0.0f, 1.0f) * 1.4f;
+                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                    m_stCardDrag = false;
+                    for (auto& t : m_lazyThumbs) m_gui->releaseTexture(t.second.first);   // (made again at the new size)
+                    m_lazyThumbs.clear();
+                    savePrefs();
+                }
+            }
+            u.dl->AddCircleFilled(ImVec2(kx, sy), (hs || m_stCardDrag ? 7 : 6) * s, IM_COL32(0xf4, 0xf4, 0xf6, 255), 20);
+            if (hs && !m_stCardDrag && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Taille des vignettes");
+        }
         stTrack(u, ImVec2(padX + 2 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, C_DIM, "AFFICHAGE", 1.6f * s);
         static const char* kModes[2] = {"IMAGE", "FICHE"};
         float bx = padX + colW;
@@ -1203,13 +1229,13 @@ void BrickApp::stDrawer() {
     }
     const std::vector<int>& parts = m_stParts;
     // ---- the cards: two rows, column by column, sliding sideways (wheel, drag)
-    const ImVec2 ca(padX + colW + 12 * s, y), cb(d.x - padX, y + 2 * cardH + gap);
+    const ImVec2 ca(padX + colW + 12 * s, y), cb(d.x - padX, y + bodyH);
     const int nItems = tiles ? (int)fam->subs.size() : (int)parts.size();
     const float itemW = tiles ? tileW : cardW;
     const float viewW = cb.x - ca.x;
     // the tiles read row by row, as in the maquette (in one row when they fit); the cards go column by column
     const int perRow = tiles ? std::min(nItems, std::max((nItems + 1) / 2, (int)((viewW + gap) / (tileW + gap)))) : 0;
-    const int cols = tiles ? perRow : (nItems + 1) / 2;
+    const int cols = tiles ? perRow : (nItems + nRows - 1) / nRows;
     const float contentW = cols * (itemW + gap) - gap;
     if (live && u.hover(ca, cb) && ImGui::GetIO().MouseWheel != 0) m_cardsScroll -= ImGui::GetIO().MouseWheel * itemW;
     swipeRow(0, ca, cb, m_cardsScroll, m_cardsVel, std::max(0.0f, contentW - viewW), live);
@@ -1232,7 +1258,7 @@ void BrickApp::stDrawer() {
     if (tiles)   // Toutes: one tile per category, its pictogram big (Maquette 4.1); a click opens it
         for (int k = 0; k < nItems; ++k) {
             const int c = k % std::max(1, perRow), r = k / std::max(1, perRow);
-            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + r * (cardH + gap)), b(a.x + tileW, a.y + cardH);
+            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + r * (tileH + gap)), b(a.x + tileW, a.y + tileH);
             if (b.x < ca.x || a.x > cb.x) continue;
             const StSub& q = fam->subs[k];
             const int n = k < (int)m_stSubCount.size() ? m_stSubCount[k] : 0;
@@ -1250,8 +1276,8 @@ void BrickApp::stDrawer() {
             if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; }
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
-        const int c = k / 2, r = k % 2;
-        const ImVec2 a(ca.x + c * (cardW + gap) - m_cardsScroll, ca.y + r * (cardH + gap)), b(a.x + cardW, a.y + cardH);
+        const int c = k / nRows, r = k % nRows;
+        const ImVec2 a(ca.x + c * (cardW + gap) - m_cardsScroll, ca.y + rowsY + r * (cardH + gap)), b(a.x + cardW, a.y + cardH);
         if (b.x < ca.x || a.x > cb.x) continue;
         const int part = parts[k];
         const Part& P = m_lib.parts[part];

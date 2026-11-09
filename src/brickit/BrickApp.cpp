@@ -114,6 +114,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.stSub >= -1) m_stSub = opt.stSub;
     if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
     if (opt.stGroups) m_pGroups.visible = true;
+    if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
     if (opt.stPopup > 0) { m_popup = opt.stPopup; m_popupAt = ImVec2(10 * m_ui, 52 * m_ui); }
     if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
@@ -1291,6 +1292,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         std::wstring a = args[i];
         auto next = [&]() -> std::wstring { return i + 1 < argc ? args[++i] : std::wstring(); };
         // (the Studio and HD thumbnail flags apart: the chain below is at the nesting limit of the compiler)
+        if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
         if (a == L"--st-paint") { opt.stPaint = true; continue; }
         if (a == L"--st-groups") { opt.stGroups = true; continue; }
         if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }

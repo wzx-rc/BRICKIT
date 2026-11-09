@@ -74,6 +74,7 @@ struct Options {
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
     int stSub = -2;
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
@@ -739,6 +740,8 @@ private:
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
+    float m_stCardScale = 1.0f;       // the size of the cards of the drawer (its slider, 0.6 to 2)
+    bool m_stCardDrag = false;
     int m_stCardMode = 0;             // Réglages › Bibliothèque: 0 Image (the image alone), 1 Fiche (image, size, name, id)
     std::vector<int> m_stParts;
     std::string m_stKey;

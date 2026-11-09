@@ -816,7 +816,7 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     }
     // reduced to the size the cards draw it at (88 pt, the image zoomed x 1.5-1.6: ~140 pt of image), Wzx 09/11/2026:
     // « la brique aliase quand l'image est réduite pour fit les dimensions du thumb »
-    const int T = std::clamp((int)std::lround(140 * m_ui), 64, 512);
+    const int T = std::clamp((int)std::lround(140 * m_ui * std::clamp(m_stCardScale, 0.6f, 2.0f)), 64, 512);
     if (w > T && h > T) {
         std::vector<uint8_t> small;
         areaResize(rgba, w, h, small, T, T * h / w);
