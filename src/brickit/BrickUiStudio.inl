@@ -643,7 +643,7 @@ void BrickApp::stDrawer() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
-    const float famH = 68 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, tileW = 140 * s, gap = 8 * s, padX = 14 * s;
+    const float famH = 58 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, tileW = 140 * s, gap = 8 * s, padX = 14 * s;
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + 2 * cardH + gap + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
@@ -681,7 +681,7 @@ void BrickApp::stDrawer() {
             } else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 9), 12 * s);
             const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
-            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + 4 * s + 20 * s - (h && !on ? 2 * s : 0)), 40 * s, pic, 1.1f * s);
+            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + 4 * s + 14 * s - (h && !on ? 1.5f * s : 0)), 27 * s, pic, 1.0f * s);
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
             stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 17 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
@@ -802,7 +802,7 @@ void BrickApp::stDrawer() {
     int avail = 0;
     for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
     const std::string key = m_stFam + "|" + std::to_string(m_stSub) + "|" + std::to_string(m_stW) + "x" + std::to_string(m_stL) + "|" + (m_searchOpen ? m_search : std::string()) + "|" +
-                            std::to_string(avail) + "|" + std::to_string(m_recent.size()) + "|" + std::to_string(m_fav.size());
+                            std::to_string(avail) + "|" + std::to_string(m_recent.size()) + "|" + std::to_string(m_fav.size()) + (m_hideDeco ? "|d" : "");
     if (key != m_stKey) {
         m_stKey = key;
         m_stParts.clear();
@@ -814,6 +814,7 @@ void BrickApp::stDrawer() {
             for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
                 const Part& p = m_lib.parts[i];
                 if (!p.available()) continue;
+                if (m_hideDeco && partDeco(p)) continue;   // (Réglages: the stickers and printed patterns hidden)
                 const std::string& c = partCat(i);
                 for (size_t q = 0; q < fam->subs.size(); ++q)
                     if (stInSub(fam->subs[q], c, p.sub)) ++m_stSubCount[q];

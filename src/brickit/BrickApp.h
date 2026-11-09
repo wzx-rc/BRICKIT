@@ -55,6 +55,9 @@ struct Options {
     std::wstring bacFile;       // --bac-file <file>: the tray there (tests); --bac-test: the tray open with the selection + bricks 590..599
     bool bacTest = false;
     std::wstring thumbDir;      // --thumb-dir <dir>: the overrides there instead of %LOCALAPPDATA% (tests)
+    std::wstring hqThumbs;     // --build-hq-thumbs pack [--hq-cat Brick] [--hq-px 512] [--hq-spp 2048]: HD thumbnails of one category
+    std::string hqCat = "Brick";
+    int hqPx = 512, hqSpp = 2048;
     std::wstring fullThumbs;   // --build-full-thumbs pack: renders the thumbnails of the full library and exits
     std::wstring importPath;   // --import model.mpd: an LDraw model (OMR), the reading mode opened
     int readStep = -1;         // --read-step n: the page read for the capture
@@ -538,6 +541,10 @@ private:
 
     // Thumbs.cpp
     void buildThumbs();
+    int buildHqThumbs();         // --build-hq-thumbs pack: the HD thumbnails of one LDraw category
+    int m_hqSpp = 0;             // (while it runs: the samples of the path tracing, the denoiser light)
+    std::vector<uint8_t> m_hqThumbData;   // full\thumbs_hq.pack ("BTF1"): the HD thumbnails, preferred over the others
+    std::vector<std::pair<uint32_t, uint32_t>> m_hqThumbAt;
     int buildFullThumbs();       // --build-full-thumbs pack: the thumbnails of the full library
     void loadFullThumbIndex();
     bool lazyThumb(int part, ImTextureID& tex);
@@ -714,7 +721,8 @@ private:
     bool m_studioUi = true;           // Réglages › Interface: Studio (new) / Classique
     bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
     std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
-    int m_stSub = -1;                 // its category (-1: Toutes, the tiles of its categories)
+    int m_stSub = -1;
+    bool m_hideDeco = true;           // Réglages: the decorated parts (stickers, printed patterns) hidden from the library (Wzx 09/11/2026)                 // its category (-1: Toutes, the tiles of its categories)
     float m_stSubScroll = 0;          // the row of the categories, scrolled sideways
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)

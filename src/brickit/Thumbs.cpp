@@ -212,7 +212,8 @@ void BrickApp::buildThumbs() {
 bool BrickApp::thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1) {
     auto ov = m_thumbOverride.find(part);   // Edit thumbnail (DEV): the saved image first
     if (ov != m_thumbOverride.end()) { tex = ov->second; uv0 = ImVec2(0, 0); uv1 = ImVec2(1, 1); return true; }
-    if (part < 0 || part >= (int)m_thumbSlot.size() || m_thumbSlot[part] < 0) {   // the full library: on demand
+    const bool hq = part >= 0 && part < (int)m_hqThumbAt.size() && m_hqThumbAt[part].second > 0;   // an HD thumbnail: preferred
+    if (hq || part < 0 || part >= (int)m_thumbSlot.size() || m_thumbSlot[part] < 0) {   // the full library (or HD): on demand
         if (!lazyThumb(part, tex)) return false;
         uv0 = ImVec2(0, 0);
         uv1 = ImVec2(1, 1);
@@ -344,6 +345,7 @@ bool BrickApp::renderThumb2(Scene& ts, int obj, const Part& p, const ThumbView& 
     uint32_t w = 0, h = 0, w2 = 0, h2 = 0;
     // path tracing (Wzx, 05/11/2026: « fait en rendu PathTracing »): the samples accumulated, denoised; else the raster
     ThumbLook lk = thumbLook();
+    if (m_hqSpp > 0) lk.spp = m_hqSpp;
     if (isGlassPart(p) || (obj >= 0 && obj < (int)ts.objects.size() && ts.materials[ts.objects[obj].material].transmission > 0.5f)) lk.spp = 0;   // (glass: the refraction of the black / white backgrounds breaks the alpha in path tracing)
     RenderSettings prs = rs;
     if (lk.spp > 0) {
@@ -353,7 +355,7 @@ bool BrickApp::renderThumb2(Scene& ts, int obj, const Part& p, const ThumbView& 
         prs.maxSamples = lk.spp;
         prs.traceStride = 1;
         prs.denoise = true;
-        prs.denoisePasses = 3;
+        prs.denoisePasses = m_hqSpp > 0 ? 1 : 3;   // (HD: thousands of samples, the denoiser only smooths what is left)
         prs.denoiseEdgeLuma = 4.0f;
         prs.fireflyClamp = 8.0f;
         prs.bevel = true;
@@ -365,7 +367,8 @@ bool BrickApp::renderThumb2(Scene& ts, int obj, const Part& p, const ThumbView& 
         ++ts.objectsVersion;
         if (lk.spp <= 0) { m_renderer->render(ts, prs, vp, -1, false); return m_renderer->readViewport(out8, ow, oh); }
         m_renderer->resetAccumulation();
-        for (int k = 0; k < 64 && (int)m_renderer->sampleCount() < lk.spp; ++k) m_renderer->render(ts, prs, vp, -1, false);
+        const int frames = lk.spp / std::max(1, prs.samplesPerFrame) + 8;
+        for (int k = 0; k < frames && (int)m_renderer->sampleCount() < lk.spp; ++k) m_renderer->render(ts, prs, vp, -1, false);
         return m_renderer->readViewport(out8, ow, oh);
     };
     bool ok = pass(0.0f, img, w, h);
@@ -580,8 +583,137 @@ int BrickApp::buildFullThumbs() {
     return n;
 }
 
+// --build-hq-thumbs <pack>: the HD thumbnails of one LDraw category (Wzx 09/11/2026: « en 512 px total, laisse bien tourner
+// le path tracing »): the part rendered at px / 1.4 with hqSpp samples (2048: a clean sampling and anti-aliasing, the
+// denoiser one light pass), padded to px x px as the others; every image in <pack dir>\thumbs_hq_parts\<id>.png (resumable),
+// then <pack> ("BTF1"). Copy it to %LOCALAPPDATA%\BrickIt\full\thumbs_hq.pack: the app prefers it to the other thumbnails.
+int BrickApp::buildHqThumbs() {
+    const int W = std::max(64, m_opt.hqPx), px = (int)std::lround(W / 1.4f);
+    const std::wstring packPath = m_opt.hqThumbs, dir = packPath.substr(0, packPath.find_last_of(L"\\/"));
+    const std::wstring tmp = dir + L"\\thumbs_hq_parts";
+    CreateDirectoryW(tmp.c_str(), nullptr);
+    m_hqSpp = std::max(16, m_opt.hqSpp);
+    Scene ts;
+    int glass = -1;
+    const int mat = setupStudio2(ts, glass);
+    ts.geometryVersion = 0x50000000u;
+    LARGE_INTEGER q0, q1, qf;
+    QueryPerformanceFrequency(&qf);
+    QueryPerformanceCounter(&q0);
+    int done = 0, skipped = 0, failed = 0, total = 0;
+    for (const Part& p : m_lib.parts) total += p.category == m_opt.hqCat ? 1 : 0;
+    auto log = [&](const char* state) {
+        FILE* lf = nullptr;
+        if (_wfopen_s(&lf, (packPath + L".txt").c_str(), L"w") != 0 || !lf) return;
+        QueryPerformanceCounter(&q1);
+        const double el = (q1.QuadPart - q0.QuadPart) / (double)qf.QuadPart;
+        fprintf(lf, "%s category=%s parts=%d rendered=%d resumed=%d failed=%d px=%d spp=%d elapsed_s=%.0f per_part_s=%.1f\n", state, m_opt.hqCat.c_str(), total, done, skipped,
+                failed, W, m_hqSpp, el, done ? el / done : 0.0);
+        fclose(lf);
+    };
+    auto pngOf = [&](const Part& p) { return tmp + L"\\" + std::wstring(p.name.begin(), p.name.end()) + L".png"; };
+    auto renderSet = [&](const std::vector<int>& set) {
+        ts.meshes.clear();
+        ts.objects.clear();
+        std::vector<std::pair<int, int>> objs;
+        for (int i : set) {
+            const Part& p = m_lib.parts[i];
+            if (p.category != m_opt.hqCat || !p.loaded) continue;
+            if (GetFileAttributesW(pngOf(p).c_str()) != INVALID_FILE_ATTRIBUTES) { ++skipped; continue; }
+            Object o;
+            o.mesh = ts.addMesh(p.name, p.mesh);
+            o.material = isGlassPart(p) ? glass : mat;
+            o.visible = false;
+            objs.push_back({i, ts.addObject(o)});
+        }
+        if (objs.empty()) return;
+        ++ts.geometryVersion;
+        for (auto [i, ob] : objs) {
+            const Part& p = m_lib.parts[i];
+            ts.objects[ob].visible = true;
+            std::vector<uint8_t> rgba, big, png;
+            bool ok = renderThumb2(ts, ob, p, defaultThumbView(), px, rgba);
+            if (ok) {   // padded to W x W (the cards zoom the thumbnails x 1.4)
+                const int o = (W - px) / 2;
+                big.assign((size_t)W * W * 4, 0);
+                for (int y = 0; y < px; ++y) memcpy(&big[((size_t)(y + o) * W + o) * 4], &rgba[(size_t)y * px * 4], (size_t)px * 4);
+                ok = encodePng(big, W, W, png);
+            }
+            ts.objects[ob].visible = false;
+            if (!ok) { ++failed; continue; }
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, pngOf(p).c_str(), L"wb") == 0 && f) { fwrite(png.data(), 1, png.size(), f); fclose(f); ++done; }
+            else ++failed;
+            if (done % 5 == 0) log("running");
+        }
+    };
+    std::vector<int> base;   // the parts loaded at start, then the full library pack by pack
+    for (int i = 0; i < (int)m_lib.parts.size(); ++i)
+        if (m_lib.parts[i].loaded && m_lib.parts[i].pack < m_lib.technicPacks) base.push_back(i);
+    renderSet(base);
+    for (int pk = m_lib.technicPacks; pk < m_lib.packCount; ++pk) {
+        bool any = false;
+        for (const Part& p : m_lib.parts) if (p.pack == pk && p.category == m_opt.hqCat) { any = true; break; }
+        if (!any) continue;
+        m_lib.loadPack(pk);
+        std::vector<int> set;
+        for (int i = 0; i < (int)m_lib.parts.size(); ++i)
+            if (m_lib.parts[i].pack == pk) set.push_back(i);
+        renderSet(set);
+        m_lib.unloadPack(pk);
+    }
+    std::vector<uint8_t> pack = {'B', 'T', 'F', '1', 0, 0, 0, 0};
+    uint32_t count = 0;
+    for (const Part& p : m_lib.parts) {
+        if (p.category != m_opt.hqCat) continue;
+        std::vector<uint8_t> png;
+        if (!readAll(pngOf(p), png)) continue;
+        const uint16_t nl = (uint16_t)p.name.size();
+        const uint32_t pl = (uint32_t)png.size();
+        pack.insert(pack.end(), (const uint8_t*)&nl, (const uint8_t*)&nl + 2);
+        pack.insert(pack.end(), p.name.begin(), p.name.end());
+        pack.insert(pack.end(), (const uint8_t*)&pl, (const uint8_t*)&pl + 4);
+        pack.insert(pack.end(), png.begin(), png.end());
+        ++count;
+    }
+    memcpy(&pack[4], &count, 4);
+    writeFile(packPath, pack);
+    log("done");
+    m_hqSpp = 0;
+    return (int)count;
+}
+
 // the index of the pack (read once, the images stay in memory compressed)
+static void indexThumbPack(const std::wstring& path, const Library& lib, std::vector<uint8_t>& d, std::vector<std::pair<uint32_t, uint32_t>>& at) {
+    d.clear();
+    at.clear();
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) return;
+    fseek(f, 0, SEEK_END);
+    d.resize((size_t)ftell(f));
+    fseek(f, 0, SEEK_SET);
+    if (fread(d.data(), 1, d.size(), f) != d.size()) d.clear();
+    fclose(f);
+    if (d.size() < 8 || memcmp(d.data(), "BTF1", 4) != 0) { d.clear(); return; }
+    const uint32_t count = *(const uint32_t*)&d[4];
+    size_t o = 8;
+    at.assign(lib.parts.size(), {0, 0});
+    for (uint32_t e = 0; e < count && o + 2 <= d.size(); ++e) {
+        const uint16_t nl = *(const uint16_t*)&d[o];
+        o += 2;
+        if (o + nl + 4 > d.size()) break;
+        const int i = lib.find(std::string((const char*)&d[o], nl));
+        o += nl;
+        const uint32_t pl = *(const uint32_t*)&d[o];
+        o += 4;
+        if (o + pl > d.size()) break;
+        if (i >= 0) at[i] = {(uint32_t)o, pl};
+        o += pl;
+    }
+}
+
 void BrickApp::loadFullThumbIndex() {
+    if (!m_lib.fullDir.empty()) indexThumbPack(m_lib.fullDir + L"\\thumbs_hq.pack", m_lib, m_hqThumbData, m_hqThumbAt);   // the HD ones (--build-hq-thumbs)
     FILE* f = nullptr;
     if (m_lib.fullDir.empty() || _wfopen_s(&f, (m_lib.fullDir + L"\\thumbs.pack").c_str(), L"rb") != 0 || !f) return;
     fseek(f, 0, SEEK_END);
@@ -609,14 +741,17 @@ void BrickApp::loadFullThumbIndex() {
 }
 
 bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
-    if (part < 0 || part >= (int)m_fullThumbAt.size() || m_fullThumbAt[part].second == 0) return false;
+    const bool hq = part >= 0 && part < (int)m_hqThumbAt.size() && m_hqThumbAt[part].second > 0;
+    if (!hq && (part < 0 || part >= (int)m_fullThumbAt.size() || m_fullThumbAt[part].second == 0)) return false;
     auto it = m_lazyThumbs.find(part);
     if (it != m_lazyThumbs.end()) { it->second.second = m_frame; tex = it->second.first; return true; }
     if (m_lazyThumbBudget <= 0) return false;   // a few decoded per frame: the others show next frames
     --m_lazyThumbBudget;
     std::vector<uint8_t> rgba;
     int w = 0, h = 0;
-    if (!decodeImage(&m_fullThumbData[m_fullThumbAt[part].first], m_fullThumbAt[part].second, rgba, w, h) || w <= 0 || h <= 0) return false;
+    const std::vector<uint8_t>& src = hq ? m_hqThumbData : m_fullThumbData;
+    const std::pair<uint32_t, uint32_t> at = hq ? m_hqThumbAt[part] : m_fullThumbAt[part];
+    if (!decodeImage(&src[at.first], at.second, rgba, w, h) || w <= 0 || h <= 0) return false;
     // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
     // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
     // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).

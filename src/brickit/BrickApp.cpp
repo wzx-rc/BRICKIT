@@ -87,6 +87,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.bevelSpp >= 0) { m_rs.bevel = opt.bevelSpp > 0; m_rs.bevelSamples = std::max(1, opt.bevelSpp); }
     m_lib.loadAll(&err);   // every Technic pack (about 10 MB): the library shows them all, the thumbnails need them
     if (!opt.thumbSampleDir.empty()) { thumbSample(); return false; }   // the new thumbnails of a few parts, then exit
+    if (!opt.hqThumbs.empty()) { buildHqThumbs(); return false; }   // the HD thumbnails of one category, then exit
     if (!opt.fullThumbs.empty()) {   // the thumbnails of the full library, then exit
         const int n = buildFullThumbs();
         FILE* lf = nullptr;
@@ -1304,6 +1305,10 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--show-probes") opt.showProbes = _wtoi(next().c_str());
         else if (a == L"--soft-gi-probes") opt.softGIProbes = _wtoi(next().c_str());
         else if (a == L"--build-full-thumbs") opt.fullThumbs = next();
+        else if (a == L"--build-hq-thumbs") opt.hqThumbs = next();
+        else if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); }
+        else if (a == L"--hq-px") opt.hqPx = _wtoi(next().c_str());
+        else if (a == L"--hq-spp") opt.hqSpp = _wtoi(next().c_str());
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
         else if (a == L"--thumb-dir") opt.thumbDir = next();

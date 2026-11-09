@@ -125,6 +125,13 @@ void BrickApp::buildNav() {
     for (const char* s : kTechSubs) m_nav.push_back({s, 3, s, 2});
 }
 
+// a decorated part: a sticker or a printed pattern (« ... Pattern », « ... Sticker » in its LDraw title)
+static bool partDeco(const Part& p) {
+    std::string t = p.label;
+    for (char& c : t) c = (char)std::tolower((unsigned char)c);
+    return t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos;
+}
+
 std::vector<int> BrickApp::visibleParts() const {
     std::vector<int> out;
     auto lower = [](std::string s) { for (char& c : s) c = (char)std::tolower((unsigned char)c); return s; };
@@ -133,6 +140,7 @@ std::vector<int> BrickApp::visibleParts() const {
         for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
             const Part& p = m_lib.parts[i];
             if (!p.available()) continue;
+            if (m_hideDeco && partDeco(p)) continue;
             const std::string& c = partCat(i);
             if (lower(p.name).find(q) != std::string::npos || lower(p.label).find(q) != std::string::npos || lower(catFr(c)).find(q) != std::string::npos ||
                 lower(c).find(q) != std::string::npos)
@@ -147,6 +155,7 @@ std::vector<int> BrickApp::visibleParts() const {
     for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
         const Part& p = m_lib.parts[i];
         if (!p.available()) continue;
+        if (m_hideDeco && partDeco(p)) continue;
         if (m_fam == "all") { out.push_back(i); continue; }
         if (!fam) continue;
         const std::string& c = partCat(i);
@@ -3348,6 +3357,7 @@ void BrickApp::uiSettings() {
         {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
         {"Interface", {{"Studio", m_studioUi}, {"Classique", !m_studioUi}}, 18},
         {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
+        {"Pièces décorées (stickers, motifs)", {{"Masquées", m_hideDeco}, {"Affichées", !m_hideDeco}}, 20},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
         {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
@@ -3660,6 +3670,7 @@ void BrickApp::uiSettings() {
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
         case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
         case 19: m_stCardMode = clickOpt; m_cardsScroll = 0; break;
+        case 20: m_hideDeco = clickOpt == 0; m_stKey.clear(); m_cardsScroll = 0; break;
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }
         }
