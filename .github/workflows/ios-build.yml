@@ -11,6 +11,10 @@ name: iPad build
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS runner (macos-15-intel when the arm64 runners are saturated)
+        default: macos-latest
   push:
     branches: [main, 'claude/**']
     paths: [ios/**, port/**, src/brickit/**, engine, assets/brickit/**, tools/brickit/library_fetch.py, VERSION, .github/workflows/ios-build.yml]
@@ -20,7 +24,7 @@ env:
 
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
 
