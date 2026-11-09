@@ -295,7 +295,7 @@ static const std::vector<StFam>& stFams() {
                                                C("Coiffes", "headwear", {"Minifig Headwear"}), C("Bas", "hipwear", {"Minifig Hipwear"}), C("Cols et capes", "neckwear", {"Minifig Neckwear"}),
                                                C("Figurines", "figure", {"Figure"}), C("Acc. figurines", "handbag", {"Figure Accessory"}), C("Bras", "arm", {"Arm"})}},
         {"nature", "Nature", "tree", {C("Animaux", "animal", {"Animal"}), C("Plantes", "leaves", {"Plant"}), C("Rochers", "rock", {"Rock"})}},
-        {"autres", "Autres gammes", "duplo", {C("Duplo", "duplo", {"Duplo"}), C("Scala", "figure", {"Scala"}), C("Belville", "flower", {"Belville"}), C("Clikits", "heart", {"Clikits"}),
+        {"autres", "Autres gammes", "dots", {C("Scala", "figure", {"Scala"}), C("Belville", "flower", {"Belville"}), C("Clikits", "heart", {"Clikits"}),
                                               C("Homemaker", "homemaker", {"Homemaker"}), C("Freestyle", "dots", {"Freestyle"}), C("Autocollants", "sticker", {"Sticker"}),
                                               C("Carton", "cardboard", {"Sheet Cardboard"}), C("Tissu", "fabric", {"Sheet Fabric"}), C("Plastique", "sheet", {"Sheet Plastic"}),
                                               C("Obsolètes", "obsolete", {"Obsolete"}), C("POV-Ray", "povray", {"Pov-RAY"}), StSub{"Divers", "dots", {}, nullptr, true}}}};
@@ -446,7 +446,7 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
-    if (m_paintMode) { stPaintPanel(); return; }
+    if (m_paintMode) { stPaintPanel(); stPaintColors(); return; }   // (PEINDRE: no tools on the left)
     Ui u = ui(m_ui);
     const float s = m_ui;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
@@ -563,49 +563,97 @@ void BrickApp::stMore() {
 
 // ------------------------------------------------------------------ Peindre: the big Pinceau / Pipette, Groupe entier
 
-// the mode PEINDRE (Wzx 09/11/2026): in place of the tools, the Pinceau and the Pipette in big, then « Groupe entier »:
-// on, a click paints the whole group of the brick; off, the brick alone (inside its group)
+// the mode PEINDRE (Wzx 09/11/2026): the Pinceau and the Pipette in big, at the bottom in the middle (above the drawer),
+// « Groupe entier » beside them; at the top, under the header, every colour in a strip (stPaintColors)
 void BrickApp::stPaintPanel() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
-    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
-    const float W = 112 * s, pad = 8 * s, bh = 92 * s;
-    const ImVec2 a(14 * s, top), b(a.x + W, top + pad + 2 * (bh + 6 * s) + 10 * s + 64 * s + pad);
-    stGlass(u.dl, a, b, 18 * s, s);
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : d.y) - 14 * s;
+    const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s;
+    const float W = pad + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
+    const ImVec2 a((d.x - W) * 0.5f, bottom - H), b(a.x + W, bottom);
+    stGlass(u.dl, a, b, 20 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    float y = a.y + pad;
     struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
     const B bs[2] = {{ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2},
                      {ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3}};
+    float x = a.x + pad;
     for (const B& t : bs) {
-        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + bh);
+        const ImVec2 ba(x, a.y + pad), bb(x + bw, a.y + pad + bh);
         const bool h = u.hover(ba, bb) && m_popup == 0;
         if (t.on) { u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 14 * s); u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.85f), 14 * s, 0, 1.0f); }
         else { u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, h ? 18 : 8), 14 * s); u.dl->AddRect(ba, bb, IM_COL32(255, 255, 255, h ? 60 : 26), 14 * s, 0, 1.0f); }
         const ImU32 col = t.on ? C_ACCENT_TXT : C_TEXT;
-        stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, ba.y + 36 * s), 38 * s, col, 1.5f * s);
+        stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, ba.y + 30 * s), 32 * s, col, 1.5f * s);
         const float lw = stTrackW(u, 8, t.label, 1.6f * s, true);
-        stTrack(u, ImVec2((ba.x + bb.x - lw) * 0.5f, bb.y - 20 * s), 8, col, t.label, 1.6f * s);
+        stTrack(u, ImVec2((ba.x + bb.x - lw) * 0.5f, bb.y - 19 * s), 8, col, t.label, 1.6f * s);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
         if (h && u.pressed) { if (t.id == 2) { m_paintTool = true; m_pipette = false; } else { m_pipette = true; m_paintTool = false; } }
-        y += bh + 6 * s;
+        x += bw + 6 * s;
     }
-    y += 4 * s;
-    u.dl->AddLine(ImVec2(a.x + 12 * s, y), ImVec2(b.x - 12 * s, y), IM_COL32(255, 255, 255, 24), 1.0f);
-    y += 10 * s;
+    x += 6 * s;
+    u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
+    x += 8 * s;
     {   // Groupe entier: a switch
-        stTrack(u, ImVec2(a.x + 12 * s, y), 7, C_DIM, "GROUPE", 1.6f * s);
-        stTrack(u, ImVec2(a.x + 12 * s, y + 12 * s), 7, C_DIM, "ENTIER", 1.6f * s);
-        const ImVec2 sa(b.x - pad - 34 * s, y + 3 * s), sb(b.x - pad - 4 * s, y + 19 * s);
-        const ImVec2 ha(a.x, y - 4 * s), hb(b.x, y + 46 * s);
+        const float cy = a.y + pad + 20 * s;
+        stTrack(u, ImVec2(x + 4 * s, cy - u.fs(7.5f) * 0.52f), 7.5f, C_DIM, "GROUPE ENTIER", 1.4f * s);
+        const ImVec2 sa(x + 4 * s, cy + 14 * s), sb(sa.x + 34 * s, sa.y + 18 * s);
+        const ImVec2 ha(x, a.y), hb(b.x, b.y);
         const bool h = u.hover(ha, hb) && m_popup == 0;
-        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), 8 * s);
-        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - 8 * s : sa.x + 8 * s, (sa.y + sb.y) * 0.5f), 6 * s, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
-        const char* sub = m_paintGroup ? "tout le groupe" : "la brique seule";
-        u.text(ImVec2(a.x + 12 * s, y + 28 * s), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, sub);
+        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), 9 * s);
+        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - 9 * s : sa.x + 9 * s, (sa.y + sb.y) * 0.5f), 7 * s, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
+        u.text(ImVec2(sb.x + 8 * s, (sa.y + sb.y) * 0.5f - u.fs(8.5f) * 0.55f), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, m_paintGroup ? "tout le groupe" : "la brique seule");
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Activé : un clic peint tout le groupe de la brique. Désactivé : la brique seule, même dans un groupe");
         if (h && u.pressed) { m_paintGroup = !m_paintGroup; savePrefs(); }
+    }
+}
+
+// PEINDRE: every colour in a strip under the header (unies, transparentes, métallisées), the current one ringed
+void BrickApp::stPaintColors() {
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 10 * s;
+    const char* keys[3] = {"standard", "transparent", "metallic"};
+    int n[3] = {0, 0, 0};
+    for (const Color& c : m_lib.palette) for (int g = 0; g < 3; ++g) n[g] += c.group == keys[g] ? 1 : 0;
+    const float maxW = d.x - 2 * 260 * s, gapG = 16 * s, pad = 10 * s;
+    const int total = n[0] + n[1] + n[2];
+    const float sw = std::clamp((maxW - 2 * pad - 2 * gapG) / std::max(1, total) - 3 * s, 14 * s, 26 * s), step = sw + 3 * s;
+    const float W = 2 * pad + total * step - 3 * s + 2 * gapG, H = sw + 2 * pad;
+    const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
+    stGlass(u.dl, a, b, H * 0.5f, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    float x = a.x + pad;
+    for (int g = 0; g < 3; ++g) {
+        if (g) { u.dl->AddLine(ImVec2(x + gapG * 0.5f - 1.5f * s, a.y + 10 * s), ImVec2(x + gapG * 0.5f - 1.5f * s, b.y - 10 * s), IM_COL32(255, 255, 255, 30), 1.0f); x += gapG; }
+        for (int i = 0; i < (int)m_lib.palette.size(); ++i) {
+            const Color& c = m_lib.palette[i];
+            if (c.group != keys[g]) continue;
+            const ImVec2 p0(x, a.y + pad), p1(x + sw, a.y + pad + sw);
+            const bool tr = c.group == "transparent";
+            const ImU32 cc = IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), tr ? 165 : 255);
+            const bool h = u.hover(p0, p1) && m_popup == 0;
+            const float lift = h ? -2 * s : 0;
+            if (g_studTex) u.dl->AddImage(g_studTex, ImVec2(p0.x, p0.y + lift), ImVec2(p1.x, p1.y + lift), ImVec2(0, 0), ImVec2(1, 1), cc);
+            else u.dl->AddRectFilled(p0, p1, cc, 3 * s);
+            if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2 * s, p0.y - 2 * s + lift), ImVec2(p1.x + 2 * s, p1.y + 2 * s + lift), C_ACCENT, 4 * s, 0, 1.5f * s);
+            if (h) {
+                ImGui::SetTooltip("%s · %d", colorFr(c.name), c.id);
+                if (u.pressed) {   // the colour of the Pinceau (the selection is not painted: the next click paints)
+                    m_color = i;
+                    m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), i), m_recentColors.end());
+                    m_recentColors.insert(m_recentColors.begin(), i);
+                    if (m_recentColors.size() > 12) m_recentColors.resize(12);
+                    m_paintTool = true;
+                    m_pipette = false;
+                }
+            }
+            x += step;
+        }
     }
 }
 
@@ -753,7 +801,7 @@ void BrickApp::stGroups() {
     const float W = 320 * s, pad = 12 * s, rowH = 30 * s, headH = common.empty() ? 30 * s : 46 * s, footH = 30 * s;
     const float maxH = std::max(160 * s, drawerTop - 12 * s - top);
     const float listH = std::min(std::max(1, (int)rows.size()) * rowH, maxH - pad - headH - footH - pad);
-    const ImVec2 a((m_paintMode ? 136 : 74) * s, top), b(a.x + W, top + pad + headH + listH + footH + pad);
+    const ImVec2 a((m_paintMode ? 14 : 74) * s, top + (m_paintMode ? 52 * s : 0)), b(a.x + W, a.y + pad + headH + listH + footH + pad);
     stGlass(u.dl, a, b, 18 * s, s);
     u.dl->AddRectFilled(a, b, IM_COL32(14, 15, 17, 120), 18 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -1206,7 +1254,7 @@ void BrickApp::stDrawer() {
             for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
                 const Part& p = m_lib.parts[i];
                 if (!p.available()) continue;
-                if (m_hideDeco && partDeco(p)) continue;   // (Réglages: the stickers and printed patterns hidden)
+                if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;   // (Réglages: the stickers and printed patterns hidden; no Duplo)
                 const std::string& c = partCat(i);
                 for (size_t q = 0; q < fam->subs.size(); ++q)
                     if (stInSub(fam->subs[q], c, p.sub)) ++m_stSubCount[q];
@@ -1447,8 +1495,8 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
 
 // the six actions of the ring, by direction (0° right, clockwise)
 struct StAct { float ang; const char* label; const char* icon; bool danger; };
-static const StAct kStActs[6] = {{0, "TOURNER", ST_ROT, false}, {60, "DUPLIQUER", ST_DUP, false}, {120, "SUPPRIMER", ST_DEL, true},
-                                 {180, "TOURNER", ST_ROTL, false}, {240, "BASCULER", ST_TILT, false}, {300, "FICHE", ST_INFO, false}};
+static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {60, "DUPLIQUER", ST_DUP, false}, {120, "SUPPRIMER", ST_DEL, true},
+                                 {180, "TOURNER", ST_ROTL, false}};   // (no Basculer, no Fiche: Wzx 09/11/2026)
 static const float ST_R_ACT = 74, ST_R_COL = 132, ST_ARC0 = 204, ST_ARC1 = 336;
 
 // the colours of the arc: the recent ones, then the usual ones
@@ -1485,7 +1533,13 @@ void BrickApp::stSelHud() {
         if (ang < 0) ang += 360;
         const std::vector<int> cols = stArcColors();
         int hot = -1;   // 0..5 an action, 100 + k a colour
-        if (dist > 30 * s && dist < 104 * s) hot = (int)std::lround(ang / 60.0f) % 6;
+        if (dist > 30 * s && dist < 104 * s) {   // the nearest action within 30°
+            for (int k = 0; k < 4; ++k) {
+                float da = std::fabs(ang - kStActs[k].ang);
+                da = std::min(da, 360 - da);
+                if (da <= 30) hot = k;
+            }
+        }
         else if (dist >= 104 * s && dist < 186 * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty()) {
             const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
             hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
@@ -1514,7 +1568,7 @@ void BrickApp::stSelHud() {
             stPartKind(m_lib.parts[m_bricks[sel[0]].part], kd, w, l);
             stPicto(dl, kd, w, l, c, 40 * s, stA(C_TEXT, hot >= 0 ? 0.3f : 0.85f), 1.0f * s);
         }
-        for (int k = 0; k < 6; ++k) {
+        for (int k = 0; k < 4; ++k) {
             const StAct& A = kStActs[k];
             const bool on = hot == k;
             const float r = A.ang * 0.0174533f, rad = (on ? 30 : 26) * s;
@@ -1531,11 +1585,15 @@ void BrickApp::stSelHud() {
             stTrack(u, lp, 8, on ? IM_COL32_WHITE : C_DIM, A.label, 1.4f * s);
             u.dl = keep;
         }
-        for (int k = 0; k < (int)cols.size(); ++k) {   // the colours on the arc: 1x1 bricks
+        const float tMenu = (float)(ImGui::GetTime() - m_stMenuT0);
+        for (int k = 0; k < (int)cols.size(); ++k) {   // the colours on the arc: 1x1 bricks, out one by one (the chipPop of the web)
             const float a = (ST_ARC0 + (ST_ARC1 - ST_ARC0) * k / std::max(1, (int)cols.size() - 1)) * 0.0174533f;
             const bool on = hot == 100 + k;
-            const float half = (on ? 21 : 14) * s;
-            const ImVec2 p(c.x + std::cos(a) * ST_R_COL * s, c.y + std::sin(a) * ST_R_COL * s);
+            const float e = std::clamp((tMenu - 0.03f * k) / 0.28f, 0.0f, 1.0f);
+            if (e <= 0) continue;
+            const float pop = e < 0.6f ? 0.4f + 0.75f * (e / 0.6f) : 1.15f - 0.15f * ((e - 0.6f) / 0.4f);   // 0.4 > 1.15 > 1
+            const float half = (on ? 21 : 14) * s * pop, rr = ST_R_COL * (0.72f + 0.28f * std::min(1.0f, e / 0.6f));
+            const ImVec2 p(c.x + std::cos(a) * rr * s, c.y + std::sin(a) * rr * s);
             const Color& col = m_lib.palette[cols[k]];
             const ImU32 cc = IM_COL32((int)(std::clamp(col.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(col.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(col.srgb.z, 0.0f, 1.0f) * 255), col.group == "transparent" ? 170 : 255);
             dl->AddRectFilled(ImVec2(p.x - half + 2 * s, p.y - half + 3 * s), ImVec2(p.x + half + 2 * s, p.y + half + 3 * s), IM_COL32(0, 0, 0, 60), 4 * s);
@@ -1545,7 +1603,7 @@ void BrickApp::stSelHud() {
         }
         {   // the title above: what the release will do
             std::string t = "GLISSE VERS UNE ACTION";
-            if (hot >= 0 && hot < 6) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
+            if (hot >= 0 && hot < 4) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
             else if (hot >= 100) t = stUpper(colorFr(m_lib.palette[cols[hot - 100]].name));
             const float tw = stTrackW(u, 9.5f, t.c_str(), 1.8f * s, true);
             ImDrawList* keep = u.dl;
@@ -1565,8 +1623,6 @@ void BrickApp::stSelHud() {
             else if (hot == 3) rotateSelected(-1);
             else if (hot == 1) duplicateSelected();
             else if (hot == 2) deleteSelected();
-            else if (hot == 4) tiltSelected(1);
-            else if (hot == 5) m_infoPart = m_bricks[sel[0]].part;
             else if (hot >= 100) applyColor(cols[hot - 100]);
         }
         return;
@@ -1591,16 +1647,31 @@ void BrickApp::stSelHud() {
     }
     const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
     if (b.x < 0 || a.x > d.x || b.y < top || a.y > d.y) return;
-    std::string nm = sel.size() > 1 ? std::to_string(sel.size()) + " BRIQUES" : stUpper(partFr(m_lib.parts[m_bricks[sel[0]].part].label));
+    // a group or a piece alone (Wzx 09/11/2026: « différencier un groupe d'une pièce seule »): a group shows a stack and
+    // GROUPE · its name · its count, rimmed amber; a piece its colour and its name
+    const int ug = unitGroup(m_selected);
+    const bool isGroup = ug >= 0 && ug < (int)m_build.groups.size() && sel.size() > 1;
+    std::string nm = isGroup ? stUpper(m_build.groups[ug].name) : sel.size() > 1 ? std::to_string(sel.size()) + " BRIQUES" : stUpper(partFr(m_lib.parts[m_bricks[sel[0]].part].label));
+    if (nm.size() > 48) { nm = nm.substr(nm.size() - 44); nm = "…" + nm.substr(nm.find(' ') == std::string::npos ? 0 : nm.find(' ')); }
+    char gl[32];
+    snprintf(gl, sizeof(gl), "GROUPE · %d", (int)sel.size());
     const char* hint = "maintenir le clic : menu";
+    const float wg = isGroup ? stTrackW(u, 8, gl, 1.4f * s, true) + 30 * s : 0;
     const float w1 = stTrackW(u, 9, nm.c_str(), 1.4f * s, true), w2 = u.textW(9, hint);
-    const float W = 10 * s + 8 * s + w1 + 10 * s + w2 + 10 * s, H = 24 * s;
+    const float W = 10 * s + wg + 8 * s + w1 + 10 * s + w2 + 10 * s, H = 24 * s;
     const ImVec2 ta(std::clamp((a.x + b.x) * 0.5f - W * 0.5f, 70 * s, d.x - W - 240 * s), std::max(top + 6 * s, a.y - H - 12 * s)), tb(ta.x + W, ta.y + H);
     u.dl->AddRectFilled(ta, tb, IM_COL32(12, 13, 15, 190), H * 0.5f);
-    u.dl->AddRect(ta, tb, IM_COL32(255, 255, 255, 46), H * 0.5f, 0, 1.0f);
+    u.dl->AddRect(ta, tb, isGroup ? stA(C_ACCENT, 0.75f) : IM_COL32(255, 255, 255, 46), H * 0.5f, 0, 1.0f);
+    if (isGroup) {   // the stack (two offset squares) and GROUPE · n, in amber
+        const ImVec2 g0(ta.x + 10 * s, (ta.y + tb.y) * 0.5f - 5 * s);
+        u.dl->AddRect(ImVec2(g0.x + 3 * s, g0.y - 2 * s), ImVec2(g0.x + 11 * s, g0.y + 6 * s), stA(C_ACCENT_TXT, 0.7f), 1.5f * s, 0, 1.0f);
+        u.dl->AddRectFilled(ImVec2(g0.x, g0.y + 2 * s), ImVec2(g0.x + 8 * s, g0.y + 10 * s), stA(C_ACCENT, 0.9f), 1.5f * s);
+        stTrack(u, ImVec2(ta.x + 26 * s, (ta.y + tb.y) * 0.5f - u.fs(8) * 0.52f), 8, C_ACCENT_TXT, gl, 1.4f * s);
+        u.dl->AddLine(ImVec2(ta.x + wg + 2 * s, ta.y + 6 * s), ImVec2(ta.x + wg + 2 * s, tb.y - 6 * s), IM_COL32(255, 255, 255, 40), 1.0f);
+    }
     const Color& cc = m_lib.palette[std::clamp(m_bricks[sel[0]].color, 0, (int)m_lib.palette.size() - 1)];
-    const ImVec2 sq(ta.x + 10 * s, (ta.y + tb.y) * 0.5f - 4 * s);
-    u.dl->AddRectFilled(sq, ImVec2(sq.x + 8 * s, sq.y + 8 * s), IM_COL32((int)(cc.srgb.x * 255), (int)(cc.srgb.y * 255), (int)(cc.srgb.z * 255), 255), 2 * s);
+    const ImVec2 sq(ta.x + 10 * s + wg, (ta.y + tb.y) * 0.5f - 4 * s);
+    if (!isGroup) u.dl->AddRectFilled(sq, ImVec2(sq.x + 8 * s, sq.y + 8 * s), IM_COL32((int)(cc.srgb.x * 255), (int)(cc.srgb.y * 255), (int)(cc.srgb.z * 255), 255), 2 * s);
     stTrack(u, ImVec2(sq.x + 14 * s, (ta.y + tb.y) * 0.5f - u.fs(9) * 0.52f), 9, C_TEXT, nm.c_str(), 1.4f * s);
     u.text(ImVec2(sq.x + 14 * s + w1 + 10 * s, (ta.y + tb.y) * 0.5f - u.fs(9) * 0.55f), 9, C_DIM, hint);
     m_uiRects.push_back(ImVec4(ta.x, ta.y, tb.x, tb.y));

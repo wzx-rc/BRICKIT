@@ -757,7 +757,10 @@ private:
     void drawUiStudio();
     void stHeader();
     void stTools();
-    void stPaintPanel();   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
+    void stPaintPanel();
+    void stPaintColors();   // PEINDRE: every colour in a strip under the header
+    void nudgeSelected(int dx, int dy, int dz);   // the arrows of the keyboard: the selection moved by a stud (a plate up / down)
+    double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
     void paintOne(int brick);
     void stFile();         // the scene menu (m_popup 8): Nouvelle scène, Ouvrir, Enregistrer, Enregistrer sous
     void newScene();

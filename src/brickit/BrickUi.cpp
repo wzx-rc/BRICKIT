@@ -131,6 +131,12 @@ static bool partDeco(const Part& p) {
     for (char& c : t) c = (char)std::tolower((unsigned char)c);
     return t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos;
 }
+// a Duplo part (and the Hubelino ones, Duplo compatible): never in the library (Wzx 09/11/2026)
+static bool partDuplo(const Part& p) {
+    std::string t = p.label;
+    for (char& c : t) c = (char)std::tolower((unsigned char)c);
+    return p.category == "Duplo" || t.find("duplo") != std::string::npos || t.find("hubelino") != std::string::npos;
+}
 
 std::vector<int> BrickApp::visibleParts() const {
     std::vector<int> out;
@@ -140,7 +146,7 @@ std::vector<int> BrickApp::visibleParts() const {
         for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
             const Part& p = m_lib.parts[i];
             if (!p.available()) continue;
-            if (m_hideDeco && partDeco(p)) continue;
+            if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
             const std::string& c = partCat(i);
             if (lower(p.name).find(q) != std::string::npos || lower(p.label).find(q) != std::string::npos || lower(catFr(c)).find(q) != std::string::npos ||
                 lower(c).find(q) != std::string::npos)
@@ -155,7 +161,7 @@ std::vector<int> BrickApp::visibleParts() const {
     for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
         const Part& p = m_lib.parts[i];
         if (!p.available()) continue;
-        if (m_hideDeco && partDeco(p)) continue;
+        if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
         if (m_fam == "all") { out.push_back(i); continue; }
         if (!fam) continue;
         const std::string& c = partCat(i);

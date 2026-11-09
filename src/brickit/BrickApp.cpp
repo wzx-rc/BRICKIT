@@ -1114,7 +1114,8 @@ void BrickApp::frame() {
     m_rs.bloom = m_opt.bloom >= 0 ? m_opt.bloom : m_bloom;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
-    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0;   // (or the thumbnail editor)
+    const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
+    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || uiDrag;   // (or the thumbnail editor)
     if (sheet && !m_frozenTex && m_frame > 0) {
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
@@ -1128,7 +1129,7 @@ void BrickApp::frame() {
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
     if (m_frozenTex) {
         if (m_teditPart >= 0) renderThumbEditor();
-        else renderPreview();
+        else if (!uiDrag || m_infoPart >= 0) renderPreview();
         ImGui::GetBackgroundDrawList()->AddImage(m_frozenTex, ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
     } else {
         renderSteps();   // images of the manual asked by the UI this frame
