@@ -189,6 +189,9 @@ private:
     // the same scene for every renderer (Rapide, HQ, RC, path tracing), saved in brickit_prefs.json ("light")
     void buildHdriList();     // L"" (procedural sky), assets\hdri\*.hdr | *.exr, then the user's HDRI
     void setHdri(const std::wstring& path);
+    float3 hdriSunDir() const;   // the sun follows the HDRI (Wzx 09/11/2026): its brightest spot, turned with the HDRI
+    bool m_hdriSun = false;      // the HDRI has a sun (a spot far brighter than the rest)
+    float m_hdriSunAz = 0, m_hdriSunEl = 0;   // where, in the image (radians: azimuth of its column, elevation)
     void loadHdriDialog();
     uint32_t gridLineValue() const;
     std::vector<std::wstring> m_hdriPaths, m_hdriCustom;

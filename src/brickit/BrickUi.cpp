@@ -3647,7 +3647,7 @@ void BrickApp::uiSettings() {
         if (slider(103, "Opacité de la grille", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", alphaShown)) lookChanged = true;
         {
             char ib[96];
-            snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil reste fixe", m_hdriLoadMs);
+            snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil suit la HDRI", m_hdriLoadMs);
             u.text(ImVec2(x0 + pad, ly), 10, C_DIM, ib);
             ly += 16 * s;   // à propos: the version (title of the window)
             const std::wstring vw = versionString();
@@ -3657,6 +3657,7 @@ void BrickApp::uiSettings() {
         }
         if (lookChanged) {   // live: the environment and the grid of every renderer (accumulations reset)
             m_scene.env.hdriRotation = radians(m_hdriRotDeg);
+            if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
             m_scene.env.hdriIntensity = m_hdriInt;
             m_scene.gridLine = gridLineValue();
             m_renderer->resetAccumulation();

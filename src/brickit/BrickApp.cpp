@@ -503,6 +503,19 @@ void BrickApp::buildHdriList() {
 
 // Loaded once (cached): switching back is instant. The renderer rebuilds the importance table of the path tracer,
 // the SH and the mips of the raster view when the image changes (Renderer::uploadEnvironment).
+// the sun where the HDRI has its sun, turned with it (the lookup of the shaders: u = atan2(d.x, -d.z) / 2pi + 0.5 - rotation / 2pi);
+// an HDRI without a clear sun (a soft studio): the sun of before, turned with the rotation. Elevation kept 18 to 70°
+float3 BrickApp::hdriSunDir() const {
+    const float rot = radians(m_hdriRotDeg);
+    if (m_hdriSun) {
+        const float phi = m_hdriSunAz + rot, el = std::clamp(m_hdriSunEl, radians(18.0f), radians(70.0f));
+        return normalize(float3(std::sin(phi) * std::cos(el), std::sin(el), -std::cos(phi) * std::cos(el)));
+    }
+    const float3 d = normalize(float3(-28, 34, 30));
+    const float phi0 = std::atan2(d.x, -d.z) + rot, h = std::sqrt(d.x * d.x + d.z * d.z);
+    return normalize(float3(std::sin(phi0) * h, d.y, -std::cos(phi0) * h));
+}
+
 void BrickApp::setHdri(const std::wstring& path) {
     const auto t0 = std::chrono::steady_clock::now();
     vp3d::EnvImagePtr img;
@@ -518,6 +531,24 @@ void BrickApp::setHdri(const std::wstring& path) {
         img = e;
         m_hdriCache[path] = img;
     }
+    m_hdriPath = path;
+    {   // its sun: the brightest spot (the mean of the texels over half the peak, around the peak), if it stands out
+        float peak = 0;
+        double mean = 0;
+        uint32_t px = 0, py = 0;
+        for (uint32_t y = 0; y < img->height; ++y)
+            for (uint32_t x = 0; x < img->width; ++x) {
+                const float3 c = img->texel(x, y);
+                const float l = 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z;
+                mean += l;
+                if (l > peak) { peak = l; px = x; py = y; }
+            }
+        mean /= std::max(1.0, (double)img->width * img->height);
+        m_hdriSun = img->width > 0 && peak > 12.0f * (float)mean;
+        m_hdriSunAz = ((px + 0.5f) / std::max(1u, img->width) - 0.5f) * 2.0f * 3.14159265f;
+        m_hdriSunEl = 1.5707963f - (py + 0.5f) / std::max(1u, img->height) * 3.14159265f;
+    }
+    if (!m_ipad && !m_cornell) m_scene.sun.direction = hdriSunDir();
     m_hdriPath = path;
     m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -552,7 +583,7 @@ void BrickApp::applyLook() {
         g.baseColor = lin(0x0e0f11);
         g.roughness = 0.8f;
         m_scene.sun.enabled = true;
-        m_scene.sun.direction = normalize(float3(-28, 34, 30));
+        m_scene.sun.direction = hdriSunDir();   // (follows the HDRI and its rotation)
         m_scene.sun.color = lin(0xfff1e0);
         m_scene.sun.intensity = 3.4f;
         m_scene.env.hemiSky = lin(0x9aa3b8);   // HemisphereLight(0x9aa3b8, 0x1a1a1c, 0.25)
