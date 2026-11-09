@@ -1644,7 +1644,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
 
 // the six actions of the ring, by direction (0° right, clockwise)
 struct StAct { float ang; const char* label; const char* icon; bool danger; };
-static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {60, "DUPLIQUER", ST_DUP, false}, {120, "SUPPRIMER", ST_DEL, true},
+static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {90, "DUPLIQUER", ST_DUP, false}, {135, "SUPPRIMER", ST_DEL, true},   // (Dupliquer straight down, Supprimer bottom left and smaller: Wzx)
                                  {180, "TOURNER", ST_ROTL, false}};   // (no Basculer, no Fiche: Wzx 09/11/2026)
 static const float ST_R_ACT = 74, ST_R_COL = 132, ST_ARC0 = 204, ST_ARC1 = 336;
 
@@ -1696,7 +1696,32 @@ void BrickApp::stSelHud() {
             const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
             hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
         }
-        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        // quick mode, a flick under way: not the whole menu, only the action aimed (Wzx 09/11/2026); the menu is drawn
+        // into a list thrown away
+        const bool flick = quick && dist > 12 * s;
+        static ImDrawList* s_void = nullptr;
+        if (!s_void) s_void = IM_NEW(ImDrawList)(ImGui::GetDrawListSharedData());
+        s_void->_ResetForNewFrame();
+        s_void->PushClipRectFullScreen();
+        s_void->PushTexture(ImGui::GetIO().Fonts->TexRef);
+        ImDrawList* dl = flick ? s_void : ImGui::GetForegroundDrawList();
+        if (flick && hot >= 0 && hot < 4) {
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            const StAct& A = kStActs[hot];
+            const float r = A.ang * 0.0174533f, rad = 30 * s;
+            const ImVec2 p(c.x + std::cos(r) * ST_R_ACT * s, c.y + std::sin(r) * ST_R_ACT * s);
+            const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
+            fg->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 80), 40);
+            fg->AddCircleFilled(p, rad, IM_COL32(30, 32, 36, 235), 40);
+            fg->AddCircleFilled(p, rad, stA(tint, 0.42f), 40);
+            fg->AddCircle(p, rad, tint, 40, 1.5f * s);
+            stIcon(fg, A.icon, p, 21 * s, IM_COL32_WHITE, 1.3f * s);
+            const float lw = stTrackW(u, 8, A.label, 1.4f * s, true);
+            ImDrawList* keep = u.dl;
+            u.dl = fg;
+            stTrack(u, ImVec2(p.x - lw * 0.5f, p.y + rad + 4 * s), 8, IM_COL32_WHITE, A.label, 1.4f * s);
+            u.dl = keep;
+        }
         // a dark halo, the guides, the gesture
         for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 160 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
         dl->AddCircleFilled(c, 160 * s, IM_COL32(6, 7, 9, 70), 64);
@@ -1723,13 +1748,13 @@ void BrickApp::stSelHud() {
         for (int k = 0; k < 4; ++k) {
             const StAct& A = kStActs[k];
             const bool on = hot == k;
-            const float r = A.ang * 0.0174533f, rad = (on ? 30 : 26) * s;
+            const float r = A.ang * 0.0174533f, rad = (A.danger ? (on ? 23 : 19) : (on ? 30 : 26)) * s;   // (Supprimer smaller)
             const ImVec2 p(c.x + std::cos(r) * ST_R_ACT * s, c.y + std::sin(r) * ST_R_ACT * s);
             const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
             dl->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 70), 40);
             dl->AddCircleFilled(p, rad, on ? stA(tint, 0.42f) : IM_COL32(44, 46, 50, 215), 40);
             dl->AddCircle(p, rad, on ? tint : IM_COL32(255, 255, 255, 70), 40, on ? 1.5f * s : 1.0f);
-            stIcon(dl, A.icon, p, 21 * s, on ? IM_COL32_WHITE : (A.danger ? IM_COL32(255, 154, 144, 255) : C_TEXT), 1.3f * s);
+            stIcon(dl, A.icon, p, (A.danger ? 15 : 21) * s, on ? IM_COL32_WHITE : (A.danger ? IM_COL32(255, 154, 144, 255) : C_TEXT), 1.3f * s);
             const float lw = stTrackW(u, 8, A.label, 1.4f * s, true);
             const ImVec2 lp(p.x - lw * 0.5f, p.y + rad + 4 * s);
             ImDrawList* keep = u.dl;
