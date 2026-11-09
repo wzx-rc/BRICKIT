@@ -3347,6 +3347,7 @@ void BrickApp::uiSettings() {
         {"Échelle de l'interface", scales, 0},
         {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
         {"Interface", {{"Studio", m_studioUi}, {"Classique", !m_studioUi}}, 18},
+        {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
         {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
@@ -3658,6 +3659,7 @@ void BrickApp::uiSettings() {
         case 14: m_touchHud = clickOpt == 0; m_arcOpen = false; break;
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
         case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
+        case 19: m_stCardMode = clickOpt; m_cardsScroll = 0; break;
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }
         }

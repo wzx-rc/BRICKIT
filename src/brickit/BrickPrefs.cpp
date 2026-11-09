@@ -118,6 +118,7 @@ std::string BrickApp::prefsJson() {
         }
         j += "}, \"studioUi\": ";
         j += m_studioUi ? "true" : "false";
+        j += ", \"libCards\": " + std::to_string(m_stCardMode);
         j += "},";
     }
     {   // Réglages > Lumière
@@ -209,6 +210,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         const app::Json& tj = p["theme"];
         if (tj["id"].type == app::Json::String && theme::indexOf(tj["id"].s) >= 0) m_themeId = tj["id"].s;
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
+        if (tj["libCards"].type == app::Json::Number) m_stCardMode = std::clamp((int)tj["libCards"].n, 0, 1);
         else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
         for (const auto& kv : tj["looks"].o)
             if (kv.second.type == app::Json::Array && theme::indexOf(kv.first) >= 0) m_themeLooks[kv.first] = {(int)kv.second[0].num(), (int)kv.second[1].num()};

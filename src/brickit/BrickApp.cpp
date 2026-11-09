@@ -107,6 +107,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.manual) m_pManual.visible = true;
     if (opt.settings) { m_popup = 5; m_popupAt = ImVec2(1e6f, 34 * m_ui); }
     if (opt.settingsTab >= 0) m_setTab = std::clamp(opt.settingsTab, 0, 1);
+    if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
     if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
@@ -1318,6 +1319,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--skin-tint") opt.skinTint = _wtoi(next().c_str());
         else if (a == L"--st-menu") opt.stMenu = true;
         else if (a == L"--card-sheet") opt.cardSheet = _wtoi(next().c_str());
+        else if (a == L"--lib-cards") opt.libCards = _wtoi(next().c_str());
         else if (a == L"--skin-accent") opt.skinAccent = _wtoi(next().c_str());
         else if (a == L"--settings-tab") { opt.settingsTab = _wtoi(next().c_str()); opt.settings = true; }
         else if (a == L"--ipad") opt.ipad = true;

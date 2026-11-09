@@ -585,7 +585,8 @@ void BrickApp::stDrawer() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
-    const float famH = 58 * s, cardW = 88 * s, cardH = 88 * s, gap = 8 * s, padX = 14 * s;
+    const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
+    const float famH = 58 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, gap = 8 * s, padX = 14 * s;
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 10 * s + 2 * cardH + gap + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
@@ -678,6 +679,22 @@ void BrickApp::stDrawer() {
                 if (h && u.pressed) { m_stW = r + 1; m_stL = c + 1; m_cardsScroll = 0; }
             }
     }
+    {   // the display of the cards: IMAGE / FICHE (also in Réglages)
+        const float ty = y + 2 * cardH + gap - 24 * s;
+        stTrack(u, ImVec2(padX + 2 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, C_DIM, "AFFICHAGE", 1.6f * s);
+        static const char* kModes[2] = {"IMAGE", "FICHE"};
+        float bx = padX + colW;
+        for (int k = 1; k >= 0; --k) {
+            const float bw = stTrackW(u, 8, kModes[k], 1.2f * s, true) + 18 * s;
+            const ImVec2 ba(bx - bw, ty), bb(bx, ty + 24 * s);
+            const bool on = m_stCardMode == k, h = live && u.hover(ba, bb);
+            u.dl->AddRectFilled(ba, bb, on ? stA(C_ACCENT, 0.2f) : IM_COL32(255, 255, 255, h ? 18 : 8), 12 * s);
+            u.dl->AddRect(ba, bb, on ? stA(C_ACCENT, 0.8f) : IM_COL32(255, 255, 255, 34), 12 * s, 0, 1.0f);
+            stTrack(u, ImVec2(ba.x + 9 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, on ? C_ACCENT_TXT : C_DIM, kModes[k], 1.2f * s);
+            if (h && u.pressed && !on) { m_stCardMode = k; m_cardsScroll = 0; savePrefs(); }
+            bx -= bw + 4 * s;
+        }
+    }
     // ---- the parts (cached: the full library has 22 000 parts)
     int avail = 0;
     for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
@@ -753,11 +770,43 @@ void BrickApp::stDrawer() {
         u.dl->AddRect(a, b, stA(on ? C_ACCENT : (h ? IM_COL32(255, 255, 255, 90) : IM_COL32(255, 255, 255, 30)), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
         ImTextureID tex;
         ImVec2 uv0, uv1;
-        if (thumbUv(part, tex, uv0, uv1)) {   // the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
-            const float z = 1.32f;
+        if (!sheet && thumbUv(part, tex, uv0, uv1)) {   // IMAGE: the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
+            const float z = 1.5f;
             const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
             u.dl->AddImageRounded(tex, ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
                                   stA(IM_COL32(226, 229, 234, 255), alpha * (on ? 0.4f : 1.0f)), 10 * s);
+        }
+        if (sheet) {   // FICHE: the image, the dimension line, the name in tracked capitals, the id
+            const float imgH = cardH - 44 * s;
+            if (thumbUv(part, tex, uv0, uv1)) {
+                const float z = 1.6f;
+                const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
+                const ImVec2 m((a.x + b.x) * 0.5f, a.y + 6 * s + imgH * 0.5f);
+                const float half = imgH * 0.5f;
+                u.dl->AddImage(tex, ImVec2(m.x - half * 1.25f, m.y - half), ImVec2(m.x + half * 1.25f, m.y + half), ImVec2(uv0.x + du.x * 0.8f, uv0.y + du.y * 1.25f), ImVec2(uv1.x - du.x * 0.8f, uv1.y - du.y * 1.25f),
+                               stA(IM_COL32(222, 226, 232, 255), alpha * (on ? 0.4f : 1.0f)));
+            }
+            char dim[24];
+            int tw = 0, tl = 0;
+            const size_t xpos = P.label.find(" x ");
+            if (xpos != std::string::npos) {
+                size_t a0 = xpos;
+                while (a0 > 0 && (std::isdigit((unsigned char)P.label[a0 - 1]) || P.label[a0 - 1] == ' ')) --a0;
+                tw = std::atoi(P.label.substr(a0, xpos - a0).c_str());
+                tl = std::atoi(P.label.substr(xpos + 3).c_str());
+            }
+            if (tw > 0 && tl > 0) snprintf(dim, sizeof(dim), "%d × %d", tw, tl); else snprintf(dim, sizeof(dim), "%s", catFr(P.category));
+            const float dy = a.y + 6 * s + imgH + 6 * s, dw = u.textW(8, dim), mxc = (a.x + b.x) * 0.5f;
+            u.dl->AddLine(ImVec2(a.x + 8 * s, dy), ImVec2(mxc - dw * 0.5f - 4 * s, dy), IM_COL32(255, 255, 255, 40), 1.0f);
+            u.dl->AddLine(ImVec2(mxc + dw * 0.5f + 4 * s, dy), ImVec2(b.x - 8 * s, dy), IM_COL32(255, 255, 255, 40), 1.0f);
+            u.text(ImVec2(mxc - dw * 0.5f, dy - u.fs(8) * 0.55f), 8, C_FAINT, dim);
+            std::string nm = stUpper(partFr(P.label));
+            u.dl->PushClipRect(ImVec2(a.x + 6 * s, a.y), ImVec2(b.x - 6 * s, b.y), true);
+            stTrack(u, ImVec2(a.x + 8 * s, b.y - 26 * s), 8.5f, C_TEXT, nm.c_str(), 0.8f * s);
+            std::string id = P.name;
+            if (id.size() > 4 && id.substr(id.size() - 4) == ".dat") id = id.substr(0, id.size() - 4);
+            u.text(ImVec2(a.x + 8 * s, b.y - 14 * s), 8, C_FAINT, id.c_str());
+            u.dl->PopClipRect();
         }
         if (std::find(m_fav.begin(), m_fav.end(), part) != m_fav.end()) stPicto(u.dl, "star", 0, 0, ImVec2(b.x - 11 * s, a.y + 11 * s), 11 * s, C_ACCENT_TXT, 1.0f * s);
         if (k == m_opt.cardSheet && !h) { m_stHov = part; m_stHovT = now - 1; m_stHovA = a; m_stHovB = b; hovered = true; }   // (captures: --card-sheet N)
