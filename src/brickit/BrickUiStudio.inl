@@ -446,7 +446,7 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
-    if (m_paintMode) { stPaintPanel(); stPaintColors(); return; }   // (PEINDRE: no tools on the left)
+    if (m_paintMode) { stPaintColors(); stPaintPanel(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
     Ui u = ui(m_ui);
     const float s = m_ui;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
@@ -570,10 +570,10 @@ void BrickApp::stPaintPanel() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : d.y) - 14 * s;
+    const float top = m_uiRects.back().w + 10 * s;   // under the strip of colours, in the middle (Wzx 09/11/2026)
     const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s;
     const float W = pad + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
-    const ImVec2 a((d.x - W) * 0.5f, bottom - H), b(a.x + W, bottom);
+    const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
     stGlass(u.dl, a, b, 20 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
