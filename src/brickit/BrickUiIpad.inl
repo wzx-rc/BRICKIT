@@ -1081,7 +1081,8 @@ void BrickApp::ipadHomeMenu() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     struct Item { const char* icon; const char* label; const char* note; int act; };
     const std::vector<Item> items = {{"ajouter", "Nouvelle scène", nullptr, 0}, {"ouvrir", "Ouvrir", "Fichiers", 1}, {"enregistrer", "Enregistrer une copie", nullptr, 2},
-                                     {"image", "Partager une image", nullptr, 5}, {"notice", m_reading ? "Fermer la notice" : "Lire une notice", ".ldr .mpd", 4}};
+                                     {"image", "Partager une image", nullptr, 5}, {"notice", m_reading ? "Fermer la notice" : "Lire une notice", ".ldr .mpd", 4},
+                                     {"couleur", "Thème Studio", "comme sur PC", 6}};
     struct Seg { const char* label; std::vector<const char*> opts; int cur; int id; };
     const int q = m_renderScale > 0.95f ? 2 : m_renderScale > 0.8f ? 1 : 0;
     const std::vector<Seg> segs = {{"Qualité", {"Économie", "Normale", "Belle"}, q, 0}, {"Lumière", {"Matin", "Midi", "Soir"}, m_lightPreset, 1},
@@ -1102,6 +1103,7 @@ void BrickApp::ipadHomeMenu() {
             case 2: saveDialog(); break;
             case 4: if (m_reading) stopReading(); else if (hasSteps()) startReading(1); else openDialog(); break;
             case 5: shareImage(); break;
+            case 6: m_ipadCreme = false; m_homeOpen = false; savePrefs(); return;   // back to the Studio interface (Réglages › Thème)
             }
         }
         y += 50 * s;

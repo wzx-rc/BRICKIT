@@ -461,7 +461,7 @@ void BrickApp::stTools() {
             u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.8f), 13 * s, 0, 1.0f);
         } else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 13 * s);
         stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 19 * s, t.on ? C_ACCENT_TXT : C_TEXT, 1.2f * s);
-        if (t.key[0]) u.text(ImVec2(bb.x - 9 * s, bb.y - 13 * s), 7.5f, t.on ? C_ACCENT_TXT : C_FAINT, t.key, true);
+        if (t.key[0] && !m_ipad) u.text(ImVec2(bb.x - 9 * s, bb.y - 13 * s), 7.5f, t.on ? C_ACCENT_TXT : C_FAINT, t.key, true);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
         if (h && u.pressed) stTool(t.id);
         y += bh + 2 * s;
@@ -656,7 +656,7 @@ void BrickApp::stDrawer() {
     {
         const ImVec2 ha(d.x * 0.5f - 22 * s, p0.y + 5 * s), hb(d.x * 0.5f + 22 * s, p0.y + 8 * s);
         u.dl->AddRectFilled(ha, hb, IM_COL32(255, 255, 255, 40), 2 * s);
-        if (live && u.hover(ImVec2(d.x * 0.5f - 60 * s, p0.y), ImVec2(d.x * 0.5f + 60 * s, p0.y + 12 * s)) && u.pressed) m_pTray.collapsed = !m_pTray.collapsed;
+        if (live && u.hover(ImVec2(d.x * 0.5f - 60 * s, p0.y), ImVec2(d.x * 0.5f + 60 * s, p0.y + (m_ipad ? 26 : 12) * s)) && u.pressed) m_pTray.collapsed = !m_pTray.collapsed;
         if (m_pTray.collapsed) { stTrack(u, ImVec2(padX, p0.y + 10 * s), 9, C_DIM, "BIBLIOTHÈQUE", 2 * s); return; }
     }
     // ---- line 1, the families: a glass strip of pictogram tabs (Maquette 4.1)
@@ -1051,7 +1051,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
         const std::string meta = id + "  ·  " + catFr(P.category);
         u.text(ImVec2(a.x + pad, y), 9.5f, stA(C_DIM, ease), meta.c_str());
         y += 18 * s;
-        u.text(ImVec2(a.x + pad, y), 9, stA(C_FAINT, ease), "clic : en main  ·  glisse-la dans la vue");
+        u.text(ImVec2(a.x + pad, y), 9, stA(C_FAINT, ease), m_ipad ? "touche : en main  ·  glisse-la dans la vue" : "clic : en main  ·  glisse-la dans la vue");
     }
 }
 
@@ -1167,6 +1167,10 @@ void BrickApp::stSelHud() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_stMenu = false; return; }
         if (m_opt.stMenu) return;   // (captures: stays open)
+        if (m_stMenuWait) {   // opened by a finger: its press reaches ImGui a frame later
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
+            m_stMenuWait = false;
+        }
         const bool act = m_stMenuSticky ? (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                                         : !ImGui::IsMouseDown(m_stMenuBtn == 1 ? ImGuiMouseButton_Right : ImGuiMouseButton_Left);
         if (act) {   // released (or, opened by a quick right click, the next click): the action
@@ -1204,7 +1208,7 @@ void BrickApp::stSelHud() {
     const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
     if (b.x < 0 || a.x > d.x || b.y < top || a.y > d.y) return;
     std::string nm = sel.size() > 1 ? std::to_string(sel.size()) + " BRIQUES" : stUpper(partFr(m_lib.parts[m_bricks[sel[0]].part].label));
-    const char* hint = "maintenir le clic : menu";
+    const char* hint = m_ipad ? "appui long : menu" : "maintenir le clic : menu";
     const float w1 = stTrackW(u, 9, nm.c_str(), 1.4f * s, true), w2 = u.textW(9, hint);
     const float W = 10 * s + 8 * s + w1 + 10 * s + w2 + 10 * s, H = 24 * s;
     const ImVec2 ta(std::clamp((a.x + b.x) * 0.5f - W * 0.5f, 70 * s, d.x - W - 240 * s), std::max(top + 6 * s, a.y - H - 12 * s)), tb(ta.x + W, ta.y + H);
@@ -1227,7 +1231,7 @@ void BrickApp::stHeld() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     const Part& P = m_lib.parts[m_libSel];
-    const std::string t = partFr(P.label) + " · clic pour poser · R pour tourner · clic droit pour lâcher";
+    const std::string t = partFr(P.label) + (m_ipad ? " · lève le doigt pour poser · 2e doigt pour tourner" : " · clic pour poser · R pour tourner · clic droit pour lâcher");
     const float tw = u.textW(10.5f, t.c_str()), lw = stTrackW(u, 9, "EN MAIN", 1.6f * s, true);
     const float W = 8 * s + 30 * s + 8 * s + lw + 10 * s + tw + 14 * s, H = 34 * s;
     const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);

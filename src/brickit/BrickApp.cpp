@@ -101,6 +101,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     loadBac();
     buildNav();
     if (opt.shotPath.empty()) loadPrefs();   // captures stay reproducible
+    if (opt.ipadCreme || !opt.ipadOpen.empty()) m_ipadCreme = true;
     else if (opt.useDefaults) { std::string dt; if (readDefaultPrefs(dt)) applyPrefs(dt); }   // (--use-defaults: a capture with the default settings)
     if (m_uiScaleUser != 1.0f) { m_ui *= m_uiScaleUser; th::apply(m_ui); }   // settings: UI scale over the screen scale
     if (opt.dev) m_dev = true;
@@ -115,7 +116,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
     if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
     if (opt.skinAccent >= 0) m_themeLooks[m_themeId].accent = opt.skinAccent;
-    if (!m_ipad) loadThemeFonts();
+    loadThemeFonts();   // (the iPad too: its Studio interface takes the themes)
     if (opt.quality >= 0) { m_quality = opt.quality; m_rs.msaaSamples = m_quality ? 4 : 1; }
     if (opt.aa >= 0) m_rs.aaQuality = std::clamp(opt.aa, 0, 2);
     if (opt.shadows >= 0) m_rs.shadowQuality = std::clamp(opt.shadows, 0, 4);
@@ -557,7 +558,7 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
-    if (!m_ipad && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
+    if (!(m_ipad && m_ipadCreme) && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
         const theme::Stage& st = m_th.stage;   // (Crème · Ciel: #cfe3f5 / #f2f6fa / #dfe5ec, floor #b9c3cf, lines #8a96a8 at 25 %)
         m_scene.env.top = lin((int)st.top);
         m_scene.env.horizon = lin((int)st.horizon);
@@ -569,7 +570,7 @@ void BrickApp::applyLook() {
         const uint32_t ga = (uint32_t)std::lround(std::clamp(st.gridAlpha, 0.0f, 1.0f) * 255);   // (the user's line colour is for the dark floor)
         m_scene.gridLine = (ga << 24) | ((st.grid & 255) << 16) | (((st.grid >> 8) & 255) << 8) | ((st.grid >> 16) & 255);
     }
-    if (m_ipad) {   // iPad (maquette v5): a bright stage, white floor, Matin / Midi / Soir, a low sun
+    if (m_ipad && m_ipadCreme) {   // iPad, Crème (kit 2.0): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
         static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf8d8b4, 0xf6ead8, 0xf8c49a}, floor_[3] = {0xfbe0bf, 0xf8e8d2, 0xfad8b4};   // (warm: the neutral HDRI greys it)
         static const int sun[3] = {0xffe0b0, 0xfff8ee, 0xffbe80};
@@ -1333,6 +1334,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--skin-accent") opt.skinAccent = _wtoi(next().c_str());
         else if (a == L"--settings-tab") { opt.settingsTab = _wtoi(next().c_str()); opt.settings = true; }
         else if (a == L"--ipad") opt.ipad = true;
+        else if (a == L"--ipad-creme") { opt.ipadCreme = true; opt.ipad = true; }
         else if (a == L"--ipad-open") { std::wstring w = next(); opt.ipadOpen.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--touch-test") { std::wstring w = next(); opt.touchTest.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--free-rot") opt.freeRot = _wtoi(next().c_str());
