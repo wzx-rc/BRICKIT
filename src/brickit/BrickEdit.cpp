@@ -549,6 +549,16 @@ void BrickApp::editInput() {
         else gizmoDragTo(mp.x, mp.y);
         return;
     }
+    if (m_pipette && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_pipette = false;
+    if (m_pipette && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // the pipette of the HUD: the colour of the brick clicked
+        const int b = pickBrick(mp.x, mp.y);
+        if (b >= 0) {
+            m_color = m_bricks[b].color;
+            m_pipette = false;
+            toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
+        }
+        return;
+    }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (m_holding) { dropHeld(io.KeyCtrl); return; }
         if (!m_pivotEdit) {

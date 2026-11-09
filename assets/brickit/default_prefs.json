@@ -71,7 +71,7 @@
   "showVox": false,
   "renderScale": 1.0,
   "stillAA": false,
-  "touchHud": true
+  "touchHud": false
  },
  "light": {
   "rotation": 232.6,

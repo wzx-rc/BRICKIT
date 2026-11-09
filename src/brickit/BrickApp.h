@@ -9,6 +9,7 @@
 #include "Mech.h"
 #include "Library.h"
 #include "Gfx.h"
+#include "Svg.h"
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
@@ -62,6 +63,7 @@ struct Options {
     bool useDefaults = false;   // --use-defaults: a capture with the default settings (assets / %LOCALAPPDATA%)
     int stillAA = -1;   // --still-aa 0 / 1
     int touchHud = -1;  // --touch-hud 0 / 1
+    int theme = -1;     // --theme 1 clair / 2 sombre (captures)
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
     std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
     std::string touchTest;   // --touch-test orbit | pinch | undo | pick | hold2: scripted finger gestures (BrickTouch.cpp)
@@ -684,6 +686,16 @@ private:
     std::unordered_map<std::string, int> m_catCount, m_techSubCount;
     int m_availCount = 0;
     bool m_allColors = false;         // Couleurs: every colour offered, even those that do not exist for the part
+    // PC theme 2.0 (BrickUi.cpp): Réglages › Thème (0 Système, 1 Clair, 2 Sombre), the HUD of the selection, its pipette
+    int m_uiThemePref = 0;
+    bool m_darkUi = true, m_sysDark = true;
+    double m_sysThemeT = -1;
+    bool m_selHud = true;             // Réglages › HUD de sélection (on by default, apart from the iPad ring)
+    bool m_pipette = false;           // the pipette of the HUD: the next brick clicked gives its colour
+    std::map<std::string, ImTextureID> m_pcIcons;
+    bool pcDarkNow();
+    ImTextureID pcIcon(const char* name, bool white);
+    void drawIcon(ImDrawList* dl, svg::Icon i, ImVec2 c, float size, ImU32 col);
     bool m_touchHud = true;           // Réglages › HUD tactile (iPad): the radial ring and the HUD around the selection
     bool m_arcOpen = false, m_arcDrag = false;   // colour arc of the touch HUD open; opened by a press still held (marking menu)
     static constexpr int HUD_ICONS = 7;          // turn left / right, duplicate, move, more, colour drop, hexagon (assets/brickit/hud)

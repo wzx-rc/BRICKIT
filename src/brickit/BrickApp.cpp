@@ -547,6 +547,16 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
+    if (!m_ipad && !m_darkUi) {   // PC theme 2.0, clair: a pale sky behind (the HDRI still lights), a light floor, grey-blue lines
+        m_scene.env.top = lin(0xcfe3f5);
+        m_scene.env.horizon = lin(0xf2f6fa);
+        m_scene.env.bottom = lin(0xdfe5ec);
+        m_scene.env.visibleToCamera = false;
+        g.baseColor = lin(0xb9c3cf);   // (lit by the HDRI it reads as a pale grey-blue)
+        g.roughness = 0.9f;
+        m_scene.env.hemiGround = lin(0xcfd6df);
+        m_scene.gridLine = (0x40u << 24) | (0xa8u << 16) | (0x96u << 8) | 0x8au;   // #8a96a8 at 25 % (the user's line colour is for the dark floor)
+    }
     if (m_ipad) {   // iPad (maquette v5): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
         static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf8d8b4, 0xf6ead8, 0xf8c49a}, floor_[3] = {0xfbe0bf, 0xf8e8d2, 0xfad8b4};   // (warm: the neutral HDRI greys it)
@@ -1295,6 +1305,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--group-snap-test") opt.groupSnapTest = next();
         else if (a == L"--still-aa") opt.stillAA = _wtoi(next().c_str());
         else if (a == L"--touch-hud") opt.touchHud = _wtoi(next().c_str());
+        else if (a == L"--theme") opt.theme = _wtoi(next().c_str());
         else if (a == L"--ipad") opt.ipad = true;
         else if (a == L"--ipad-open") { std::wstring w = next(); opt.ipadOpen.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--touch-test") { std::wstring w = next(); opt.touchTest.assign(w.begin(), w.end()); opt.ipad = true; }
