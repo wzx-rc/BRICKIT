@@ -773,7 +773,7 @@ private:
     double m_paintStrokeT0 = 0, m_paintSampleT = 0;
     ImVec2 m_paintStrokeAt, m_paintSampleAt;
     std::vector<int> m_paintDone;     // the bricks of the stroke already painted
-    float m_paintRadius = 34;         // the circle of the brush (px at the scale 1)
+    float m_paintRadius = 17;         // the circle of the brush (px at the scale 1; halved, Wzx 09/11/2026)
     double m_paintT0 = -1;            // PEINDRE: when its colours came out (the arc pops like the marking menu)
     std::vector<float> m_paintHov;    // PEINDRE: the hover of each colour (it grows)
     double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
