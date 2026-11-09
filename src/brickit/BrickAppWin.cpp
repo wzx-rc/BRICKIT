@@ -37,6 +37,7 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     wc.hInstance = inst;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hIcon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0);
+    wc.hIconSm = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);   // (the title bar: the 16 / 24 px drawing)
     wc.lpszClassName = L"WzxBrickIt";
     RegisterClassExW(&wc);
 
