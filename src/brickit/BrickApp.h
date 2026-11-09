@@ -10,6 +10,7 @@
 #include "Library.h"
 #include "Gfx.h"
 #include "Svg.h"
+#include "BrickTheme.h"
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
@@ -64,6 +65,8 @@ struct Options {
     int stillAA = -1;   // --still-aa 0 / 1
     int touchHud = -1;  // --touch-hud 0 / 1
     int theme = -1;     // --theme 1 clair / 2 sombre (captures)
+    std::string skin;   // --skin classic | creme | minimal | sommet (captures; the theme of Réglages › Thème)
+    int skinTint = -1, skinAccent = -1, settingsTab = -1;   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
     std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
     std::string touchTest;   // --touch-test orbit | pinch | undo | pick | hold2: scripted finger gestures (BrickTouch.cpp)
@@ -690,6 +693,21 @@ private:
     int m_uiThemePref = 0;
     bool m_darkUi = true, m_sysDark = true;
     double m_sysThemeT = -1;
+    // the theme module (BrickTheme.h): Réglages › Thème, the theme, and its tint and accent remembered per theme
+    struct ThemeLook { int tint = 0, accent = 0; };
+    std::string m_themeId = "creme";
+    std::map<std::string, ThemeLook> m_themeLooks;
+    theme::Tokens m_th;               // the theme resolved for this frame (BrickUi.cpp applyTheme)
+    std::string m_thKey;              // what m_th was resolved for (id, mode, tint, accent)
+    int m_setTab = 0;                 // Réglages: 0 Général, 1 Thème
+    std::map<std::string, ImTextureID> m_themeTex;
+    bool applyTheme();                // true when the theme changed (the 3D stage then follows)
+    void loadThemeFonts();
+    ImTextureID themeTex(const char* file);
+    void uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1);
+    bool settingsTabs(Ui& u, ImVec2 p);   // Réglages | Thème; true when clicked
+    bool m_tabClicked = false;
+    float m_themeTabH = 0;            // height of the Thème tab, as drawn last frame
     bool m_selHud = true;             // Réglages › HUD de sélection (on by default, apart from the iPad ring)
     bool m_pipette = false;           // the pipette of the HUD: the next brick clicked gives its colour
     std::map<std::string, ImTextureID> m_pcIcons;

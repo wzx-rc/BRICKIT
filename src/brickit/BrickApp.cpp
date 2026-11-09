@@ -106,6 +106,12 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     devLoadAll();   // DEV replacements kept next to the exe
     if (opt.manual) m_pManual.visible = true;
     if (opt.settings) { m_popup = 5; m_popupAt = ImVec2(1e6f, 34 * m_ui); }
+    if (opt.settingsTab >= 0) m_setTab = std::clamp(opt.settingsTab, 0, 1);
+    if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
+    if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
+    if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
+    if (opt.skinAccent >= 0) m_themeLooks[m_themeId].accent = opt.skinAccent;
+    if (!m_ipad) loadThemeFonts();
     if (opt.quality >= 0) { m_quality = opt.quality; m_rs.msaaSamples = m_quality ? 4 : 1; }
     if (opt.aa >= 0) m_rs.aaQuality = std::clamp(opt.aa, 0, 2);
     if (opt.shadows >= 0) m_rs.shadowQuality = std::clamp(opt.shadows, 0, 4);
@@ -547,15 +553,17 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
-    if (!m_ipad && !m_darkUi) {   // PC theme 2.0, clair: a pale sky behind (the HDRI still lights), a light floor, grey-blue lines
-        m_scene.env.top = lin(0xcfe3f5);
-        m_scene.env.horizon = lin(0xf2f6fa);
-        m_scene.env.bottom = lin(0xdfe5ec);
+    if (!m_ipad && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
+        const theme::Stage& st = m_th.stage;   // (Crème · Ciel: #cfe3f5 / #f2f6fa / #dfe5ec, floor #b9c3cf, lines #8a96a8 at 25 %)
+        m_scene.env.top = lin((int)st.top);
+        m_scene.env.horizon = lin((int)st.horizon);
+        m_scene.env.bottom = lin((int)st.bottom);
         m_scene.env.visibleToCamera = false;
-        g.baseColor = lin(0xb9c3cf);   // (lit by the HDRI it reads as a pale grey-blue)
+        g.baseColor = lin((int)st.floor);   // (lit by the HDRI it reads paler)
         g.roughness = 0.9f;
-        m_scene.env.hemiGround = lin(0xcfd6df);
-        m_scene.gridLine = (0x40u << 24) | (0xa8u << 16) | (0x96u << 8) | 0x8au;   // #8a96a8 at 25 % (the user's line colour is for the dark floor)
+        m_scene.env.hemiGround = lin((int)st.hemiGround);
+        const uint32_t ga = (uint32_t)std::lround(std::clamp(st.gridAlpha, 0.0f, 1.0f) * 255);   // (the user's line colour is for the dark floor)
+        m_scene.gridLine = (ga << 24) | ((st.grid & 255) << 16) | (((st.grid >> 8) & 255) << 8) | ((st.grid >> 16) & 255);
     }
     if (m_ipad) {   // iPad (maquette v5): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
@@ -1306,6 +1314,10 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--still-aa") opt.stillAA = _wtoi(next().c_str());
         else if (a == L"--touch-hud") opt.touchHud = _wtoi(next().c_str());
         else if (a == L"--theme") opt.theme = _wtoi(next().c_str());
+        else if (a == L"--skin") { std::wstring w = next(); opt.skin.assign(w.begin(), w.end()); }
+        else if (a == L"--skin-tint") opt.skinTint = _wtoi(next().c_str());
+        else if (a == L"--skin-accent") opt.skinAccent = _wtoi(next().c_str());
+        else if (a == L"--settings-tab") { opt.settingsTab = _wtoi(next().c_str()); opt.settings = true; }
         else if (a == L"--ipad") opt.ipad = true;
         else if (a == L"--ipad-open") { std::wstring w = next(); opt.ipadOpen.assign(w.begin(), w.end()); opt.ipad = true; }
         else if (a == L"--touch-test") { std::wstring w = next(); opt.touchTest.assign(w.begin(), w.end()); opt.ipad = true; }

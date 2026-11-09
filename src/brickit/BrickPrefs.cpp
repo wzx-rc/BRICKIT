@@ -107,6 +107,17 @@ std::string BrickApp::prefsJson() {
     j += std::string("\"dev\": {\"on\": ") + (m_dev ? "true" : "false") + ", \"showVox\": " + (m_devShowVox ? "true" : "false") + ", \"showEdges\": " + (m_devShowEdges ? "true" : "false") + ", \"useOverrides\": " + (m_devUseOverrides ? "true" : "false") + "},";
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false"); j += sb; }
+    {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
+        j += "\"theme\": {\"id\": " + jstr(m_themeId) + ", \"looks\": {";
+        bool first = true;
+        for (const auto& kv : m_themeLooks) {
+            char lb[96];
+            snprintf(lb, sizeof(lb), "%s%s: [%d, %d]", first ? "" : ", ", jstr(kv.first).c_str(), kv.second.tint, kv.second.accent);
+            j += lb;
+            first = false;
+        }
+        j += "}},";
+    }
     {   // Réglages > Lumière
         char lb[512];
         const uint32_t rgb = (uint32_t)std::lround(m_gridRgb.x * 255) | ((uint32_t)std::lround(m_gridRgb.y * 255) << 8) | ((uint32_t)std::lround(m_gridRgb.z * 255) << 16);
@@ -193,6 +204,10 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (st["touchHud"].type == app::Json::Bool) m_touchHud = st["touchHud"].b;
         if (st["selHud"].type == app::Json::Bool) m_selHud = st["selHud"].b;
         if (st["uiTheme"].type == app::Json::Number) m_uiThemePref = std::clamp((int)st["uiTheme"].n, 0, 2);
+        const app::Json& tj = p["theme"];
+        if (tj["id"].type == app::Json::String && theme::indexOf(tj["id"].s) >= 0) m_themeId = tj["id"].s;
+        for (const auto& kv : tj["looks"].o)
+            if (kv.second.type == app::Json::Array && theme::indexOf(kv.first) >= 0) m_themeLooks[kv.first] = {(int)kv.second[0].num(), (int)kv.second[1].num()};
         if (st["lightPreset"].type == app::Json::Number) m_lightPreset = (int)st["lightPreset"].n;
         if (st["pencilOnly"].type == app::Json::Bool) m_pencilOnly = st["pencilOnly"].b;
         if (st["renderScale"].type == app::Json::Number) m_renderScale = std::clamp((float)st["renderScale"].n, 0.5f, 1.0f);

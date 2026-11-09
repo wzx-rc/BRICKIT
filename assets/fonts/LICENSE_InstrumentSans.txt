@@ -1,0 +1,4 @@
+Copyright 2022 The Instrument Sans Project Authors (https://github.com/Instrument/instrument-sans)
+
+
+https://scripts.sil.org/OFL

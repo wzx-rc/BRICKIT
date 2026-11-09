@@ -31,7 +31,8 @@ static ImU32 C_DIM = IM_COL32(0x9a, 0x9c, 0xa4, 255);
 static ImU32 C_FAINT = IM_COL32(0x67, 0x6a, 0x72, 255);
 static ImU32 C_ACCENT = IM_COL32(0xf7, 0xc5, 0x1e, 255);
 static ImU32 C_ACCENT_TXT = IM_COL32(0xf7, 0xc5, 0x1e, 255);
-static ImU32 C_THUMB = IM_COL32_WHITE;   // tint of the library thumbnails (anthracite #474B52 on the light theme, as the mock-up)   // the accent as a text colour (darker on the light theme)
+static ImU32 C_THUMB = IM_COL32_WHITE;   // tint of the library thumbnails (anthracite #474B52 on the light theme, as the mock-up)
+static ImU32 C_PROGRESS = IM_COL32(0xf7, 0xc5, 0x1e, 255);  // sliders (the accent; Sommet: its blue while the pill marks what is active)
 static ImU32 C_INK = IM_COL32(0x17, 0x17, 0x1a, 255);
 static ImU32 C_LYEL = IM_COL32(0xf2, 0xcd, 0x37, 255);
 static ImU32 C_LBLU = IM_COL32(0x00, 0x55, 0xbf, 255);
@@ -40,6 +41,19 @@ static ImU32 C_HUD = IM_COL32(15, 16, 19, 184);            // rgba(15, 16, 19, 0
 static ImU32 C_DEV = IM_COL32(0x7f, 0xe3, 0xff, 255);
 
 static ImU32 alphaOf(ImU32 c, float a) { return (c & 0x00FFFFFF) | ((ImU32)(((c >> 24) & 0xFF) * a) << 24); }
+
+// the theme (BrickTheme.h, BrickApp::applyTheme): its fonts, the scale of its text, the shape of its buttons
+static ImFont* g_thFont = nullptr;    // regular (nullptr: Segoe UI)
+static ImFont* g_thBold = nullptr;    // semibold
+static ImFont* g_thHead = nullptr;    // titles of the panels (Minimal: Manrope Light)
+static ImFont* g_fInstr[2] = {}, *g_fGeist[2] = {}, *g_fManrope = nullptr;
+static float g_fontK = 1.22f;         // Segoe UI in ImGui reads smaller than in the browser at the same px size
+static float g_rk = 1.0f;             // radii of the panels and buttons
+static bool g_pill = false, g_lines = false;
+static int g_hudStyle = 0;            // theme::HUD_LEGO / HUD_FLAT / HUD_PILL
+static float rr(float r) { return r * g_rk; }
+// the radius of a button of height h: the theme's, or a pill
+static float rb(float r, float h) { return g_pill ? h * 0.5f : r * g_rk; }
 
 // LDraw families of the web (line 1 of the library) and their categories (line 2, empty ones dashed)
 struct Fam { const char* name; std::vector<const char*> cats; };
@@ -150,8 +164,7 @@ struct Ui {
     bool pressed, released;
     ImFont* font;
     ImFont* bold;
-    static constexpr float kFont = 1.22f;   // Segoe UI in ImGui reads smaller than in the browser at the same px size
-    float fs(float px) const { return px * s * kFont; }
+    float fs(float px) const { return px * s * g_fontK; }   // (g_fontK: 1.22 for Segoe UI, the theme's font otherwise)
     bool hover(ImVec2 a, ImVec2 b) const { return mouse.x >= a.x && mouse.y >= a.y && mouse.x < b.x && mouse.y < b.y; }
     ImVec2 text(ImVec2 p, float px, ImU32 col, const char* t, bool b = false) {
         ImFont* f = b ? bold : font;
@@ -179,8 +192,8 @@ static Ui ui(float s) {
     u.mouse = ImGui::GetIO().MousePos;
     u.pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     u.released = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
-    u.font = ImGui::GetFont();
-    u.bold = ImGui::GetFont();
+    u.font = g_thFont ? g_thFont : ImGui::GetFont();
+    u.bold = g_thBold ? g_thBold : u.font;
     return u;
 }
 
@@ -188,7 +201,7 @@ static Ui ui(float s) {
 
 void BrickApp::uiHeader() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     const float H = 30 * s;
@@ -260,7 +273,7 @@ void BrickApp::uiHeader() {
         ImU32 bg = b.on ? (b.id == 17 ? C_DEV : C_ACCENT) : (h ? C_CARD_HI : C_CARD);
         ImU32 fg = b.on ? (b.id == 17 ? IM_COL32(0x0d, 0x1a, 0x1f, 255) : C_INK) : C_TEXT;
         if (!b.enabled) { bg = alphaOf(bg, 0.4f); fg = alphaOf(fg, 0.4f); }
-        u.dl->AddRectFilled(a, c, bg, 6 * s);
+        u.dl->AddRectFilled(a, c, bg, rb(6 * s, c.y - a.y));
         const float cy = (y0 + y1) * 0.5f;
         if (b.kind == 0) drawIcon(u.dl, b.icon, ImVec2((a.x + c.x) * 0.5f, cy), 14 * s, fg);
         else if (b.kind == 1) {
@@ -389,45 +402,117 @@ void BrickApp::uiRadial() {
     }
 }
 
-// ------------------------------------------------------------------ PC theme 2.0 (Wzx 09/11/2026)
-// The language of the iPad « entre-deux » mock-up (white translucent pebbles, LEGO colour accents, light and dark), made
-// sober and dense for the mouse and 4K: Réglages › Thème (Système / Clair / Sombre), the PC panels recoloured, the fine
-// icon set (assets/brickit/ui_pc, tools/brickit/pc_icons.py) in ink on light, white on dark and on the coloured bubbles.
+// ------------------------------------------------------------------ themes (Réglages › Thème, Wzx 09/11/2026)
+// The theme module (BrickTheme.h) resolves the theme, its mode, its tint and its accent into tokens; they become the
+// colours of the web CSS here (C_PANEL, C_TEXT, C_ACCENT…), with the theme's fonts, radii and HUD bubbles.
+//   Classic: the original dark LEGO interface. Crème: PC theme 2.0, the language of the iPad « entre-deux » mock-up
+//   (white translucent pebbles, LEGO colour accents, light and dark), sober and dense for the mouse and 4K, with the
+//   fine icon set (assets/brickit/ui_pc, tools/brickit/pc_icons.py). Minimal and Sommet: PLUM (plum-themes-kit).
 
-static void pcTheme(bool dark) {
-    if (!dark) {
-        C_BG = IM_COL32(0xe6, 0xec, 0xf3, 255);
-        C_PANEL = IM_COL32(255, 255, 255, 222);          // galet .86
-        C_PANEL_SOLID = IM_COL32(0xfb, 0xfc, 0xfd, 255);
-        C_CARD = IM_COL32(0xed, 0xf0, 0xf4, 255);        // creux
-        C_CARD_HI = IM_COL32(0xe0, 0xe5, 0xec, 255);
-        C_LINE = IM_COL32(0xe1, 0xe5, 0xeb, 255);
-        C_TEXT = IM_COL32(0x1f, 0x27, 0x33, 255);        // encre
-        C_DIM = IM_COL32(0x6a, 0x73, 0x83, 255);
-        C_FAINT = IM_COL32(0x9a, 0xa3, 0xb1, 255);
-        C_ACCENT = IM_COL32(0xf2, 0xcd, 0x37, 255);      // jaune LEGO
-        C_ACCENT_TXT = IM_COL32(0x8a, 0x64, 0x00, 255);  // (yellow text does not read on white)
-        C_THUMB = IM_COL32(0x60, 0x66, 0x70, 255);       // (the white thumbnails multiplied: anthracite, shading kept)
-        C_INK = IM_COL32(0x2a, 0x31, 0x40, 255);
-        C_OVERLAY = IM_COL32(255, 255, 255, 228);
-        C_HUD = IM_COL32(255, 255, 255, 214);
-    } else {
-        C_BG = IM_COL32(0x16, 0x19, 0x1f, 255);
-        C_PANEL = IM_COL32(40, 44, 53, 222);             // galet sombre .87
-        C_PANEL_SOLID = IM_COL32(0x1e, 0x21, 0x29, 255);
-        C_CARD = IM_COL32(0x2d, 0x32, 0x3c, 255);
-        C_CARD_HI = IM_COL32(0x3a, 0x40, 0x4c, 255);
-        C_LINE = IM_COL32(0x3a, 0x41, 0x4c, 255);
-        C_TEXT = IM_COL32(0xee, 0xf1, 0xf5, 255);
-        C_DIM = IM_COL32(0x9a, 0xa4, 0xb4, 255);
-        C_FAINT = IM_COL32(0x5d, 0x65, 0x73, 255);
-        C_ACCENT = IM_COL32(0xf2, 0xcd, 0x37, 255);
-        C_ACCENT_TXT = C_ACCENT;
-        C_THUMB = IM_COL32_WHITE;
-        C_INK = IM_COL32(0x2a, 0x31, 0x40, 255);
-        C_OVERLAY = IM_COL32(30, 33, 41, 236);
-        C_HUD = IM_COL32(40, 44, 53, 200);
+// the fonts of the themes (assets/fonts, from the woff2 of the kit, tools/brickit/theme_fonts.py), loaded once
+void BrickApp::loadThemeFonts() {
+    ImGuiIO& io = ImGui::GetIO();
+    const std::wstring dir = m_exeDir + L"\\assets\\fonts\\";
+    auto add = [&](const wchar_t* file) -> ImFont* {
+        const std::string path = plat::toUtf8(dir + file);
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, (dir + file).c_str(), L"rb") != 0 || !f) return nullptr;
+        fclose(f);
+        ImFont* font = io.Fonts->AddFontFromFileTTF(path.c_str(), 15.0f * m_ui);
+        if (!font) return nullptr;
+#ifdef _WIN32
+        ImFontConfig sc;   // the symbols the kit's fonts do not have (★ ☆ ✎ ◀ ▶…): Segoe UI Symbol
+        sc.MergeMode = true;
+        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguisym.ttf", 15.0f * m_ui, &sc);
+#endif
+        return font;
+    };
+    g_fInstr[0] = add(L"InstrumentSans-Regular.ttf");
+    g_fInstr[1] = add(L"InstrumentSans-SemiBold.ttf");
+    g_fManrope = add(L"Manrope-Light.ttf");
+    g_fGeist[0] = add(L"GeistMono-Regular.ttf");
+    g_fGeist[1] = add(L"GeistMono-SemiBold.ttf");
+}
+
+// an image of a theme (assets/brickit/ui_pc/themes), loaded on first use
+ImTextureID BrickApp::themeTex(const char* file) {
+    auto it = m_themeTex.find(file);
+    if (it != m_themeTex.end()) return it->second;
+    ImTextureID tex = 0;
+    std::wstring path = m_exeDir + L"\\assets\\brickit\\ui_pc\\themes\\";
+    for (const char* c = file; *c; ++c) path += *c == '/' ? L'\\' : (wchar_t)*c;
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"rb") == 0 && f) {
+        std::vector<uint8_t> data, rgba;
+        fseek(f, 0, SEEK_END);
+        data.resize((size_t)ftell(f));
+        fseek(f, 0, SEEK_SET);
+        const bool ok = fread(data.data(), 1, data.size(), f) == data.size();
+        fclose(f);
+        int w = 0, h = 0;
+        if (ok && decodeImage(data.data(), data.size(), rgba, w, h)) tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
     }
+    m_themeTex[file] = tex;
+    return tex;
+}
+
+// the tokens of the theme onto the colours of the interface
+static void setTheme(const theme::Tokens& t) {
+    C_BG = t.bg;
+    C_PANEL = t.panel;
+    C_PANEL_SOLID = t.panelSolid;
+    C_CARD = t.card;
+    C_CARD_HI = t.cardHi;
+    C_LINE = t.line;
+    C_TEXT = t.text;
+    C_DIM = t.dim;
+    C_FAINT = t.faint;
+    C_ACCENT = t.accent;
+    C_ACCENT_TXT = t.accentTxt;
+    C_PROGRESS = t.progress;
+    C_THUMB = t.thumb;
+    C_INK = t.onAccent;   // (the text on the accent)
+    C_OVERLAY = t.overlay;
+    C_HUD = t.hud;
+    g_rk = t.radius;
+    g_pill = t.pill;
+    g_lines = t.lines;
+    g_hudStyle = t.hudStyle;
+    // the fonts: em sizes matched to Segoe UI (ImGui sizes a font by ascent - descent: 1.33 em for Segoe UI, 1.22 em
+    // for Instrument Sans, 1.30 em for Geist Mono, which is wide: a little smaller so that the texts keep their room)
+    g_thFont = g_thBold = g_thHead = nullptr;
+    g_fontK = 1.22f;
+    if (t.font == theme::FONT_INSTRUMENT && g_fInstr[0]) {
+        g_thFont = g_fInstr[0];
+        g_thBold = g_fInstr[1] ? g_fInstr[1] : g_fInstr[0];
+        g_thHead = g_fManrope ? g_fManrope : g_thBold;
+        g_fontK = 1.22f * 1.22f / 1.33f * 1.02f;
+    } else if (t.font == theme::FONT_GEIST && g_fGeist[0]) {
+        g_thFont = g_fGeist[0];
+        g_thBold = g_fGeist[1] ? g_fGeist[1] : g_fGeist[0];
+        g_thHead = g_thBold;
+        g_fontK = 1.22f * 1.30f / 1.33f * 0.86f;
+    }
+}
+
+// the theme of this frame: resolved again when the theme, the mode, the tint or the accent change
+bool BrickApp::applyTheme() {
+    int ti = theme::indexOf(m_themeId);
+    if (ti < 0) { m_themeId = "creme"; ti = theme::indexOf(m_themeId); }
+    const theme::Def& d = theme::themes()[ti];
+    const bool dark = d.mode >= 0 ? d.mode == 1 : pcDarkNow();
+    const ThemeLook lk = m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId] : ThemeLook{};
+    char key[96];
+    snprintf(key, sizeof(key), "%s|%d|%d|%d", m_themeId.c_str(), dark ? 1 : 0, lk.tint, lk.accent);
+    bool changed = false;
+    if (m_thKey != key) {
+        m_thKey = key;
+        m_th = theme::resolve(m_themeId, dark, lk.tint, lk.accent);
+        changed = true;
+    }
+    m_darkUi = m_th.dark;
+    setTheme(m_th);
+    return changed;
 }
 
 // Windows: dark apps (Paramètres › Personnalisation › Couleurs), read every 2 s
@@ -500,6 +585,13 @@ void BrickApp::drawIcon(ImDrawList* dl, svg::Icon i, ImVec2 c, float size, ImU32
 // at 32 %, a very soft shadow
 static void pcBubble(ImDrawList* dl, ImVec2 c, float r, ImU32 col, float al, float s) {
     if (r < 0.5f || al <= 0.01f) return;
+    if (g_hudStyle != theme::HUD_LEGO) {   // Minimal: flat discs with a fine line; Sommet: flat pills, no rim
+        for (int k = 2; k >= 1; --k) dl->AddCircleFilled(ImVec2(c.x, c.y + 1.0f * s + k * 0.5f * s), r + k * 0.9f * s, IM_COL32(12, 14, 18, (int)(14 * al)), 40);
+        dl->AddCircleFilled(c, r, (col & 0x00ffffff) | ((ImU32)(255 * al) << 24), 48);
+        const float lum = ((col >> 0) & 0xff) * 0.3f + ((col >> 8) & 0xff) * 0.59f + ((col >> 16) & 0xff) * 0.11f;
+        if (g_hudStyle == theme::HUD_FLAT && lum > 200) dl->AddCircle(c, r, alphaOf(C_LINE, al), 48, 1.0f * s);
+        return;
+    }
     for (int k = 3; k >= 1; --k) dl->AddCircleFilled(ImVec2(c.x, c.y + 1.2f * s + k * 0.5f * s), r + k * 1.1f * s, IM_COL32(12, 18, 30, (int)(16 * al)), 40);
     const float cr = ((col >> 0) & 0xff), cg = ((col >> 8) & 0xff), cb = ((col >> 16) & 0xff);
     auto mix = [&](float t) {   // t 0 top .. 1 bottom
@@ -632,7 +724,10 @@ void BrickApp::uiSelHud() {
     const int curColor = m_bricks[sel[0]].color;
     const ImVec2 pSw = place(ImVec2(c.x, a.y - g));
     {   // Couleur: the arc of colours
-        const bool on = bubble(0, pSw, R, IM_COL32(0xf2, 0xcd, 0x37, 255), "couleur", false, false, 0.0f, m_arcOpen ? nullptr : "Couleur");
+        const bool legoHud = m_th.hudStyle == theme::HUD_LEGO;   // (the colour bubble: LEGO yellow, or the theme's accent)
+        const ImU32 cCol = legoHud ? IM_COL32(0xf2, 0xcd, 0x37, 255) : C_PROGRESS;
+        const bool wCol = !legoHud && (((cCol >> 0) & 0xff) * 0.3f + ((cCol >> 8) & 0xff) * 0.59f + ((cCol >> 16) & 0xff) * 0.11f) < 170;
+        const bool on = bubble(0, pSw, R, cCol, "couleur", wCol, false, 0.0f, m_arcOpen ? nullptr : "Couleur");
         if (on) {
             m_arcOpen = !m_arcOpen;
             m_arcDrag = m_arcOpen;
@@ -739,12 +834,18 @@ void BrickApp::uiSelHud() {
     const Color& cur = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
     const ImU32 curCol = IM_COL32((int)(cur.srgb.x * 255), (int)(cur.srgb.y * 255), (int)(cur.srgb.z * 255), 255);
     const bool curLight = cur.srgb.x * 0.3f + cur.srgb.y * 0.59f + cur.srgb.z * 0.11f > 0.62f;
-    if (bubble(1, pL, R, IM_COL32(0x00, 0x55, 0xbf, 255), "tourner", true, true, 0.03f, "Tourner de 15° à gauche")) turnSelectedFree(1);
-    if (bubble(2, pR, R, IM_COL32(0x00, 0x55, 0xbf, 255), "tourner", true, false, 0.06f, "Tourner de 15° à droite")) turnSelectedFree(-1);
-    if (bubble(3, pDup, R, IM_COL32(0x23, 0x78, 0x41, 255), "dupliquer", true, false, 0.09f, "Dupliquer")) duplicateSelected();
-    if (bubble(4, pMore, r2, darkUi ? IM_COL32(0x5d, 0x65, 0x73, 255) : IM_COL32(0x3a, 0x42, 0x50, 255), "plus_actions", true, false, 0.12f, "Plus d'actions")) { m_moreOpen = !m_moreOpen; m_moreT0 = now; u.pressed = false; }
-    if (bubble(5, pPip, r2, IM_COL32(0xfe, 0x8a, 0x18, 255), "pipette", true, false, 0.15f, m_pipette ? "Pipette : clique une brique pour prendre sa couleur" : "Pipette : prendre la couleur d'une brique")) { m_pipette = !m_pipette; u.pressed = false; }
-    if (m_pipette) u.dl->AddCircle(pPip, r2 + 3 * s, IM_COL32(0xfe, 0x8a, 0x18, 220), 40, 1.6f * s);
+    // the colours of the bubbles: LEGO (Classic, Crème), or the theme's own (Minimal: white discs, Sommet: the pill)
+    const bool lego = m_th.hudStyle == theme::HUD_LEGO;
+    const ImU32 cTurn = lego ? IM_COL32(0x00, 0x55, 0xbf, 255) : m_th.hudBtn, cDup = lego ? IM_COL32(0x23, 0x78, 0x41, 255) : m_th.hudBtn;
+    const ImU32 cMore = lego ? (darkUi ? IM_COL32(0x5d, 0x65, 0x73, 255) : IM_COL32(0x3a, 0x42, 0x50, 255)) : m_th.hudBtn;
+    const ImU32 cPip = lego ? IM_COL32(0xfe, 0x8a, 0x18, 255) : m_th.hudBtn;
+    const bool wBtn = lego || m_th.hudBtnWhiteIcon;
+    if (bubble(1, pL, R, cTurn, "tourner", wBtn, true, 0.03f, "Tourner de 15° à gauche")) turnSelectedFree(1);
+    if (bubble(2, pR, R, cTurn, "tourner", wBtn, false, 0.06f, "Tourner de 15° à droite")) turnSelectedFree(-1);
+    if (bubble(3, pDup, R, cDup, "dupliquer", wBtn, false, 0.09f, "Dupliquer")) duplicateSelected();
+    if (bubble(4, pMore, r2, cMore, "plus_actions", wBtn, false, 0.12f, "Plus d'actions")) { m_moreOpen = !m_moreOpen; m_moreT0 = now; u.pressed = false; }
+    if (bubble(5, pPip, r2, cPip, "pipette", wBtn, false, 0.15f, m_pipette ? "Pipette : clique une brique pour prendre sa couleur" : "Pipette : prendre la couleur d'une brique")) { m_pipette = !m_pipette; u.pressed = false; }
+    if (m_pipette) u.dl->AddCircle(pPip, r2 + 3 * s, lego ? IM_COL32(0xfe, 0x8a, 0x18, 220) : C_PROGRESS, 40, 1.6f * s);
     {
         char tip[120];
         snprintf(tip, sizeof(tip), "Pinceau : appliquer %s à la sélection", cur.name.c_str());
@@ -801,7 +902,7 @@ void BrickApp::uiSelHud() {
 void BrickApp::uiBac() {
     if (!m_bacOpen || m_ipad) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImGuiIO& io = ImGui::GetIO();
@@ -958,7 +1059,7 @@ static void swatch(ImDrawList* dl, ImVec2 c, float r, const Color& col, float s)
 
 void BrickApp::uiColorsTouch() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const int fbp = focusBrick();
@@ -1121,7 +1222,7 @@ static void dockIcon(ImDrawList* dl, int kind, ImVec2 c, float s, ImU32 col) {
 
 void BrickApp::uiToolDock() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const int focus = m_holding ? m_held.brick : m_selected;
     const bool active = focus >= 0 || !m_multi.empty();
@@ -1261,7 +1362,7 @@ void BrickApp::uiColors() {
 void BrickApp::uiTray() {
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, ImGui::GetIO().DisplaySize.y, 0, ImGui::GetIO().DisplaySize.y)); return; }
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     static const float kTh[3] = {64, 84, 112};
@@ -1278,7 +1379,7 @@ void BrickApp::uiTray() {
     if (fl) {   // .tray.floating: accent border .55, radius 12, shadow
         m_uiRects.push_back(ImVec4(0, d.y, 0, d.y));   // (index 1: the stage reaches the bottom)
         u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 14 * s), ImVec2(p1.x, p1.y + 14 * s), IM_COL32(0, 0, 0, 70), 12 * s);
-        u.dl->AddRectFilled(p0, p1, C_PANEL, 12 * s);
+        u.dl->AddRectFilled(p0, p1, C_PANEL, rr(12 * s));
         u.dl->AddRect(p0, p1, IM_COL32(247, 197, 30, 140), 12 * s);
     } else {
         u.dl->AddRectFilled(p0, p1, C_PANEL);
@@ -1536,7 +1637,7 @@ void BrickApp::uiTray() {
 void BrickApp::uiMechPanel() {
     if (!m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     const float W = 280 * s, pad = 12 * s;
@@ -1545,8 +1646,8 @@ void BrickApp::uiMechPanel() {
     float H = pad + 20 * s + 38 * s + 38 * s + 44 * s + m_mm.warnings.size() * 18 * s + m_mm.cmds.size() * 78 * s + 30 * s + pad;
     if (m_mm.cmds.empty()) H += 34 * s;
     ImVec2 p1(p0.x + W, p0.y + H);
-    u.dl->AddRectFilled(p0, p1, C_PANEL, 12 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 12 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL, rr(12 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(12 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     float y = p0.y + pad, x = p0.x + pad;
     u.text(ImVec2(x, y), 14, C_TEXT, "Mécanique", true);
@@ -1695,7 +1796,7 @@ void BrickApp::uiInfoSheet() {
     if (m_infoPart < 0) return;
     if (m_dev) { uiDevSheet(); return; }   // full sheet (metadata, connectors, Maya export / import)
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));   // .sheet rgba(0, 0, 0, .5)
@@ -1706,8 +1807,8 @@ void BrickApp::uiInfoSheet() {
     const float vw = W - 2 * pad, vh = vw * 4 / 5;   // canvas aspect 5 / 4
     const float H = pad + vh + gap + 4 * s + 24 * s + gap + 17 * s + gap + 28 * s + pad;
     ImVec2 p0((d.x - W) * 0.5f, (d.y - H) * 0.5f), p1(p0.x + W, p0.y + H);
-    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, 14 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 14 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(14 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(14 * s));
     // viewer
     ImVec2 va(p0.x + pad, p0.y + pad), vb(va.x + vw, va.y + vh);
     u.dl->AddRectFilled(va, vb, C_CARD, 12 * s);
@@ -1946,7 +2047,7 @@ void BrickApp::drawToast() {
 void BrickApp::uiGroups() {
     if (!m_pGroups.visible) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const int G = (int)m_build.groups.size();
     // parent of each group and its number of pieces, from the paths of the bricks
@@ -2089,7 +2190,7 @@ void BrickApp::uiGroups() {
 void BrickApp::uiReader() {
     if (!m_reading) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     // the parts of the step, grouped by part and colour
@@ -2170,11 +2271,7 @@ void BrickApp::drawUi() {
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
     if (m_ipad) uiTheme(true);
-    else {   // PC theme 2.0: light / dark (Réglages › Thème), the 3D background follows
-        const bool dk = pcDarkNow();
-        if (dk != m_darkUi) { m_darkUi = dk; applyLook(); }
-        pcTheme(dk);
-    }
+    else if (applyTheme()) applyLook();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
     if (m_ipad) {
         drawUiIpad();
         uiCtxMenu();
@@ -2277,7 +2374,7 @@ static bool webButton(Ui& u, ImVec2 a, const char* label, float& w, bool pressed
 void BrickApp::uiDevPanel() {
     if (!m_dev || m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const float W = std::min(340 * s, (m_stage.z - m_stage.x) - 32 * s), pad = 12 * s, gap = 10 * s;
     const float x0 = m_stage.x + 16 * s, inner = W - 2 * pad;
@@ -2306,7 +2403,7 @@ void BrickApp::uiDevPanel() {
     const float H = pad + headH + gap + toolsH + gap + legendH + gap + listH + gap + (sum.empty() ? 0 : sumH + gap) + 28 * s + pad;
     ImVec2 p0(x0, m_stage.w - 12 * s - H), p1(x0 + W, m_stage.w - 12 * s);
     u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 8 * s), ImVec2(p1.x, p1.y + 8 * s), IM_COL32(0, 0, 0, 40), 12 * s);   // shadow
-    u.dl->AddRectFilled(p0, p1, C_PANEL, 12 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL, rr(12 * s));
     u.dl->AddRect(p0, p1, C_DEVLINE, 12 * s);
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     float y = p0.y + pad, x = p0.x + pad;
@@ -2385,7 +2482,7 @@ void BrickApp::uiDevPanel() {
 // Full part sheet of the DEV mode (web: showInfo + devInfoActions). Box min(640 px), padding 18, gap 12.
 void BrickApp::uiDevSheet() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));
@@ -2429,8 +2526,8 @@ void BrickApp::uiDevSheet() {
     const float headH = 192 * s;   // image 240 x 192 (aspect 5 / 4)
     const float H = pad + headH + gap + rowsH - 6 * s + gap + creditH + gap + (note.empty() ? 0 : noteH + gap) + 8 * s + 28 * s + gap + 28 * s + pad;
     ImVec2 p0((d.x - W) * 0.5f, std::max(8 * s, (d.y - H) * 0.5f)), p1(p0.x + W, p0.y + H);
-    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, 14 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 14 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(14 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(14 * s));
     float x = p0.x + pad, y = p0.y + pad;
     // head: image (radial gradient #34363d -> #1d1e22) and title + chips
     {
@@ -2521,7 +2618,7 @@ void BrickApp::uiDevSheet() {
 void BrickApp::uiDevReview() {
     if (!m_devReview.open) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));
@@ -2553,8 +2650,8 @@ void BrickApp::uiDevReview() {
     const float introH = wrapText(u, ImVec2(0, 0), 13, C_DIM, intro, inner, false) * 1.15f;
     const float H = pad + 22 * s + gap + introH + gap + rowsH - 6 * s + gap + 28 * s + pad;
     ImVec2 p0((d.x - W) * 0.5f, (d.y - H) * 0.5f), p1(p0.x + W, p0.y + H);
-    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, 14 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 14 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(14 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(14 * s));
     float x = p0.x + pad, y = p0.y + pad;
     u.text(ImVec2(x, y), 17, C_TEXT, ("Réimport de " + id).c_str(), true);
     y += 22 * s + gap;
@@ -2690,7 +2787,7 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
 void BrickApp::uiManual() {
     if (!m_pManual.visible || m_mechOn) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const float stageW = m_stage.z - m_stage.x;
     float W = m_manW >= 260 ? m_manW : std::min(stageW * 0.34f, 500 * s);
@@ -2713,8 +2810,8 @@ void BrickApp::uiManual() {
     const float H = padT + headH + (folded ? 0 : gap + bodyH) + padB;
     ImVec2 p0(x0, y0), p1(x1, y0 + H);
     u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 16 * s), ImVec2(p1.x, p1.y + 16 * s), IM_COL32(0, 0, 0, 40), 16 * s);   // shadow
-    u.dl->AddRectFilled(p0, p1, C_PANEL, 16 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 16 * s);
+    u.dl->AddRectFilled(p0, p1, C_PANEL, rr(16 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(16 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     // header: dots, Manuel, step / page, buttons
     float x = p0.x + padX, y = p0.y + padT;
@@ -2797,7 +2894,7 @@ void BrickApp::uiManual() {
 void BrickApp::uiManualBig() {
     if (!m_manBig && !m_pdfBig) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
@@ -2958,15 +3055,269 @@ bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, f
     return dragging;
 }
 
+// --------------------------------------------------------------------------- Réglages › Thème (BrickTheme.h)
+// As PLUM's Réglages › UI (plum-themes-kit README § 6): a card per theme with a small preview drawn with its own tokens,
+// Clair / Sombre / Système, the « couleur du thème » (tint of the greys) and the accent, remembered per theme.
+
+// the tabs of the settings: Réglages | Thème (a segmented track, the active one in the accent, Sommet's pill)
+bool BrickApp::settingsTabs(Ui& u, ImVec2 p) {
+    const float s = u.s, h = 24 * s;
+    static const char* kTabs[2] = {"Réglages", "Thème"};
+    float w[2], total = 0;
+    for (int i = 0; i < 2; ++i) { w[i] = u.textW(12.5f, kTabs[i], true) + 26 * s; total += w[i]; }
+    u.dl->AddRectFilled(p, ImVec2(p.x + total + 4 * s, p.y + h + 4 * s), C_CARD, rb(8 * s, h + 4 * s));
+    float x = p.x + 2 * s;
+    bool clicked = false;
+    for (int i = 0; i < 2; ++i) {
+        const ImVec2 a(x, p.y + 2 * s), b(x + w[i], p.y + 2 * s + h);
+        const bool on = m_setTab == i, hv = u.hover(a, b);
+        if (on) u.dl->AddRectFilled(a, b, C_ACCENT, rb(7 * s, h));
+        else if (hv) u.dl->AddRectFilled(a, b, C_CARD_HI, rb(7 * s, h));
+        const float tw = u.textW(12.5f, kTabs[i], true);
+        u.text(ImVec2((a.x + b.x - tw) * 0.5f, a.y + (h - u.fs(12.5f)) * 0.5f), 12.5f, on ? C_INK : C_TEXT, kTabs[i], true);
+        if (hv && u.pressed) {
+            if (!on) { m_setTab = i; savePrefs(); }
+            clicked = true;
+            m_tabClicked = true;
+        }
+        x += w[i];
+    }
+    return clicked;
+}
+
+// the small preview of a theme: the top bar, the 3D stage (Sommet: its painted mountains), the HUD bubbles, the library
+static void themePreview(ImDrawList* dl, float s, const theme::Tokens& t, ImVec2 a, ImVec2 b, ImTextureID banner) {
+    const float W = b.x - a.x, H = b.y - a.y;
+    dl->PushClipRect(a, b, true);
+    const float barH = H * 0.13f, libY = a.y + H * 0.70f;
+    const ImU32 opaquePanel = (t.panel & 0x00ffffff) | 0xff000000;
+    // the stage
+    if (t.stage.light) {
+        const ImU32 top = theme::col(t.stage.top), hor = theme::col(t.stage.horizon), flo = theme::col(t.stage.bottom);
+        const float hy = a.y + H * 0.42f;
+        dl->AddRectFilledMultiColor(a, ImVec2(b.x, hy), top, top, hor, hor);
+        dl->AddRectFilledMultiColor(ImVec2(a.x, hy), ImVec2(b.x, libY), hor, hor, flo, flo);
+    } else {
+        dl->AddRectFilled(a, ImVec2(b.x, libY), IM_COL32(0x11, 0x12, 0x14, 255));
+        for (int k = 1; k < 7; ++k) {   // the dark floor and its grid
+            const float y = a.y + H * 0.42f + k * k * 1.4f * s;
+            if (y < libY) dl->AddLine(ImVec2(a.x, y), ImVec2(b.x, y), IM_COL32(0x9a, 0xa3, 0xb8, 40), 1.0f);
+        }
+    }
+    if (banner) {   // Sommet: the painted mountains (banner-wide, 2:1, the figure on the right, a white fade on the left)
+        const float ih = libY - a.y, iw = ih * 2.0f;
+        dl->AddImage(banner, ImVec2(b.x - iw, a.y), ImVec2(b.x, libY), ImVec2(0, 0), ImVec2(1, 1), t.dark ? IM_COL32(200, 200, 205, 255) : IM_COL32_WHITE);
+    }
+    // a few bricks on the stage (LEGO red, yellow, white)
+    const ImVec2 c(a.x + W * 0.36f, a.y + H * 0.50f);
+    dl->AddRectFilled(ImVec2(c.x - 16 * s, c.y - 2 * s), ImVec2(c.x + 4 * s, c.y + 10 * s), IM_COL32(0xc9, 0x1a, 0x09, 255), 1.5f * s);
+    dl->AddRectFilled(ImVec2(c.x - 2 * s, c.y - 13 * s), ImVec2(c.x + 18 * s, c.y - 2 * s), IM_COL32(0xf2, 0xcd, 0x37, 255), 1.5f * s);
+    dl->AddRectFilled(ImVec2(c.x + 6 * s, c.y - 2 * s), ImVec2(c.x + 22 * s, c.y + 10 * s), IM_COL32(0xf4, 0xf4, 0xf4, 255), 1.5f * s);
+    dl->AddRect(ImVec2(c.x - 3 * s, c.y - 14 * s), ImVec2(c.x + 19 * s, c.y - 1 * s), IM_COL32(255, 255, 255, 200), 2 * s, 0, 1.0f * s);
+    // the bubbles of the selection HUD
+    const float br = 4.2f * s;
+    const ImVec2 bp[3] = {ImVec2(c.x + 8 * s, c.y - 24 * s), ImVec2(c.x - 14 * s, c.y - 8 * s), ImVec2(c.x + 30 * s, c.y - 8 * s)};
+    for (int k = 0; k < 3; ++k) {
+        const ImU32 bc = t.hudStyle == theme::HUD_LEGO ? (k == 0 ? IM_COL32(0xf2, 0xcd, 0x37, 255) : IM_COL32(0x00, 0x55, 0xbf, 255)) : (k == 0 ? t.progress : t.hudBtn);
+        dl->AddCircleFilled(bp[k], br, bc, 16);
+        if (t.hudStyle == theme::HUD_FLAT && k) dl->AddCircle(bp[k], br, t.line, 16, 1.0f);
+    }
+    // the top bar: the logo, a few buttons, one active
+    dl->AddRectFilled(a, ImVec2(b.x, a.y + barH), opaquePanel);
+    dl->AddLine(ImVec2(a.x, a.y + barH), ImVec2(b.x, a.y + barH), t.line, 1.0f);
+    const float bh = barH * 0.6f, by = a.y + barH * 0.2f;
+    dl->AddRectFilled(ImVec2(a.x + 4 * s, by), ImVec2(a.x + 4 * s + bh, by + bh), t.accent, 1.5f * s);
+    dl->AddRectFilled(ImVec2(a.x + 8 * s + bh, by + bh * 0.3f), ImVec2(a.x + 8 * s + bh + 22 * s, by + bh * 0.7f), t.text, 1.0f * s);
+    for (int k = 0; k < 5; ++k) {
+        const float x = b.x - 6 * s - (k + 1) * (bh + 3 * s);
+        dl->AddRectFilled(ImVec2(x, by), ImVec2(x + bh, by + bh), k == 3 ? t.accent : t.card, t.pill ? bh * 0.5f : 1.5f * s);
+    }
+    // the library: tabs, thumbnails
+    dl->AddRectFilled(ImVec2(a.x, libY), b, opaquePanel);
+    dl->AddLine(ImVec2(a.x, libY), ImVec2(b.x, libY), t.line, 1.0f);
+    float tx = a.x + 6 * s;
+    for (int k = 0; k < 4; ++k) {
+        const float tw = (k == 1 ? 18 : 14) * s;
+        if (k == 1) dl->AddRectFilled(ImVec2(tx - 3 * s, libY + 3 * s), ImVec2(tx + tw + 3 * s, libY + 10 * s), t.card, 3.5f * s);
+        dl->AddRectFilled(ImVec2(tx, libY + 5.5f * s), ImVec2(tx + tw, libY + 7.5f * s), k == 1 ? t.accentTxt : t.dim, 1.0f * s);
+        tx += tw + 8 * s;
+    }
+    const float ty = libY + 14 * s, tsz = std::max(8 * s, b.y - ty - 5 * s);
+    for (int k = 0; k < 10; ++k) {
+        const float x = a.x + 6 * s + k * (tsz + 4 * s);
+        if (x > b.x) break;
+        dl->AddRectFilled(ImVec2(x, ty), ImVec2(x + tsz, ty + tsz), t.card, 2 * s);
+        const ImU32 brick = t.dark ? IM_COL32(0xee, 0xee, 0xee, 255) : t.thumb;
+        dl->AddRectFilled(ImVec2(x + tsz * 0.22f, ty + tsz * 0.35f), ImVec2(x + tsz * 0.78f, ty + tsz * 0.72f), brick, 1.0f * s);
+    }
+    dl->PopClipRect();
+}
+
+// a small word wrap for the descriptions of the cards
+static void textWrap(Ui& u, ImVec2 p, float w, float px, ImU32 col, const char* t, int maxLines) {
+    const std::string all = t;
+    std::string line;
+    float y = p.y;
+    int lines = 0;
+    size_t i = 0;
+    while (lines < maxLines) {
+        const size_t sp = all.find(' ', i);
+        const std::string word = all.substr(i, sp == std::string::npos ? std::string::npos : sp - i);
+        const std::string tryLine = line.empty() ? word : line + " " + word;
+        if (!line.empty() && u.textW(px, tryLine.c_str()) > w) {
+            u.text(ImVec2(p.x, y), px, col, line.c_str());
+            y += u.fs(px) * 1.15f;
+            ++lines;
+            line = word;
+        } else line = tryLine;
+        if (sp == std::string::npos) break;
+        i = sp + 1;
+    }
+    if (lines < maxLines && !line.empty()) u.text(ImVec2(p.x, y), px, col, line.c_str());
+}
+
+static float fontKOf(int font) { return font == theme::FONT_INSTRUMENT ? 1.22f * 1.22f / 1.33f * 1.02f : font == theme::FONT_GEIST ? 1.22f * 1.30f / 1.33f * 0.86f : 1.22f; }
+
+void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
+    const float s = u.s, pad = 14 * s, gap = 10 * s, rowH = 30 * s;
+    const auto& all = theme::themes();
+    float y = p0.y + pad + 20 * s + gap;
+    bool changed = false;
+    // ---- Thème: one card per theme
+    u.text(ImVec2(p0.x + pad, y), 11, C_DIM, "Thème");
+    y += 16 * s;
+    const int n = (int)all.size();
+    const float cg = 8 * s, cw = (p1.x - p0.x - 2 * pad - (n - 1) * cg) / n, pvH = cw * 0.62f, ch = pvH + 54 * s;
+    for (int k = 0; k < n; ++k) {
+        const theme::Def& d = all[k];
+        const ImVec2 a(p0.x + pad + k * (cw + cg), y), b(a.x + cw, y + ch);
+        const bool on = m_themeId == d.id, hv = u.hover(a, b);
+        const ThemeLook lk = m_themeLooks.count(d.id) ? m_themeLooks[d.id] : ThemeLook{};
+        const bool dk = d.mode >= 0 ? d.mode == 1 : pcDarkNow();
+        const theme::Tokens t = on ? m_th : theme::resolve(d.id, dk, lk.tint, lk.accent);
+        u.dl->AddRectFilled(a, b, hv && !on ? C_CARD_HI : C_CARD, rr(10 * s));
+        const ImVec2 pa(a.x + 5 * s, a.y + 5 * s), pb(b.x - 5 * s, a.y + 5 * s + pvH);
+        themePreview(u.dl, s, t, pa, pb, std::string(d.id) == "sommet" ? themeTex("sommet/banner-wide.png") : 0);
+        u.dl->AddRect(pa, pb, C_LINE, 0, 0, 1.0f);
+        // the name in the theme's own font
+        ImFont* f = m_gui->fontBold ? m_gui->fontBold : u.bold;
+        if (t.font == theme::FONT_INSTRUMENT && g_fInstr[1]) f = g_fInstr[1];
+        if (t.font == theme::FONT_GEIST && g_fGeist[1]) f = g_fGeist[1];
+        u.dl->AddText(f, 13 * s * fontKOf(t.font), ImVec2(a.x + 8 * s, pb.y + 6 * s), C_TEXT, d.label);
+        textWrap(u, ImVec2(a.x + 8 * s, pb.y + 25 * s), cw - 14 * s, 9.5f, C_DIM, d.desc, 2);
+        if (on) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
+        if (hv && u.pressed && !on) { m_themeId = d.id; changed = true; }
+    }
+    y += ch + gap + 4 * s;
+    const int ti = std::max(0, theme::indexOf(m_themeId));
+    const theme::Def& cur = all[ti];
+    ThemeLook& look = m_themeLooks[m_themeId];
+    const float colW = (p1.x - p0.x - 2 * pad - 2 * gap) / 2;
+    {   // ---- Clair ou sombre (Système follows Windows) | Aperçu
+        const float x0 = p0.x + pad;
+        u.text(ImVec2(x0, y), 11, C_DIM, "Clair ou sombre");
+        if (cur.mode >= 0) u.text(ImVec2(x0 + u.textW(11, "Clair ou sombre") + 6 * s, y), 11, C_FAINT, cur.mode == 1 ? "·  ce thème reste sombre" : "·  ce thème reste clair");
+        const float x1 = p0.x + pad + colW + gap;
+        u.text(ImVec2(x1, y), 11, C_DIM, "Aperçu");
+        y += 16 * s;
+        static const char* kModes[3] = {"Système", "Clair", "Sombre"};
+        const float bw = (colW - 2 * 4 * s) / 3;
+        for (int k = 0; k < 3; ++k) {
+            const ImVec2 a(x0 + k * (bw + 4 * s), y), b(a.x + bw, y + rowH);
+            const bool enabled = cur.mode < 0, on = enabled ? m_uiThemePref == k : (k == (cur.mode == 1 ? 2 : 1));
+            const bool hv = enabled && u.hover(a, b);
+            ImU32 bg = on ? C_ACCENT : (hv ? C_CARD_HI : C_CARD), fg = on ? C_INK : C_TEXT;
+            if (!enabled) { bg = alphaOf(bg, 0.45f); fg = alphaOf(fg, 0.45f); }
+            u.dl->AddRectFilled(a, b, bg, rb(7 * s, rowH));
+            const float tw = u.textW(12, kModes[k], on);
+            u.text(ImVec2((a.x + b.x - tw) * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, fg, kModes[k], on);
+            if (hv && u.pressed && !on) { m_uiThemePref = k; changed = true; }
+        }
+        // the active colours, as PLUM's « Couleurs actives »: the main button, a secondary one, a slider, the texts
+        float bx = x1;
+        const char* l1 = "Principal";
+        const float w1 = u.textW(12, l1, true) + 24 * s;
+        u.dl->AddRectFilled(ImVec2(bx, y), ImVec2(bx + w1, y + rowH), C_ACCENT, rb(7 * s, rowH));
+        u.text(ImVec2(bx + 12 * s, y + (rowH - u.fs(12)) * 0.5f), 12, C_INK, l1, true);
+        bx += w1 + 6 * s;
+        const char* l2 = "Annuler";
+        const float w2 = u.textW(12, l2) + 24 * s;
+        u.dl->AddRectFilled(ImVec2(bx, y), ImVec2(bx + w2, y + rowH), C_CARD, rb(7 * s, rowH));
+        if (g_lines) u.dl->AddRect(ImVec2(bx, y), ImVec2(bx + w2, y + rowH), C_LINE, rb(7 * s, rowH));
+        u.text(ImVec2(bx + 12 * s, y + (rowH - u.fs(12)) * 0.5f), 12, C_TEXT, l2);
+        bx += w2 + 12 * s;
+        const float cy = y + rowH * 0.5f, ex = p1.x - pad - 8 * s;
+        if (ex - bx > 40 * s) {
+            u.dl->AddRectFilled(ImVec2(bx, cy - 3 * s), ImVec2(ex, cy + 3 * s), C_CARD, 3 * s);
+            u.dl->AddRectFilled(ImVec2(bx, cy - 3 * s), ImVec2(bx + (ex - bx) * 0.62f, cy + 3 * s), C_PROGRESS, 3 * s);
+            u.dl->AddCircleFilled(ImVec2(bx + (ex - bx) * 0.62f, cy), 7 * s, C_PROGRESS);
+        }
+        y += rowH + 6 * s;
+        float tx = x1;
+        tx += u.text(ImVec2(tx, y), 11, C_TEXT, "Texte").x + 10 * s;
+        tx += u.text(ImVec2(tx, y), 11, C_DIM, "secondaire").x + 10 * s;
+        tx += u.text(ImVec2(tx, y), 11, C_FAINT, "discret").x + 10 * s;
+        u.text(ImVec2(tx, y), 11, C_ACCENT_TXT, "accent", true);
+    }
+    y += 16 * s + gap;
+    // ---- Couleur du thème (the tint of the greys) | Couleur d'accent
+    auto chips = [&](float x0, float yy, const char* title, int count, const std::function<const char*(int)>& name,
+                     const std::function<uint32_t(int)>& rgb, int& sel) {
+        u.text(ImVec2(x0, yy), 11, C_DIM, title);
+        yy += 16 * s;
+        float x = x0;
+        const float chH = 26 * s;
+        for (int k = 0; k < count; ++k) {
+            const char* nm = name(k);
+            const float w = 22 * s + u.textW(11.5f, nm, sel == k) + 10 * s;
+            if (x + w > x0 + colW && x > x0) { x = x0; yy += chH + 5 * s; }
+            const ImVec2 a(x, yy), b(x + w, yy + chH);
+            const bool on = sel == k, hv = u.hover(a, b);
+            u.dl->AddRectFilled(a, b, on ? C_PANEL_SOLID : (hv ? C_CARD_HI : C_CARD), chH * 0.5f);
+            if (on) u.dl->AddRect(a, b, C_TEXT, chH * 0.5f, 0, 1.5f * s);
+            u.dl->AddCircleFilled(ImVec2(a.x + 12 * s, (a.y + b.y) * 0.5f), 5 * s, theme::col(rgb(k)), 20);
+            u.text(ImVec2(a.x + 21 * s, a.y + (chH - u.fs(11.5f)) * 0.5f), 11.5f, C_TEXT, nm, on);
+            if (hv && u.pressed && !on) { sel = k; changed = true; }
+            x += w + 5 * s;
+        }
+        return yy + chH;
+    };
+    const float yA = chips(p0.x + pad, y, "Couleur du thème", (int)cur.tints.size(), [&](int k) { return cur.tints[k].name; },
+                           [&](int k) { return cur.tints[k].swatch; }, look.tint);
+    const float yB = chips(p0.x + pad + colW + gap, y, "Couleur d'accent", (int)cur.accents.size(), [&](int k) { return cur.accents[k].name; },
+                           [&](int k) { return cur.accents[k].rgb; }, look.accent);
+    y = std::max(yA, yB) + gap;
+    u.text(ImVec2(p0.x + pad, y), 10, C_FAINT, "Chaque thème garde sa couleur et son accent. Minimal et Sommet viennent du kit PLUM.");
+    y += 14 * s + pad;
+    m_themeTabH = y - p0.y;
+    if (changed) {
+        m_thKey.clear();   // (resolved again next frame; the 3D stage follows)
+        savePrefs();
+    }
+}
+
 // --------------------------------------------------------------------------- settings (native addition, gear button)
 // UI scale (text and panels, 4K), thumbnail size, real time quality / path tracing, ambient occlusion of the HQ mode,
 // tone mapping, voxels, animations, automatic save. Saved in brickit_prefs.json.
 void BrickApp::uiSettings() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float W = 320 * s, pad = 14 * s, rowH = 30 * s, gap = 10 * s;
+    if (m_setTab == 1 && !m_ipad) {   // Réglages › Thème
+        const float W2 = 2 * W, H = std::min(d.y - 8 * s - m_popupAt.y, m_themeTabH > 0 ? m_themeTabH : 480 * s);
+        ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, p0.y + H);
+        u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), m_th.shadow, rr(12 * s));
+        u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(12 * s));
+        u.dl->AddRect(p0, p1, C_LINE, rr(12 * s));
+        m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
+        const bool tabClick = settingsTabs(u, ImVec2(p0.x + pad, p0.y + pad - 3 * s));
+        uiThemeTab(u, p0, p1);
+        if (u.pressed && !tabClick && !u.hover(p0, p1) && u.mouse.y > 30 * s) m_popup = 0;
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+        return;
+    }
     struct Opt { const char* label; bool on; };
     struct Row { const char* title; std::vector<Opt> opts; int id; };
     char scaleLab[5][8];
@@ -2976,7 +3327,6 @@ void BrickApp::uiSettings() {
     std::vector<Row> rows = {
         {"Échelle de l'interface", scales, 0},
         {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
-        {"Thème", {{"Système", m_uiThemePref == 0}, {"Clair", m_uiThemePref == 1}, {"Sombre", m_uiThemePref == 2}}, 17},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
         {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
@@ -3000,12 +3350,13 @@ void BrickApp::uiSettings() {
     const float W2 = m_ipad ? W : 2 * W;   // (the iPad: no Lumière column)
     // (the Lumière column as tall as it was drawn last frame: its rows depend on the settings)
     ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, std::min(p0.y + (m_ipad ? H : std::max(H, std::max(H2, m_lumColumnH))), d.y - 8 * s));
-    u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), IM_COL32(0, 0, 0, 60), 12 * s);
-    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, 12 * s);
-    u.dl->AddRect(p0, p1, C_LINE, 12 * s);
+    u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), m_th.shadow, rr(12 * s));
+    u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(12 * s));
+    u.dl->AddRect(p0, p1, C_LINE, rr(12 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     float y = p0.y + pad;
-    u.text(ImVec2(p0.x + pad, y), 14, C_TEXT, "Réglages", true);
+    if (m_ipad) u.text(ImVec2(p0.x + pad, y), 14, C_TEXT, "Réglages", true);
+    else settingsTabs(u, ImVec2(p0.x + pad, y - 3 * s));
     y += 20 * s + gap;
     int clickRow = -1, clickOpt = -1;
     for (const Row& r : rows) {
@@ -3017,7 +3368,7 @@ void BrickApp::uiSettings() {
         for (size_t i = 0; i < r.opts.size(); ++i) {
             ImVec2 a(x, y), b(x + bw, y + rowH);
             const bool h = u.hover(a, b);
-            u.dl->AddRectFilled(a, b, r.opts[i].on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+            u.dl->AddRectFilled(a, b, r.opts[i].on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
             const float tw = u.textW(12, r.opts[i].label, r.opts[i].on);
             u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, r.opts[i].on ? C_INK : C_TEXT, r.opts[i].label, r.opts[i].on);
             if (h && u.pressed) { clickRow = r.id; clickOpt = (int)i; }
@@ -3041,7 +3392,7 @@ void BrickApp::uiSettings() {
                 const bool on = (k == 0) == m_softGI;
                 ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const char* lab = k == 0 ? "Oui" : "Non";
                 const float tw = u.textW(12, lab, on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
@@ -3057,7 +3408,7 @@ void BrickApp::uiSettings() {
                 const bool on = (k == 0) == m_softGIHold;
                 ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const char* lab = k == 0 ? "Oui" : "Non";
                 const float tw = u.textW(12, lab, on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
@@ -3076,7 +3427,7 @@ void BrickApp::uiSettings() {
                 const bool on = m_softGIProbes == kBudgets[k];
                 ImVec2 a(x0 + pad + k * (bw4 + 4 * s), ly), b(a.x + bw4, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const float tw = u.textW(12, kLabels[k], on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, kLabels[k], on);
                 if (h && u.pressed && !on) { m_softGIProbes = kBudgets[k]; m_renderer->resetAccumulation(); savePrefs(); }
@@ -3089,7 +3440,7 @@ void BrickApp::uiSettings() {
                 const bool on = (k == 0) == m_showProbes;
                 ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const char* lab = k == 0 ? "Oui" : "Non";
                 const float tw = u.textW(12, lab, on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
@@ -3105,7 +3456,7 @@ void BrickApp::uiSettings() {
                 const bool on = (k == 0) == m_giLookdev;
                 ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const char* lab = k == 0 ? "Oui" : "Non";
                 const float tw = u.textW(12, lab, on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
@@ -3121,7 +3472,7 @@ void BrickApp::uiSettings() {
             const float bx = x0 + pad + (i % 2) * (bw + 4 * s);
             ImVec2 a(bx, ly), b(bx + bw, ly + rowH);
             const bool on = m_hdriPaths[i] == m_hdriPath, h = u.hover(a, b);
-            u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+            u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
             std::string name = "Ciel procédural";
             if (!m_hdriPaths[i].empty()) {
                 std::wstring f = m_hdriPaths[i].substr(m_hdriPaths[i].find_last_of(L"\\/") + 1);
@@ -3143,7 +3494,7 @@ void BrickApp::uiSettings() {
         {   // load a custom HDRI
             ImVec2 a(x0 + pad, ly), b(x1 - pad, ly + rowH);
             const bool h = u.hover(a, b);
-            u.dl->AddRectFilled(a, b, h ? C_CARD_HI : C_CARD, 7 * s);
+            u.dl->AddRectFilled(a, b, h ? C_CARD_HI : C_CARD, rb(7 * s, rowH));
             const char* lab = "Charger une HDRI…  (.hdr, .exr)";
             const float tw = u.textW(12, lab, false);
             u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, C_TEXT, lab);
@@ -3171,8 +3522,8 @@ void BrickApp::uiSettings() {
             }
             const float t = std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f), cy = ly + rowH * 0.5f;
             u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(b.x, cy + 3 * s), C_CARD, 3 * s);
-            u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(a.x + (b.x - a.x) * t, cy + 3 * s), C_ACCENT, 3 * s);
-            u.dl->AddCircleFilled(ImVec2(a.x + (b.x - a.x) * t, cy), (h || m_setDrag == id ? 9 : 8) * s, C_ACCENT);
+            u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(a.x + (b.x - a.x) * t, cy + 3 * s), C_PROGRESS, 3 * s);
+            u.dl->AddCircleFilled(ImVec2(a.x + (b.x - a.x) * t, cy), (h || m_setDrag == id ? 9 : 8) * s, C_PROGRESS);
             ly += rowH + gap;
             return changed;
         };
@@ -3195,7 +3546,7 @@ void BrickApp::uiSettings() {
                 const bool on = m_focusMode == k;
                 ImVec2 a(x0 + pad + k * (bw3 + 4 * s), ly), b(a.x + bw3, ly + rowH);
                 const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                 const float tw = u.textW(10.5f, kFocus[k], on);
                 u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(10.5f)) * 0.5f), 10.5f, on ? C_INK : C_TEXT, kFocus[k], on);
                 if (h && u.pressed && !on) { m_focusMode = k; if (k == 2) m_focusManual = std::clamp(m_focusCur > 0 ? m_focusCur : m_scene.camera.distance, 2.0f, 400.0f); savePrefs(); }
@@ -3210,7 +3561,7 @@ void BrickApp::uiSettings() {
                     const bool on = (k == 0) == m_focusReticle;
                     ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
                     const bool h = u.hover(a, b);
-                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                     const char* lab = k == 0 ? "Affiché" : "Masqué";
                     const float tw = u.textW(12, lab, on);
                     u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
@@ -3233,7 +3584,7 @@ void BrickApp::uiSettings() {
                 bool on;
                 if (k == 0) {
                     on = m_gridAlpha <= 0;
-                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), 7 * s);
+                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                     const float tw = u.textW(10, "Défaut", on);
                     u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(10)) * 0.5f), 10, on ? C_INK : C_TEXT, "Défaut", on);
                     if (h && u.pressed) { m_gridAlpha = 0; lookChanged = true; savePrefs(); }
@@ -3241,7 +3592,7 @@ void BrickApp::uiSettings() {
                     const uint32_t c = sw[k - 1];
                     const float3 rgb(((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f);
                     on = m_gridAlpha > 0 && length(rgb - m_gridRgb) < 0.01f;
-                    u.dl->AddRectFilled(a, b, IM_COL32((c >> 16) & 255, (c >> 8) & 255, c & 255, 255), 7 * s);
+                    u.dl->AddRectFilled(a, b, IM_COL32((c >> 16) & 255, (c >> 8) & 255, c & 255, 255), rb(7 * s, rowH));
                     if (on || h) u.dl->AddRect(a, b, on ? C_ACCENT : C_TEXT, 7 * s, 0, (on ? 3.0f : 1.5f) * s);
                     if (h && u.pressed) { m_gridRgb = rgb; if (m_gridAlpha <= 0) m_gridAlpha = 0.6f; lookChanged = true; savePrefs(); }
                 }
@@ -3286,14 +3637,14 @@ void BrickApp::uiSettings() {
         case 12: m_stillAA = clickOpt == 0; break;
         case 14: m_touchHud = clickOpt == 0; m_arcOpen = false; break;
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
-        case 17: m_uiThemePref = clickOpt; break;
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }
         }
         m_renderer->resetAccumulation();
         savePrefs();
     }
-    if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > 30 * s) m_popup = 0;
+    if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > 30 * s && !m_tabClicked) m_popup = 0;
+    m_tabClicked = false;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
 }
 
@@ -3331,7 +3682,7 @@ void BrickApp::uiCtxMenu() {
 void BrickApp::uiThumbEditor() {
     if (m_teditPart < 0) return;
     Ui u = ui(m_ui);
-    if (m_gui->fontBold) u.bold = m_gui->fontBold;
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(0, 0, 0, 128));

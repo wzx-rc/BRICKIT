@@ -1,0 +1,4 @@
+Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)
+
+
+http://scripts.sil.org/OFL

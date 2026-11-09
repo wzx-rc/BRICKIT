@@ -38,6 +38,7 @@ static void uiTheme(bool warm) {
         C_OVERLAY = IM_COL32(15, 16, 19, 219);
         C_HUD = IM_COL32(15, 16, 19, 184);
     }
+    C_PROGRESS = C_ACCENT;   // (the sliders: the accent, as before the themes)
 }
 
 static int colorFamily(const Color& c) {
