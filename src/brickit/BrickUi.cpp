@@ -3342,7 +3342,7 @@ void BrickApp::uiSettings() {
         m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
         const bool tabClick = settingsTabs(u, ImVec2(p0.x + pad, p0.y + pad - 3 * s));
         uiThemeTab(u, p0, p1);
-        if (u.pressed && !tabClick && !u.hover(p0, p1) && u.mouse.y > 30 * s) m_popup = 0;
+        if (u.pressed && !tabClick && !u.hover(p0, p1) && u.mouse.y > (m_studioUi ? 46 : 30) * s) m_popup = 0;
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
         return;
     }
@@ -3677,7 +3677,7 @@ void BrickApp::uiSettings() {
         m_renderer->resetAccumulation();
         savePrefs();
     }
-    if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > 30 * s && !m_tabClicked) m_popup = 0;
+    if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > (m_studioUi ? 46 : 30) * s && !m_tabClicked) m_popup = 0;
     m_tabClicked = false;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
 }

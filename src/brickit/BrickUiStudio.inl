@@ -388,7 +388,7 @@ void BrickApp::stHeader() {
     auto roundBtn = [&](const char* icon, const char* tip, bool on, bool enabled) {
         const float r = 15 * s;
         const ImVec2 c(rx - r, cy);
-        const bool h = enabled && (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r && m_popup == 0;
+        const bool h = enabled && (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r && (m_popup == 0 || on);   // (open: a second click closes it)
         if (on || h) u.dl->AddCircleFilled(c, r, IM_COL32(255, 255, 255, on ? 34 : 16), 32);
         u.dl->AddCircle(c, r, IM_COL32(255, 255, 255, 30), 32, 1.0f);
         stIcon(u.dl, icon, c, 17 * s, enabled ? C_TEXT : stA(C_TEXT, 0.3f), 1.3f * s);
@@ -665,6 +665,16 @@ void BrickApp::stDrawer() {
     for (const StFam& f : fams) if (m_stFam == f.key) fam = &f;
     if (!fam) { m_stFam = "basique"; m_stSub = -1; fam = &fams[2]; }
     if (m_stSub >= (int)fam->subs.size()) m_stSub = -1;
+    {   // each family and category keeps where its cards were scrolled (Wzx 09/11/2026)
+        const std::string sk = m_searchOpen ? std::string("?") : m_stFam + "|" + std::to_string(m_stSub);
+        if (sk != m_stScrollKey) {
+            if (!m_stScrollKey.empty()) m_stScrollMem[m_stScrollKey] = m_cardsScroll;
+            auto it = m_stScrollMem.find(sk);
+            m_cardsScroll = it != m_stScrollMem.end() && sk != "?" ? it->second : 0.0f;
+            m_cardsVel = 0;
+            m_stScrollKey = sk;
+        }
+    }
     float y = p0.y + 12 * s;
     const ImVec2 fa(padX, y), fb(d.x - padX, y + famH);
     stGlass(u.dl, fa, fb, 16 * s, s);
@@ -685,7 +695,7 @@ void BrickApp::stDrawer() {
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
             stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 17 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
-            if (h && u.pressed) { m_stFam = f.key; m_stSub = -1; m_stW = m_stL = 0; m_searchOpen = false; m_search.clear(); m_cardsScroll = 0; m_stSubScroll = 0; }
+            if (h && u.pressed) { m_stFam = f.key; m_stSub = -1; m_stW = m_stL = 0; m_searchOpen = false; m_search.clear(); m_stSubScroll = 0; }
         }
     }
     y += famH + 8 * s;
@@ -704,7 +714,7 @@ void BrickApp::stDrawer() {
             u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), subH * 0.5f, 0, 1.0f);
             stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ImVec2(a.x + 6 * s + 14 * s, (a.y + b.y) * 0.5f), 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
             stTrack(u, ImVec2(a.x + 6 * s + 28 * s + 7 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
-            if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; m_cardsScroll = 0; }
+            if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
             x += w + 6 * s;
             total += w + 6 * s;
         }
@@ -881,7 +891,7 @@ void BrickApp::stDrawer() {
             const char* cat = "catégorie";
             const float cw = u.textW(8, cat);
             u.text(ImVec2((a.x + b.x - cw) * 0.5f, a.y + 71 * s + lift), 8, stA(IM_COL32(117, 120, 126, 255), op), cat);
-            if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; m_cardsScroll = 0; }
+            if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; }
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / 2, r = k % 2;
@@ -936,7 +946,12 @@ void BrickApp::stDrawer() {
         if (std::find(m_fav.begin(), m_fav.end(), part) != m_fav.end()) stPicto(u.dl, "star", 0, 0, ImVec2(b.x - 11 * s, a.y + 11 * s), 11 * s, C_ACCENT_TXT, 1.0f * s);
         if (k == m_opt.cardSheet && !h) { m_stHov = part; m_stHovT = now - 1; m_stHovA = a; m_stHovB = b; hovered = true; }   // (captures: --card-sheet N)
         if (h) {
-            if (m_stHov != part) { m_stHov = part; m_stHovT = now; m_stHovA = a; m_stHovB = b; }
+            if (m_stHov != part) {   // a sheet shown a moment ago: the next card shows its own at once
+                m_stHov = part;
+                m_stHovT = now - m_stSheetSeen < 0.25 ? now - 0.6 : now;
+                m_stHovA = a;
+                m_stHovB = b;
+            }
             hovered = true;
             if (u.pressed) { m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
             if (m_dev && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_ctxPart = part; m_ctxPos = u.mouse; }
@@ -944,7 +959,7 @@ void BrickApp::stDrawer() {
     }
     u.dl->PopClipRect();
     if (!hovered || m_libPress >= 0 || ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (!hovered) m_stHov = -1; }
-    else if (m_stHov >= 0 && now - m_stHovT > 0.5) stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5));
+    else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
     if (contentW > viewW) {   // a thin scroll bar
         const float bw = viewW * viewW / contentW, bx = ca.x + (viewW - bw) * (m_cardsScroll / (contentW - viewW));
         u.dl->AddRectFilled(ImVec2(bx, cb.y + 3 * s), ImVec2(bx + bw, cb.y + 5 * s), IM_COL32(255, 255, 255, 40), 2 * s);
@@ -989,7 +1004,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     u.dl = ImGui::GetForegroundDrawList();
-    const float s = m_ui, e = std::clamp(t / 0.15f, 0.0f, 1.0f), ease = 1 - (1 - e) * (1 - e);
+    const float s = m_ui, e = std::clamp(t / 0.08f, 0.0f, 1.0f), ease = 1 - (1 - e) * (1 - e);
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const Part& P = m_lib.parts[part];
     const float W = 236 * s, H = 276 * s, pad = 12 * s;

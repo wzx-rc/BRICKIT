@@ -755,12 +755,35 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
     // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
     // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).
-    if (m_lazyThumbs.size() >= 140) {
+    if (m_lazyThumbs.size() >= 120) {
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;
         m_gui->releaseTexture(old->second.first);
         m_lazyThumbs.erase(old);
+    }
+    // the HD images (512 px) reduced by 2 on the CPU, alpha weighted: the GPU draws them smaller still without mipmaps,
+    // straight from 512 px the edges shimmered (the aliasing of the sheet, Wzx 09/11/2026)
+    while (w >= 400 && h >= 400) {
+        const int w2 = w / 2, h2 = h / 2;
+        std::vector<uint8_t> half((size_t)w2 * h2 * 4);
+        for (int y = 0; y < h2; ++y)
+            for (int x = 0; x < w2; ++x) {
+                float acc[4] = {0, 0, 0, 0};
+                for (int dy = 0; dy < 2; ++dy)
+                    for (int dx = 0; dx < 2; ++dx) {
+                        const uint8_t* q = &rgba[((size_t)(2 * y + dy) * w + 2 * x + dx) * 4];
+                        const float a = q[3] / 255.0f;
+                        for (int c = 0; c < 3; ++c) acc[c] += q[c] * a;
+                        acc[3] += a;
+                    }
+                uint8_t* o = &half[((size_t)y * w2 + x) * 4];
+                for (int c = 0; c < 3; ++c) o[c] = acc[3] > 0 ? (uint8_t)std::min(255.0f, acc[c] / acc[3] + 0.5f) : 0;
+                o[3] = (uint8_t)std::min(255.0f, acc[3] / 4 * 255.0f + 0.5f);
+            }
+        rgba.swap(half);
+        w = w2;
+        h = h2;
     }
     tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
     if (!tex) return false;   // (no slot left: not kept, tried again later)

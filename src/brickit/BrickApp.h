@@ -723,7 +723,9 @@ private:
     std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
     int m_stSub = -1;
     bool m_hideDeco = true;           // Réglages: the decorated parts (stickers, printed patterns) hidden from the library (Wzx 09/11/2026)                 // its category (-1: Toutes, the tiles of its categories)
-    float m_stSubScroll = 0;          // the row of the categories, scrolled sideways
+    float m_stSubScroll = 0;
+    std::unordered_map<std::string, float> m_stScrollMem;   // the scroll of the cards, kept per family and category
+    std::string m_stScrollKey;          // the row of the categories, scrolled sideways
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
@@ -752,6 +754,7 @@ private:
     void stCardSheet(int part, ImVec2 a, ImVec2 b, float t);
     int m_stHov = -1;                 // the card under the cursor, since m_stHovT (its sheet after 0.5 s)
     double m_stHovT = 0;
+    double m_stSheetSeen = -1;        // when the sheet of a card was last shown (moving to the next card: at once)
     ImVec2 m_stHovA, m_stHovB;
     std::vector<int> stArcColors() const;
     bool settingsTabs(Ui& u, ImVec2 p);   // Réglages | Thème; true when clicked

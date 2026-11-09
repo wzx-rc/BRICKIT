@@ -50,10 +50,19 @@ public:
     void render(bool viewportTextureInUse) override { l.render(viewportTextureInUse); }
     void onResize() override { l.onResize(); }
     ImTextureID viewportTexture() override { return l.viewportTexture(); }
-    ImTextureID createTexture(const uint8_t* rgba, uint32_t w, uint32_t h) override { return l.createTexture(rgba, w, h); }
-    void releaseTexture(ImTextureID id) override { l.releaseTexture(id); }
+    // the interface has 256 texture slots (engine ImGuiLayer), shared with the font atlas of ImGui, the viewport and the
+    // views: the textures of BrickIt stop at 200, so that the font atlas, when it grows, always finds a free slot (a
+    // full heap gave it a slot already taken: all the text garbled, then a hang)
+    ImTextureID createTexture(const uint8_t* rgba, uint32_t w, uint32_t h) override {
+        if (m_live >= 200) return (ImTextureID)0;
+        const ImTextureID id = l.createTexture(rgba, w, h);
+        if (id) ++m_live;
+        return id;
+    }
+    void releaseTexture(ImTextureID id) override { if (id) { l.releaseTexture(id); m_live = m_live > 0 ? m_live - 1 : 0; } }
 
 private:
+    int m_live = 0;
     void sync() { fontBold = l.fontBold; fontSmall = l.fontSmall; dpi = l.dpi; }
 };
 
