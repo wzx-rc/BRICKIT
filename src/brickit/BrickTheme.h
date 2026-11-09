@@ -53,6 +53,7 @@ struct Tokens {
     int hudStyle = HUD_LEGO;
     ImU32 hudBtn = 0;                             // the bubbles of the HUD (HUD_FLAT, HUD_PILL)
     bool hudBtnWhiteIcon = true;
+    bool brickSwatch = false;                     // colour swatches drawn as a 1x1 brick seen from above (Glass, Red)
     Stage stage;
 };
 

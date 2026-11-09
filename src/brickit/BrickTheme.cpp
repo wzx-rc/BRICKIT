@@ -63,6 +63,13 @@ const std::vector<Def>& themes() {
         {"sommet", "Sommet", "PLUM : monochrome en Geist Mono, pilules noires, bleu ciel.", -1,
          {{"neutre", "Neutre", 270, 0.003f, 0}, {"brume", "Brume", 250, 0.012f, 0}, {"pierre", "Pierre", 70, 0.008f, 0}},
          {{"Bleu ciel", 0x3b6cf6}, {"Glacier", 0x22a2c4}, {"Alpage", 0x2f9e5b}, {"Lavande", 0x7c5ce0}, {"Crépuscule", 0xe86b3a}}},
+        // the « boîte Technic » mock-up (Maquette 4.0, 09/11/2026): smoked glass, fine lines, pills, line pictograms
+        {"glass", "Glass", "Verre fumé gris, filets fins, pilules, nuancier en briques 1×1.", 1,
+         {{"graphite", "Graphite", 0, 0, 0x2a2b2f}, {"ardoise", "Ardoise", 0, 0, 0x262b33}},
+         {{"Ambre", 0xd9b443}, {"Blanc", 0xe6e7ea}, {"Glacier", 0x6fb8d6}, {"Vert", 0x5aa66b}, {"Rouge", 0xd0101b}}},
+        {"red", "Red", "Le verre fumé de Glass sur un rouge brique profond, accent rouge LEGO.", 1,
+         {{"brique", "Brique", 0, 0, 0x3a1013}, {"noir", "Noir", 0, 0, 0x1c1213}},
+         {{"Rouge", 0xe3141f}, {"Ambre", 0xd9b443}, {"Blanc", 0xf0e8e8}}},
     };
     static bool swatches = false;
     if (!swatches) {   // the swatch of an oklch tint: its grey at mid lightness, a little more saturated so that it shows
@@ -188,6 +195,45 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
         if (accent == 0) t.onAccent = IM_COL32(0x2a, 0x31, 0x40, 255);
         t.font = FONT_SEGOE;
         t.hudStyle = HUD_LEGO;
+        return t;
+    }
+
+    if (t.id == "glass" || t.id == "red") {   // Maquette 4.0: translucent smoked panels over the 3D view, thin lines
+        const bool red = t.id == "red";
+        const bool alt = tint == 1;   // Glass · Ardoise (a cool grey) / Red · Noir (the red only in the accent)
+        t.dark = true;
+        if (!red) {
+            const int k = alt ? 4 : 0;   // (Ardoise: a touch of blue in the greys)
+            t.bg = IM_COL32(0x12, 0x13, 0x16 + k, 255);
+            t.panel = IM_COL32(28, 29, 32 + k, 188);
+            t.panelSolid = IM_COL32(0x1c, 0x1d, 0x20 + k, 250);
+            t.overlay = IM_COL32(22, 23, 26 + k, 205);
+            t.hud = IM_COL32(26, 27, 30 + k, 196);
+        } else {
+            t.bg = alt ? IM_COL32(0x14, 0x10, 0x10, 255) : IM_COL32(0x1a, 0x0b, 0x0d, 255);
+            t.panel = alt ? IM_COL32(30, 24, 25, 190) : IM_COL32(52, 14, 18, 188);
+            t.panelSolid = alt ? IM_COL32(0x22, 0x1a, 0x1b, 250) : IM_COL32(0x2e, 0x0e, 0x11, 250);
+            t.overlay = alt ? IM_COL32(26, 20, 21, 208) : IM_COL32(44, 12, 15, 205);
+            t.hud = alt ? IM_COL32(30, 22, 23, 196) : IM_COL32(48, 14, 17, 196);
+        }
+        t.card = IM_COL32(255, 255, 255, 16);
+        t.cardHi = IM_COL32(255, 255, 255, 30);
+        t.line = red && !alt ? IM_COL32(255, 150, 150, 34) : IM_COL32(255, 255, 255, 26);
+        t.text = red ? IM_COL32(0xf3, 0xea, 0xea, 255) : IM_COL32(0xe6, 0xe7, 0xea, 255);
+        t.dim = red ? IM_COL32(0xc4, 0xa8, 0xaa, 255) : IM_COL32(0xa2, 0xa5, 0xaa, 255);
+        t.faint = red ? IM_COL32(0x86, 0x6c, 0x6e, 255) : IM_COL32(0x6e, 0x71, 0x76, 255);
+        t.thumb = IM_COL32_WHITE;
+        t.shadow = IM_COL32(0, 0, 0, 70);
+        if (red) accentOf(t, d, accent, 0xe3141f, 0xb80f18, 0xe3141f, 0xff4a52);
+        else accentOf(t, d, accent, 0xd9b443, 0xc49a2a, 0xd9b443, 0xe2bf4f);
+        t.radius = 1.3f;   // (the iPad's rounder panels and cards)
+        t.pill = true;
+        t.lines = true;
+        t.font = FONT_SEGOE;
+        t.hudStyle = HUD_FLAT;
+        t.hudBtn = red ? IM_COL32(120, 24, 30, 205) : IM_COL32(64, 66, 72, 205);
+        t.hudBtnWhiteIcon = true;
+        t.brickSwatch = true;
         return t;
     }
 

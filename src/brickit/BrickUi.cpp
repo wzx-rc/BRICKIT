@@ -51,6 +51,7 @@ static float g_fontK = 1.22f;         // Segoe UI in ImGui reads smaller than in
 static float g_rk = 1.0f;             // radii of the panels and buttons
 static bool g_pill = false, g_lines = false;
 static int g_hudStyle = 0;            // theme::HUD_LEGO / HUD_FLAT / HUD_PILL
+static ImTextureID g_studTex = 0;     // Glass, Red: the swatches as a 1x1 brick seen from above (white, tinted by the colour)
 static float rr(float r) { return r * g_rk; }
 // the radius of a button of height h: the theme's, or a pill
 static float rb(float r, float h) { return g_pill ? h * 0.5f : r * g_rk; }
@@ -511,6 +512,7 @@ bool BrickApp::applyTheme() {
         changed = true;
     }
     m_darkUi = m_th.dark;
+    g_studTex = m_th.brickSwatch ? themeTex("glass/stud1x1.png") : 0;
     setTheme(m_th);
     return changed;
 }
@@ -587,9 +589,10 @@ static void pcBubble(ImDrawList* dl, ImVec2 c, float r, ImU32 col, float al, flo
     if (r < 0.5f || al <= 0.01f) return;
     if (g_hudStyle != theme::HUD_LEGO) {   // Minimal: flat discs with a fine line; Sommet: flat pills, no rim
         for (int k = 2; k >= 1; --k) dl->AddCircleFilled(ImVec2(c.x, c.y + 1.0f * s + k * 0.5f * s), r + k * 0.9f * s, IM_COL32(12, 14, 18, (int)(14 * al)), 40);
-        dl->AddCircleFilled(c, r, (col & 0x00ffffff) | ((ImU32)(255 * al) << 24), 48);
+        const float ca = ((col >> 24) & 0xff) / 255.0f;   // (Glass, Red: translucent smoked discs)
+        dl->AddCircleFilled(c, r, (col & 0x00ffffff) | ((ImU32)(255 * al * ca) << 24), 48);
         const float lum = ((col >> 0) & 0xff) * 0.3f + ((col >> 8) & 0xff) * 0.59f + ((col >> 16) & 0xff) * 0.11f;
-        if (g_hudStyle == theme::HUD_FLAT && lum > 200) dl->AddCircle(c, r, alphaOf(C_LINE, al), 48, 1.0f * s);
+        if (g_hudStyle == theme::HUD_FLAT && (lum > 200 || ca < 0.95f)) dl->AddCircle(c, r, alphaOf(ca < 0.95f ? IM_COL32(255, 255, 255, 60) : C_LINE, al), 48, 1.0f * s);
         return;
     }
     for (int k = 3; k >= 1; --k) dl->AddCircleFilled(ImVec2(c.x, c.y + 1.2f * s + k * 0.5f * s), r + k * 1.1f * s, IM_COL32(12, 18, 30, (int)(16 * al)), 40);
@@ -791,10 +794,16 @@ void BrickApp::uiSelHud() {
             const bool trans = col.group == "transparent";
             const ImU32 fill = IM_COL32((int)(col.srgb.x * 255), (int)(col.srgb.y * 255), (int)(col.srgb.z * 255), trans ? 180 : 255);
             const ImU32 pale = IM_COL32((int)(150 + col.srgb.x * 105), (int)(150 + col.srgb.y * 105), (int)(150 + col.srgb.z * 105), 235);   // a soft pale ring, tinted
+            if (g_studTex) {   // Glass, Red: the 1x1 brick, tinted
+                const float q = r * 0.92f;
+                u.dl->AddImage(g_studTex, ImVec2(p.x - q, p.y - q), ImVec2(p.x + q, p.y + q), ImVec2(0, 0), ImVec2(1, 1), alpha(fill, al));
+                if (cols[first + k] == curColor) u.dl->AddRect(ImVec2(p.x - q - 3 * s, p.y - q - 3 * s), ImVec2(p.x + q + 3 * s, p.y + q + 3 * s), alpha(C_ACCENT, al), 4 * s, 0, 1.5f * s);
+            } else {
             u.dl->AddCircleFilled(p, r, alpha(fill, al), 48);
             if (trans || col.group == "metallic") u.dl->AddCircleFilled(ImVec2(p.x - r * 0.32f, p.y - r * 0.32f), r * 0.3f, alpha(IM_COL32(255, 255, 255, 90), al), 24);
             if (cols[first + k] == curColor) u.dl->AddCircle(p, r + 1.5f * s, alpha(IM_COL32(255, 255, 255, 255), al), 32, 3.0f * s);
             else u.dl->AddCircle(p, r - 1.0f * s, alpha(pale, al), 32, 2.0f * s);
+            }
         }
         if (hit >= 0 && hit < n) {   // the name of the colour under the cursor, in the middle of the ring
             const Color& col = m_lib.palette[cols[first + hit]];
@@ -1294,7 +1303,8 @@ void BrickApp::uiColors() {
     const float headerH = 30 * s, trayTop = m_uiRects.size() > 1 ? m_uiRects[1].y : d.y;
     float y = std::max(headerH + 12 * s, headerH + (trayTop - headerH - H) * 0.5f);
     ImVec2 p0(d.x - 10 * s - W, y), p1(d.x - 10 * s, y + H);
-    u.dl->AddRectFilled(p0, p1, C_OVERLAY, 14 * s);
+    u.dl->AddRectFilled(p0, p1, C_OVERLAY, rr(14 * s));
+    if (g_lines) u.dl->AddRect(p0, p1, C_LINE, rr(14 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     u.grip(ImVec2(p0.x + pad, p0.y + pad), W - 2 * pad, "COULEURS", m_pColors.collapsed);
     if (u.hover(p0, ImVec2(p1.x, p0.y + pad + 14 * s)) && u.pressed) m_pColors.collapsed = !m_pColors.collapsed;
@@ -1331,18 +1341,23 @@ void BrickApp::uiColors() {
             if (c.group != key) continue;
             ImVec2 a(p0.x + pad + 2 * s + (k % 3) * (sw + gap), cy + (k / 3) * (sw + gap)), b(a.x + sw, a.y + sw);
             ImU32 col = IM_COL32((int)(c.srgb.x * 255), (int)(c.srgb.y * 255), (int)(c.srgb.z * 255), 255);
+            if (g_studTex) {   // Glass, Red: the brick seen from above, multiplied by the colour (transparent ones see-through)
+                u.dl->AddImage(g_studTex, a, b, ImVec2(0, 0), ImVec2(1, 1), (col & 0x00ffffff) | ((ImU32)(c.group == "transparent" ? 165 : 255) << 24));
+                if (c.group == "metallic") u.dl->AddRectFilledMultiColor(ImVec2(a.x + 3 * s, a.y + 3 * s), ImVec2(b.x - 6 * s, (a.y + b.y) * 0.5f), IM_COL32(255, 255, 255, 70), IM_COL32(255, 255, 255, 70), IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 0));
+            } else {
             u.dl->AddRectFilled(a, b, col, 7 * s);
             if (c.group == "transparent")   // .sw.trans::after: light diagonal
                 u.dl->AddRectFilledMultiColor(ImVec2(a.x + 4 * s, a.y + 4 * s), ImVec2(b.x - 4 * s, b.y - 4 * s), IM_COL32(255, 255, 255, 115), IM_COL32(255, 255, 255, 20), IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 20));
             if (c.group == "metallic")   // .sw.metal::after: vertical sheen
                 u.dl->AddRectFilledMultiColor(a, ImVec2(b.x, (a.y + b.y) * 0.5f), IM_COL32(255, 255, 255, 115), IM_COL32(255, 255, 255, 115), IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 0));
             u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 26), 7 * s);
+            }
             const bool exists = !filter || m_lib.colorExists(fpart, i);
             if (!exists) {   // does not exist for this part: veiled and struck through
                 u.dl->AddRectFilled(a, b, IM_COL32(0x13, 0x14, 0x17, 190), 7 * s);
                 u.dl->AddLine(ImVec2(a.x + 5 * s, b.y - 5 * s), ImVec2(b.x - 5 * s, a.y + 5 * s), IM_COL32(255, 255, 255, 70), 1.5f * s);
             }
-            if (i == m_color) u.dl->AddRect(ImVec2(a.x - 3 * s, a.y - 3 * s), ImVec2(b.x + 3 * s, b.y + 3 * s), C_ACCENT, 9 * s, 0, 2 * s);
+            if (i == m_color) u.dl->AddRect(ImVec2(a.x - 3 * s, a.y - 3 * s), ImVec2(b.x + 3 * s, b.y + 3 * s), C_ACCENT, (g_studTex ? 4 : 9) * s, 0, (g_studTex ? 1.5f : 2) * s);
             if (u.hover(a, b)) {
                 if (exists) ImGui::SetTooltip("%s · %d", c.name.c_str(), c.id);
                 else ImGui::SetTooltip("%s · %d : n'existe pas pour cette pièce (coche « Toutes les couleurs »)", c.name.c_str(), c.id);
@@ -3187,10 +3202,11 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
     u.text(ImVec2(p0.x + pad, y), 11, C_DIM, "Thème");
     y += 16 * s;
     const int n = (int)all.size();
-    const float cg = 8 * s, cw = (p1.x - p0.x - 2 * pad - (n - 1) * cg) / n, pvH = cw * 0.62f, ch = pvH + 54 * s;
+    const int perRow = n > 4 ? 3 : n, nRows = (n + perRow - 1) / perRow;   // (6 themes: 2 rows of 3)
+    const float cg = 8 * s, cw = (p1.x - p0.x - 2 * pad - (perRow - 1) * cg) / perRow, pvH = cw * (n > 4 ? 0.42f : 0.62f), ch = pvH + 54 * s;
     for (int k = 0; k < n; ++k) {
         const theme::Def& d = all[k];
-        const ImVec2 a(p0.x + pad + k * (cw + cg), y), b(a.x + cw, y + ch);
+        const ImVec2 a(p0.x + pad + (k % perRow) * (cw + cg), y + (k / perRow) * (ch + cg)), b(a.x + cw, a.y + ch);
         const bool on = m_themeId == d.id, hv = u.hover(a, b);
         const ThemeLook lk = m_themeLooks.count(d.id) ? m_themeLooks[d.id] : ThemeLook{};
         const bool dk = d.mode >= 0 ? d.mode == 1 : pcDarkNow();
@@ -3208,7 +3224,7 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
         if (on) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
         if (hv && u.pressed && !on) { m_themeId = d.id; changed = true; }
     }
-    y += ch + gap + 4 * s;
+    y += nRows * ch + (nRows - 1) * cg + gap + 4 * s;
     const int ti = std::max(0, theme::indexOf(m_themeId));
     const theme::Def& cur = all[ti];
     ThemeLook& look = m_themeLooks[m_themeId];
