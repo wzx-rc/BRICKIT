@@ -72,7 +72,9 @@ struct Options {
     int skinTint = -1, skinAccent = -1, settingsTab = -1;
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
-    int stSub = -2;        // --st-sub N: its category (-1: Toutes) (captures)
+    int stSub = -2;
+    bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
@@ -724,6 +726,8 @@ private:
     void uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1);
     // the Studio interface (BrickUiStudio.inl, Maquette 4.0, Wzx 09/11/2026)
     bool m_studioUi = true;           // Réglages › Interface: Studio (new) / Classique
+    bool m_paintMode = false;         // the mode PEINDRE of the header (its panel in place of the tools)
+    bool m_paintGroup = true;         // Peindre › Groupe entier: a click paints the whole group of the brick (off: the brick alone)
     bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
     std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
     int m_stSub = -1;
@@ -750,6 +754,13 @@ private:
     void drawUiStudio();
     void stHeader();
     void stTools();
+    void stPaintPanel();   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
+    void paintOne(int brick);
+    void stFile();         // the scene menu (m_popup 8): Nouvelle scène, Ouvrir, Enregistrer, Enregistrer sous
+    void newScene();
+    void saveNow();
+    void stGroups();       // Groupes, Studio style
+    float m_groupsScroll = 0;
     void stTool(int id);
     void stBadge();
     void stMore();

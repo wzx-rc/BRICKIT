@@ -336,6 +336,17 @@ void BrickApp::stHeader() {
     x += 92 * s;
     u.dl->AddLine(ImVec2(x, cy - 11 * s), ImVec2(x, cy + 11 * s), IM_COL32(255, 255, 255, 30), 1.0f);
     x += 12 * s;
+    {   // the scene menu: a click on the logo or on the name (Nouvelle scène, Ouvrir, Enregistrer)
+        const ImVec2 fa(0, 0), fb(x + 190 * s, H);
+        const bool hf = u.hover(fa, fb) && (m_popup == 0 || m_popup == 8);
+        if (hf || m_popup == 8) u.dl->AddRectFilled(ImVec2(x - 6 * s, cy - 17 * s), ImVec2(x + 180 * s, cy + 17 * s), IM_COL32(255, 255, 255, m_popup == 8 ? 22 : 12), 10 * s);
+        {   // a small chevron after the name
+            const ImVec2 c(x + 170 * s, cy - 8 * s);
+            u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 3.5f * s, c.y - 1.8f * s), ImVec2(c.x, c.y + 1.8f * s), ImVec2(c.x + 3.5f * s, c.y - 1.8f * s)}.data(), 3, C_DIM, 0, 1.3f * s);
+        }
+        if (hf && ImGui::GetIO().MouseDownDuration[0] < 0 && m_popup == 0) ImGui::SetTooltip("Scène : nouvelle, ouvrir, enregistrer");
+        if (hf && u.pressed) { m_popup = m_popup == 8 ? 0 : 8; m_popupAt = ImVec2(10 * s, H + 6 * s); }
+    }
     {   // the scene: its name, the count of pieces
         const std::string nm = stUpper(m_modelName.empty() ? std::string("Ma scène") : m_modelName);
         stTrack(u, ImVec2(x, cy - 15 * s), 11, C_TEXT, nm.c_str(), 1.4f * s);
@@ -346,7 +357,7 @@ void BrickApp::stHeader() {
     // the modes, in the middle: a segmented pill
     struct Seg { const char* label; bool on; int id; };
     const bool notice = m_pManual.visible;
-    std::vector<Seg> modes = {{"CONSTRUIRE", !m_mechOn && !m_paintTool && !notice, 0}, {"PEINDRE", m_paintTool && !m_mechOn, 1}, {"MÉCANIQUE", m_mechOn, 2}, {"NOTICE", notice && !m_mechOn, 3}};
+    std::vector<Seg> modes = {{"CONSTRUIRE", !m_mechOn && !m_paintMode && !notice, 0}, {"PEINDRE", m_paintMode && !m_mechOn, 1}, {"MÉCANIQUE", m_mechOn, 2}, {"NOTICE", notice && !m_mechOn, 3}};
     auto segW = [&](const char* t) { return stTrackW(u, 10, t, 1.6f * s, true) + 26 * s; };
     float total = 6 * s;
     for (const Seg& m : modes) total += segW(m.label) + 2 * s;
@@ -365,9 +376,9 @@ void BrickApp::stHeader() {
         stTrack(u, ImVec2((ma.x + mb.x - tw) * 0.5f, (ma.y + mb.y) * 0.5f - u.fs(10) * 0.52f), 10, m.on ? C_TEXT : C_DIM, m.label, 1.6f * s);
         if (h && u.pressed) {
             switch (m.id) {
-            case 0: if (m_mechOn) mechExit(); m_paintTool = false; m_pManual.visible = false; break;
-            case 1: if (m_mechOn) mechExit(); m_paintTool = true; m_pipette = false; toast("Peindre : clique une brique pour lui donner la couleur choisie"); break;
-            case 2: if (m_mechOn) mechExit(); else mechEnter(); m_paintTool = false; break;
+            case 0: if (m_mechOn) mechExit(); m_paintMode = false; m_paintTool = false; m_pipette = false; m_pManual.visible = false; break;
+            case 1: if (m_mechOn) mechExit(); m_paintMode = true; m_paintTool = true; m_pipette = false; break;
+            case 2: if (m_mechOn) mechExit(); else mechEnter(); m_paintMode = false; m_paintTool = false; m_pipette = false; break;
             case 3: m_pManual.visible = !m_pManual.visible; break;
             }
         }
@@ -435,6 +446,7 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
+    if (m_paintMode) { stPaintPanel(); return; }
     Ui u = ui(m_ui);
     const float s = m_ui;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
@@ -446,7 +458,6 @@ void BrickApp::stTools() {
         {ST_PICK, "Pipette : clic sur une brique pour prendre sa couleur (4)", "4", m_pipette, 3},
         {ST_MOVE, "Déplacer : flèches sur la sélection (5)", "5", m_mode == 2 && !m_paintTool && !m_pipette, 4},
         {ST_ROT, "Tourner : anneaux sur la sélection (6)", "6", m_mode == 3 && !m_paintTool && !m_pipette, 5},
-        {ST_MECH, "Mécanique : animer pivots, engrenages et axes", "", m_mechOn, 6},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
     const ImVec2 a(14 * s, top), b(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
@@ -470,7 +481,7 @@ void BrickApp::stTools() {
 
 void BrickApp::stTool(int id) {
     switch (id) {
-    case 0: case 1: case 4: case 5: m_mode = id == 0 ? 0 : id == 1 ? 1 : id == 4 ? 2 : 3; m_paintTool = false; m_pipette = false; break;
+    case 0: case 1: case 4: case 5: m_mode = id == 0 ? 0 : id == 1 ? 1 : id == 4 ? 2 : 3; m_paintTool = false; m_pipette = false; m_paintMode = false; break;
     case 2: m_paintTool = !m_paintTool; m_pipette = false; if (m_paintTool) toast("Pinceau : clique une brique pour lui donner la couleur choisie"); break;
     case 3: m_pipette = !m_pipette; m_paintTool = false; break;
     case 6: if (m_mechOn) mechExit(); else mechEnter(); break;
@@ -487,7 +498,9 @@ void BrickApp::stBadge() {
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     const char* g = m_build.gridSnap ? "GRILLE 1 TENON" : "SANS GRILLE";
     const float w1 = stTrackW(u, 9, "1 : 1", 1.2f * s, true) + 16 * s, w2 = stTrackW(u, 9, g, 1.2f * s, true) + 16 * s;
-    const ImVec2 a(76 * s, top), b(a.x + w1 + w2, top + 22 * s);
+    float bx = 76 * s;   // right of the panels on the left (tools / Peindre, Groupes)
+    for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 200 * s && m_uiRects[k].y < top + 30 * s) bx = std::max(bx, m_uiRects[k].z + 10 * s);
+    const ImVec2 a(bx, top), b(a.x + w1 + w2, top + 22 * s);
     const bool h = u.hover(a, b) && m_popup == 0;
     u.dl->AddRectFilled(a, b, IM_COL32(10, 11, 13, h ? 170 : 120), 11 * s);
     u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 50), 11 * s, 0, 1.0f);
@@ -508,7 +521,7 @@ void BrickApp::stMore() {
     struct It { const char* label; bool on; int id; };
     const std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
                                  {"Animations des briques (A)", m_animOn, 3}, {"Voxels (V)", m_showVox, 4}, {"Groupes", m_pGroups.visible, 5},
-                                 {"Bac à briques", m_bacOpen, 6}, {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
+                                 {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -545,6 +558,340 @@ void BrickApp::stMore() {
     }
     if (u.pressed && !clicked && !u.hover(a, b) && u.mouse.y > (m_uiRects.empty() ? 0 : m_uiRects[0].w)) m_popup = 0;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+}
+
+
+// ------------------------------------------------------------------ Peindre: the big Pinceau / Pipette, Groupe entier
+
+// the mode PEINDRE (Wzx 09/11/2026): in place of the tools, the Pinceau and the Pipette in big, then « Groupe entier »:
+// on, a click paints the whole group of the brick; off, the brick alone (inside its group)
+void BrickApp::stPaintPanel() {
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
+    const float W = 112 * s, pad = 8 * s, bh = 92 * s;
+    const ImVec2 a(14 * s, top), b(a.x + W, top + pad + 2 * (bh + 6 * s) + 10 * s + 64 * s + pad);
+    stGlass(u.dl, a, b, 18 * s, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    float y = a.y + pad;
+    struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
+    const B bs[2] = {{ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2},
+                     {ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3}};
+    for (const B& t : bs) {
+        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + bh);
+        const bool h = u.hover(ba, bb) && m_popup == 0;
+        if (t.on) { u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 14 * s); u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.85f), 14 * s, 0, 1.0f); }
+        else { u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, h ? 18 : 8), 14 * s); u.dl->AddRect(ba, bb, IM_COL32(255, 255, 255, h ? 60 : 26), 14 * s, 0, 1.0f); }
+        const ImU32 col = t.on ? C_ACCENT_TXT : C_TEXT;
+        stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, ba.y + 36 * s), 38 * s, col, 1.5f * s);
+        const float lw = stTrackW(u, 8, t.label, 1.6f * s, true);
+        stTrack(u, ImVec2((ba.x + bb.x - lw) * 0.5f, bb.y - 20 * s), 8, col, t.label, 1.6f * s);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
+        if (h && u.pressed) { if (t.id == 2) { m_paintTool = true; m_pipette = false; } else { m_pipette = true; m_paintTool = false; } }
+        y += bh + 6 * s;
+    }
+    y += 4 * s;
+    u.dl->AddLine(ImVec2(a.x + 12 * s, y), ImVec2(b.x - 12 * s, y), IM_COL32(255, 255, 255, 24), 1.0f);
+    y += 10 * s;
+    {   // Groupe entier: a switch
+        stTrack(u, ImVec2(a.x + 12 * s, y), 7, C_DIM, "GROUPE", 1.6f * s);
+        stTrack(u, ImVec2(a.x + 12 * s, y + 12 * s), 7, C_DIM, "ENTIER", 1.6f * s);
+        const ImVec2 sa(b.x - pad - 34 * s, y + 3 * s), sb(b.x - pad - 4 * s, y + 19 * s);
+        const ImVec2 ha(a.x, y - 4 * s), hb(b.x, y + 46 * s);
+        const bool h = u.hover(ha, hb) && m_popup == 0;
+        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), 8 * s);
+        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - 8 * s : sa.x + 8 * s, (sa.y + sb.y) * 0.5f), 6 * s, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
+        const char* sub = m_paintGroup ? "tout le groupe" : "la brique seule";
+        u.text(ImVec2(a.x + 12 * s, y + 28 * s), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, sub);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Activé : un clic peint tout le groupe de la brique. Désactivé : la brique seule, même dans un groupe");
+        if (h && u.pressed) { m_paintGroup = !m_paintGroup; savePrefs(); }
+    }
+}
+
+// the brick alone painted (Peindre, Groupe entier off): its group stays as it is
+void BrickApp::paintOne(int brick) {
+    if (brick < 0 || brick >= (int)m_bricks.size()) return;
+    m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
+    m_recentColors.insert(m_recentColors.begin(), m_color);
+    if (m_recentColors.size() > 12) m_recentColors.resize(12);
+    if (m_bricks[brick].color == m_color) return;
+    pushUndo();
+    m_bricks[brick].color = m_color;
+    syncObjects();
+    autosave();
+}
+
+// ------------------------------------------------------------------ the scene menu: Nouvelle, Ouvrir, Enregistrer
+
+void BrickApp::stFile() {
+    if (m_popup != 8) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    struct It { const char* label; const char* key; int id; };
+    const It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    const float W = 260 * s, ih = 36 * s, pad = 6 * s;
+    const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + 4 * ih + 22 * s);
+    stGlass(u.dl, a, b, 14 * s, s);
+    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 228), 14 * s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    float y = a.y + pad;
+    bool clicked = false;
+    for (const It& it : its) {
+        const ImVec2 ia(a.x + pad, y), ib(b.x - pad, y + ih);
+        const bool h = u.hover(ia, ib);
+        if (h) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, 16), 10 * s);
+        stTrack(u, ImVec2(ia.x + 12 * s, (ia.y + ib.y) * 0.5f - u.fs(9) * 0.52f), 9, h ? C_TEXT : IM_COL32(214, 216, 220, 255), it.label, 1.6f * s);
+        const float kw = u.textW(9, it.key);
+        u.text(ImVec2(ib.x - 12 * s - kw, (ia.y + ib.y) * 0.5f - u.fs(9) * 0.55f), 9, C_FAINT, it.key);
+        if (h && u.pressed) {
+            clicked = true;
+            m_popup = 0;
+            if (it.id == 0) newScene();
+            else if (it.id == 1) openDialog();
+            else if (it.id == 2) saveNow();
+            else saveDialog();
+        }
+        y += ih;
+    }
+    {   // the file of the scene
+        std::string f = m_scenePath.empty() ? std::string("pas encore enregistrée") : std::string(m_scenePath.begin(), m_scenePath.end());
+        if (!m_scenePath.empty()) { const size_t k = f.find_last_of("\\/"); if (k != std::string::npos) f = f.substr(k + 1); }
+        u.dl->AddLine(ImVec2(a.x + 12 * s, y + 4 * s), ImVec2(b.x - 12 * s, y + 4 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.text(ImVec2(a.x + 18 * s, y + 8 * s), 8.5f, C_FAINT, f.c_str());
+    }
+    if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+}
+
+void BrickApp::newScene() {
+    pushUndo();
+    m_bricks.clear();
+    m_selected = -1;
+    m_multi.clear();
+    m_scenePath.clear();
+    m_modelName.clear();
+    rebuildScene();
+    toast("Nouvelle scène");
+}
+
+// Enregistrer: into its file when it has one, else the dialog
+void BrickApp::saveNow() {
+    if (m_scenePath.empty() || m_ipad) { saveDialog(); return; }
+    saveScene(m_scenePath);
+}
+
+// ------------------------------------------------------------------ Groupes (Studio): the outliner
+
+// a text cut to a width, with « … »
+static std::string stFit(Ui& u, float px, std::string t, float maxW, bool bold) {
+    if (u.textW(px, t.c_str(), bold) <= maxW) return t;
+    while (!t.empty() && u.textW(px, (t + "…").c_str(), bold) > maxW) {
+        t.pop_back();
+        while (!t.empty() && ((unsigned char)t.back() & 0xC0) == 0x80) t.pop_back();
+    }
+    return t + "…";
+}
+
+void BrickApp::stGroups() {
+    if (!m_pGroups.visible || m_mechOn) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const int G = (int)m_build.groups.size();
+    std::vector<int> parent(G, -2), count(G, 0);
+    int loose = 0;
+    for (const Brick& b : m_bricks) {
+        if (b.path.empty()) ++loose;
+        for (size_t k = 0; k < b.path.size(); ++k) {
+            const int g = b.path[k];
+            if (g < 0 || g >= G) continue;
+            ++count[g];
+            if (parent[g] == -2) parent[g] = k ? b.path[k - 1] : -1;
+        }
+    }
+    // the prefix most groups share (« 31153 - modern house - »): shown once under the title, cut from the names; a
+    // sub-group drops the name of its parent (« foyer - balcony » under « foyer »: « balcony »)
+    std::string common;
+    {
+        std::vector<const std::string*> tops;
+        for (int g = 0; g < G; ++g) if (parent[g] == -1 && count[g] > 0) tops.push_back(&m_build.groups[g].name);
+        if (tops.size() >= 2) {
+            const std::string& f = *tops[0];
+            for (size_t p = f.find(" - "); p != std::string::npos; p = f.find(" - ", p + 3)) {
+                const std::string pre = f.substr(0, p + 3);
+                int n = 0;
+                for (const std::string* t : tops) n += t->rfind(pre, 0) == 0 ? 1 : 0;
+                if (n * 2 >= (int)tops.size()) common = pre;
+            }
+        }
+    }
+    auto shortName = [&](int g) {
+        std::string n = m_build.groups[g].name;
+        const int p = parent[g];
+        if (p >= 0) {
+            const std::string& pn = m_build.groups[p].name;
+            if (n.size() > pn.size() + 3 && n.rfind(pn + " - ", 0) == 0) return n.substr(pn.size() + 3);
+        }
+        if (!common.empty() && n.size() > common.size() && n.rfind(common, 0) == 0) return n.substr(common.size());
+        return n;
+    };
+    struct Row { int g, depth; };
+    std::vector<Row> rows;
+    std::function<void(int, int)> add = [&](int par, int depth) {
+        for (int g = 0; g < G; ++g) {
+            if (parent[g] != par || count[g] == 0) continue;
+            rows.push_back({g, depth});
+            if (std::find(m_groupsOpen.begin(), m_groupsOpen.end(), g) != m_groupsOpen.end()) add(g, depth + 1);
+        }
+    };
+    add(-1, 0);
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
+    const float drawerTop = m_uiRects.size() > 1 ? m_uiRects[1].y : d.y;
+    const float W = 320 * s, pad = 12 * s, rowH = 30 * s, headH = common.empty() ? 30 * s : 46 * s, footH = 30 * s;
+    const float maxH = std::max(160 * s, drawerTop - 12 * s - top);
+    const float listH = std::min(std::max(1, (int)rows.size()) * rowH, maxH - pad - headH - footH - pad);
+    const ImVec2 a((m_paintMode ? 136 : 74) * s, top), b(a.x + W, top + pad + headH + listH + footH + pad);
+    stGlass(u.dl, a, b, 18 * s, s);
+    u.dl->AddRectFilled(a, b, IM_COL32(14, 15, 17, 120), 18 * s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    // the title: GROUPES, how many; the shared prefix; Tout afficher while one is isolated; the close
+    {
+        stTrack(u, ImVec2(a.x + pad + 2 * s, a.y + pad + 2 * s), 9.5f, C_TEXT, "GROUPES", 2.0f * s);
+        char n[16];
+        snprintf(n, sizeof(n), "%d", (int)rows.size());
+        u.text(ImVec2(a.x + pad + 2 * s + stTrackW(u, 9.5f, "GROUPES", 2.0f * s, true) + 8 * s, a.y + pad + 2 * s), 9, C_FAINT, n);
+        if (!common.empty()) {
+            std::string c = common.substr(0, common.size() - 3);
+            c = stFit(u, 9, c, W - 2 * pad - 30 * s, false);
+            u.text(ImVec2(a.x + pad + 2 * s, a.y + pad + 22 * s), 9, C_DIM, c.c_str());
+        }
+        const ImVec2 xc(b.x - pad - 8 * s, a.y + pad + 8 * s);
+        const bool hx = u.hover(ImVec2(xc.x - 10 * s, xc.y - 10 * s), ImVec2(xc.x + 10 * s, xc.y + 10 * s));
+        stIcon(u.dl, ST_CLOSE, xc, 13 * s, hx ? C_TEXT : C_DIM, 1.3f * s);
+        if (hx && u.pressed) { m_pGroups.visible = false; savePrefs(); return; }
+        if (m_isolateGroup >= 0) {
+            const char* lab = "TOUT AFFICHER";
+            const float tw = stTrackW(u, 7.5f, lab, 1.4f * s, true);
+            const ImVec2 ba(xc.x - 18 * s - tw - 16 * s, a.y + pad - 1 * s), bb(xc.x - 18 * s, a.y + pad + 19 * s);
+            const bool h = u.hover(ba, bb);
+            u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, h ? 0.3f : 0.18f), 10 * s);
+            u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.8f), 10 * s, 0, 1.0f);
+            stTrack(u, ImVec2(ba.x + 8 * s, (ba.y + bb.y) * 0.5f - u.fs(7.5f) * 0.52f), 7.5f, C_ACCENT_TXT, lab, 1.4f * s);
+            if (h && u.pressed) { m_isolateGroup = -1; syncObjects(); }
+        }
+    }
+    // the list (the wheel scrolls it)
+    const ImVec2 la(a.x + 6 * s, a.y + pad + headH), lb(b.x - 6 * s, la.y + listH);
+    const float contentH = rows.size() * rowH;
+    if (u.hover(la, lb) && ImGui::GetIO().MouseWheel != 0) m_groupsScroll -= ImGui::GetIO().MouseWheel * rowH * 3;
+    m_groupsScroll = std::clamp(m_groupsScroll, 0.0f, std::max(0.0f, contentH - listH));
+    u.dl->PushClipRect(la, lb, true);
+    if (rows.empty()) u.text(ImVec2(la.x + 8 * s, la.y + 6 * s), 10, C_DIM, "Aucun groupe : sélectionne des pièces puis Ctrl+G");
+    const int sel = unitGroup(m_selected);
+    for (size_t r = 0; r < rows.size(); ++r) {
+        const float y = la.y + r * rowH - m_groupsScroll;
+        if (y + rowH < la.y || y > lb.y) continue;
+        const int g = rows[r].g;
+        Group& gr = m_build.groups[g];
+        const ImVec2 ra(la.x, y + 1 * s), rb(lb.x, y + rowH - 1 * s);
+        const bool h = u.hover(ra, rb) && u.hover(la, lb);
+        const bool on = g == sel;
+        if (on) { u.dl->AddRectFilled(ra, rb, stA(C_ACCENT, 0.2f), 10 * s); u.dl->AddRect(ra, rb, stA(C_ACCENT, 0.85f), 10 * s, 0, 1.0f); }
+        else if (h) u.dl->AddRectFilled(ra, rb, IM_COL32(255, 255, 255, 14), 10 * s);
+        const float cy = (ra.y + rb.y) * 0.5f;
+        float x = ra.x + 8 * s + rows[r].depth * 16 * s;
+        for (int dpt = 0; dpt < rows[r].depth; ++dpt)   // the guides of the tree
+            u.dl->AddLine(ImVec2(ra.x + 15 * s + dpt * 16 * s, ra.y + 2 * s), ImVec2(ra.x + 15 * s + dpt * 16 * s, rb.y - 2 * s), IM_COL32(255, 255, 255, 22), 1.0f);
+        bool hasKids = false;
+        for (int k = 0; k < G; ++k) if (parent[k] == g && count[k] > 0) hasKids = true;
+        const bool open = std::find(m_groupsOpen.begin(), m_groupsOpen.end(), g) != m_groupsOpen.end();
+        const ImVec2 ca(x, cy - 8 * s), cb(x + 14 * s, cy + 8 * s);
+        if (hasKids) {
+            const ImVec2 c((ca.x + cb.x) * 0.5f, cy);
+            const float k = 3.2f * s;
+            const ImU32 cc = on ? C_ACCENT_TXT : C_DIM;
+            if (open) u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - k, c.y - k * 0.5f), ImVec2(c.x, c.y + k * 0.5f), ImVec2(c.x + k, c.y - k * 0.5f)}.data(), 3, cc, 0, 1.5f * s);
+            else u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - k * 0.5f, c.y - k), ImVec2(c.x + k * 0.5f, c.y), ImVec2(c.x - k * 0.5f, c.y + k)}.data(), 3, cc, 0, 1.5f * s);
+        }
+        const bool overChev = hasKids && u.hover(ca, cb);
+        x += 18 * s;
+        // right: the count (its own column), the eye, isolate
+        const float bx2 = rb.x - 8 * s;
+        const ImVec2 ia(bx2 - 20 * s, cy - 10 * s), ib(bx2, cy + 10 * s);
+        const ImVec2 ea(ia.x - 26 * s, cy - 10 * s), eb(ia.x - 6 * s, cy + 10 * s);
+        char cn[16];
+        snprintf(cn, sizeof(cn), "%d", count[g]);
+        const float cw = u.textW(9.5f, cn), cx = ea.x - 8 * s - cw;
+        u.text(ImVec2(cx, cy - u.fs(9.5f) * 0.55f), 9.5f, on ? C_ACCENT_TXT : C_FAINT, cn);
+        const std::string nm = stFit(u, 11, shortName(g), ea.x - 44 * s - x, on);
+        u.text(ImVec2(x, cy - u.fs(11) * 0.55f), 11, gr.hidden ? C_FAINT : (on ? C_ACCENT_TXT : C_TEXT), nm.c_str(), on);
+        const bool he = u.hover(ea, eb), hi = u.hover(ia, ib);
+        {   // eye: shown / hidden
+            const ImVec2 c((ea.x + eb.x) * 0.5f, cy);
+            const ImU32 col = he ? C_TEXT : (on ? C_ACCENT_TXT : C_DIM);
+            u.dl->AddEllipse(c, ImVec2(7 * s, 4 * s), col, 0, 0, 1.2f * s);
+            if (!gr.hidden) u.dl->AddCircleFilled(c, 2.0f * s, col);
+            else u.dl->AddLine(ImVec2(c.x - 7 * s, c.y + 5 * s), ImVec2(c.x + 7 * s, c.y - 5 * s), col, 1.2f * s);
+        }
+        {   // isolate: a target, filled when this group is the one isolated
+            const ImVec2 c((ia.x + ib.x) * 0.5f, cy);
+            const ImU32 col = m_isolateGroup == g ? C_ACCENT_TXT : (hi ? C_TEXT : (on ? C_ACCENT_TXT : C_DIM));
+            u.dl->AddCircle(c, 5.5f * s, col, 0, 1.2f * s);
+            if (m_isolateGroup == g) u.dl->AddCircleFilled(c, 2.5f * s, col);
+        }
+        if (h && (he || hi)) ImGui::SetTooltip("%s", he ? (gr.hidden ? "Afficher" : "Masquer") : "Isoler ce groupe");
+        else if (h && nm != gr.name && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", gr.name.c_str());
+        if (h && u.pressed) {
+            if (he) { gr.hidden = !gr.hidden; syncObjects(); autosave(); }
+            else if (hi) { m_isolateGroup = m_isolateGroup == g ? -1 : g; syncObjects(); }
+            else if (overChev) {
+                auto it = std::find(m_groupsOpen.begin(), m_groupsOpen.end(), g);
+                if (it != m_groupsOpen.end()) m_groupsOpen.erase(it); else m_groupsOpen.push_back(g);
+            } else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                m_renameGroup = g;
+                snprintf(m_renameBuf, sizeof(m_renameBuf), "%s", gr.name.c_str());
+            } else {   // select the group: the level of its parent is entered
+                std::vector<int> m = groupMembers(g);
+                if (!m.empty()) {
+                    const std::vector<int>& p = m_bricks[m[0]].path;
+                    const auto at = std::find(p.begin(), p.end(), g);
+                    m_groupCtx.assign(p.begin(), at);
+                    m_selected = m[0];
+                    m_multi.assign(m.begin() + 1, m.end());
+                    syncObjects();
+                }
+            }
+        }
+        if (m_renameGroup == g) {   // rename: a text field over the row, Entrée to keep, Échap to cancel
+            ImGui::SetNextWindowPos(ImVec2(x - 4 * s, ra.y + 2 * s));
+            ImGui::SetNextWindowSize(ImVec2(ea.x - 40 * s - x, rowH - 6 * s));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(2 * s, 1 * s));
+            ImGui::Begin("##renamegroup", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings);
+            ImGui::SetNextItemWidth(-1);
+            if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+            if (ImGui::InputText("##name", m_renameBuf, sizeof(m_renameBuf), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
+                if (m_renameBuf[0]) gr.name = m_renameBuf;
+                m_renameGroup = -1;
+                autosave();
+            } else if (ImGui::IsKeyPressed(ImGuiKey_Escape) || (!ImGui::IsWindowFocused() && !ImGui::IsWindowAppearing())) m_renameGroup = -1;
+            ImGui::End();
+            ImGui::PopStyleVar();
+        }
+    }
+    u.dl->PopClipRect();
+    if (contentH > listH) {   // a thin scroll bar
+        const float bh = listH * listH / contentH, by = la.y + (listH - bh) * (m_groupsScroll / (contentH - listH));
+        u.dl->AddRectFilled(ImVec2(b.x - 5 * s, by), ImVec2(b.x - 3 * s, by + bh), IM_COL32(255, 255, 255, 50), 1 * s);
+    }
+    // the foot: the loose pieces, the shortcuts
+    u.dl->AddLine(ImVec2(a.x + pad, lb.y + 6 * s), ImVec2(b.x - pad, lb.y + 6 * s), IM_COL32(255, 255, 255, 18), 1.0f);
+    char f[96];
+    snprintf(f, sizeof(f), "%d pièces hors groupe   ·   Ctrl+G grouper   ·   Ctrl+Maj+G dégrouper", loose);
+    const std::string fs = stFit(u, 8.5f, f, W - 2 * pad, false);
+    u.text(ImVec2(a.x + pad + 2 * s, lb.y + 12 * s), 8.5f, C_FAINT, fs.c_str());
 }
 
 // ------------------------------------------------------------------ Couleur (right)
@@ -1267,19 +1614,19 @@ void BrickApp::drawUiStudio() {
         dl->AddCircle(c, 9 * m_ui, IM_COL32(255, 255, 255, 120), 32, 1.0f * m_ui);
     }
     stTools();
+    stGroups();      // (before the badge: it goes right of it)
     stBadge();
     stColors();
     stSelHud();
     stHeld();
     uiMechPanel();
-    uiGroups();
     uiReader();
     stMore();
+    stFile();
     uiPopups();
     uiManual();
     uiDevPanel();
-    uiBac();
-    uiInfoSheet();
+    uiInfoSheet();   // (no Bac à briques in the Studio interface, Wzx 09/11/2026)
     uiThumbEditor();
     uiCtxMenu();
     uiDevReview();

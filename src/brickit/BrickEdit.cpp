@@ -491,7 +491,8 @@ void BrickApp::editInput() {
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y)) redo();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) duplicateSelected();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_G) && !m_holding) { if (io.KeyShift) ungroupSelected(); else groupSelected(); }
-        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) saveDialog();
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) { if (io.KeyShift) saveDialog(); else saveNow(); }
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N)) newScene();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O)) openDialog();
         // keys of the web: R or E = turn +90, Q = -90, C = pivot voxel, V = voxels, P = pivot edit, A = animations,
         // F = focus mode, Space = take the selected brick in hand
@@ -580,13 +581,14 @@ void BrickApp::editInput() {
         if (b >= 0) {
             m_color = m_bricks[b].color;
             m_pipette = false;
+            if (m_paintMode) m_paintTool = true;   // (PEINDRE: back to the Pinceau with the colour taken)
             toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
         }
         return;
     }
     if (m_paintTool && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // Studio, Pinceau: the colour on the brick clicked
         const int b = pickBrick(mp.x, mp.y);
-        if (b >= 0) { select(b); applyColor(m_color); }
+        if (b >= 0) { if (m_paintGroup || unitGroup(b) < 0) { select(b); applyColor(m_color); } else paintOne(b); }   // (Peindre › Groupe entier off: the brick alone)
         return;
     }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
