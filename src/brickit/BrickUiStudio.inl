@@ -446,7 +446,8 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
-    if (m_paintMode) { stPaintColors(); stPaintPanel(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
+    if (!m_paintMode) m_paintT0 = -1;   // (the colours of PEINDRE come out again next time)
+    if (m_paintMode) { stPaintPanel(); stPaintColors(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
     Ui u = ui(m_ui);
     const float s = m_ui;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
@@ -563,23 +564,44 @@ void BrickApp::stMore() {
 
 // ------------------------------------------------------------------ Peindre: the big Pinceau / Pipette, Groupe entier
 
-// the mode PEINDRE (Wzx 09/11/2026): the Pinceau and the Pipette in big, at the bottom in the middle (above the drawer),
-// « Groupe entier » beside them; at the top, under the header, every colour in a strip (stPaintColors)
+static std::string stFit(Ui& u, float px, std::string t, float maxW, bool bold);
+static ImU32 stSrgb(const Color& c, int alpha) {
+    return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), alpha);
+}
+
+// the mode PEINDRE (Wzx 09/11/2026): under the header in the middle, the colour taken in big (a 1x1 brick), the Pinceau, the Pipette,
+// « Groupe entier »; around it every colour on an arc (stPaintColors), out one by one like the marking menu
 void BrickApp::stPaintPanel() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float top = m_uiRects.back().w + 10 * s;   // under the strip of colours, in the middle (Wzx 09/11/2026)
-    const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s;
-    const float W = pad + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 16 * s;
+    const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s, cw = 96 * s;
+    const float W = pad + cw + 14 * s + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
     const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
     stGlass(u.dl, a, b, 20 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    float x = a.x + pad;
+    if (!m_lib.palette.empty()) {   // the colour taken, in big: a 1x1 brick, its name under it
+        const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
+        const float sz = 50 * s, cx = x + cw * 0.5f, y0 = a.y + pad + 3 * s;
+        const ImVec2 p0(cx - sz * 0.5f, y0), p1(cx + sz * 0.5f, y0 + sz);
+        u.dl->AddRectFilled(ImVec2(p0.x + 2 * s, p0.y + 4 * s), ImVec2(p1.x + 2 * s, p1.y + 4 * s), IM_COL32(0, 0, 0, 70), 6 * s);
+        const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
+        if (g_studTex) u.dl->AddImage(g_studTex, p0, p1, ImVec2(0, 0), ImVec2(1, 1), cc);
+        else u.dl->AddRectFilled(p0, p1, cc, 6 * s);
+        const std::string nm = stFit(u, 7.5f, stUpper(colorFr(c.name)), cw - 4 * s, true);
+        const float lw = stTrackW(u, 7.5f, nm.c_str(), 1.2f * s, true);
+        stTrack(u, ImVec2(cx - lw * 0.5f, b.y - pad - 15 * s), 7.5f, C_TEXT, nm.c_str(), 1.2f * s);
+        if (u.hover(ImVec2(x, a.y), ImVec2(x + cw, b.y)) && m_popup == 0) ImGui::SetTooltip("Couleur active : %s · %d", colorFr(c.name), c.id);
+        x += cw + 7 * s;
+        u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
+        x += 7 * s;
+    }
     struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
     const B bs[2] = {{ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2},
                      {ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3}};
-    float x = a.x + pad;
     for (const B& t : bs) {
         const ImVec2 ba(x, a.y + pad), bb(x + bw, a.y + pad + bh);
         const bool h = u.hover(ba, bb) && m_popup == 0;
@@ -610,49 +632,88 @@ void BrickApp::stPaintPanel() {
     }
 }
 
-// PEINDRE: every colour in a strip under the header (unies, transparentes, métallisées), the current one ringed
+// PEINDRE: every colour on an arc that hangs under the panel (unies, transparentes, métallisées), out one by one from the middle
+// (the pop of the marking menu: 0.4 > 1.15 > 1), the one under the mouse grows; the current one ringed
 void BrickApp::stPaintColors() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 10 * s;
+    const ImVec4 pr = m_uiRects.empty() ? ImVec4(0, 46 * s, d.x, 140 * s) : m_uiRects.back();   // the panel (drawn just before)
     const char* keys[3] = {"standard", "transparent", "metallic"};
-    int n[3] = {0, 0, 0};
-    for (const Color& c : m_lib.palette) for (int g = 0; g < 3; ++g) n[g] += c.group == keys[g] ? 1 : 0;
-    const float maxW = d.x - 2 * 260 * s, gapG = 16 * s, pad = 10 * s;
-    const int total = n[0] + n[1] + n[2];
-    const float sw = std::clamp((maxW - 2 * pad - 2 * gapG) / std::max(1, total) - 3 * s, 14 * s, 26 * s), step = sw + 3 * s;
-    const float W = 2 * pad + total * step - 3 * s + 2 * gapG, H = sw + 2 * pad;
-    const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
-    stGlass(u.dl, a, b, H * 0.5f, s);
-    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    float x = a.x + pad;
+    std::vector<int> order;   // the palette in its groups, with -1 between two groups
     for (int g = 0; g < 3; ++g) {
-        if (g) { u.dl->AddLine(ImVec2(x + gapG * 0.5f - 1.5f * s, a.y + 10 * s), ImVec2(x + gapG * 0.5f - 1.5f * s, b.y - 10 * s), IM_COL32(255, 255, 255, 30), 1.0f); x += gapG; }
-        for (int i = 0; i < (int)m_lib.palette.size(); ++i) {
-            const Color& c = m_lib.palette[i];
-            if (c.group != keys[g]) continue;
-            const ImVec2 p0(x, a.y + pad), p1(x + sw, a.y + pad + sw);
-            const bool tr = c.group == "transparent";
-            const ImU32 cc = IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), tr ? 165 : 255);
-            const bool h = u.hover(p0, p1) && m_popup == 0;
-            const float lift = h ? -2 * s : 0;
-            if (g_studTex) u.dl->AddImage(g_studTex, ImVec2(p0.x, p0.y + lift), ImVec2(p1.x, p1.y + lift), ImVec2(0, 0), ImVec2(1, 1), cc);
-            else u.dl->AddRectFilled(p0, p1, cc, 3 * s);
-            if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2 * s, p0.y - 2 * s + lift), ImVec2(p1.x + 2 * s, p1.y + 2 * s + lift), C_ACCENT, 4 * s, 0, 1.5f * s);
-            if (h) {
-                ImGui::SetTooltip("%s · %d", colorFr(c.name), c.id);
-                if (u.pressed) {   // the colour of the Pinceau (the selection is not painted: the next click paints)
-                    m_color = i;
-                    m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), i), m_recentColors.end());
-                    m_recentColors.insert(m_recentColors.begin(), i);
-                    if (m_recentColors.size() > 12) m_recentColors.resize(12);
-                    m_paintTool = true;
-                    m_pipette = false;
-                }
-            }
-            x += step;
+        bool any = false;
+        for (int i = 0; i < (int)m_lib.palette.size(); ++i)
+            if (m_lib.palette[i].group == keys[g]) { if (!any && !order.empty()) order.push_back(-1); any = true; order.push_back(i); }
+    }
+    if (order.empty()) return;
+    if (m_paintT0 < 0) m_paintT0 = ImGui::GetTime();
+    const float tIn = (float)(ImGui::GetTime() - m_paintT0), dt = ImGui::GetIO().DeltaTime;
+    if (m_paintHov.size() != m_lib.palette.size()) m_paintHov.assign(m_lib.palette.size(), 0.0f);
+    // the arc: a chord across the screen (its ends at the height of the panel), its lowest point under the panel
+    const float cxm = d.x * 0.5f, half = std::min(d.x * 0.5f - 300 * s, 760 * s);   // (clear of the Couleur panel on the right)
+    const float yEnd = pr.y + 56 * s, sag = std::max(160 * s, pr.w - yEnd + 70 * s);   // (the ends under the badge of the grid)
+    const float R = (half * half + sag * sag) / (2 * sag), cy = yEnd + sag - R;   // the centre of the circle (above)
+    const float th = std::asin(std::clamp(half / R, 0.0f, 1.0f));
+    const float L = 2 * th * R;   // the length of the arc
+    int nCol = 0, nGap = 0;
+    for (int i : order) (i < 0 ? nGap : nCol)++;
+    const float gapW = 0.9f;   // a group gap, in steps
+    const float step = L / std::max(1.0f, (float)(nCol - 1) + nGap * gapW);
+    const float sw = std::clamp(step - 4 * s, 12 * s, 26 * s);
+    struct P { int i; ImVec2 p; float e; };
+    std::vector<P> ps;
+    float t = 0;
+    for (int k = 0; k < (int)order.size(); ++k) {
+        if (order[k] < 0) { t += step * gapW; continue; }
+        const float ang = -th + t / R;   // 0 = straight down
+        const ImVec2 p(cxm + std::sin(ang) * R, cy + std::cos(ang) * R);
+        const float rank = std::fabs(t - L * 0.5f) / std::max(1.0f, step);   // out from the middle
+        ps.push_back({order[k], p, std::clamp((tIn - 0.012f * rank) / 0.28f, 0.0f, 1.0f)});
+        t += step;
+    }
+    // the colour under the mouse: the nearest within its square
+    int hot = -1;
+    float best = 1e9f;
+    if (m_popup == 0 && !(m_grip.id >= 0 && m_grip.moved))
+        for (const P& q : ps) {
+            const float dx = u.mouse.x - q.p.x, dy = u.mouse.y - q.p.y, dd = dx * dx + dy * dy;
+            if (std::fabs(dx) < step * 0.5f + 1 && std::fabs(dy) < sw * 0.8f && dd < best) { best = dd; hot = q.i; }
+        }
+    for (const P& q : ps) {
+        float& hv = m_paintHov[q.i];
+        hv += ((q.i == hot ? 1.0f : 0.0f) - hv) * std::min(1.0f, dt * 16);
+        m_uiRects.push_back(ImVec4(q.p.x - step * 0.5f, q.p.y - sw * 0.6f, q.p.x + step * 0.5f, q.p.y + sw * 0.6f));
+    }
+    auto draw = [&](const P& q) {
+        if (q.e <= 0) return;
+        const float pop = q.e < 0.6f ? 0.4f + 0.75f * (q.e / 0.6f) : 1.15f - 0.15f * ((q.e - 0.6f) / 0.4f);
+        const float hv = m_paintHov[q.i];
+        const float hs = sw * 0.5f * pop * (1.0f + 0.6f * hv);
+        // out from the panel: from 72 % of the way, like the radius of the marking menu
+        const float k = 0.72f + 0.28f * std::min(1.0f, q.e / 0.6f);
+        const ImVec2 o(cxm, (pr.y + pr.w) * 0.5f);
+        const ImVec2 p(o.x + (q.p.x - o.x) * k, o.y + (q.p.y - o.y) * k - 4 * s * hv);
+        const Color& c = m_lib.palette[q.i];
+        const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
+        u.dl->AddRectFilled(ImVec2(p.x - hs + 2 * s, p.y - hs + 3 * s), ImVec2(p.x + hs + 2 * s, p.y + hs + 3 * s), IM_COL32(0, 0, 0, (int)(70 + 40 * hv)), 4 * s);
+        if (g_studTex) u.dl->AddImage(g_studTex, ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), ImVec2(0, 0), ImVec2(1, 1), cc);
+        else u.dl->AddRectFilled(ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), cc, 4 * s);
+        if (q.i == m_color) u.dl->AddRect(ImVec2(p.x - hs - 3 * s, p.y - hs - 3 * s), ImVec2(p.x + hs + 3 * s, p.y + hs + 3 * s), C_ACCENT, 5 * s, 0, 1.5f * s);
+    };
+    for (const P& q : ps) if (m_paintHov[q.i] < 0.01f) draw(q);
+    for (const P& q : ps) if (m_paintHov[q.i] >= 0.01f && q.i != hot) draw(q);
+    for (const P& q : ps) if (q.i == hot) draw(q);   // (the hovered one on top)
+    if (hot >= 0) {
+        const Color& c = m_lib.palette[hot];
+        ImGui::SetTooltip("%s · %d", colorFr(c.name), c.id);
+        if (u.pressed) {   // the colour of the Pinceau (the selection is not painted: the next click paints)
+            m_color = hot;
+            m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), hot), m_recentColors.end());
+            m_recentColors.insert(m_recentColors.begin(), hot);
+            if (m_recentColors.size() > 12) m_recentColors.resize(12);
+            m_paintTool = true;
+            m_pipette = false;
         }
     }
 }
