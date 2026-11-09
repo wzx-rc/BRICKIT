@@ -68,6 +68,8 @@ struct Options {
     std::string skin;   // --skin classic | creme | minimal | sommet (captures; the theme of Réglages › Thème)
     int skinTint = -1, skinAccent = -1, settingsTab = -1;
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
+    std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
+    int stSub = -2;        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
@@ -711,7 +713,11 @@ private:
     // the Studio interface (BrickUiStudio.inl, Maquette 4.0, Wzx 09/11/2026)
     bool m_studioUi = true;           // Réglages › Interface: Studio (new) / Classique
     bool m_paintTool = false;         // tool Pinceau: a click on a brick gives it the current colour
-    std::string m_stFam = "briques";  // the family of the drawer
+    std::string m_stFam = "basique";  // the family of the drawer (Maquette 4.1)
+    int m_stSub = -1;                 // its category (-1: Toutes, the tiles of its categories)
+    float m_stSubScroll = 0;          // the row of the categories, scrolled sideways
+    bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
+    std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
     int m_stCardMode = 0;             // Réglages › Bibliothèque: 0 Image (the image alone), 1 Fiche (image, size, name, id)
     std::vector<int> m_stParts;

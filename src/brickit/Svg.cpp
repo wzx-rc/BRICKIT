@@ -27,19 +27,34 @@ struct Parser {
     }
 };
 
-static void flush(ImDrawList* dl, std::vector<ImVec2>& pts, bool closed, ImU32 col, float thick, bool fill) {
+// fill: 0 stroke only, 1 convex fill only (the icons of the web), 2 concave face then stroke (the pictograms)
+static ImU32 g_face = 0;
+static void flush(ImDrawList* dl, std::vector<ImVec2>& pts, bool closed, ImU32 col, float thick, int fill) {
     if (pts.size() >= 2) {
-        if (fill && pts.size() >= 3) dl->AddConvexPolyFilled(pts.data(), (int)pts.size(), col);
-        else dl->AddPolyline(pts.data(), (int)pts.size(), col, closed ? ImDrawFlags_Closed : ImDrawFlags_None, thick);
+        if (fill == 1 && pts.size() >= 3) dl->AddConvexPolyFilled(pts.data(), (int)pts.size(), col);
+        else {
+            if (fill == 2 && closed && (g_face >> 24) != 0) {
+                std::vector<ImVec2> q;   // (no repeated points: the triangulator wants a clean outline)
+                for (const ImVec2& v : pts)
+                    if (q.empty() || std::fabs(v.x - q.back().x) + std::fabs(v.y - q.back().y) > 0.01f) q.push_back(v);
+                while (q.size() > 3 && std::fabs(q.front().x - q.back().x) + std::fabs(q.front().y - q.back().y) <= 0.01f) q.pop_back();
+                if (q.size() >= 3) dl->AddConcavePolyFilled(q.data(), (int)q.size(), g_face);
+            }
+            dl->AddPolyline(pts.data(), (int)pts.size(), col, closed ? ImDrawFlags_Closed : ImDrawFlags_None, thick);
+        }
     }
     pts.clear();
 }
 
-void path(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float thick, bool fill) {
+static void run(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float thick, int fill);
+void path(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float thick, bool fill) { run(dl, d, o, scale, col, thick, fill ? 1 : 0); }
+void shape(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 face, ImU32 stroke, float thick) { g_face = face; run(dl, d, o, scale, stroke, thick, 2); }
+
+static void run(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float thick, int fill) {
     Parser p{d};
     std::vector<ImVec2> pts;
-    float cx = 0, cy = 0, sx = 0, sy = 0;
-    char cmd = 0;
+    float cx = 0, cy = 0, sx = 0, sy = 0, kx = 0, ky = 0;   // (kx, ky: the last control point, for S)
+    char cmd = 0, last = 0;
     auto P = [&](float x, float y) { return ImVec2(o.x + x * scale, o.y + y * scale); };
     for (;;) {
         p.ws();
@@ -72,15 +87,35 @@ void path(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float
             cy = rel ? cy + a : a;
             pts.push_back(P(cx, cy));
             break;
-        case 'c': {
-            if (!p.num(a) || !p.num(b) || !p.num(c2) || !p.num(d2) || !p.num(e) || !p.num(f)) return;
-            float x1 = rel ? cx + a : a, y1 = rel ? cy + b : b, x2 = rel ? cx + c2 : c2, y2 = rel ? cy + d2 : d2;
+        case 'c':
+        case 's': {
+            float x1, y1;
+            if (std::tolower((unsigned char)cmd) == 's') {   // smooth: the first control point mirrors the last one
+                if (!p.num(c2) || !p.num(d2) || !p.num(e) || !p.num(f)) return;
+                const bool prevC = last == 'c' || last == 's';
+                x1 = prevC ? 2 * cx - kx : cx; y1 = prevC ? 2 * cy - ky : cy;
+            } else {
+                if (!p.num(a) || !p.num(b) || !p.num(c2) || !p.num(d2) || !p.num(e) || !p.num(f)) return;
+                x1 = rel ? cx + a : a; y1 = rel ? cy + b : b;
+            }
+            float x2 = rel ? cx + c2 : c2, y2 = rel ? cy + d2 : d2;
             float x3 = rel ? cx + e : e, y3 = rel ? cy + f : f;
+            kx = x2; ky = y2;
             for (int i = 1; i <= 12; ++i) {
                 float t = i / 12.0f, u = 1 - t;
                 float x = u * u * u * cx + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3;
                 float y = u * u * u * cy + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3;
                 pts.push_back(P(x, y));
+            }
+            cx = x3; cy = y3;
+            break;
+        }
+        case 'q': {
+            if (!p.num(a) || !p.num(b) || !p.num(e) || !p.num(f)) return;
+            const float x1 = rel ? cx + a : a, y1 = rel ? cy + b : b, x3 = rel ? cx + e : e, y3 = rel ? cy + f : f;
+            for (int i = 1; i <= 10; ++i) {
+                const float t = i / 10.0f, u = 1 - t;
+                pts.push_back(P(u * u * cx + 2 * u * t * x1 + t * t * x3, u * u * cy + 2 * u * t * y1 + t * t * y3));
             }
             cx = x3; cy = y3;
             break;
@@ -118,6 +153,7 @@ void path(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float
             break;
         default: return;
         }
+        last = (char)std::tolower((unsigned char)cmd);
     }
     flush(dl, pts, false, col, thick, fill);
 }

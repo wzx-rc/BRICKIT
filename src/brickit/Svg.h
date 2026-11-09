@@ -7,6 +7,8 @@
 namespace svg {
 
 void path(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 col, float thick, bool fill = false);
+// a pictogram path: every closed sub-path filled with `face` (concave allowed, 0 = none), then every sub-path stroked
+void shape(ImDrawList* dl, const char* d, ImVec2 o, float scale, ImU32 face, ImU32 stroke, float thick);
 void circle(ImDrawList* dl, float cx, float cy, float r, ImVec2 o, float scale, ImU32 col, float thick, bool fill = false,
             float dash = 0.0f);
 void rect(ImDrawList* dl, float x, float y, float w, float h, float rx, ImVec2 o, float scale, ImU32 col, float thick);

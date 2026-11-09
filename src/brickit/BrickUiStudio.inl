@@ -241,20 +241,77 @@ static void stPartKind(const Part& p, std::string& kind, int& w, int& l) {
     if (kind == "gear") w = 12;
 }
 
-// ------------------------------------------------------------------ the families of the drawer
+// ------------------------------------------------------------------ the families of the drawer (Maquette 4.1)
+// The nine families of before (Basique ... Autres gammes) and Récentes / Favoris; each family has its LDraw categories
+// (Technic: its sub-families). A category takes the parts of its LDraw categories; with `tsub`, the Technic ones only
+// when their sub-family is that one. `rest`: everything that no family takes.
 
-struct StFam { const char* key; const char* label; const char* kind; int w, l; std::vector<const char*> cats; const char* sub; };
+#include "BrickStudioIcons.inl"
+
+// a pictogram of the maquette centred on c, `size` pixels: thin stroke, faces lightly tinted (trans-clear)
+static void stIco(ImDrawList* dl, const char* key, ImVec2 c, float size, ImU32 stroke, float thick) {
+    static std::unordered_map<std::string, const StIco*> idx;
+    if (idx.empty()) for (const StIco& i : stIcons()) idx[i.key] = &i;
+    auto it = idx.find(key);
+    if (it == idx.end()) it = idx.find("dots");
+    const StIco& I = *it->second;
+    const float k = size / I.vw;
+    const ImVec2 o(c.x - size * 0.5f - I.vx * k, c.y - size * 0.5f - I.vy * k);
+    const ImU32 face = IM_COL32(225, 228, 234, (int)(15 * ((stroke >> 24) & 0xFF) / 255.0f));
+    for (const StIcoPath& q : I.paths) svg::shape(dl, q.d, o, k, q.fill ? face : 0, stroke, thick);
+}
+
+struct StSub { const char* label; const char* ico; std::vector<const char*> cats; const char* tsub; bool rest; };
+struct StFam { const char* key; const char* label; const char* ico; std::vector<StSub> subs; };
 static const std::vector<StFam>& stFams() {
+    auto T = [](const char* l, const char* ico, const char* sub) { return StSub{l, ico, {"Technic"}, sub, false}; };
+    auto C = [](const char* l, const char* ico, std::vector<const char*> cats) { return StSub{l, ico, cats, nullptr, false}; };
     static const std::vector<StFam> f = {
-        {"recent", "Récentes", "clock", 0, 0, {}, nullptr}, {"fav", "Favoris", "star", 0, 0, {}, nullptr},
-        {"briques", "Briques", "brick", 2, 4, {"Brick"}, nullptr}, {"plaques", "Plaques", "plate", 2, 4, {"Plate", "Baseplate"}, nullptr},
-        {"tuiles", "Tuiles", "tile", 2, 2, {"Tile"}, nullptr}, {"pentes", "Pentes", "slope", 2, 2, {"Slope", "Wedge"}, nullptr},
-        {"rondes", "Rondes", "round", 2, 2, {"Cylinder", "Cone", "Dish", "Sphere", "Arch"}, nullptr},
-        {"technic", "Technic", "beam", 1, 5, {"Technic", "Electric", "Znap"}, nullptr}, {"engrenages", "Engrenages", "gear", 12, 0, {"Technic"}, "Engrenages"},
-        {"roues", "Roues", "wheel", 0, 0, {"Wheel", "Tyre"}, nullptr}, {"fenetres", "Fenêtres", "window", 0, 0, {"Window", "Door", "Glass"}, nullptr},
-        {"figurines", "Figurines", "fig", 0, 0, {"Minifig", "Minifig Accessory", "Minifig Footwear", "Minifig Headwear", "Minifig Hipwear", "Minifig Neckwear", "Figure", "Figure Accessory"}, nullptr},
-        {"nature", "Nature", "tree", 0, 0, {"Plant", "Animal", "Rock"}, nullptr}, {"autres", "Autres", "dots", 0, 0, {}, nullptr}};
+        {"recent", "Récentes", "clock", {}},
+        {"fav", "Favoris", "star", {}},
+        {"basique", "Basique", "brick", {C("Briques", "brick", {"Brick"}), C("Plaques", "plate", {"Plate"}), C("Tuiles", "tile", {"Tile"}),
+                                         C("Plaques de base", "baseplate", {"Baseplate"}), C("Équerres", "bracket", {"Bracket"}), C("Panneaux", "panel", {"Panel"})}},
+        {"formes", "Formes", "slope", {C("Pentes", "slope", {"Slope"}), C("Biseaux", "wedge", {"Wedge"}), C("Arches", "arch", {"Arch"}), C("Cylindres", "round", {"Cylinder"}),
+                                       C("Cônes", "cone", {"Cone"}), C("Paraboles", "dish", {"Dish"}), C("Sphères", "sphere", {"Sphere"})}},
+        {"technic", "Technic", "beam", {T("Poutres", "beam", "Poutres"), T("Axes", "axle", "Axes"), T("Pins", "pin", "Pins"), T("Connecteurs", "connector", "Connecteurs"),
+                                        T("Engrenages", "gear", "Engrenages"), T("Briques", "tbrick", "Briques"), T("Panneaux", "tpanel", "Panneaux"), T("Direction", "steering", "Direction"),
+                                        T("Pneumatique", "pneumatic", "Pneumatique"), T("Chenilles", "tread", "Chenilles"), T("Moteurs", "motor", "Moteurs"), T("Rotation", "turntable", "Rotation"),
+                                        T("Flex", "flex", "Flex"), C("Électrique", "bolt", {"Electric"}), C("Znap", "znap", {"Znap"}),
+                                        StSub{"Bionicle", "mask", {"Technic", "Constraction", "Constraction Accessory"}, "Bionicle", false}, T("Divers", "dots", "Divers")}},
+        {"mecanique", "Mécanique", "gear8", {C("Charnières", "hinge", {"Hinge"}), C("Plateaux tournants", "turntable", {"Turntable"}), C("Barres", "bar", {"Bar"}),
+                                             C("Leviers", "lever", {"Lever"}), C("Treuils", "winch", {"Winch"}), C("Grues", "crane", {"Crane"}), C("Pinces", "grab", {"Grab"}),
+                                             C("Aimants", "magnet", {"Magnet"}), C("Convoyeurs", "conveyor", {"Conveyor"}), C("Vis", "screw", {"Screw"}),
+                                             C("Crémaillères", "rack", {"Rack"}), C("Tuyaux", "hose", {"Hose"}), C("Robinets", "tap", {"Tap"})}},
+        {"vehicules", "Véhicules", "car", {C("Roues", "wheel", {"Wheel"}), C("Pneus", "tyre", {"Tyre"}), C("Voitures", "car", {"Car"}), C("Véhicules", "vehicle", {"Vehicle"}),
+                                           C("Trains", "train", {"Train"}), C("Monorail", "monorail", {"Monorail"}), C("Bateaux", "boat", {"Boat"}), C("Avions", "plane", {"Plane"}),
+                                           C("Ailes", "wing", {"Wing"}), C("Dérives", "tail", {"Tail"}), C("Hélices", "propeller", {"Propeller"}), C("Cockpits", "cockpit", {"Cockpit"}),
+                                           C("Pare-brise", "windscreen", {"Windscreen"}), C("Échappements", "exhaust", {"Exhaust"}), C("Tracteurs", "tractor", {"Tractor"}),
+                                           C("Remorques", "trailer", {"Trailer"}), C("Bennes", "tipper", {"Tipper"}), C("Chariots", "forklift", {"Forklift"})}},
+        {"batiment", "Bâtiment", "window", {C("Portes", "door", {"Door"}), C("Fenêtres", "windowf", {"Window"}), C("Vitres", "glass", {"Glass"}), C("Clôtures", "fence", {"Fence"}),
+                                            C("Échelles", "ladder", {"Ladder"}), C("Escaliers", "stairs", {"Staircase"}), C("Supports", "support", {"Support"}),
+                                            C("Plateformes", "platform", {"Platform"}), C("Garages", "garage", {"Garage"}), C("Conteneurs", "container", {"Container"}),
+                                            C("Panneaux routiers", "roadsign", {"Roadsign"}), C("Drapeaux", "flag", {"Flag"}), C("Antennes", "antenna", {"Antenna"})}},
+        {"personnages", "Personnages", "fig", {C("Minifigs", "fig", {"Minifig"}), C("Accessoires", "sword", {"Minifig Accessory"}), C("Chaussures", "footwear", {"Minifig Footwear"}),
+                                               C("Coiffes", "headwear", {"Minifig Headwear"}), C("Bas", "hipwear", {"Minifig Hipwear"}), C("Cols et capes", "neckwear", {"Minifig Neckwear"}),
+                                               C("Figurines", "figure", {"Figure"}), C("Acc. figurines", "handbag", {"Figure Accessory"}), C("Bras", "arm", {"Arm"})}},
+        {"nature", "Nature", "tree", {C("Animaux", "animal", {"Animal"}), C("Plantes", "leaves", {"Plant"}), C("Rochers", "rock", {"Rock"})}},
+        {"autres", "Autres gammes", "duplo", {C("Duplo", "duplo", {"Duplo"}), C("Scala", "figure", {"Scala"}), C("Belville", "flower", {"Belville"}), C("Clikits", "heart", {"Clikits"}),
+                                              C("Homemaker", "homemaker", {"Homemaker"}), C("Freestyle", "dots", {"Freestyle"}), C("Autocollants", "sticker", {"Sticker"}),
+                                              C("Carton", "cardboard", {"Sheet Cardboard"}), C("Tissu", "fabric", {"Sheet Fabric"}), C("Plastique", "sheet", {"Sheet Plastic"}),
+                                              C("Obsolètes", "obsolete", {"Obsolete"}), C("POV-Ray", "povray", {"Pov-RAY"}), StSub{"Divers", "dots", {}, nullptr, true}}}};
     return f;
+}
+// does a part (its LDraw category, its Technic sub-family) belong to this category of the drawer
+static bool stInSub(const StSub& q, const std::string& cat, const std::string& sub) {
+    if (q.rest) {
+        for (const StFam& f : stFams())
+            for (const StSub& o : f.subs)
+                if (!o.rest && stInSub(o, cat, sub)) return false;
+        return true;
+    }
+    for (const char* k : q.cats)
+        if (cat == k) return !q.tsub || cat != "Technic" || sub == q.tsub;
+    return false;
 }
 
 // ------------------------------------------------------------------ header
@@ -586,8 +643,8 @@ void BrickApp::stDrawer() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
-    const float famH = 58 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, gap = 8 * s, padX = 14 * s;
-    const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 10 * s + 2 * cardH + gap + 12 * s;
+    const float famH = 68 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s, cardH = 88 * s, tileW = 140 * s, gap = 8 * s, padX = 14 * s;
+    const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + 2 * cardH + gap + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
     u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(10, 11, 13, 235), IM_COL32(10, 11, 13, 235), IM_COL32(14, 15, 17, 245), IM_COL32(14, 15, 17, 245));
@@ -602,43 +659,72 @@ void BrickApp::stDrawer() {
         if (live && u.hover(ImVec2(d.x * 0.5f - 60 * s, p0.y), ImVec2(d.x * 0.5f + 60 * s, p0.y + 12 * s)) && u.pressed) m_pTray.collapsed = !m_pTray.collapsed;
         if (m_pTray.collapsed) { stTrack(u, ImVec2(padX, p0.y + 10 * s), 9, C_DIM, "BIBLIOTHÈQUE", 2 * s); return; }
     }
-    // ---- the families: a glass strip of pictogram tabs
+    // ---- line 1, the families: a glass strip of pictogram tabs (Maquette 4.1)
     const auto& fams = stFams();
-    bool known = false;
-    for (const StFam& f : fams) known |= m_stFam == f.key;
-    if (!known) m_stFam = "briques";
+    const StFam* fam = nullptr;
+    for (const StFam& f : fams) if (m_stFam == f.key) fam = &f;
+    if (!fam) { m_stFam = "basique"; m_stSub = -1; fam = &fams[2]; }
+    if (m_stSub >= (int)fam->subs.size()) m_stSub = -1;
     float y = p0.y + 12 * s;
     const ImVec2 fa(padX, y), fb(d.x - padX, y + famH);
-    stGlass(u.dl, fa, fb, 14 * s, s);
+    stGlass(u.dl, fa, fb, 16 * s, s);
     {
         const float tw = (fb.x - fa.x - 8 * s) / fams.size();
         for (size_t i = 0; i < fams.size(); ++i) {
             const StFam& f = fams[i];
-            const ImVec2 ta(fa.x + 4 * s + i * tw, fa.y + 4 * s), tb(ta.x + tw - 2 * s, fb.y - 4 * s);
-            const bool on = m_stFam == f.key && !m_searchOpen;
+            const ImVec2 ta(fa.x + 4 * s + i * tw + 1 * s, fa.y + 4 * s), tb(ta.x + tw - 2 * s, fb.y - 4 * s);
+            const bool on = &f == fam && !m_searchOpen;
             const bool h = live && u.hover(ta, tb);
-            if (on) { u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 18), 11 * s); u.dl->AddLine(ImVec2(ta.x + 14 * s, tb.y - 1), ImVec2(tb.x - 14 * s, tb.y - 1), C_ACCENT, 1.5f * s); }
-            else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 10), 11 * s);
-            const ImU32 col = stA(on ? C_ACCENT_TXT : (h ? C_TEXT : C_DIM), alpha);
-            stPicto(u.dl, f.kind, f.w, f.l, ImVec2((ta.x + tb.x) * 0.5f, ta.y + 18 * s), 26 * s, col, 1.0f * s);
+            if (on) {   // the amber glow from below, the underline
+                u.dl->AddRectFilledMultiColor(ImVec2(ta.x, (ta.y + tb.y) * 0.5f), tb, IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 22), IM_COL32(246, 196, 0, 22));
+                u.dl->AddLine(ImVec2(ta.x + 10 * s, tb.y - 1 * s), ImVec2(tb.x - 10 * s, tb.y - 1 * s), IM_COL32(246, 196, 0, 255), 2.0f * s);
+            } else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 9), 12 * s);
+            const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
+            const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
+            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + 4 * s + 20 * s - (h && !on ? 2 * s : 0)), 40 * s, pic, 1.1f * s);
             const std::string lab = stUpper(f.label);
-            const float lw = stTrackW(u, 8, lab.c_str(), 1.2f * s, true);
-            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 15 * s), 8, col, lab.c_str(), 1.2f * s);
-            if (h && u.pressed) { m_stFam = f.key; m_stW = m_stL = 0; m_searchOpen = false; m_search.clear(); m_cardsScroll = 0; }
+            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
+            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 17 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
+            if (h && u.pressed) { m_stFam = f.key; m_stSub = -1; m_stW = m_stL = 0; m_searchOpen = false; m_search.clear(); m_cardsScroll = 0; m_stSubScroll = 0; }
         }
     }
-    y += famH + 10 * s;
-    const StFam* fam = nullptr;
-    for (const StFam& f : fams) if (m_stFam == f.key) fam = &f;
-    const bool sizable = !m_searchOpen && fam && (m_stFam == "briques" || m_stFam == "plaques" || m_stFam == "tuiles");
-    // ---- left column: the search, the size in studs
-    const float colW = 200 * s;
+    y += famH + 8 * s;
+    // ---- line 2, the categories of the family: pills with their pictogram (TOUTES first)
+    if (!fam->subs.empty() && !m_searchOpen) {
+        const ImVec2 ra(padX, y), rb(d.x - padX, y + subH);
+        float x = ra.x - m_stSubScroll, total = 0;
+        u.dl->PushClipRect(ra, rb, true);
+        for (int i = -1; i < (int)fam->subs.size(); ++i) {
+            const char* lab0 = i < 0 ? "Toutes" : fam->subs[i].label;
+            const std::string lab = stUpper(lab0);
+            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.2f * s, true), w = 6 * s + 28 * s + 7 * s + lw + 12 * s;
+            const ImVec2 a(x, y), b(x + w, y + subH);
+            const bool on = m_stSub == i, h = live && u.hover(a, b) && u.hover(ra, rb);
+            u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), subH * 0.5f);
+            u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), subH * 0.5f, 0, 1.0f);
+            stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ImVec2(a.x + 6 * s + 14 * s, (a.y + b.y) * 0.5f), 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+            stTrack(u, ImVec2(a.x + 6 * s + 28 * s + 7 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
+            if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; m_cardsScroll = 0; }
+            x += w + 6 * s;
+            total += w + 6 * s;
+        }
+        u.dl->PopClipRect();
+        const float maxS = std::max(0.0f, total - 6 * s - (rb.x - ra.x));
+        if (live && u.hover(ra, rb) && ImGui::GetIO().MouseWheel != 0) m_stSubScroll -= ImGui::GetIO().MouseWheel * 120 * s;
+        m_stSubScroll = std::clamp(m_stSubScroll, 0.0f, maxS);
+    }
+    y += subH + 10 * s;
+    const bool tiles = !m_searchOpen && !fam->subs.empty() && m_stSub < 0;   // Toutes: one tile per category
+    const StSub* sub = !m_searchOpen && m_stSub >= 0 ? &fam->subs[m_stSub] : nullptr;
+    const bool sizable = sub && m_stFam == "basique" && m_stSub <= 2;      // Briques, Plaques, Tuiles: the size in studs
+    // ---- left column: the search, the size in studs (or the path), the display of the cards
+    const float colW = 210 * s;
     {
-        const ImVec2 sa(padX, y), sb(padX + colW, y + 30 * s);
-        stGlass(u.dl, sa, sb, 15 * s, s);
-        stIcon(u.dl, ST_SEARCH, ImVec2(sa.x + 16 * s, (sa.y + sb.y) * 0.5f), 15 * s, C_DIM, 1.3f * s);
-        ImGui::SetNextWindowPos(ImVec2(sa.x + 30 * s, sa.y + 2 * s));
-        ImGui::SetNextWindowSize(ImVec2(sb.x - sa.x - 40 * s, sb.y - sa.y - 4 * s));
+        const ImVec2 sa(padX, y), sb(padX + colW, y + 32 * s);
+        stGlass(u.dl, sa, sb, 16 * s, s);
+        stIcon(u.dl, ST_SEARCH, ImVec2(sa.x + 17 * s, (sa.y + sb.y) * 0.5f), 15 * s, C_DIM, 1.4f * s);
+        ImGui::SetNextWindowPos(ImVec2(sa.x + 32 * s, sa.y + 3 * s));
+        ImGui::SetNextWindowSize(ImVec2(sb.x - sa.x - 42 * s, sb.y - sa.y - 6 * s));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2 * s, 5 * s));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
@@ -656,30 +742,47 @@ void BrickApp::stDrawer() {
         ImGui::PopStyleColor(5);
         ImGui::PopStyleVar(3);
     }
-    if (sizable) {   // the stud picker: 4 x 8 studs, a click sets the size (width x length), the label resets it
-        const float sy = y + 38 * s, cell = (colW - 16 * s) / 8.0f;
-        const ImVec2 ka(padX, sy), kb(padX + colW, sy + 22 * s + 4 * cell + 8 * s);
-        stGlass(u.dl, ka, kb, 14 * s, s);
-        stTrack(u, ImVec2(ka.x + 8 * s, ka.y + 7 * s), 8, C_DIM, "TAILLE", 1.8f * s);
+    if (sizable) {
+        // the stud picker, 1.5 x smaller than before (Wzx 09/11/2026): a press on a stud then held, the size follows the
+        // cursor over the studs (lit from the corner), the release sets it; TOUTES (the label) resets it
+        const float mw = 140 * s, cell = (mw - 12 * s) / 8.0f, hdr = 16 * s;
+        const ImVec2 ka(padX, y + 40 * s), kb(padX + mw, y + 40 * s + hdr + 4 * cell + 6 * s);
+        stGlass(u.dl, ka, kb, 12 * s, s);
+        const ImVec2 g0(ka.x + 6 * s, ka.y + hdr);
+        int pw = m_stW, pl = m_stL;   // what the studs show: the size, or the one under the held cursor
+        const bool overGrid = live && u.hover(g0, ImVec2(g0.x + 8 * cell, g0.y + 4 * cell));
+        if (overGrid && u.pressed) m_stSizeDrag = true;
+        if (m_stSizeDrag) {
+            pw = std::clamp((int)((u.mouse.y - g0.y) / cell) + 1, 1, 4);
+            pl = std::clamp((int)((u.mouse.x - g0.x) / cell) + 1, 1, 8);
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) { m_stSizeDrag = false; m_stW = pw; m_stL = pl; m_cardsScroll = 0; }
+        }
+        stTrack(u, ImVec2(ka.x + 7 * s, ka.y + 5 * s), 6.6f, C_DIM, "TAILLE", 1.4f * s);
         char lab[16];
-        if (m_stW > 0) snprintf(lab, sizeof(lab), "%d × %d", m_stW, m_stL); else snprintf(lab, sizeof(lab), "TOUTES");
-        const float lw = stTrackW(u, 11, lab, 0.8f * s, true);
-        const ImVec2 la(kb.x - 8 * s - lw, ka.y + 4 * s);
-        stTrack(u, la, 11, C_ACCENT_TXT, lab, 0.8f * s);
-        if (live && u.hover(la, ImVec2(kb.x, la.y + 16 * s)) && u.pressed) { m_stW = m_stL = 0; m_cardsScroll = 0; }
+        if (pw > 0) snprintf(lab, sizeof(lab), "%d × %d", pw, pl); else snprintf(lab, sizeof(lab), "TOUTES");
+        const float lw = stTrackW(u, 7.6f, lab, 0.6f * s, true);
+        const ImVec2 la(kb.x - 7 * s - lw, ka.y + 3.5f * s);
+        stTrack(u, la, 7.6f, C_ACCENT_TXT, lab, 0.6f * s);
+        if (live && !m_stSizeDrag && u.hover(ImVec2(la.x - 4 * s, ka.y), ImVec2(kb.x, ka.y + hdr)) && u.pressed) { m_stW = m_stL = 0; m_cardsScroll = 0; }
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 8; ++c) {
-                const ImVec2 cc(ka.x + 8 * s + (c + 0.5f) * cell, ka.y + 22 * s + (r + 0.5f) * cell);
-                const float rad = cell * 0.36f;
-                const bool in = m_stW > 0 && r < m_stW && c < m_stL;
-                const bool h = live && (u.mouse.x - cc.x) * (u.mouse.x - cc.x) + (u.mouse.y - cc.y) * (u.mouse.y - cc.y) <= cell * cell * 0.25f;
-                if (in) { u.dl->AddCircleFilled(cc, rad, stA(C_ACCENT, 0.9f), 20); u.dl->AddCircleFilled(cc, rad * 0.45f, stA(C_ACCENT, 0.35f), 16); }
-                else u.dl->AddCircle(cc, rad, h ? C_TEXT : IM_COL32(255, 255, 255, 60), 20, 1.0f);
-                if (h) ImGui::SetTooltip("%d × %d", r + 1, c + 1);
-                if (h && u.pressed) { m_stW = r + 1; m_stL = c + 1; m_cardsScroll = 0; }
+                const ImVec2 cc(g0.x + (c + 0.5f) * cell, g0.y + (r + 0.5f) * cell);
+                const float rad = cell * 0.34f;
+                const bool in = pw > 0 && r < pw && c < pl;
+                const bool h = live && !m_stSizeDrag && overGrid && (int)((u.mouse.x - g0.x) / cell) == c && (int)((u.mouse.y - g0.y) / cell) == r;
+                if (in) { u.dl->AddCircleFilled(cc, rad, stA(C_ACCENT, m_stSizeDrag ? 0.95f : 0.85f), 18); u.dl->AddCircleFilled(cc, rad * 0.45f, stA(C_ACCENT, 0.35f), 14); }
+                else u.dl->AddCircle(cc, rad, h ? C_TEXT : IM_COL32(255, 255, 255, 56), 18, 1.0f);
             }
+    } else {   // the path: FAMILLE › CATÉGORIE
+        const ImVec2 ka(padX, y + 40 * s), kb(padX + colW, y + 40 * s + 52 * s);
+        stGlass(u.dl, ka, kb, 14 * s, s);
+        stTrack(u, ImVec2(ka.x + 12 * s, ka.y + 10 * s), 7, C_DIM, "CHEMIN", 1.8f * s);
+        std::string path = m_searchOpen ? std::string("Recherche") : std::string(fam->label) + (sub ? std::string(" › ") + sub->label : std::string());
+        path = stUpper(path);
+        while (path.size() > 4 && stTrackW(u, 9, path.c_str(), 1.2f * s, true) > colW - 24 * s) { path.pop_back(); while (!path.empty() && ((unsigned char)path.back() & 0xC0) == 0x80) path.pop_back(); }
+        stTrack(u, ImVec2(ka.x + 12 * s, ka.y + 28 * s), 9, C_TEXT, path.c_str(), 1.2f * s);
     }
-    {   // the display of the cards: IMAGE / FICHE (also in Réglages)
+    if (!tiles) {   // the display of the cards: IMAGE / FICHE (also in Réglages)
         const float ty = y + 2 * cardH + gap - 24 * s;
         stTrack(u, ImVec2(padX + 2 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, C_DIM, "AFFICHAGE", 1.6f * s);
         static const char* kModes[2] = {"IMAGE", "FICHE"};
@@ -695,45 +798,35 @@ void BrickApp::stDrawer() {
             bx -= bw + 4 * s;
         }
     }
-    // ---- the parts (cached: the full library has 22 000 parts)
+    // ---- the parts of the category, and how many each category has (cached: the full library has 22 000 parts)
     int avail = 0;
     for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
-    const std::string key = m_stFam + "|" + std::to_string(m_stW) + "x" + std::to_string(m_stL) + "|" + (m_searchOpen ? m_search : std::string()) + "|" +
+    const std::string key = m_stFam + "|" + std::to_string(m_stSub) + "|" + std::to_string(m_stW) + "x" + std::to_string(m_stL) + "|" + (m_searchOpen ? m_search : std::string()) + "|" +
                             std::to_string(avail) + "|" + std::to_string(m_recent.size()) + "|" + std::to_string(m_fav.size());
     if (key != m_stKey) {
         m_stKey = key;
         m_stParts.clear();
+        m_stSubCount.assign(fam->subs.size(), 0);
         if (m_searchOpen) m_stParts = visibleParts();
         else if (m_stFam == "recent") m_stParts = m_recent;
         else if (m_stFam == "fav") m_stParts = m_fav;
-        else if (fam) {
+        else {
             for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
                 const Part& p = m_lib.parts[i];
                 if (!p.available()) continue;
                 const std::string& c = partCat(i);
-                bool in;
-                if (m_stFam == "autres") {   // everything that no family takes
-                    in = true;
-                    for (const StFam& f : fams) for (const char* k : f.cats) if (c == k) in = false;
-                } else {
-                    in = std::find_if(fam->cats.begin(), fam->cats.end(), [&](const char* k) { return c == k; }) != fam->cats.end();
-                    if (in && fam->sub) in = p.sub == fam->sub;
-                    if (in && m_stFam == "technic") in = p.sub != "Engrenages";
-                }
+                for (size_t q = 0; q < fam->subs.size(); ++q)
+                    if (stInSub(fam->subs[q], c, p.sub)) ++m_stSubCount[q];
+                bool in = sub && stInSub(*sub, c, p.sub);
                 if (in && m_stW > 0) {
-                    std::string kd;
-                    int w, l;
-                    stPartKind(p, kd, w, l);
-                    int tw = 0, tl = 0;   // (stPartKind clamps the big sizes: the title again)
-                    {
-                        const std::string& t = p.label;
-                        const size_t xpos = t.find(" x ");
-                        if (xpos != std::string::npos) {
-                            size_t a0 = xpos;
-                            while (a0 > 0 && (std::isdigit((unsigned char)t[a0 - 1]) || t[a0 - 1] == ' ')) --a0;
-                            tw = std::atoi(t.substr(a0, xpos - a0).c_str());
-                            tl = std::atoi(t.substr(xpos + 3).c_str());
-                        }
+                    int tw = 0, tl = 0;   // the size in studs, from the title
+                    const std::string& t = p.label;
+                    const size_t xpos = t.find(" x ");
+                    if (xpos != std::string::npos) {
+                        size_t a0 = xpos;
+                        while (a0 > 0 && (std::isdigit((unsigned char)t[a0 - 1]) || t[a0 - 1] == ' ')) --a0;
+                        tw = std::atoi(t.substr(a0, xpos - a0).c_str());
+                        tl = std::atoi(t.substr(xpos + 3).c_str());
                     }
                     in = (tw == m_stW && tl == m_stL) || (tw == m_stL && tl == m_stW);
                 }
@@ -744,12 +837,24 @@ void BrickApp::stDrawer() {
     const std::vector<int>& parts = m_stParts;
     // ---- the cards: two rows, column by column, sliding sideways (wheel, drag)
     const ImVec2 ca(padX + colW + 12 * s, y), cb(d.x - padX, y + 2 * cardH + gap);
-    const int cols = ((int)parts.size() + 1) / 2;
-    const float contentW = cols * (cardW + gap) - gap, viewW = cb.x - ca.x;
-    if (live && u.hover(ca, cb) && ImGui::GetIO().MouseWheel != 0) m_cardsScroll -= ImGui::GetIO().MouseWheel * cardW;
+    const int nItems = tiles ? (int)fam->subs.size() : (int)parts.size();
+    const float itemW = tiles ? tileW : cardW;
+    const float viewW = cb.x - ca.x;
+    // the tiles read row by row, as in the maquette (in one row when they fit); the cards go column by column
+    const int perRow = tiles ? std::min(nItems, std::max((nItems + 1) / 2, (int)((viewW + gap) / (tileW + gap)))) : 0;
+    const int cols = tiles ? perRow : (nItems + 1) / 2;
+    const float contentW = cols * (itemW + gap) - gap;
+    if (live && u.hover(ca, cb) && ImGui::GetIO().MouseWheel != 0) m_cardsScroll -= ImGui::GetIO().MouseWheel * itemW;
     swipeRow(0, ca, cb, m_cardsScroll, m_cardsVel, std::max(0.0f, contentW - viewW), live);
     u.dl->PushClipRect(ca, cb, true);
-    if (parts.empty()) {
+    if (!sizable) m_stSizeDrag = false;
+    // the ground of a card or a tile: the grey of the maquette (the thumbnails are transparent PNG), a hairline
+    auto cardBg = [&](ImVec2 a, ImVec2 b, bool h, bool on) {
+        u.dl->AddRectFilled(a, b, stA(IM_COL32(18, 19, 24, 255), alpha), 12 * s);
+        u.dl->AddRectFilledMultiColor(ImVec2(a.x + 6 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 6 * s, b.y - 6 * s), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 14), IM_COL32(0, 0, 0, 14));
+        u.dl->AddRect(a, b, stA(on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 102 : 41), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
+    };
+    if (!tiles && parts.empty()) {
         const char* msg = m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici"
                         : m_stFam == "fav" ? "Aucun favori : appui long sur une pièce, puis Favori" : m_stW > 0 ? "Aucune pièce de cette taille ici : clique TOUTES" : "Aucune pièce importée ici";
         u.text(ImVec2(ca.x + 8 * s, ca.y + 20 * s), 11.5f, C_DIM, msg);
@@ -757,7 +862,27 @@ void BrickApp::stDrawer() {
     const double now = ImGui::GetTime();
     const int taken = m_libPress >= 0 ? m_libPress : (m_holding ? m_libSel : -1);
     bool hovered = false;
-    for (int k = 0; k < (int)parts.size(); ++k) {
+    if (tiles)   // Toutes: one tile per category, its pictogram big (Maquette 4.1); a click opens it
+        for (int k = 0; k < nItems; ++k) {
+            const int c = k % std::max(1, perRow), r = k / std::max(1, perRow);
+            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + r * (cardH + gap)), b(a.x + tileW, a.y + cardH);
+            if (b.x < ca.x || a.x > cb.x) continue;
+            const StSub& q = fam->subs[k];
+            const int n = k < (int)m_stSubCount.size() ? m_stSubCount[k] : 0;
+            const bool h = live && u.hover(a, b) && u.hover(ca, cb);
+            const float lift = h ? -1 * s : 0, op = alpha * (n > 0 ? 1.0f : 0.4f);
+            cardBg(ImVec2(a.x, a.y + lift), ImVec2(b.x, b.y + lift), h, false);
+            stIco(u.dl, q.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 30 * s + lift), 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
+            std::string lab = stUpper(q.label);
+            while (lab.size() > 4 && stTrackW(u, 8, lab.c_str(), 1.2f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, 8, lab.c_str(), 1.2f * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, a.y + 58 * s + lift), 8, stA(C_TEXT, op), lab.c_str(), 1.2f * s);
+            const char* cat = "catégorie";
+            const float cw = u.textW(8, cat);
+            u.text(ImVec2((a.x + b.x - cw) * 0.5f, a.y + 71 * s + lift), 8, stA(IM_COL32(117, 120, 126, 255), op), cat);
+            if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; m_cardsScroll = 0; }
+        }
+    else for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / 2, r = k % 2;
         const ImVec2 a(ca.x + c * (cardW + gap) - m_cardsScroll, ca.y + r * (cardH + gap)), b(a.x + cardW, a.y + cardH);
         if (b.x < ca.x || a.x > cb.x) continue;
@@ -766,8 +891,7 @@ void BrickApp::stDrawer() {
         if (k == 3) m_mtCard = ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
         const bool h = live && u.hover(a, b) && u.hover(ca, cb);
         const bool on = part == taken;
-        u.dl->AddRectFilled(a, b, stA(IM_COL32(255, 255, 255, h ? 22 : 12), alpha), 12 * s);
-        u.dl->AddRect(a, b, stA(on ? C_ACCENT : (h ? IM_COL32(255, 255, 255, 90) : IM_COL32(255, 255, 255, 30)), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
+        cardBg(a, b, h, on);
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (!sheet && thumbUv(part, tex, uv0, uv1)) {   // IMAGE: the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
