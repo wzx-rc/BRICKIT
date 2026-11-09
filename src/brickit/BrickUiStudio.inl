@@ -1090,14 +1090,21 @@ void BrickApp::stSelHud() {
         if (view().project(c3, px, py)) { m_stMenu = true; m_stMenuShown = true; m_stMenuAt = ImVec2(px, py); }
     }
     // ---- the marking menu (opened by editInput: a press held still on a brick)
+    static bool menuWas = false;
+    static double menuT0 = 0;
+    if (m_stMenu && !menuWas) menuT0 = ImGui::GetTime();   // the colours come out one by one (the arc of the web app)
+    menuWas = m_stMenu;
     if (m_stMenu) {
         const ImVec2 c = m_stMenuAt;
+        const bool still = !m_opt.shotPath.empty();   // (captures: everything out)
+        const auto popIn = [&](int k) { return still ? 1.0f : easeOutBack((float)((ImGui::GetTime() - menuT0 - k * 0.0125) / 0.09)); };
+        const int nAct = m_ipad ? 4 : 6;   // iPad: no Basculer / Fiche (Wzx)
         const float dx = u.mouse.x - c.x, dy = u.mouse.y - c.y, dist = std::sqrt(dx * dx + dy * dy);
         float ang = std::atan2(dy, dx) * 57.29578f;
         if (ang < 0) ang += 360;
         const std::vector<int> cols = stArcColors();
         int hot = -1;   // 0..5 an action, 100 + k a colour
-        if (dist > 30 * s && dist < 104 * s) hot = (int)std::lround(ang / 60.0f) % 6;
+        if (dist > 30 * s && dist < 104 * s) { hot = (int)std::lround(ang / 60.0f) % 6; if (hot >= nAct) hot = -1; }
         else if (dist >= 104 * s && dist < 186 * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty()) {
             const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
             hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
@@ -1126,7 +1133,7 @@ void BrickApp::stSelHud() {
             stPartKind(m_lib.parts[m_bricks[sel[0]].part], kd, w, l);
             stPicto(dl, kd, w, l, c, 40 * s, stA(C_TEXT, hot >= 0 ? 0.3f : 0.85f), 1.0f * s);
         }
-        for (int k = 0; k < 6; ++k) {
+        for (int k = 0; k < nAct; ++k) {
             const StAct& A = kStActs[k];
             const bool on = hot == k;
             const float r = A.ang * 0.0174533f, rad = (on ? 30 : 26) * s;
@@ -1146,8 +1153,10 @@ void BrickApp::stSelHud() {
         for (int k = 0; k < (int)cols.size(); ++k) {   // the colours on the arc: 1x1 bricks
             const float a = (ST_ARC0 + (ST_ARC1 - ST_ARC0) * k / std::max(1, (int)cols.size() - 1)) * 0.0174533f;
             const bool on = hot == 100 + k;
-            const float half = (on ? 21 : 14) * s;
-            const ImVec2 p(c.x + std::cos(a) * ST_R_COL * s, c.y + std::sin(a) * ST_R_COL * s);
+            const float e = popIn(k);
+            if (e <= 0.02f) continue;
+            const float half = (on ? 21 : 14) * s * std::max(0.0f, e), rr = ST_R_COL * s * (0.55f + 0.45f * e);
+            const ImVec2 p(c.x + std::cos(a) * rr, c.y + std::sin(a) * rr);
             const Color& col = m_lib.palette[cols[k]];
             const ImU32 cc = IM_COL32((int)(std::clamp(col.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(col.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(col.srgb.z, 0.0f, 1.0f) * 255), col.group == "transparent" ? 170 : 255);
             dl->AddRectFilled(ImVec2(p.x - half + 2 * s, p.y - half + 3 * s), ImVec2(p.x + half + 2 * s, p.y + half + 3 * s), IM_COL32(0, 0, 0, 60), 4 * s);
