@@ -453,16 +453,28 @@ void BrickApp::saveDialog() {
         SYSTEMTIME st;
         GetLocalTime(&st);
         wchar_t name[64];
-        swprintf(name, 64, L"BrickIt %04d-%02d-%02d %02dh%02d.v3d.json", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
+        swprintf(name, 64, L"BrickIt %04d-%02d-%02d %02dh%02d.brick", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
         suggested = name;
     }
-    plat::saveFileDialog(L"Scène BrickIt (*.v3d.json)\0*.v3d.json;*.json\0Tous les fichiers\0*.*\0", L"v3d.json", suggested,
+    // .brick (Wzx 10/11/2026): the scene of BrickIt between the apps (PC, iPad, Fichiers, AirDrop); the same JSON as the
+    // .v3d.json of the editor, which still opens. A scene opened as .v3d.json is saved again as .brick.
+    if (suggested.size() > 9 && suggested.compare(suggested.size() - 9, 9, L".v3d.json") == 0) suggested = suggested.substr(0, suggested.size() - 9) + L".brick";
+    plat::saveFileDialog(L"Scène BrickIt (*.brick)\0*.brick\0Scène de l'éditeur (*.v3d.json)\0*.v3d.json;*.json\0", L"brick", suggested,
                          [this](const std::wstring& p) { if (!p.empty()) saveScene(p); });
 }
 
 void BrickApp::openDialog() {
-    plat::openFileDialog(L"Scène BrickIt ou modèle LDraw (*.v3d.json, *.ldr, *.mpd)\0*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0",
-                         L"v3d.json", [this](const std::wstring& p) { if (!p.empty()) openScene(p); }, m_scenePath);
+    plat::openFileDialog(L"Scène BrickIt ou modèle LDraw (*.brick, *.v3d.json, *.ldr, *.mpd)\0*.brick;*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0",
+                         L"brick", [this](const std::wstring& p) { if (!p.empty()) openScene(p); }, m_scenePath);
+}
+
+// the scene saved, then handed to the system (iPad: the share sheet, AirDrop, Mail, Fichiers...)
+void BrickApp::shareScene() {
+    if (m_scenePath.empty() || m_scenePath.size() < 6 || m_scenePath.compare(m_scenePath.size() - 6, 6, L".brick") != 0) {
+        saveDialog();
+        if (m_scenePath.empty()) return;
+    } else saveScene(m_scenePath);
+    plat::shareFile(m_scenePath);
 }
 
 // --------------------------------------------------------------------------- input

@@ -2758,6 +2758,24 @@ float BrickApp::manualPage(Ui& u, ImVec2 a, float w, int n, int corner, bool big
     return H;
 }
 
+void BrickApp::dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id) {
+    if (!m_ipad) return;
+    ImGuiIO& io = ImGui::GetIO();
+    const float dt = std::max(1e-3f, io.DeltaTime);
+    if (u.pressed && u.hover(a, b)) { m_dsId = id; m_dsVel = 0; if (m_dsFling == id) m_dsFling = -1; }
+    if (m_dsId == id) {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            const float dy = io.MouseDelta.y;
+            scroll -= dy;
+            m_dsVel = m_dsVel * 0.5f + (-dy / dt) * 0.5f;
+        } else { m_dsId = -1; m_dsFling = std::fabs(m_dsVel) > 60 * u.s ? id : -1; }
+    } else if (m_dsFling == id) {   // thrown: it glides, slowing down
+        scroll += m_dsVel * dt;
+        m_dsVel *= std::pow(0.04f, dt);
+        if (std::fabs(m_dsVel) < 20 * u.s) m_dsFling = -1;
+    }
+}
+
 // Vertical PDF view (.pdfview): white pages one under the other, gap 10, rendered when they come near the view.
 void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     const float s = u.s;
@@ -2788,6 +2806,11 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     }
     const bool over = u.hover(a, b);
     if (over && ImGui::GetIO().MouseWheel != 0) { scroll -= ImGui::GetIO().MouseWheel * 90 * s; if (main) m_pdfScrollGoal = -1; }
+    {
+        const float before = scroll;
+        dragScroll(u, a, b, scroll, main ? 1 : 2);
+        if (main && scroll != before) { m_pdfScrollGoal = -1; m_pdfLock = 0; }
+    }
     if (main && m_pdfScrollGoal >= 0) {
         scroll += (m_pdfScrollGoal - scroll) * std::min(1.0f, ImGui::GetIO().DeltaTime * 12);   // behavior: "smooth"
         if (std::fabs(m_pdfScrollGoal - scroll) < 0.5f) { scroll = m_pdfScrollGoal; m_pdfScrollGoal = -1; }
@@ -2910,6 +2933,7 @@ void BrickApp::uiManual() {
     else {
         const bool over = u.hover(ba, bb);
         if (over && ImGui::GetIO().MouseWheel != 0) m_manScroll -= ImGui::GetIO().MouseWheel * 60 * s;
+        dragScroll(u, ba, bb, m_manScroll, 3);
         m_manScroll = std::clamp(m_manScroll, 0.0f, std::max(0.0f, pagesH - bodyH));
         u.dl->PushClipRect(ba, bb, true);
         float py = ba.y - m_manScroll;
@@ -2969,6 +2993,7 @@ void BrickApp::uiManualBig() {
     const float content = h1 + 12 * s + h2, viewH = std::min(content, d.y * 0.92f);
     ImVec2 a((d.x - w) * 0.5f, (d.y - viewH) * 0.5f), b(a.x + w, a.y + viewH);
     if (u.hover(a, b) && ImGui::GetIO().MouseWheel != 0) m_bigScroll -= ImGui::GetIO().MouseWheel * 80 * s;
+    dragScroll(u, a, b, m_bigScroll, 4);
     m_bigScroll = std::clamp(m_bigScroll, 0.0f, std::max(0.0f, content - viewH));
     u.dl->AddRectFilled(ImVec2(a.x, a.y + 24 * s), ImVec2(b.x, b.y + 24 * s), IM_COL32(0, 0, 0, 60), 8 * s);   // drop-shadow
     u.dl->PushClipRect(a, b, true);
@@ -3378,7 +3403,11 @@ void BrickApp::uiSettings() {
         {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
         {"Pièces décorées (stickers, motifs)", {{"Masquées", m_hideDeco}, {"Affichées", !m_hideDeco}}, 20},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
-        {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
+        {"Brique en main : couleur de l'aperçu", {{"Jaune", m_ghostCol == 0}, {"Blanc", m_ghostCol == 1}, {"Bleu", m_ghostCol == 2}, {"Vert", m_ghostCol == 3}, {"Rose", m_ghostCol == 4}, {"Brique", m_ghostCol == 5}}, 21},
+        {"Brique en main : opacité", {{"15 %", m_ghostAlphaPref < 0.2f}, {"32 %", m_ghostAlphaPref >= 0.2f && m_ghostAlphaPref < 0.4f}, {"50 %", m_ghostAlphaPref >= 0.4f && m_ghostAlphaPref < 0.6f}, {"75 %", m_ghostAlphaPref >= 0.6f}}, 22},
+        {"Brique en main : intensité", {{"Aucune", m_ghostGlow == 0}, {"Douce", m_ghostGlow == 1}, {"Normale", m_ghostGlow == 2}, {"Forte", m_ghostGlow == 3}}, 23},
+        {"Arêtes arrondies (biseau)", {{"Oui", m_rs.bevel}, {"Non", !m_rs.bevel}}, 24},
+        {"Anneau de la main gauche (tourner, basculer)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
         {"Rendu", {{"Rapide", m_rs.raster && m_quality == 0}, {"HQ", m_rs.raster && m_quality == 1}, {"PT", pathTraced()}, {"RC", m_rcMode}}, 2},
         {"Anti-aliasing (Radiance Cascades)", {{"MSAA 4x", m_rs.aaQuality == 0}, {"MSAA 8x", m_rs.aaQuality == 1}, {"AAA", m_rs.aaQuality == 2}}, 9},
@@ -3690,6 +3719,10 @@ void BrickApp::uiSettings() {
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
         case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
         case 19: m_stCardMode = clickOpt; m_cardsScroll = 0; break;
+        case 24: m_rs.bevel = clickOpt == 0; m_renderer->resetAccumulation(); break;
+        case 21: m_ghostCol = clickOpt; applyGhostLook(); break;
+        case 22: { static const float k[4] = {0.15f, 0.32f, 0.5f, 0.75f}; m_ghostAlphaPref = k[std::clamp(clickOpt, 0, 3)]; break; }
+        case 23: m_ghostGlow = clickOpt; applyGhostLook(); break;
         case 20: m_hideDeco = clickOpt == 0; m_stKey.clear(); m_cardsScroll = 0; break;
         case 13: if (clickOpt == 0) saveDefaultPrefs(); else resetToDefaultPrefs(); break;
         case 11: { static const float k[4] = {1.0f, 0.85f, 0.75f, 0.67f}; m_renderScale = k[std::clamp(clickOpt, 0, 3)]; break; }

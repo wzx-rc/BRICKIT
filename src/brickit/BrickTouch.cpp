@@ -65,7 +65,11 @@ void BrickApp::touchDown(const TouchEvent& e) {
 
     // a finger on a panel: the mouse of the PC. A second finger while that finger carries a brick from the library
     // turns it (the web: libDrag + another finger)
-    if (g.type == TG_MOUSE) {
+    if (g.type == TG_MOUSE && g.paint) {   // Pinceau / Pipette: a second finger lets the stroke go and moves the camera
+        io.AddMouseButtonEvent(0, false);
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+        g.type = TG_NONE;
+    } else if (g.type == TG_MOUSE) {
         if (m_holding && !g.second) { g.second = true; g.secondId = e.id; g.ax = e.x; g.ay = e.y; g.rotated = false; }
         return;
     }
@@ -140,6 +144,14 @@ void BrickApp::touchDown(const TouchEvent& e) {
         return;
     }
     if (m_reading) { g.type = TG_ORBIT; return; }   // reading the instructions: no editing
+    if ((m_paintTool || m_pipette) && !m_holding && !m_pivotEdit) {   // PEINDRE: the finger (or the Pencil) is the brush of the PC
+        g.type = TG_MOUSE;
+        g.paint = true;
+        io.AddMouseSourceEvent(e.pen ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+        io.AddMousePosEvent(e.x, e.y);
+        io.AddMouseButtonEvent(0, true);
+        return;
+    }
     if (!m_holding && !m_pivotEdit) {
         GizmoHandle gh = pickGizmo(e.x, e.y);
         if (gh.kind == 2) {   // centre sphere: free move, the brick goes in hand and drops on release
@@ -163,7 +175,11 @@ void BrickApp::touchDown(const TouchEvent& e) {
         else { g.type = TG_MARQUEE; m_marquee = true; m_marquee0 = m_marquee1 = ImVec2(e.x, e.y); }
         return;
     }
-    if (m_mode != 1) {   // Déplacer / Tourner: a tap selects (Auto Pivot moves the pivot), dragging orbits
+    if (m_mode == 2 && hit >= 0 && !(m_pencilOnly && !e.pen)) {   // Déplacer (Wzx 10/11/2026): a finger drags the brick in snap, as Construire
+        g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt;
+        return;
+    }
+    if (m_mode != 1) {   // Tourner (Déplacer off a brick): a tap selects (Auto Pivot moves the pivot), dragging orbits
         if (hit >= 0) {
             if (m_autoPivot) {
                 const Part& p = m_lib.parts[m_bricks[hit].part];
@@ -405,12 +421,13 @@ void BrickApp::touchTestFrame() {
         return ImVec2(cx, cy);
     };
     static ImVec2 a;
+    if (t == "paint" && f == 10) { m_paintMode = true; m_paintTool = true; m_pipette = false; }   // (its panels drawn before the tap)
     if (f == 20) {
         yaw0 = m_scene.camera.yaw;
         dist0 = m_scene.camera.distance;
         count0 = m_bricks.size();
         m_mode = 1;
-        select(-1);
+        if (t != "paint") select(-1);
         if (t == "orbit") { a = emptyPoint(); touchBegan(1, a.x, a.y, false); }
         if (t == "pinch") { touchBegan(1, cx - 60, cy, false); touchBegan(2, cx + 60, cy, false); }
         if (t == "undo") {
@@ -441,12 +458,12 @@ void BrickApp::touchTestFrame() {
     if (t == "undo" && f == 24) { touchBegan(1, cx - 40, cy, false); touchBegan(2, cx + 40, cy, false); }
     if (t == "undo" && f == 26) { touchEnded(1, cx - 40, cy, false); touchEnded(2, cx + 40, cy, false); }
     if (t == "undo" && f == 28) line("two-finger tap: bricks " + std::to_string(m_bricks.size()) + (m_bricks.size() == count0 ? " OK" : " FAIL"));
-    if ((t == "pick" || t == "hold2") && f > 20 && f <= 32) touchMoved(1, a.x + (f - 20) * 12.0f, a.y - (f - 20) * 6.0f);
-    if (t == "pick" && f == 26) line(std::string("pick: in hand ") + (m_holding && m_held.brick == target ? "OK" : "FAIL"));
+    if ((t == "pick" || t == "hold2" || t == "move") && f > 20 && f <= 32) touchMoved(1, a.x + (f - 20) * 12.0f, a.y - (f - 20) * 6.0f);
+    if ((t == "pick" || t == "move") && f == 26) line(t + std::string(": in hand ") + (m_holding && m_held.brick == target ? "OK" : "FAIL"));
     if (t == "hold2" && f == 26) touchBegan(2, cx + 200, cy + 100, false);
     if (t == "hold2" && f == 28) touchEnded(2, cx + 200, cy + 100, false);
-    if ((t == "pick" || t == "hold2") && f == 34) touchEnded(1, a.x + 144, a.y - 72, false);
-    if ((t == "pick" || t == "hold2") && f == 110) {
+    if ((t == "pick" || t == "hold2" || t == "move") && f == 34) touchEnded(1, a.x + 144, a.y - 72, false);
+    if ((t == "pick" || t == "hold2" || t == "move") && f == 110) {
         const Brick& b = m_bricks[target];
         const bool moved = length(b.pos - pos0) > 0.5f;
         const bool turned = std::fabs(b.rot.x - rot0.x) + std::fabs(b.rot.y - rot0.y) + std::fabs(b.rot.z - rot0.z) + std::fabs(b.rot.w - rot0.w) > 0.1f;

@@ -224,6 +224,7 @@ private:
         float3 hitPoint;
         float sx = 0, sy = 0, moved = 0;
         bool tap = false;
+        bool paint = false;           // TG_MOUSE in the view: the Pinceau / Pipette (a second finger turns it into the camera)
         bool second = false, rotated = false;   // a second finger while a brick is in hand: swipe turns / tilts, tap turns
         uint64_t secondId = 0;
         float ax = 0, ay = 0;
@@ -320,6 +321,7 @@ private:
     void restore(const std::vector<Brick>& snap);
     bool saveScene(const std::wstring& path);
     bool openScene(const std::wstring& path);
+    void shareScene();               // iPad: Partager (the .brick to another app)
     void saveDialog();
     void openDialog();
     void noteRecent(int part);
@@ -513,6 +515,10 @@ private:
     ImTextureID stepImage(int n);
     float manualPage(Ui& u, ImVec2 a, float w, int n, int corner, bool big, bool draw);
     void pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main);
+    // iPad: a finger or the Pencil dragged on a page scrolls it, as in any iPad app, with a little inertia (Wzx 10/11/2026)
+    void dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id);
+    int m_dsId = -1, m_dsFling = -1;
+    float m_dsVel = 0;
     void uiManual();
     void uiManualBig();
     void pdfOpen(const std::wstring& path, const std::string& name, bool save);
@@ -811,6 +817,8 @@ private:
     struct PaintFx { ImVec2 p; int color; double t0; int kind; };   // 0 Pipette (a drop to the active colour), 1 / 2 a splash
     std::vector<PaintFx> m_paintFx;
     void stPaintFx();
+    int m_colPress = -1;              // the colours on the right: the swatch pressed (a drag out of the panel takes a 1x1 of that colour, Wzx 10/11/2026)
+    ImVec2 m_colPressPos, m_colCurAt = ImVec2(-1, -1);   // (the swatch of the current colour, for the touch test)
     bool paintHit(int brick, ImVec2 at, bool fx);
     ImVec2 m_paintSwatchAt = ImVec2(-1, -1);   // the active colour of the panel Peindre (where the drop of the Pipette lands)
     double m_paintSwatchPop = -10;
@@ -850,6 +858,20 @@ private:
     void stColors();
     void stDrawer();
     void stSelHud();
+    // Réglages › Brique en main (Wzx 10/11/2026): the look of the placement preview (the ghost and the yellow marks)
+    int m_ghostCol = 0;               // 0 jaune, 1 blanc, 2 bleu, 3 vert, 4 rose, 5 la couleur de la brique
+    float m_ghostAlphaPref = 0.32f;   // its opacity
+    int m_ghostGlow = 2;              // its glow: 0 none, 1 soft, 2 normal, 3 strong
+    float3 ghostSrgb() const;         // the colour of the marks (sRGB 0..1)
+    ImU32 ghostU32(float alpha) const;
+    void applyGhostLook();            // into the ghost material and object
+    void stRing();                    // Studio: the ring of the left hand (Réglages › Anneau tactile): turn, tilt, duplicate / place
+    int stRingHit(float x, float y) const;   // the part of the ring under a point (-1 none, 0..3 the wedges, 4 the centre)
+    void stRingAct(int part);
+    ImVec2 m_ringC = ImVec2(-1, -1);  // the ring of this frame (its centre, its radius; -1 hidden)
+    float m_ringR = 0;
+    double m_ringFlashT = -10;        // a part touched: it lights up a moment
+    int m_ringFlash = -1;
     void stHeld();
     void stCardSheet(int part, ImVec2 a, ImVec2 b, float t);
     int m_stHov = -1;                 // the card under the cursor, since m_stHovT (its sheet after 0.5 s)

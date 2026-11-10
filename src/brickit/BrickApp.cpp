@@ -1433,6 +1433,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         std::wstring a = args[i];
         auto next = [&]() -> std::wstring { return i + 1 < argc ? args[++i] : std::wstring(); };
         // (the Studio and HD thumbnail flags apart: the chain below is at the nesting limit of the compiler)
+        if (!a.empty() && a[0] != L'-' && opt.openPath.empty()) { opt.openPath = a; continue; }   // a file opened from the system (a .brick double clicked)
         if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
         if (a == L"--st-paint") { opt.stPaint = true; continue; }
         if (a == L"--st-groups") { opt.stGroups = true; continue; }

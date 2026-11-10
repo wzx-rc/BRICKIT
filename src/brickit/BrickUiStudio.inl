@@ -476,12 +476,18 @@ void BrickApp::stTools() {
         {ST_ROT, "Tourner : anneaux sur la sélection (6)", "6", m_mode == 3 && !m_paintTool && !m_pipette, 5},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
-    const ImVec2 a(14 * s + m_dockL, top), b(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
+    // iPad (Wzx 10/11/2026): a row at the top centre (the left hand keeps the ring of the side); PC: the column on the left
+    const bool row = m_ipad;
+    const float bw = row ? 46 * s : W - pad * 2;
+    const float rowW = pad * 2 + ts.size() * (bw + 2 * s) - 2 * s;
+    const ImVec2 a = row ? ImVec2(std::floor(ImGui::GetIO().DisplaySize.x * 0.5f - rowW * 0.5f), top) : ImVec2(14 * s + m_dockL, top);
+    const ImVec2 b = row ? ImVec2(a.x + rowW, top + bh + pad * 2) : ImVec2(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
     stGlass(u.dl, a, b, 18 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    float y = a.y + pad;
+    float y = a.y + pad, x = a.x + pad;
     for (const T& t : ts) {
-        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + bh);
+        const ImVec2 ba = row ? ImVec2(x, a.y + pad) : ImVec2(a.x + pad, y), bb = row ? ImVec2(x + bw, b.y - pad) : ImVec2(b.x - pad, y + bh);
+        x += bw + 2 * s;
         const bool h = u.hover(ba, bb) && m_popup == 0;
         if (t.on) {   // the active tool: a translucent yellow, a fine rim
             u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 13 * s);
@@ -905,7 +911,13 @@ void BrickApp::stFile() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; const char* key; int id; };
-    const It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    if (m_ipad) {   // the iPad: saved in Documents (the app's folder in Fichiers), Partager sends the .brick to another app
+        its[1].label = "OUVRIR (FICHIERS)…";
+        its[2].label = "ENREGISTRER (.BRICK)";
+        its[3] = {"PARTAGER… (AIRDROP, MAIL, PC)", "", 4};
+        for (It& it : its) it.key = "";
+    }
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + 4 * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -926,6 +938,7 @@ void BrickApp::stFile() {
             if (it.id == 0) newScene();
             else if (it.id == 1) openDialog();
             else if (it.id == 2) saveNow();
+            else if (it.id == 4) shareScene();
             else saveDialog();
         }
         y += ih;
@@ -1241,10 +1254,11 @@ void BrickApp::stColors() {
                 u.dl->AddRectFilled(p0, p1, IM_COL32(16, 17, 19, 170), 3 * s);
                 u.dl->AddLine(ImVec2(p0.x + 4 * s, p1.y - 4 * s), ImVec2(p1.x - 4 * s, p0.y + 4 * s), IM_COL32(255, 255, 255, 60), 1.0f);
             }
+            if (i == m_color) m_colCurAt = ImVec2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
             if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2.5f * s, p0.y - 2.5f * s), ImVec2(p1.x + 2.5f * s, p1.y + 2.5f * s), C_ACCENT, 4 * s, 0, 1.5f * s);
             if (u.hover(p0, p1)) {
-                ImGui::SetTooltip(exists ? "%s · %d" : "%s · %d : n'existe pas pour cette pièce", colorFr(c.name), c.id);
-                if (u.pressed && exists) applyColor(i);
+                if (m_colPress < 0) ImGui::SetTooltip(exists ? "%s · %d" : "%s · %d : n'existe pas pour cette pièce", colorFr(c.name), c.id);
+                if (u.pressed) { m_colPress = i; m_colPressPos = u.mouse; }   // (a click applies on release; a drag out takes a 1x1)
             }
             ++k;
         }
@@ -1254,6 +1268,53 @@ void BrickApp::stColors() {
     group("TRANSPARENTES", "transparent");
     group("MÉTALLISÉES", "metallic");
     u.dl->PopClipRect();
+    // a swatch pressed: released in place it applies the colour (to the selection); dragged out of the panel, a brick
+    // 1x1 of that colour comes into the hand with a little burst (Wzx 10/11/2026)
+    if (m_colPress >= 0 && m_colPress < (int)m_lib.palette.size()) {
+        const ImVec2 dm(u.mouse.x - m_colPressPos.x, u.mouse.y - m_colPressPos.y);
+        const bool moved = dm.x * dm.x + dm.y * dm.y > 64 * s * s;
+        const bool inside = u.mouse.x >= a.x && u.mouse.x <= b.x && u.mouse.y >= a.y && u.mouse.y <= b.y;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            if (!moved && (!filter || m_lib.colorExists(fpart, m_colPress))) applyColor(m_colPress);
+            m_colPress = -1;
+        } else if (moved && inside) {   // the swatch follows the finger, a little bigger, wobbling
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            const float t = (float)ImGui::GetTime();
+            const float z = 34 * s * (1 + 0.06f * std::sin(t * 18));
+            const ImVec2 c(u.mouse.x, u.mouse.y - 30 * s);
+            fg->AddCircleFilled(ImVec2(c.x + 2 * s, c.y + 4 * s), z * 0.62f, IM_COL32(0, 0, 0, 70), 24);
+            ImDrawList* keep = u.dl;
+            u.dl = fg;
+            swatch(ImVec2(c.x - z * 0.5f, c.y - z * 0.5f), z, m_lib.palette[m_colPress]);
+            u.dl = keep;
+            fg->AddRect(ImVec2(c.x - z * 0.5f - 2 * s, c.y - z * 0.5f - 2 * s), ImVec2(c.x + z * 0.5f + 2 * s, c.y + z * 0.5f + 2 * s), IM_COL32(255, 255, 255, 200), 5 * s, 0, 1.5f * s);
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        } else if (moved && !inside) {
+            int part = m_lib.find("3005");
+            if (part < 0) part = m_lib.find("3005.dat");
+            const int col = m_colPress;
+            m_colPress = -1;
+            if (part >= 0) {
+                m_color = col;
+                m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), col), m_recentColors.end());
+                m_recentColors.insert(m_recentColors.begin(), col);
+                if (m_recentColors.size() > 12) m_recentColors.resize(12);
+                spawn(part, u.mouse.x, u.mouse.y);
+                m_dragStarted = true;
+                m_pressed = false;
+                if (m_holding) {   // the burst: it springs from higher, squashed, with a spin
+                    m_held.vpos = m_held.target + float3(0, 2.4f, 0);
+                    m_held.squash = 0.35f;
+                    m_held.vrot = qMul(qAxisAngle(float3(0, 1, 0), 1.6f), m_held.rot);
+                }
+                const double now = ImGui::GetTime();
+                m_paintFx.push_back({u.mouse, col, now, 1});
+                m_paintFx.push_back({ImVec2(u.mouse.x + 10 * s, u.mouse.y - 8 * s), col, now + 0.08, 2});
+                m_paintFx.push_back({ImVec2(u.mouse.x - 9 * s, u.mouse.y + 6 * s), col, now + 0.15, 2});
+                toast("Brique 1x1 en main : pose-la, puis tourne-la avec l'anneau");
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------------ the library drawer (bottom)
@@ -2457,6 +2518,7 @@ void BrickApp::drawUiStudio() {
     stBadge();
     stColors();
     stSelHud();
+    stRing();
     stPaintFx();
     stHeld();
     uiMechPanel();
@@ -2474,4 +2536,86 @@ void BrickApp::drawUiStudio() {
     uiDevReview();
     uiManualBig();
     drawDropzone();
+}
+
+// ------------------------------------------------------------------ the ring of the left hand (Wzx 10/11/2026)
+// Studio: on the left of the view, the ring of the web: tilt up / down, turn left / right, in the middle Dupliquer
+// (Poser while a brick is in hand). On the iPad a finger of the left hand presses it while the Pencil holds the brick:
+// those touches are caught before the gestures (BrickTouch.cpp, stRingHit)
+
+int BrickApp::stRingHit(float x, float y) const {
+    if (m_ringR <= 0) return -1;
+    const float dx = x - m_ringC.x, dy = y - m_ringC.y, d = std::sqrt(dx * dx + dy * dy);
+    const float rin = m_ringR * 0.42f;
+    if (d > m_ringR * 1.06f) return -1;
+    if (d <= rin) return 4;
+    const float a = std::atan2(dy, dx) * 57.29578f;   // 0 right, 90 down
+    if (a >= -45 && a < 45) return 1;
+    if (a >= 45 && a < 135) return 2;
+    if (a >= -135 && a < -45) return 0;
+    return 3;
+}
+
+void BrickApp::stRingAct(int part) {
+    const bool active = m_holding || m_selected >= 0 || !m_multi.empty();
+    if (!active || part < 0) return;
+    m_ringFlash = part;
+    m_ringFlashT = ImGui::GetTime();
+    switch (part) {
+    case 0: tiltSelected(-1); break;
+    case 2: tiltSelected(1); break;
+    case 1: rotateSelected(-1); break;
+    case 3: rotateSelected(1); break;
+    case 4: if (m_holding) dropHeld(); else duplicateSelected(); break;
+    }
+}
+
+void BrickApp::stRing() {
+    m_ringR = 0;
+    if (!m_touchHud || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const float R = 72 * s, rin = R * 0.42f;
+    const ImVec2 c(m_dockL + 22 * s + R, std::floor((m_stage.y + m_stage.w) * 0.5f + 10 * s));
+    m_ringC = c;
+    m_ringR = R;
+    const bool active = m_holding || m_selected >= 0 || !m_multi.empty();
+    const float al = active ? 1.0f : 0.4f;
+    const double now = ImGui::GetTime();
+    const int hov = (!m_ipad && u.hover(ImVec2(c.x - R, c.y - R), ImVec2(c.x + R, c.y + R))) ? stRingHit(u.mouse.x, u.mouse.y) : -1;
+    ImDrawList* dl = u.dl;
+    // the glass disc, then the four wedges with their gaps
+    stGlass(dl, ImVec2(c.x - R - 4 * s, c.y - R - 4 * s), ImVec2(c.x + R + 4 * s, c.y + R + 4 * s), R + 4 * s, s);
+    m_uiRects.push_back(ImVec4(c.x - R - 4 * s, c.y - R - 4 * s, c.x + R + 4 * s, c.y + R + 4 * s));
+    static const char* kIco[4] = {"M7 14l5-5 5 5", ST_ROT, "M7 10l5 5 5-5", ST_ROTL};
+    static const char* kTip[4] = {"Basculer vers le haut", "Tourner à droite 90°", "Basculer vers le bas", "Tourner à gauche 90°"};
+    for (int i = 0; i < 4; ++i) {
+        const float a = (i - 1) * 1.5707963f;   // 0 up (-90°), 1 right, 2 down, 3 left
+        const float half = 0.70f;
+        const float flash = m_ringFlash == i ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
+        const bool on = active && (hov == i || flash > 0);
+        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
+        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
+        dl->PathFillConvex(on ? stA(C_ACCENT, 0.25f + 0.45f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.06f * al));
+        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
+        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
+        dl->PathStroke(on ? stA(C_ACCENT, 0.9f) : stA(C_LINE, al), ImDrawFlags_Closed, 1.0f);
+        const float rm = (R - 3 * s + rin + 5 * s) * 0.5f;
+        const ImVec2 ic(c.x + std::cos(a) * rm, c.y + std::sin(a) * rm);
+        stIcon(dl, kIco[i], ic, 20 * s, stA(on ? C_ACCENT_TXT : C_TEXT, al), 1.3f * s);
+        if (hov == i && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", kTip[i]);
+    }
+    // the middle: Dupliquer, or Poser with a brick in hand (the accent)
+    const float flash = m_ringFlash == 4 ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
+    const bool onC = active && (hov == 4 || flash > 0);
+    if (m_holding) dl->AddCircleFilled(c, rin, C_ACCENT, 40);
+    else dl->AddCircleFilled(c, rin, onC ? stA(C_ACCENT, 0.3f + 0.4f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.08f * al), 40);
+    dl->AddCircle(c, rin, stA(C_ACCENT, 0.8f * al), 40, 1.2f * s);
+    const char* lab = m_holding ? "POSER" : "DUPLIQUER";
+    if (!m_holding) stIcon(dl, ST_DUP, ImVec2(c.x, c.y - 5 * s), 16 * s, stA(onC ? C_ACCENT_TXT : C_TEXT, al), 1.2f * s);
+    const float lw = stTrackW(u, m_holding ? 8.5f : 6.5f, lab, 1.0f * s, true);
+    stTrack(u, ImVec2(c.x - lw * 0.5f, m_holding ? c.y - u.fs(8.5f) * 0.52f : c.y + 8 * s), m_holding ? 8.5f : 6.5f, m_holding ? C_INK : stA(C_DIM, al), lab, 1.0f * s);
+    if (hov == 4 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_holding ? "Poser la brique" : "Dupliquer la sélection");
+    if (!m_ipad && hov >= 0 && u.pressed) stRingAct(hov);   // (iPad: the touches, BrickTouch.cpp)
 }

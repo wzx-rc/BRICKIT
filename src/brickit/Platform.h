@@ -29,6 +29,8 @@ void openFileDialog(const wchar_t* filter, const wchar_t* defExt, std::function<
                     const std::wstring& initial = std::wstring());
 void saveFileDialog(const wchar_t* filter, const wchar_t* defExt, const std::wstring& suggested,
                     std::function<void(const std::wstring&)> done);
+// iPad: the share sheet with that file (AirDrop, Mail, Fichiers, other apps); elsewhere: nothing
+void shareFile(const std::wstring& path);
 
 } // namespace brickit::plat
 

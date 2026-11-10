@@ -118,6 +118,7 @@ void saveFileDialog(const wchar_t* filter, const wchar_t* defExt, const std::wst
                     std::function<void(const std::wstring&)> done) {
     fileDialog(true, filter, defExt, suggested, done);
 }
+void shareFile(const std::wstring&) {}
 #elif !defined(__APPLE__)
 // Linux test build: no dialogs (scripted runs give the paths on the command line).
 void setWindow(void*) {}
@@ -125,6 +126,7 @@ void errorBox(const std::string& title, const std::string& text) { fprintf(stder
 void confirm(const std::wstring&, const std::wstring&, std::function<void()> onOk) { if (onOk) onOk(); }
 void openFileDialog(const wchar_t*, const wchar_t*, std::function<void(const std::wstring&)>, const std::wstring&) {}
 void saveFileDialog(const wchar_t*, const wchar_t*, const std::wstring&, std::function<void(const std::wstring&)>) {}
+void shareFile(const std::wstring&) {}
 #endif
 
 } // namespace brickit::plat
