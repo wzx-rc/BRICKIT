@@ -3055,7 +3055,7 @@ void BrickApp::drawDropzone() {
 // the pointer at once, the brick in hand when it leaves the tray), any other direction = the row slides with the
 // pointer and keeps its speed on release (decelerating, as the touch scrolling of the web). The other rows: the
 // dominant direction (sideways = slide). Returns true while the row is being dragged.
-bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live) {
+bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live, bool vertical) {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 m = io.MousePos;
     const float s = m_ui, dt = std::max(1e-3f, io.DeltaTime);
@@ -3071,15 +3071,16 @@ bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, f
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             const float dx = m.x - m_swipe.start.x, dy = m.y - m_swipe.start.y;
             if (m_swipe.dir == 0 && dx * dx + dy * dy > 49 * s * s) {
-                if (id == 0) m_swipe.dir = (dy < 0 && std::fabs(dx) <= -dy * 5.671f) ? 2 : 1;   // tan(80) = 5.671
+                if (id == 0 && vertical) m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 2 : 1;   // (sideways: the part toward the view; up / down: the scroll)
+                else if (id == 0) m_swipe.dir = (dy < 0 && std::fabs(dx) <= -dy * 5.671f) ? 2 : 1;   // tan(80) = 5.671
                 else m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 1 : 2;
             }
             if (m_swipe.dir == 1) {
-                const float step = m.x - m_swipe.last.x;
+                const float step = vertical ? m.y - m_swipe.last.y : m.x - m_swipe.last.x;
                 scroll -= step;
                 vel = vel * 0.6f + (-step / dt) * 0.4f;   // smoothed speed (px / s)
                 dragging = true;
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                ImGui::SetMouseCursor(vertical ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
             }
             m_swipe.last = m;
         } else {

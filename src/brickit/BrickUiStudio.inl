@@ -1636,6 +1636,7 @@ void BrickApp::stDrawerClassic() {
     if (live && u.hover(ga, gb) && ImGui::GetIO().MouseWheel != 0) m_clsGridScroll -= ImGui::GetIO().MouseWheel * (cell + gap);
     for (int k = 0; k < (int)parts.size() && m_libFoundScroll; ++k)
         if (parts[k] == m_libFound) { m_clsGridScroll = (k / cols) * (cell + gap) - (viewH - cell) * 0.5f; m_libFoundScroll = false; }
+    if (!bottom) swipeRow(0, ga, gb, m_clsGridScroll, m_clsVel, std::max(0.0f, contentH - viewH), live, true);   // (a side: drag up / down to scroll, sideways to take)
     m_clsGridScroll = std::clamp(m_clsGridScroll, 0.0f, std::max(0.0f, contentH - viewH));
     if (parts.empty()) {
         const char* msg = m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici"

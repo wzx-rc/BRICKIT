@@ -660,7 +660,9 @@ private:
     ImVec2 m_mtCard{0, 0};             // mouse tests: the centre of a card of the library
     int m_swipeDragged = -1;           // row whose drag just ended (its release is not a click)
     float m_cardsVel = 0, m_famVel = 0, m_catVel = 0;
-    bool swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live);
+    // vertical: the library docked on a side (Wzx 10/11/2026): an up / down drag scrolls, a sideways drag takes the part
+    bool swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live, bool vertical = false);
+    float m_clsVel = 0;
     bool swipeTaken(int id) const { return m_swipe.id == id && m_swipe.dir == 1; }   // the default size does not fit the screen               // cool rim light of the web (raster)   // placement preview (ghostMat of the web)
     int m_firstBrickObject = 0;        // scene objects before it: the stage
     ViewRect m_vp;
