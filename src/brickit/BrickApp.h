@@ -859,6 +859,13 @@ private:
     void stColors();
     void stDrawer();
     void stSelHud();
+    // Réglages › Brique en main (Wzx 10/11/2026): the look of the placement preview (the ghost and the yellow marks)
+    int m_ghostCol = 0;               // 0 jaune, 1 blanc, 2 bleu, 3 vert, 4 rose, 5 la couleur de la brique
+    float m_ghostAlphaPref = 0.32f;   // its opacity
+    int m_ghostGlow = 2;              // its glow: 0 none, 1 soft, 2 normal, 3 strong
+    float3 ghostSrgb() const;         // the colour of the marks (sRGB 0..1)
+    ImU32 ghostU32(float alpha) const;
+    void applyGhostLook();            // into the ghost material and object
     void stRing();                    // Studio: the ring of the left hand (Réglages › Anneau tactile): turn, tilt, duplicate / place
     int stRingHit(float x, float y) const;   // the part of the ring under a point (-1 none, 0..3 the wedges, 4 the centre)
     void stRingAct(int part);

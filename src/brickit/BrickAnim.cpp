@@ -107,6 +107,8 @@ void BrickApp::updateAnim(float dt) {
             ghost->position = H.target;
             ghost->rot = H.rot;
             ghost->material = H.blocked ? m_ghostBlockedMaterial : m_ghostMaterial;
+            ghost->ghostAlpha = m_ghostAlphaPref;
+            applyGhostLook();   // (unchanged: nothing; « Brique »: the colour of the brick in hand may change while held)
         }
     }
     if (changed) {
@@ -144,7 +146,7 @@ void BrickApp::drawHoldOverlay() {
     std::vector<float3> vw;
     float minY = 1e30f;
     for (const float3& vx : p.voxels) { float3 w = qRot(H.rot, vx) + H.target; vw.push_back(w); minY = std::min(minY, w.y); }
-    const ImU32 fill = IM_COL32(0xf7, 0xc5, 0x1e, (int)(255 * (0.14f + 0.08f * pulse))), edge = IM_COL32(0xf7, 0xc5, 0x1e, 217);
+    const ImU32 fill = ghostU32(0.14f + 0.08f * pulse), edge = ghostU32(0.85f);
     std::vector<std::pair<float, float>> seen;
     for (const float3& w : vw) {
         if (w.y > minY + 0.02f) continue;
@@ -184,10 +186,10 @@ void BrickApp::drawHoldOverlay() {
         }
         for (size_t k = 0; k + 1 < outer.size() && k + 1 < inner.size(); ++k) {
             ImVec2 q[4] = {outer[k], outer[k + 1], inner[k + 1], inner[k]};
-            dl->AddConvexPolyFilled(q, 4, IM_COL32(0xf7, 0xc5, 0x1e, 230));
+            dl->AddConvexPolyFilled(q, 4, ghostU32(0.9f));
         }
         float cx, cy;
-        if (v.project(gT, cx, cy)) dl->AddCircleFilled(ImVec2(cx, cy), 3 * s, IM_COL32(0xf7, 0xc5, 0x1e, 230), 12);
+        if (v.project(gT, cx, cy)) dl->AddCircleFilled(ImVec2(cx, cy), 3 * s, ghostU32(0.9f), 12);
     }
     // glow of the voxel the pivot snaps onto: pops in (0.18 s, small overshoot) and pulses
     {
@@ -201,12 +203,43 @@ void BrickApp::drawHoldOverlay() {
             float ex, ey;
             v.project(H.snapVoxel + r * 0.15f, ex, ey);
             const float R = std::max(2.0f, std::fabs(ex - sx)) * std::max(0.01f, pop) * (1 + 0.15f * puls);
-            const ImU32 core = H.blocked ? IM_COL32(0xff, 0x4d, 0x4d, (int)(255 * (0.45f + 0.35f * t))) : IM_COL32(0xff, 0xe0, 0x66, (int)(255 * (0.45f + 0.35f * t)));
-            const ImU32 halo = H.blocked ? IM_COL32(0xe5, 0x48, 0x4d, (int)(255 * (0.08f + 0.12f * puls) * t)) : IM_COL32(0xf7, 0xc5, 0x1e, (int)(255 * (0.08f + 0.12f * puls) * t));
+            const ImU32 core = H.blocked ? IM_COL32(0xff, 0x4d, 0x4d, (int)(255 * (0.45f + 0.35f * t))) : ghostU32(0.45f + 0.35f * t);
+            const ImU32 halo = H.blocked ? IM_COL32(0xe5, 0x48, 0x4d, (int)(255 * (0.08f + 0.12f * puls) * t)) : ghostU32((0.08f + 0.12f * puls) * t);
             dl->AddCircleFilled(ImVec2(sx, sy), R, halo, 24);
             dl->AddCircleFilled(ImVec2(sx, sy), R * 0.5f, core, 16);
         }
     }
+}
+
+// Réglages › Brique en main: the colour, the opacity and the glow of the preview (Wzx 10/11/2026)
+float3 BrickApp::ghostSrgb() const {
+    static const float3 k[5] = {float3(0.969f, 0.773f, 0.118f), float3(1, 1, 1), float3(0.30f, 0.64f, 1.0f), float3(0.35f, 0.84f, 0.42f), float3(1.0f, 0.44f, 0.68f)};
+    if (m_ghostCol == 5) {
+        const int b = m_holding ? m_held.brick : m_selected;
+        const int c = b >= 0 && b < (int)m_bricks.size() ? m_bricks[b].color : m_color;
+        if (c >= 0 && c < (int)m_lib.palette.size()) return m_lib.palette[c].srgb;
+    }
+    return k[std::clamp(m_ghostCol, 0, 4)];
+}
+
+ImU32 BrickApp::ghostU32(float alpha) const {
+    const float3 c = ghostSrgb();
+    return IM_COL32((int)(std::clamp(c.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.z, 0.0f, 1.0f) * 255), (int)(std::clamp(alpha, 0.0f, 1.0f) * 255));
+}
+
+void BrickApp::applyGhostLook() {
+    if (m_ghostMaterial < 0 || m_ghostMaterial >= (int)m_scene.materials.size()) return;
+    const float3 c = ghostSrgb();
+    const float3 lin(srgbToLinear(c.x), srgbToLinear(c.y), srgbToLinear(c.z));
+    static const float kGlow[4] = {0.0f, 0.06f, 0.15f, 0.35f};
+    const float3 em = lin * kGlow[std::clamp(m_ghostGlow, 0, 3)];
+    Material& m = m_scene.materials[m_ghostMaterial];
+    if (length(m.baseColor - lin) < 1e-4f && length(m.emission - em) < 1e-4f) return;
+    m.baseColor = lin;
+    m.emission = em;
+    m.emissionStrength = 1.0f;
+    ++m_scene.objectsVersion;
+    if (m_renderer) m_renderer->resetAccumulation();
 }
 
 } // namespace brickit
