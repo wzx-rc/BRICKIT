@@ -99,6 +99,11 @@ void BrickApp::openVoxelEditor(int part) {
     m_veObj = -1;
     m_veCtx = -1;
     m_toast.clear();   // (nothing of the Builder follows into the editor)
+    // the textures of the library let go (they come back by themselves): the editor draws new sizes of text, the font
+    // atlas grows and needs free texture slots (the interface lost its glyphs at the opening, Wzx 10/11/2026)
+    for (auto& t : m_lazyThumbs) m_gui->releaseTexture(t.second.first);
+    m_lazyThumbs.clear();
+    if (m_sheetTex) { m_gui->releaseTexture(m_sheetTex); m_sheetTex = 0; m_sheetTexPart = -1; }
     m_libPress = -1;
     m_infoPart = -1;
     m_stHov = -1;
