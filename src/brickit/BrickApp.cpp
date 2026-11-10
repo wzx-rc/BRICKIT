@@ -906,11 +906,29 @@ void BrickApp::frameSelection() {
     }
     if (mn.x > mx.x) return;
     Camera& cam = m_scene.camera;
-    cam.target = (mn + mx) * 0.5f;
     const float r = std::max(0.4f, length(mx - mn) * 0.5f);
-    cam.distance = std::max(1.0f, r / std::tan(cam.fovY * 0.5f) * 1.15f);
+    // a glide rather than a jump (Wzx 10/11/2026): the target and the distance eased in 0.55 s, the view pulling back a
+    // little half way (a short flight); any move of the camera stops it
+    m_frameFromT = cam.target;
+    m_frameFromD = cam.distance;
+    m_frameToT = (mn + mx) * 0.5f;
+    m_frameToD = std::max(1.0f, r / std::tan(cam.fovY * 0.5f) * 1.15f);
+    m_frameT0 = ImGui::GetTime();
+    m_frameAnim = true;
+}
+// the glide of F, each frame
+void BrickApp::frameAnimate() {
+    if (!m_frameAnim) return;
+    Camera& cam = m_scene.camera;
+    const float t = std::clamp((float)(ImGui::GetTime() - m_frameT0) / 0.55f, 0.0f, 1.0f);
+    const float e = t < 0.5f ? 4 * t * t * t : 1 - std::pow(-2 * t + 2, 3.0f) * 0.5f;   // (ease in-out, cubic)
+    cam.target = m_frameFromT + (m_frameToT - m_frameFromT) * e;
+    const float d = m_frameFromD + (m_frameToD - m_frameFromD) * e;
+    const float bump = 0.18f * std::sin(3.14159265f * e) * std::min(1.0f, length(m_frameToT - m_frameFromT) / std::max(0.5f, d));
+    cam.distance = d * (1 + bump);
     cam.focusDistance = cam.distance;
     m_renderer->resetAccumulation();
+    if (t >= 1) m_frameAnim = false;
 }
 
 void BrickApp::frameAll() {
@@ -981,11 +999,14 @@ void BrickApp::updateGridFade() {
 
 void BrickApp::cameraInput() {
     ImGuiIO& io = ImGui::GetIO();
+    frameAnimate();   // (the glide of F, even with the mouse over a panel)
     if (io.WantCaptureMouse || m_overUi) return;
     if (m_stMenu || m_stMenuEat == ImGui::GetFrameCount()) return;   // the marking menu has the mouse (right held on a brick: no orbit)
     if (!m_opt.shotPath.empty()) return;   // a capture (--shot): the camera of the command line, whatever the mouse does
     Camera& cam = m_scene.camera;
     bool changed = false;
+    if (m_frameAnim && (io.MouseWheel != 0 || (io.KeyAlt && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Middle) || ImGui::IsMouseDown(ImGuiMouseButton_Right)))))
+        m_frameAnim = false;   // (the user takes the camera: the glide of F stops)
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_leftOrbit = false;
     // left drag on empty space (and in the Move / Rotate modes) orbits, as the web
     // Studio: the right button never moves the camera (it is the marking menu, Wzx 09/11/2026)

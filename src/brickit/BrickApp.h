@@ -584,7 +584,12 @@ private:
     void renderThumbEditor();
     void saveThumbOverride();
     void uiCtxMenu();
-    void frameSelection();   // F: the view on the selection
+    void frameSelection();   // F: the view on the selection (a glide)
+    void frameAnimate();
+    bool m_frameAnim = false;
+    double m_frameT0 = 0;
+    float3 m_frameFromT, m_frameToT;
+    float m_frameFromD = 0, m_frameToD = 0;
     void setHighPoly(bool on);   // HD: the parts with their HD mesh (48-segment primitives, bevelled studs)
     bool m_highPoly = false;
     // Voxel Editor (mode DEV, BrickVoxelEditor.inl): the connectors of a part placed by hand, assisted
