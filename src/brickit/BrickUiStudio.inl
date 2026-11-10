@@ -1539,6 +1539,10 @@ void BrickApp::stDrawer() {
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / nRows, r = k % nRows;
+        if (parts[k] == m_libFound && m_libFoundScroll) {   // (found from the marking menu: brought into view once, centred)
+            m_cardsScroll = std::max(0.0f, c * (cardW + gap) - (cb.x - ca.x - cardW) * 0.5f);
+            m_libFoundScroll = false;
+        }
         const ImVec2 a(ca.x + c * (cardW + gap) - m_cardsScroll, ca.y + rowsY + r * (cardH + gap)), b(a.x + cardW, a.y + cardH);
         if (b.x < ca.x || a.x > cb.x) continue;
         const int part = parts[k];
@@ -1546,10 +1550,6 @@ void BrickApp::stDrawer() {
         if (k == 3) m_mtCard = ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
         const bool h = live && u.hover(a, b) && u.hover(ca, cb);
         const bool on = part == taken;
-        if (part == m_libFound && m_libFoundScroll) {   // brought into view once
-            m_cardsScroll = std::max(0.0f, a.x + m_cardsScroll - ca.x - (cb.x - ca.x - cardW) * 0.5f);
-            m_libFoundScroll = false;
-        }
         cardBg(a, b, h, on);
         if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 12 * s, 0, 2.0f * s);
         if (part == m_libFound) u.dl->AddRect(ImVec2(a.x - 2 * s, a.y - 2 * s), ImVec2(b.x + 2 * s, b.y + 2 * s), C_ACCENT, 13 * s, 0, 2.5f * s);   // (found from the marking menu)   // DEV: where its connectors come from
@@ -1883,10 +1883,21 @@ void BrickApp::stSelHud() {
                 const Part& P = m_lib.parts[m_bricks[sel[0]].part];
                 std::string id = P.name;
                 if (id.size() > 4 && id.substr(id.size() - 4) == ".dat") id = id.substr(0, id.size() - 4);
-                m_search = id;
-                m_searchOpen = true;
+                // its family and its category opened and selected, the card shown there (Wzx 10/11/2026: where it comes
+                // from); a part in no category: found by a search
+                const int pi = m_bricks[sel[0]].part;
+                bool placed = false;
+                for (const StFam& f : stFams()) {
+                    if (!strcmp(f.key, "recent") || !strcmp(f.key, "fav")) continue;
+                    for (size_t q = 0; q < f.subs.size() && !placed; ++q)
+                        if (stInSub(f.subs[q], partCat(pi), P.sub)) { m_stFam = f.key; m_stSub = (int)q; placed = true; }
+                    if (placed) break;
+                }
+                m_stW = m_stL = 0;
+                m_search = placed ? std::string() : id;
+                m_searchOpen = !placed;
                 m_cardsScroll = 0;
-                m_libFound = m_bricks[sel[0]].part;
+                m_libFound = pi;
                 m_libFoundScroll = true;
                 m_pTray.collapsed = false;
             }
