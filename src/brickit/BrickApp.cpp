@@ -210,6 +210,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         m_dev = false;
         setRC(false);
         m_rs.raster = true;
+        m_showVox = false;                    // (no voxels, no view transform, no choice of renderer: Wzx 10/11/2026)
+        m_rs.tonemapper = m_opt.tonemapper;   // ACES as the web builder (an AgX saved by an older build is ignored)
     }
     if (opt.colorArc) m_arcOpen = true;
     if (opt.mech) {

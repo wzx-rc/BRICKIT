@@ -536,7 +536,7 @@ void BrickApp::editInput() {
             }
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_C)) cycleGrab();
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
+        if (!ctrl && !m_ipad && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) frameSelection();   // F: the view framed on the selection (as Maya; nothing selected: everything)

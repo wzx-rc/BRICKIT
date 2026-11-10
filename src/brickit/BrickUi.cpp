@@ -3391,8 +3391,8 @@ void BrickApp::uiSettings() {
         {"Animations", {{"Oui", m_animOn}, {"Non", !m_animOn}}, 7},
         {"Sauvegarde automatique", {{"Oui", m_autosaveOn}, {"Non", !m_autosaveOn}}, 8},
     };
-    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform)
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
+    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform), no voxels
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 6 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
     const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
     // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
     const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);

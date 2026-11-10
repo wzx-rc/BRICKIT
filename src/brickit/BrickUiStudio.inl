@@ -410,12 +410,11 @@ void BrickApp::stHeader() {
         return h && u.pressed;
     };
     if (roundBtn(ST_SET, "Réglages (échelle, rendu, lumière) et Thème", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
-    if (roundBtn(ST_MORE, "Plus : grille, auto pivot, sécurité, animations, voxels, fenêtres, DEV, bac", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
-    {   // the render: Rapide / HQ / Ray tracing
+    if (roundBtn(ST_MORE, m_ipad ? "Plus : grille, auto pivot, sécurité, animations, groupes" : "Plus : grille, auto pivot, sécurité, animations, voxels, fenêtres, DEV, bac", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
+    if (!m_ipad) {   // the render: Rapide / HQ / Ray tracing (the iPad: no choice of renderer, Wzx 10/11/2026)
         struct R { const char* label; bool on; int id; const char* tip; };
         std::vector<R> rs = {{"RAPIDE", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Temps réel rapide"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "Temps réel haute qualité : ombres, GI douce"},
                              {"RAY TRACING", pathTraced(), 2, "Rendu progressif réaliste (path tracing)"}};
-        if (m_ipad) rs.resize(2);
         float w = 6 * s;
         for (const R& r : rs) w += stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s + 2 * s;
         const ImVec2 ra(rx - w, cy - 14 * s), rb(rx, cy + 14 * s);
@@ -535,9 +534,11 @@ void BrickApp::stMore() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; bool on; int id; };
-    const std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
+    std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
                                  {"Animations des briques (A)", m_animOn, 3}, {"Voxels (V)", m_showVox, 4}, {"Groupes", m_pGroups.visible, 5},
                                  {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
+    if (m_ipad)   // the iPad (Wzx 10/11/2026): no developer mode, no voxels, no view transform
+        its.erase(std::remove_if(its.begin(), its.end(), [](const It& it) { return it.id == 4 || it.id == 7 || it.id == 8; }), its.end());
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
