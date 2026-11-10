@@ -462,13 +462,13 @@ void BrickApp::touchTestFrame() {
     if (t == "menu" && m_tg.type == TG_MENU && mc.x == 0) {
         mc = m_stMenuAt;
         line(std::string("menu: open after a still press ") + (m_stMenu ? "OK" : "FAIL") + " (frame " + std::to_string(f) + ")");
-        const float r = 60 * 0.0174533f, R = 74 * m_ui;   // Dupliquer, at 60 degrees
+        const float r = 90 * 0.0174533f, R = 100 * m_ui;   // Dupliquer, straight down
         touchMoved(1, mc.x + std::cos(r) * R * 0.5f, mc.y + std::sin(r) * R * 0.5f);
         touchMoved(1, mc.x + std::cos(r) * R, mc.y + std::sin(r) * R);
     }
     static int endF = 0;
     if (t == "menu" && mc.x != 0 && !endF && m_tg.type == TG_MENU) { endF = f + 6; }
-    if (t == "menu" && endF && f == endF) touchEnded(1, mc.x + std::cos(1.0472f) * 74 * m_ui, mc.y + std::sin(1.0472f) * 74 * m_ui, false);
+    if (t == "menu" && endF && f == endF) touchEnded(1, mc.x + std::cos(1.5708f) * 100 * m_ui, mc.y + std::sin(1.5708f) * 100 * m_ui, false);
     if (t == "menu" && endF && f == endF + 6) line(std::string("menu: slide to Dupliquer then lift, bricks ") + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + (m_bricks.size() == count0 + 1 && !m_stMenu ? " OK" : " FAIL"));
     if (t == "orbit" && f > 20 && f <= 32) touchMoved(1, a.x + (f - 20) * 15.0f, a.y);
     if (t == "orbit" && f == 33) {

@@ -1,5 +1,6 @@
 // BrickIt - crash log: see CrashLog.h
 #include "CrashLog.h"
+#ifdef _WIN32
 #include <windows.h>
 #include <dbghelp.h>
 #include <atomic>
@@ -227,3 +228,32 @@ std::wstring crashLastUnseen() {
 }
 
 }  // namespace brickit
+#else   // iPad, Linux: the journal of the last actions only (no handlers, no minidump)
+#include <cstdarg>
+#include <cstdio>
+#include <mutex>
+#include <vector>
+
+namespace brickit {
+namespace {
+std::mutex g_mx;
+std::vector<std::string> g_crumbs;
+size_t g_next = 0;
+}
+void crashInit(const std::wstring&, const std::wstring&) {}
+void crumb(const char* fmt, ...) {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    std::lock_guard<std::mutex> lk(g_mx);
+    if (g_crumbs.size() < 400) g_crumbs.push_back(buf);
+    else g_crumbs[g_next++ % 400] = buf;
+}
+void crashHeartbeat() {}
+void crashSetState(std::function<std::string()>) {}
+std::wstring crashWriteReport(const char*) { return std::wstring(); }
+std::wstring crashLastUnseen() { return std::wstring(); }
+}  // namespace brickit
+#endif
