@@ -440,6 +440,19 @@ void BrickApp::stHeader() {
         }
         rx -= w + 10 * s;
     }
+    {   // HD: the parts in high definition (Wzx 10/11/2026: « un switcher HighPoly »)
+        const char* t = "HD";
+        const float bw = stTrackW(u, 9.5f, t, 1.3f * s, true) + 26 * s;
+        const ImVec2 ba(rx - bw, cy - 14 * s), bb(rx, cy + 14 * s);
+        const bool h = u.hover(ba, bb) && m_popup == 0, on = m_highPoly;
+        u.dl->AddRectFilled(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 20 : 10), 14 * s);
+        u.dl->AddRect(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, 34), 14 * s, 0, 1.0f);
+        stTrack(u, ImVec2(ba.x + 13 * s, cy - u.fs(9.5f) * 0.52f), 9.5f, on ? C_INK : (m_lib.hasHd ? C_DIM : C_FAINT), t, 1.3f * s);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0)
+            ImGui::SetTooltip("%s", m_lib.hasHd ? "Pièces HD : les arrondis lisses (primitives 48 segments, tenons biseautés) quand elles existent" : "Pièces HD : la bibliothèque HD n'est pas encore construite");
+        if (h && u.pressed) setHighPoly(!m_highPoly);
+        rx -= bw + 10 * s;
+    }
     if (roundBtn(ST_REDO, "Rétablir (Ctrl+Y)", false, !m_redo.empty())) redo();
     if (roundBtn(ST_UNDO, "Annuler (Ctrl+Z)", false, !m_undo.empty() || m_holding)) undo();
 }

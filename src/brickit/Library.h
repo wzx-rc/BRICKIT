@@ -38,6 +38,9 @@ struct Part {
     std::vector<std::pair<std::string, int>> connectors;
     bool base = false;        // one of the 50 base parts
     int pack = -1;            // Technic pack holding the geometry (-1: base part)
+    int sdPack = -1, hdPack = -1;   // HD (full_hd: the 48-segment primitives, bevelled studs): its pack, and the normal one
+    vp3d::MeshData sdMesh;    // (a base part: its normal mesh kept while the HD one is shown)
+    bool sdSaved = false;
     int heightPlates = 3;
     float topY = 0.96f;
     bool hasStuds = false;    // studs on top (above topY): left out of the body box (overlap safety, stacking)
@@ -67,6 +70,10 @@ public:
     bool loadPack(int pack, std::string* error = nullptr);
     bool loadAll(std::string* error = nullptr);    // every Technic pack (benchmarks, the part grid; not the full library)
     void unloadPack(int pack);                      // frees the geometry of a pack (thumbnails of the full library)
+    // HD meshes (<full>_hd, Wzx 10/11/2026: « un switcher HighPoly qui switch sur la pièce HD quand elle existe »)
+    bool hasHd = false;
+    bool highPoly = false;
+    void setHighPoly(bool on);
     int technicPacks = 0;
     std::wstring fullDir;                           // folder of the full library (empty: not built)                           // packs [0, technicPacks): Technic; then the full LDraw library
     // Part geometry, loading its pack when needed (nullptr when unknown or not loadable).

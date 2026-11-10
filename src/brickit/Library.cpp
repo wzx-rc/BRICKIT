@@ -279,6 +279,25 @@ bool Library::load(const std::wstring& dir, std::string* error) {
             }
         }
     }
+    if (!fullDir.empty() && readFile(fullDir + L"_hd\\index.json", text)) {   // the HD set: its packs, the parts it has
+        Json idx;
+        if (Json::parse(std::string(text.begin(), text.end()), idx)) {
+            const int first = packCount, n = (int)idx["packs"].a.size();
+            for (const Json& pk : idx["packs"].a) {
+                wchar_t nm[64];
+                swprintf_s(nm, L"_hd\\f%d.bin", (int)pk["no"].num());
+                m_packFile.push_back(fullDir + nm);
+            }
+            packCount += n;
+            m_packLoaded.resize(packCount, false);
+            for (const Json& j : idx["parts"].a) {
+                auto it = m_byName.find(j["name"].str());
+                if (it == m_byName.end()) continue;
+                parts[it->second].hdPack = first + (int)j["pack"].num(-1);
+                hasHd = true;
+            }
+        }
+    }
     if (!fullDir.empty() && readFile(fullDir + L"\\conn_status.json", text)) {   // where the connectors of every part come from
         Json st;
         if (Json::parse(std::string(text.begin(), text.end()), st))
@@ -381,6 +400,29 @@ int Library::find(const std::string& name) const {
         if (it != m_byName.end()) return it->second;
     }
     return -1;
+}
+
+// HD on / off: the parts that have an HD mesh take it from their HD pack (or back from the normal one); their meshes are
+// let go, loaded again when asked (the base parts keep their normal mesh aside)
+void Library::setHighPoly(bool on) {
+    if (on == highPoly) return;
+    highPoly = on;
+    for (Part& p : parts) {
+        if (p.hdPack < 0) continue;
+        if (on) {
+            if (p.pack == p.hdPack) continue;
+            if (p.pack < 0 && p.loaded && !p.sdSaved) { p.sdMesh = p.mesh; p.sdSaved = true; }
+            p.sdPack = p.pack;
+            p.pack = p.hdPack;
+        } else {
+            if (p.pack != p.hdPack) continue;
+            p.pack = p.sdPack;
+        }
+        p.mesh = vp3d::MeshData();
+        p.loaded = false;
+        if (!on && p.pack < 0 && p.sdSaved) { p.mesh = p.sdMesh; finishMesh(p); }
+    }
+    std::fill(m_packLoaded.begin(), m_packLoaded.end(), false);
 }
 
 Part* Library::get(const std::string& name) {

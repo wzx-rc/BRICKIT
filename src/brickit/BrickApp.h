@@ -584,6 +584,8 @@ private:
     void saveThumbOverride();
     void uiCtxMenu();
     void frameSelection();   // F: the view on the selection
+    void setHighPoly(bool on);   // HD: the parts with their HD mesh (48-segment primitives, bevelled studs)
+    bool m_highPoly = false;
     // Voxel Editor (mode DEV, BrickVoxelEditor.inl): the connectors of a part placed by hand, assisted
     struct VeSug { std::string label, detail; std::vector<float3> v; std::vector<uint8_t> t; };
     int m_vePart = -1, m_veMat = -1, m_veGlass = -1, m_veObj = -1, m_veSel = -1, m_veTool = 1, m_veType = 0, m_veMirror = 0, m_veSugHot = -1, m_veCtx = -1;

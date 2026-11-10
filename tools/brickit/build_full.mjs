@@ -92,7 +92,15 @@ if (process.argv[2] === "--worker") {
   // the parts of the base set and of the Technic packs: not converted again, only where their connectors come from
   // (conn_status.json, the colours of the mode DEV)
   const statusOnly = new Set();
-  for (const id of skip) {
+  // HD (HIRES=1 BEVEL=1 INCLUDE_ALL=1, Wzx 10/11/2026: « pièces plus définies, arrondies plus lisses »): every part again,
+  // the base set and the Technic packs too, with the 48-segment primitives of LDraw (p/48) and bevelled studs
+  if (process.env.INCLUDE_ALL === "1") for (const id of skip) {
+    const f = path.join(ldraw, "parts", id + ".dat");
+    if (!fs.existsSync(f)) continue;
+    heads.set(id, header(f));
+    list.push(id);
+  }
+  if (process.env.INCLUDE_ALL !== "1") for (const id of skip) {
     const f = path.join(ldraw, "parts", id + ".dat");
     if (!fs.existsSync(f)) continue;
     heads.set(id, header(f));

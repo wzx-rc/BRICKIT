@@ -69,6 +69,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     }
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
     loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
+    if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
@@ -636,6 +637,29 @@ void BrickApp::applyLook() {
     }
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
+}
+
+// the HD switch (header): the meshes of the scene that have an HD version swapped in place, the view rebuilt
+void BrickApp::setHighPoly(bool on) {
+    m_highPoly = on;
+    if (!m_lib.hasHd) { if (on) toast("Pas encore de pièces HD : la bibliothèque HD n'est pas construite"); return; }
+    m_lib.setHighPoly(on);
+    for (int i = 0; i < (int)m_partMesh.size(); ++i) {
+        const int mesh = m_partMesh[i];
+        if (mesh < 0 || m_lib.parts[i].hdPack < 0) continue;
+        Part* p = m_lib.get(m_lib.parts[i].name);
+        if (!p) continue;
+        m_scene.meshes[mesh] = p->mesh;
+        if (mesh < (int)m_scene.lods.size() && m_scene.lods[mesh].lod1 >= 0) {
+            const float3 ext = p->bmax - p->bmin;
+            m_scene.meshes[m_scene.lods[mesh].lod1] = simplifyCluster(p->mesh, std::max(0.12f, std::max(ext.x, std::max(ext.y, ext.z)) / 40.0f));
+        }
+    }
+    ++m_scene.geometryVersion;
+    m_renderer->resetAccumulation();
+    m_teObj = -1;
+    m_veObj = -1;
+    savePrefs();
 }
 
 int BrickApp::meshOf(int part) {
