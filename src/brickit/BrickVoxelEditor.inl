@@ -354,8 +354,15 @@ void BrickApp::veSave(bool validate) {
     if (m_vePart < 0) return;
     Part& p = m_lib.parts[m_vePart];
     if (m_veDirty || validate) {
-        m_lib.voxEdits[p.name] = {m_veVox, m_veConn};
-        m_lib.applyVoxEdit(p);
+        // nothing left, not validated: no override (the voxels of the conversion come back: an empty file must not wipe
+        // them, as for 635 closed empty before the new detection, Wzx 10/11/2026)
+        if (m_veVox.empty() && !validate) {
+            m_lib.voxEdits.erase(p.name);
+            if (Part* src = m_lib.get(p.name)) (void)src;
+        } else {
+            m_lib.voxEdits[p.name] = {m_veVox, m_veConn};
+            m_lib.applyVoxEdit(p);
+        }
         saveVoxEdits();
         m_veDirty = false;
     }
