@@ -510,6 +510,15 @@ void BrickApp::touchTestFrame() {
         const bool turned = std::fabs(r.x - rot0.x) + std::fabs(r.y - rot0.y) + std::fabs(r.z - rot0.z) + std::fabs(r.w - rot0.w) > 0.1f;
         line(std::string("ring: a tap on the right wedge turns the selection ") + (turned ? "OK" : "FAIL") + (m_touches.empty() ? ", no finger left" : ", FAIL a finger left"));
     }
+    if (t == "coldrag" && f == 22) { a = m_colCurAt; touchBegan(1, a.x, a.y, false); }   // a colour dragged out of the panel: a 1x1
+    if (t == "coldrag" && f > 22 && f <= 34) touchMoved(1, a.x + (cx - a.x) * (f - 22) / 12.0f, a.y + (cy - a.y) * (f - 22) / 12.0f);
+    if (t == "coldrag" && f == 30) line(std::string("coldrag: a brick in hand ") + (m_holding ? "OK" : "FAIL"));
+    if (t == "coldrag" && f == 36) touchEnded(1, cx, cy, false);
+    if (t == "coldrag" && f == 110) {
+        const Brick& b = m_bricks.back();
+        line("coldrag: bricks " + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + ", part " + m_lib.parts[b.part].name + ", colour " +
+             (b.color == m_color ? "OK" : "FAIL") + (m_bricks.size() == count0 + 1 && !m_holding ? " OK" : " FAIL"));
+    }
     if (t == "paint" && f == 24) touchEnded(1, a.x, a.y, false);
     if (t == "paint" && f == 28) {
         size_t n = 0;

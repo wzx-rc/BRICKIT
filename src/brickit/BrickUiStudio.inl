@@ -1285,10 +1285,11 @@ void BrickApp::stColors() {
                 u.dl->AddRectFilled(p0, p1, IM_COL32(16, 17, 19, 170), 3 * s);
                 u.dl->AddLine(ImVec2(p0.x + 4 * s, p1.y - 4 * s), ImVec2(p1.x - 4 * s, p0.y + 4 * s), IM_COL32(255, 255, 255, 60), 1.0f);
             }
+            if (i == m_color) m_colCurAt = ImVec2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
             if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2.5f * s, p0.y - 2.5f * s), ImVec2(p1.x + 2.5f * s, p1.y + 2.5f * s), C_ACCENT, 4 * s, 0, 1.5f * s);
             if (u.hover(p0, p1)) {
-                ImGui::SetTooltip(exists ? "%s · %d" : "%s · %d : n'existe pas pour cette pièce", colorFr(c.name), c.id);
-                if (u.pressed && exists) applyColor(i);
+                if (m_colPress < 0) ImGui::SetTooltip(exists ? "%s · %d" : "%s · %d : n'existe pas pour cette pièce", colorFr(c.name), c.id);
+                if (u.pressed) { m_colPress = i; m_colPressPos = u.mouse; }   // (a click applies on release; a drag out takes a 1x1)
             }
             ++k;
         }
@@ -1298,6 +1299,53 @@ void BrickApp::stColors() {
     group("TRANSPARENTES", "transparent");
     group("MÉTALLISÉES", "metallic");
     u.dl->PopClipRect();
+    // a swatch pressed: released in place it applies the colour (to the selection); dragged out of the panel, a brick
+    // 1x1 of that colour comes into the hand with a little burst (Wzx 10/11/2026)
+    if (m_colPress >= 0 && m_colPress < (int)m_lib.palette.size()) {
+        const ImVec2 dm(u.mouse.x - m_colPressPos.x, u.mouse.y - m_colPressPos.y);
+        const bool moved = dm.x * dm.x + dm.y * dm.y > 64 * s * s;
+        const bool inside = u.mouse.x >= a.x && u.mouse.x <= b.x && u.mouse.y >= a.y && u.mouse.y <= b.y;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            if (!moved && (!filter || m_lib.colorExists(fpart, m_colPress))) applyColor(m_colPress);
+            m_colPress = -1;
+        } else if (moved && inside) {   // the swatch follows the finger, a little bigger, wobbling
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            const float t = (float)ImGui::GetTime();
+            const float z = 34 * s * (1 + 0.06f * std::sin(t * 18));
+            const ImVec2 c(u.mouse.x, u.mouse.y - 30 * s);
+            fg->AddCircleFilled(ImVec2(c.x + 2 * s, c.y + 4 * s), z * 0.62f, IM_COL32(0, 0, 0, 70), 24);
+            ImDrawList* keep = u.dl;
+            u.dl = fg;
+            swatch(ImVec2(c.x - z * 0.5f, c.y - z * 0.5f), z, m_lib.palette[m_colPress]);
+            u.dl = keep;
+            fg->AddRect(ImVec2(c.x - z * 0.5f - 2 * s, c.y - z * 0.5f - 2 * s), ImVec2(c.x + z * 0.5f + 2 * s, c.y + z * 0.5f + 2 * s), IM_COL32(255, 255, 255, 200), 5 * s, 0, 1.5f * s);
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        } else if (moved && !inside) {
+            int part = m_lib.find("3005");
+            if (part < 0) part = m_lib.find("3005.dat");
+            const int col = m_colPress;
+            m_colPress = -1;
+            if (part >= 0) {
+                m_color = col;
+                m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), col), m_recentColors.end());
+                m_recentColors.insert(m_recentColors.begin(), col);
+                if (m_recentColors.size() > 12) m_recentColors.resize(12);
+                spawn(part, u.mouse.x, u.mouse.y);
+                m_dragStarted = true;
+                m_pressed = false;
+                if (m_holding) {   // the burst: it springs from higher, squashed, with a spin
+                    m_held.vpos = m_held.target + float3(0, 2.4f, 0);
+                    m_held.squash = 0.35f;
+                    m_held.vrot = qMul(qAxisAngle(float3(0, 1, 0), 1.6f), m_held.rot);
+                }
+                const double now = ImGui::GetTime();
+                m_paintFx.push_back({u.mouse, col, now, 1});
+                m_paintFx.push_back({ImVec2(u.mouse.x + 10 * s, u.mouse.y - 8 * s), col, now + 0.08, 2});
+                m_paintFx.push_back({ImVec2(u.mouse.x - 9 * s, u.mouse.y + 6 * s), col, now + 0.15, 2});
+                toast("Brique 1x1 en main : pose-la, puis tourne-la avec l'anneau");
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------------ the library drawer (bottom)

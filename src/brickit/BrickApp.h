@@ -818,6 +818,8 @@ private:
     struct PaintFx { ImVec2 p; int color; double t0; int kind; };   // 0 Pipette (a drop to the active colour), 1 / 2 a splash
     std::vector<PaintFx> m_paintFx;
     void stPaintFx();
+    int m_colPress = -1;              // the colours on the right: the swatch pressed (a drag out of the panel takes a 1x1 of that colour, Wzx 10/11/2026)
+    ImVec2 m_colPressPos, m_colCurAt = ImVec2(-1, -1);   // (the swatch of the current colour, for the touch test)
     bool paintHit(int brick, ImVec2 at, bool fx);
     ImVec2 m_paintSwatchAt = ImVec2(-1, -1);   // the active colour of the panel Peindre (where the drop of the Pipette lands)
     double m_paintSwatchPop = -10;
