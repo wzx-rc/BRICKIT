@@ -2397,6 +2397,13 @@ void BrickApp::stHeld() {
 // ------------------------------------------------------------------ the whole interface
 
 void BrickApp::drawUiStudio() {
+    if (m_vePart >= 0) {   // the Voxel Editor: the whole screen (nothing of the Studio under it)
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        m_uiRects.push_back(ImVec4(0, 0, d.x, 0));
+        m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y));
+        uiVoxelEditor();
+        return;
+    }
     stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {
@@ -2421,6 +2428,7 @@ void BrickApp::drawUiStudio() {
     stConnLegend();
     uiInfoSheet();   // (no Bac à briques in the Studio interface, Wzx 09/11/2026)
     uiThumbEditor();
+    uiVoxelEditor();
     uiCtxMenu();
     uiDevReview();
     uiManualBig();

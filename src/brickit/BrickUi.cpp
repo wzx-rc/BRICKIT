@@ -7,6 +7,8 @@
 #include "Svg.h"
 #include "app/Theme.h"
 #include "app/Json.h"
+#include <array>
+#include <unordered_set>
 #include "Image.h"
 #include <algorithm>
 #include <functional>
@@ -3711,7 +3713,8 @@ void BrickApp::uiCtxMenu() {
     static const int kConn[4] = {4, 1, 2, 3};
     const int nConn = m_studioUi ? 4 : 0;
     const float w = std::max(u.textW(12, item), u.textW(11, "Échec, aucun connecteur") + 30 * s) + 28 * s, h = 30 * s, rh = 24 * s;
-    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));
+    const float veH = m_studioUi ? h : 0;   // « Éditer les voxels » (Voxel Editor)
+    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + veH + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (b.x > d.x) { a.x -= b.x - d.x; b.x = d.x; }
     if (b.y > d.y) { a.y -= b.y - d.y; b.y = d.y; }
@@ -3725,10 +3728,17 @@ void BrickApp::uiCtxMenu() {
     const bool hov = u.hover(ia, ib);
     if (hov) u.dl->AddRectFilled(ia, ib, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
     u.text(ImVec2(ia.x + 10 * s, ia.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), item);
+    bool veHov = false;
+    if (veH > 0) {
+        const ImVec2 ea(ia.x, ib.y + 2 * s), eb(ib.x, ib.y + 2 * s + h - 4 * s);
+        veHov = u.hover(ea, eb);
+        if (veHov) u.dl->AddRectFilled(ea, eb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
+        u.text(ImVec2(ea.x + 10 * s, ea.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), "Éditer les voxels");
+    }
     int connHit = -1;
     if (nConn) {
         Part& P = m_lib.parts[m_ctxPart];
-        float y = ib.y + 6 * s;
+        float y = ib.y + veH + 6 * s;
         u.text(ImVec2(a.x + 12 * s, y), 9, IM_COL32(0x8a, 0x8c, 0x96, 255), "CONNECTEURS");
         y += 14 * s;
         for (int k = 0; k < nConn; ++k) {
@@ -3746,6 +3756,7 @@ void BrickApp::uiCtxMenu() {
     }
     if (u.pressed) {
         if (hov) openThumbEditor(m_ctxPart);
+        if (veHov) openVoxelEditor(m_ctxPart);
         if (connHit >= 0) {
             Part& P = m_lib.parts[m_ctxPart];
             P.connSrc = (uint8_t)(P.connSrc == connHit && connHit == 4 ? P.connAuto : connHit);   // (Validé again: back to the conversion)
@@ -3822,5 +3833,6 @@ void BrickApp::uiThumbEditor() {
 
 #include "BrickUiIpad.inl"
 #include "BrickUiStudio.inl"
+#include "BrickVoxelEditor.inl"
 
 } // namespace brickit

@@ -72,6 +72,14 @@ public:
     // Part geometry, loading its pack when needed (nullptr when unknown or not loadable).
     Part* get(const std::string& name);
     int find(const std::string& name) const;
+    // the voxels placed by hand (Voxel Editor, <data>/voxel_edits.json): over those of the conversion, when a part loads
+    std::unordered_map<std::string, std::pair<std::vector<float3>, std::vector<uint8_t>>> voxEdits;
+    void applyVoxEdit(Part& p) const {
+        auto it = voxEdits.find(p.name);
+        if (it == voxEdits.end()) return;
+        p.voxels = it->second.first;
+        p.conn = it->second.second;
+    }
 
     std::vector<Part> parts;
     std::vector<Color> palette;

@@ -323,6 +323,7 @@ bool Library::loadPack(int no, std::string* error) {
         Part& p = parts[it->second];
         if (p.loaded) continue;
         readMeta(m, p);
+        applyVoxEdit(p);   // (the voxels placed by hand)
         const Json& q = m["q"];
         size_t off = (size_t)q["off"].num(), vc = (size_t)q["vc"].num(), ic = (size_t)q["ic"].num();
         bool big = q["big"].type == Json::Bool && q["big"].b;

@@ -53,6 +53,7 @@ struct Options {
     std::wstring thumbSampleDir; std::string thumbSampleParts;   // --thumb-sample <dir> <part,part,...>
     std::string thumbEdit;      // --thumb-edit <part>: the thumbnail editor open (captures); --thumb-edit-save: saved at frame 90
     bool thumbEditSave = false;
+    std::string voxelEdit;      // --voxel-edit <part>: the Voxel Editor open (captures)
     std::wstring bacFile;       // --bac-file <file>: the tray there (tests); --bac-test: the tray open with the selection + bricks 590..599
     bool bacTest = false;
     std::wstring thumbDir;      // --thumb-dir <dir>: the overrides there instead of %LOCALAPPDATA% (tests)
@@ -582,6 +583,29 @@ private:
     void renderThumbEditor();
     void saveThumbOverride();
     void uiCtxMenu();
+    // Voxel Editor (mode DEV, BrickVoxelEditor.inl): the connectors of a part placed by hand, assisted
+    struct VeSug { std::string label, detail; std::vector<float3> v; std::vector<uint8_t> t; };
+    int m_vePart = -1, m_veMat = -1, m_veGlass = -1, m_veObj = -1, m_veSel = -1, m_veTool = 1, m_veType = 0, m_veMirror = 0, m_veSugHot = -1, m_veCtx = -1;
+    bool m_veBuilt = false, m_veDirty = false, m_veLineA = false, m_veAutoType = true, m_veXray = true, m_veXrayShown = true, m_veNav = false;
+    Scene m_veScene;
+    ThumbView m_veView;
+    ImVec4 m_veRect{0, 0, 0, 0};
+    float3 m_veLineP;
+    std::vector<float3> m_veVox;
+    std::vector<uint8_t> m_veConn;
+    std::vector<std::pair<std::vector<float3>, std::vector<uint8_t>>> m_veUndo;
+    std::vector<VeSug> m_veSugs;
+    std::vector<int> m_veSimilar;
+    void openVoxelEditor(int part);
+    void renderVoxelEditor();
+    void uiVoxelEditor();
+    void veAnalyze();
+    void vePush();
+    void veAdd(const float3& q, uint8_t t);
+    void veSave(bool validate);
+    int veNextPart() const;
+    void loadVoxEdits();
+    void saveVoxEdits();
     void loadConnLabels();   // mode DEV: the source of the connectors of the parts, the labels set by hand
     void saveConnLabels();
     void stConnLegend();     // mode DEV: the legend of the colours of the cards (and their counts)

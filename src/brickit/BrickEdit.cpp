@@ -494,6 +494,7 @@ void BrickApp::finishMarquee(bool add) {
 void BrickApp::editInput() {
     ImGuiIO& io = ImGui::GetIO();
     const bool keys = !io.WantTextInput;
+    if (m_vePart >= 0) return;   // (the Voxel Editor has the keyboard and the mouse)
     if (m_reading) {   // reading the instructions: the pages, Échap closes; no editing (the camera still orbits)
         readInput();
         if (keys && ImGui::IsKeyPressed(ImGuiKey_Escape)) stopReading();

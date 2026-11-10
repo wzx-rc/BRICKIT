@@ -68,6 +68,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         return false;
     }
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
+    loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
     m_rs.raster = !opt.pathTrace;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
@@ -1055,6 +1056,7 @@ void BrickApp::frame() {
     if (m_frame == 24 && !m_opt.infoPart.empty()) m_infoPart = m_lib.find(m_opt.infoPart);   // scripted test: part sheet
     if (m_frame == 24 && !m_opt.thumbEdit.empty()) { openThumbEditor(m_lib.find(m_opt.thumbEdit)); m_teView.yaw += 0.6f; m_teView.zoom = 1.15f; }   // scripted test: Edit thumbnail
     if (m_frame == 90 && m_opt.thumbEditSave) m_teSave = true;
+    if (m_frame == 24 && !m_opt.voxelEdit.empty()) { m_dev = true; openVoxelEditor(m_lib.find(m_opt.voxelEdit)); m_veView.yaw += 0.5f; }   // (captures: the Voxel Editor)
     if (m_frame == 20 && m_opt.bacTest) {   // scripted test: the tray open, ten bricks of the scene added (one thumbnail each)
         m_bacOpen = true;
         const int sel = m_selected;
@@ -1157,7 +1159,7 @@ void BrickApp::frame() {
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
     const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
-    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || uiDrag;   // (or the thumbnail editor)
+    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || m_vePart >= 0 || uiDrag;   // (or the thumbnail editor, the Voxel Editor)
     if (sheet && !m_frozenTex && m_frame > 0) {
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
@@ -1171,6 +1173,7 @@ void BrickApp::frame() {
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
     if (m_frozenTex) {
         if (m_teditPart >= 0) renderThumbEditor();
+        else if (m_vePart >= 0) renderVoxelEditor();
         else if (!uiDrag || m_infoPart >= 0) renderPreview();
         ImGui::GetBackgroundDrawList()->AddImage(m_frozenTex, ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
     } else {
@@ -1368,6 +1371,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--build-full-thumbs") opt.fullThumbs = next();
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
+        else if (a == L"--voxel-edit") { std::wstring w = next(); opt.voxelEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-dir") opt.thumbDir = next();
         else if (a == L"--bac-file") opt.bacFile = next();
         else if (a == L"--bac-test") opt.bacTest = true;
