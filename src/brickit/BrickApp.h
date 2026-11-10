@@ -75,7 +75,7 @@ struct Options {
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
     int stSub = -2;
-    int libDock = -1, libClassic = -1;   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
+    int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)

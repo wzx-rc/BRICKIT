@@ -69,6 +69,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     }
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
     loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
+    if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
     if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
     m_rs.denoise = true;
@@ -1389,6 +1390,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
         if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }
         if (a == L"--lib-dock") { opt.libDock = _wtoi(next().c_str()); continue; }
+        if (a == L"--high-poly") { opt.highPoly = _wtoi(next().c_str()); continue; }
         if (a == L"--lib-classic") { opt.libClassic = _wtoi(next().c_str()); continue; }
         if (a == L"--build-hq-thumbs") { opt.hqThumbs = next(); continue; }
         if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); continue; }
