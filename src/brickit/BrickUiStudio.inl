@@ -854,7 +854,9 @@ void BrickApp::stConnLegend() {
     const int order[4] = {1, 4, 2, 3};
     const float H = pad + 16 * s + 4 * rowH + 18 * s + pad;
     const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : ImGui::GetIO().DisplaySize.y) - 12 * s;
-    const ImVec2 a(14 * s, bottom - H), b(a.x + W, bottom);
+    float x0 = 14 * s;   // (right of the panel of the mode DEV when it is open there)
+    for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 40 * s && m_uiRects[k].w > bottom - H) x0 = std::max(x0, m_uiRects[k].z + 12 * s);
+    const ImVec2 a(x0, bottom - H), b(a.x + W, bottom);
     stGlass(u.dl, a, b, 14 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     stTrack(u, ImVec2(a.x + pad, a.y + pad), 7.5f, C_DIM, "DEV · CONNECTEURS", 1.4f * s);
