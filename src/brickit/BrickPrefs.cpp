@@ -120,6 +120,8 @@ std::string BrickApp::prefsJson() {
         j += m_studioUi ? "true" : "false";
         j += ", \"libCards\": " + std::to_string(m_stCardMode);
         j += ", \"cardScale\": " + std::to_string(m_stCardScale);
+        j += ", \"libDock\": " + std::to_string(m_libDock) + ", \"libH\": " + std::to_string(m_libH) + ", \"libW\": " + std::to_string(m_libW);
+        j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
         j += ", \"hideDeco\": ";
@@ -218,6 +220,10 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
         if (tj["cardScale"].type == app::Json::Number) m_stCardScale = std::clamp((float)tj["cardScale"].n, 0.6f, 2.0f);
+        if (tj["libDock"].type == app::Json::Number) m_libDock = std::clamp((int)tj["libDock"].n, 0, 2);
+        if (tj["libH"].type == app::Json::Number) m_libH = std::max(0.0f, (float)tj["libH"].n);
+        if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
+        if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
         else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
         for (const auto& kv : tj["looks"].o)

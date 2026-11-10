@@ -14,6 +14,7 @@
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
+#include <set>
 #include <memory>
 #include <vector>
 
@@ -73,6 +74,7 @@ struct Options {
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
     int stSub = -2;
+    int libDock = -1, libClassic = -1;   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
@@ -781,6 +783,20 @@ private:
     float m_paintRadius = 17;         // the circle of the brush (px at the scale 1; halved, Wzx 09/11/2026)
     double m_paintT0 = -1;            // PEINDRE: when its colours came out (the arc pops like the marking menu)
     std::vector<float> m_paintHov;    // PEINDRE: the hover of each colour (it grows)
+    // the library: docked at the bottom (0), on the left (1) or the right (2), its size (its grip), Studio or Classic
+    int m_libDock = 0;
+    float m_libH = 0, m_libW = 0;   // (0: the height of before, 540 px at the scale 1 on a side)
+    bool m_libClassic = false;
+    int m_libGrip = 0, m_libDockPreview = -1;
+    ImVec2 m_libGripAt;
+    float m_libGrip0 = 0;
+    float m_dockL = 0, m_dockR = 0;   // the width the library takes on the left / the right
+    std::set<std::string> m_clsOpen = {"basique", "technic"};   // Classic: the families open in the tree
+    float m_clsTreeScroll = 0, m_clsGridScroll = 0;
+    bool m_clsTechnic = false;
+    void stDrawerClassic();
+    void stLibGrip(Ui& u, ImVec2 a, ImVec2 b, bool live);
+    void stLibPressEnd(Ui& u, ImVec2 p0, ImVec2 p1);
     int m_libFound = -1;              // the part found in the library from the marking menu (its card ringed)
     bool m_libFoundScroll = false;
     double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »

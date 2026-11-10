@@ -113,6 +113,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (!opt.stFam.empty()) { m_stFam = opt.stFam; m_stSub = -1; }
     if (opt.stSub >= -1) m_stSub = opt.stSub;
+    if (opt.libDock >= 0) m_libDock = opt.libDock;
+    if (opt.libClassic >= 0) m_libClassic = opt.libClassic != 0;
     if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
     if (opt.stGroups) m_pGroups.visible = true;
     if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
@@ -1080,7 +1082,7 @@ void BrickApp::frame() {
     const float scale = (pathTraced() && moving) ? m_opt.ptMoveScale : (pathTraced() ? 1.0f : (m_opt.renderScale > 0 ? m_opt.renderScale : m_renderScale));
     // the stage: between the top bar and the tray (no UI: the whole window)
     if (m_opt.noUi || m_uiRects.size() < 2) m_stage = ImVec4(0, 0, ds.x, ds.y);
-    else m_stage = ImVec4(0, m_uiRects[0].w, ds.x, std::max(m_uiRects[0].w + 16, m_uiRects[1].y));
+    else m_stage = ImVec4(m_dockL, m_uiRects[0].w, ds.x - m_dockR, std::max(m_uiRects[0].w + 16, m_uiRects[1].y));   // (minus the library docked on a side)
     const float sw = m_stage.z - m_stage.x, sh = m_stage.w - m_stage.y;
     m_vp = {0, 0, std::max(16, (int)(sw * scale)), std::max(16, (int)(sh * scale))};
     if (m_rs.raster || m_rcMode) m_rs.samplesPerFrame = 1;
@@ -1339,6 +1341,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }
         if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
         if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }
+        if (a == L"--lib-dock") { opt.libDock = _wtoi(next().c_str()); continue; }
+        if (a == L"--lib-classic") { opt.libClassic = _wtoi(next().c_str()); continue; }
         if (a == L"--build-hq-thumbs") { opt.hqThumbs = next(); continue; }
         if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); continue; }
         if (a == L"--hq-px") { opt.hqPx = _wtoi(next().c_str()); continue; }
