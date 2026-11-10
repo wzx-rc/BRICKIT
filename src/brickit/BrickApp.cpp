@@ -941,10 +941,16 @@ void BrickApp::cameraInput() {
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_leftOrbit = false;
     // left drag on empty space (and in the Move / Rotate modes) orbits, as the web
     // Studio: the right button never moves the camera (it is the marking menu, Wzx 09/11/2026)
-    const bool rmbCam = false;   // (every interface: the right button never moves the camera, Wzx 09/11/2026)
-    const bool orbit = rmbCam || (ImGui::IsMouseDown(ImGuiMouseButton_Left) && (io.KeyAlt || m_leftOrbit));
-    const bool pan = ImGui::IsMouseDown(ImGuiMouseButton_Middle) || (io.KeyShift && rmbCam);
-    if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+    // Maya navigation (Wzx 10/11/2026): the camera moves only with Alt. Alt + left: orbit, Alt + middle: pan,
+    // Alt + right: dolly; the wheel zooms. Without Alt the mouse never moves the camera.
+    const bool alt = io.KeyAlt;
+    const bool orbit = alt && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
+    const bool dolly = alt && ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (dolly && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x - io.MouseDelta.y) * 0.004f));
+        changed = true;
+    } else if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
         float3 r, u, f;
         cam.basis(r, u, f);
         float k = cam.distance * std::tan(cam.fovY * 0.5f) * 2.0f / std::max(1.0f, io.DisplaySize.y);

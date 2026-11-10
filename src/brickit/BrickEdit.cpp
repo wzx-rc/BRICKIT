@@ -575,6 +575,7 @@ void BrickApp::editInput() {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
     }
     if (m_holding && inView && m_opt.spawnPart.empty() && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) updateHeld(mp.x, mp.y);
+    if (io.KeyAlt) { m_pressed = false; return; }   // Maya: Alt + a button is the camera (no pick, no menu, no paint)
 
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbPos = mp; m_rmbMoved = false; }
