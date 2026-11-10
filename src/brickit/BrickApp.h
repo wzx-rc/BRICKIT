@@ -857,6 +857,13 @@ private:
     void stColors();
     void stDrawer();
     void stSelHud();
+    void stRing();                    // Studio: the ring of the left hand (Réglages › Anneau tactile): turn, tilt, duplicate / place
+    int stRingHit(float x, float y) const;   // the part of the ring under a point (-1 none, 0..3 the wedges, 4 the centre)
+    void stRingAct(int part);
+    ImVec2 m_ringC = ImVec2(-1, -1);  // the ring of this frame (its centre, its radius; -1 hidden)
+    float m_ringR = 0;
+    double m_ringFlashT = -10;        // a part touched: it lights up a moment
+    int m_ringFlash = -1;
     void stHeld();
     void stCardSheet(int part, ImVec2 a, ImVec2 b, float t);
     int m_stHov = -1;                 // the card under the cursor, since m_stHovT (its sheet after 0.5 s)

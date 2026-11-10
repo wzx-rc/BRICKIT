@@ -125,9 +125,19 @@ void BrickApp::drawHoldOverlay() {
         dl->AddRectFilled(a, b, IM_COL32(247, 197, 30, 31));
         dl->AddRect(a, b, IM_COL32(247, 197, 30, 255), 0, 0, 1.5f);
     }
-    if (!m_holding || !m_held.hasTarget || !m_animOn || m_held.dropping) return;
+    if (!m_holding || !m_held.hasTarget || m_held.dropping) return;
     const Held& H = m_held;
     View v = view();
+    if (!m_animOn) {   // no animations (Wzx 10/11/2026): still a white dot on the voxel the pivot snaps onto
+        float sx, sy;
+        if (v.project(H.snapVoxel, sx, sy)) {
+            const ImU32 core = H.blocked ? IM_COL32(0xff, 0x4d, 0x4d, 255) : IM_COL32(255, 255, 255, 255);
+            dl->AddCircleFilled(ImVec2(sx + 0.5f * s, sy + 1.0f * s), 5.5f * s, IM_COL32(0, 0, 0, 90), 20);
+            dl->AddCircleFilled(ImVec2(sx, sy), 5 * s, core, 20);
+            dl->AddCircle(ImVec2(sx, sy), 8.5f * s, IM_COL32(255, 255, 255, 110), 24, 1.2f * s);
+        }
+        return;
+    }
     const Part& p = m_lib.parts[m_bricks[H.brick].part];
     const float pulse = 0.5f + 0.5f * std::sin(H.time * 5);
     // footprint: voxels of the lowest layer once oriented

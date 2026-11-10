@@ -2515,6 +2515,7 @@ void BrickApp::drawUiStudio() {
     stBadge();
     stColors();
     stSelHud();
+    stRing();
     stPaintFx();
     stHeld();
     uiMechPanel();
@@ -2532,4 +2533,86 @@ void BrickApp::drawUiStudio() {
     uiDevReview();
     uiManualBig();
     drawDropzone();
+}
+
+// ------------------------------------------------------------------ the ring of the left hand (Wzx 10/11/2026)
+// Studio: on the left of the view, the ring of the web: tilt up / down, turn left / right, in the middle Dupliquer
+// (Poser while a brick is in hand). On the iPad a finger of the left hand presses it while the Pencil holds the brick:
+// those touches are caught before the gestures (BrickTouch.cpp, stRingHit)
+
+int BrickApp::stRingHit(float x, float y) const {
+    if (m_ringR <= 0) return -1;
+    const float dx = x - m_ringC.x, dy = y - m_ringC.y, d = std::sqrt(dx * dx + dy * dy);
+    const float rin = m_ringR * 0.42f;
+    if (d > m_ringR * 1.06f) return -1;
+    if (d <= rin) return 4;
+    const float a = std::atan2(dy, dx) * 57.29578f;   // 0 right, 90 down
+    if (a >= -45 && a < 45) return 1;
+    if (a >= 45 && a < 135) return 2;
+    if (a >= -135 && a < -45) return 0;
+    return 3;
+}
+
+void BrickApp::stRingAct(int part) {
+    const bool active = m_holding || m_selected >= 0 || !m_multi.empty();
+    if (!active || part < 0) return;
+    m_ringFlash = part;
+    m_ringFlashT = ImGui::GetTime();
+    switch (part) {
+    case 0: tiltSelected(-1); break;
+    case 2: tiltSelected(1); break;
+    case 1: rotateSelected(-1); break;
+    case 3: rotateSelected(1); break;
+    case 4: if (m_holding) dropHeld(); else duplicateSelected(); break;
+    }
+}
+
+void BrickApp::stRing() {
+    m_ringR = 0;
+    if (!m_touchHud || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const float R = 72 * s, rin = R * 0.42f;
+    const ImVec2 c(m_dockL + 22 * s + R, std::floor((m_stage.y + m_stage.w) * 0.5f + 10 * s));
+    m_ringC = c;
+    m_ringR = R;
+    const bool active = m_holding || m_selected >= 0 || !m_multi.empty();
+    const float al = active ? 1.0f : 0.4f;
+    const double now = ImGui::GetTime();
+    const int hov = (!m_ipad && u.hover(ImVec2(c.x - R, c.y - R), ImVec2(c.x + R, c.y + R))) ? stRingHit(u.mouse.x, u.mouse.y) : -1;
+    ImDrawList* dl = u.dl;
+    // the glass disc, then the four wedges with their gaps
+    stGlass(dl, ImVec2(c.x - R - 4 * s, c.y - R - 4 * s), ImVec2(c.x + R + 4 * s, c.y + R + 4 * s), R + 4 * s, s);
+    m_uiRects.push_back(ImVec4(c.x - R - 4 * s, c.y - R - 4 * s, c.x + R + 4 * s, c.y + R + 4 * s));
+    static const char* kIco[4] = {"M7 14l5-5 5 5", ST_ROT, "M7 10l5 5 5-5", ST_ROTL};
+    static const char* kTip[4] = {"Basculer vers le haut", "Tourner à droite 90°", "Basculer vers le bas", "Tourner à gauche 90°"};
+    for (int i = 0; i < 4; ++i) {
+        const float a = (i - 1) * 1.5707963f;   // 0 up (-90°), 1 right, 2 down, 3 left
+        const float half = 0.70f;
+        const float flash = m_ringFlash == i ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
+        const bool on = active && (hov == i || flash > 0);
+        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
+        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
+        dl->PathFillConvex(on ? stA(C_ACCENT, 0.25f + 0.45f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.06f * al));
+        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
+        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
+        dl->PathStroke(on ? stA(C_ACCENT, 0.9f) : stA(C_LINE, al), ImDrawFlags_Closed, 1.0f);
+        const float rm = (R - 3 * s + rin + 5 * s) * 0.5f;
+        const ImVec2 ic(c.x + std::cos(a) * rm, c.y + std::sin(a) * rm);
+        stIcon(dl, kIco[i], ic, 20 * s, stA(on ? C_ACCENT_TXT : C_TEXT, al), 1.3f * s);
+        if (hov == i && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", kTip[i]);
+    }
+    // the middle: Dupliquer, or Poser with a brick in hand (the accent)
+    const float flash = m_ringFlash == 4 ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
+    const bool onC = active && (hov == 4 || flash > 0);
+    if (m_holding) dl->AddCircleFilled(c, rin, C_ACCENT, 40);
+    else dl->AddCircleFilled(c, rin, onC ? stA(C_ACCENT, 0.3f + 0.4f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.08f * al), 40);
+    dl->AddCircle(c, rin, stA(C_ACCENT, 0.8f * al), 40, 1.2f * s);
+    const char* lab = m_holding ? "POSER" : "DUPLIQUER";
+    if (!m_holding) stIcon(dl, ST_DUP, ImVec2(c.x, c.y - 5 * s), 16 * s, stA(onC ? C_ACCENT_TXT : C_TEXT, al), 1.2f * s);
+    const float lw = stTrackW(u, m_holding ? 8.5f : 6.5f, lab, 1.0f * s, true);
+    stTrack(u, ImVec2(c.x - lw * 0.5f, m_holding ? c.y - u.fs(8.5f) * 0.52f : c.y + 8 * s), m_holding ? 8.5f : 6.5f, m_holding ? C_INK : stA(C_DIM, al), lab, 1.0f * s);
+    if (hov == 4 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_holding ? "Poser la brique" : "Dupliquer la sélection");
+    if (!m_ipad && hov >= 0 && u.pressed) stRingAct(hov);   // (iPad: the touches, BrickTouch.cpp)
 }

@@ -3396,7 +3396,7 @@ void BrickApp::uiSettings() {
         {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
         {"Pièces décorées (stickers, motifs)", {{"Masquées", m_hideDeco}, {"Affichées", !m_hideDeco}}, 20},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
-        {"Anneau tactile (iPad)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
+        {"Anneau de la main gauche (tourner, basculer)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
         {"Rendu", {{"Rapide", m_rs.raster && m_quality == 0}, {"HQ", m_rs.raster && m_quality == 1}, {"PT", pathTraced()}, {"RC", m_rcMode}}, 2},
         {"Anti-aliasing (Radiance Cascades)", {{"MSAA 4x", m_rs.aaQuality == 0}, {"MSAA 8x", m_rs.aaQuality == 1}, {"AAA", m_rs.aaQuality == 2}}, 9},
@@ -3410,7 +3410,7 @@ void BrickApp::uiSettings() {
         {"Sauvegarde automatique", {{"Oui", m_autosaveOn}, {"Non", !m_autosaveOn}}, 8},
     };
     if (m_ipad)   // the iPad: no render settings (raster view only, no view transform), no voxels, Studio only
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 6 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12 || r.id == 14 || r.id == 18; }), rows.end());
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 6 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12 || r.id == 18; }), rows.end());
     const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
     // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
     const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);
