@@ -87,6 +87,7 @@ void BrickApp::saveVoxEdits() {
 void BrickApp::openVoxelEditor(int part) {
     if (part < 0 || part >= (int)m_lib.parts.size() || !m_lib.get(m_lib.parts[part].name)) return;
     const Part& p = m_lib.parts[part];
+    crumb("Voxel Editor : ouverture de %s (%d voxels)", p.name.c_str(), (int)p.voxels.size());
     m_vePart = part;
     m_veVox = p.voxels;
     m_veConn = p.conn;
@@ -357,6 +358,7 @@ void BrickApp::veAdd(const float3& q, uint8_t t) {
 // the voxels kept: in the part (the scene builds with them at once), in voxel_edits.json; validated: green, saved label
 void BrickApp::veSave(bool validate) {
     if (m_vePart < 0) return;
+    crumb("Voxel Editor : %s %s (%d voxels)", validate ? "valider" : "fermer", m_lib.parts[m_vePart].name.c_str(), (int)m_veVox.size());
     Part& p = m_lib.parts[m_vePart];
     if (m_veDirty || validate) {
         // nothing left, not validated: no override (the voxels of the conversion come back: an empty file must not wipe

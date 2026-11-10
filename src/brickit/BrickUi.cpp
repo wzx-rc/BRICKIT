@@ -3,6 +3,7 @@
 // the SVG icons (Svg.cpp), the French texts. Everything is drawn with ImDrawList in one window behind the ImGui popups;
 // clicks are hit-tested here. m_ui scales the whole interface (4K: 2).
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "Platform.h"
 #include "Svg.h"
 #include "app/Theme.h"

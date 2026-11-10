@@ -1,4 +1,5 @@
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "Stage.h"
 #include "Image.h"
 #include "Platform.h"
@@ -35,6 +36,7 @@ bool BrickApp::savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint
 bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
                           const std::wstring& exeDir, float dpi) {
     m_opt = opt;
+    if (opt.shotPath.empty()) crashInit(brickitDataDir() + L"\\crashlogs", versionString());   // (a crash, a freeze: a report; not the captures)
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
     ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
@@ -69,6 +71,16 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     }
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
     loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
+    crashSetState([this]() {   // what a crash report says of the app
+        char b[1200];
+        const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
+        snprintf(b, sizeof(b), "Image %d · briques %d · sélection %d · en main %d\nInterface %s · popup %d · bibliothèque dock %d %s · HD %d · DEV %d\n"
+                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n",
+                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classique", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
+                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "fermé", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
+                 m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str());
+        return std::string(b);
+    });
     if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
     if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
@@ -642,6 +654,7 @@ void BrickApp::applyLook() {
 
 // the HD switch (header): the meshes of the scene that have an HD version swapped in place, the view rebuilt
 void BrickApp::setHighPoly(bool on) {
+    crumb("HD : %d", on ? 1 : 0);
     m_highPoly = on;
     if (!m_lib.hasHd) { if (on) toast("Pas encore de pièces HD : la bibliothèque HD n'est pas construite"); return; }
     m_lib.setHighPoly(on);
@@ -754,6 +767,7 @@ void BrickApp::syncObjects() {
 }
 
 void BrickApp::toast(const std::string& text) {
+    crumb("Message : %s", text.c_str());
     m_toast = text;
     m_toastTime = ImGui::GetCurrentContext() ? ImGui::GetTime() : 0.0;
 }
@@ -895,6 +909,7 @@ void BrickApp::buildDemo() {
 
 // F (Wzx 10/11/2026, as Maya): the camera framed on the selection, its direction kept; nothing selected: the whole scene
 void BrickApp::frameSelection() {
+    crumb("F : cadrer la sélection");
     const std::vector<int> sel = selection();
     if (sel.empty()) { frameAll(); return; }
     float3 mn(1e30f), mx(-1e30f);
@@ -1318,6 +1333,16 @@ void BrickApp::frame() {
     m_cpuMs = m_cpuMs * 0.9 + 0.1 * (t1.QuadPart - t0.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_gui->render(true);
     ++m_frame;
+    crashHeartbeat();
+    if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
+    if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
+        const std::wstring p = crashLastUnseen();
+        if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + std::string(p.begin(), p.end()));
+    }
+    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
+        const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");
+        toast("Rapport écrit : " + std::string(p.begin(), p.end()));
+    }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
     if (!m_opt.groupSnapTest.empty() && m_frame == 5) groupSnapTest();
@@ -1439,6 +1464,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
         else if (a == L"--ve-solid") opt.veSolid = true;
+        else if (a == L"--crash-test") opt.crashTest = true;
         else if (a == L"--voxel-edit") { std::wstring w = next(); opt.voxelEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-dir") opt.thumbDir = next();
         else if (a == L"--bac-file") opt.bacFile = next();

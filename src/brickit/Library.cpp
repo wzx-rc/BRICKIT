@@ -1,4 +1,5 @@
 #include "Library.h"
+#include "CrashLog.h"
 #include "Platform.h"
 #ifdef _WIN32
 #include <shlobj.h>
@@ -323,6 +324,7 @@ void Library::unloadPack(int no) {
 }
 
 bool Library::loadPack(int no, std::string* error) {
+    crumb("Bibliothèque : chargement du pack %d", no);
     if (no < 0 || no >= packCount) return fail(error, "bad pack number");
     if (m_packLoaded[no]) return true;
     m_packLoaded[no] = true;   // tried once

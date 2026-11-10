@@ -55,6 +55,7 @@ struct Options {
     bool thumbEditSave = false;
     std::string voxelEdit;      // --voxel-edit <part>: the Voxel Editor open (captures)
     bool veSolid = false;       // --ve-solid: without the X-ray
+    bool crashTest = false;     // --crash-test: a crash at frame 30 (the crash log checked)
     std::wstring bacFile;       // --bac-file <file>: the tray there (tests); --bac-test: the tray open with the selection + bricks 590..599
     bool bacTest = false;
     std::wstring thumbDir;      // --thumb-dir <dir>: the overrides there instead of %LOCALAPPDATA% (tests)
