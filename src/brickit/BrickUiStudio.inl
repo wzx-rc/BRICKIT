@@ -1546,8 +1546,13 @@ void BrickApp::stDrawer() {
         if (k == 3) m_mtCard = ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
         const bool h = live && u.hover(a, b) && u.hover(ca, cb);
         const bool on = part == taken;
+        if (part == m_libFound && m_libFoundScroll) {   // brought into view once
+            m_cardsScroll = std::max(0.0f, a.x + m_cardsScroll - ca.x - (cb.x - ca.x - cardW) * 0.5f);
+            m_libFoundScroll = false;
+        }
         cardBg(a, b, h, on);
-        if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 12 * s, 0, 2.0f * s);   // DEV: where its connectors come from
+        if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 12 * s, 0, 2.0f * s);
+        if (part == m_libFound) u.dl->AddRect(ImVec2(a.x - 2 * s, a.y - 2 * s), ImVec2(b.x + 2 * s, b.y + 2 * s), C_ACCENT, 13 * s, 0, 2.5f * s);   // (found from the marking menu)   // DEV: where its connectors come from
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (!sheet && thumbUv(part, tex, uv0, uv1)) {   // IMAGE: the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
@@ -1598,7 +1603,7 @@ void BrickApp::stDrawer() {
                 m_stHovB = b;
             }
             hovered = true;
-            if (u.pressed) { m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
+            if (u.pressed) { m_libFound = -1; m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
             if (m_dev && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_ctxPart = part; m_ctxPos = u.mouse; }
         }
     }
@@ -1710,8 +1715,9 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
 
 // the six actions of the ring, by direction (0° right, clockwise)
 struct StAct { float ang; const char* label; const char* icon; bool danger; };
-static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {90, "DUPLIQUER", ST_DUP, false}, {135, "SUPPRIMER", ST_DEL, true},   // (Dupliquer straight down, Supprimer bottom left and smaller: Wzx)
-                                 {180, "TOURNER", ST_ROTL, false}};   // (no Basculer, no Fiche: Wzx 09/11/2026)
+static const int ST_NACT = 5;
+static const StAct kStActs[ST_NACT] = {{0, "TOURNER", ST_ROT, false}, {90, "DUPLIQUER", ST_DUP, false}, {135, "SUPPRIMER", ST_DEL, true},   // (Dupliquer straight down, Supprimer bottom left and smaller: Wzx)
+                                 {180, "TOURNER", ST_ROTL, false}, {45, "BIBLIOTHÈQUE", ST_SEARCH, false}};   // (bottom right: the part found in the library, Wzx 10/11/2026)   // (no Basculer, no Fiche: Wzx 09/11/2026)
 static const float ST_R_ACT = 100, ST_R_COL = 156,   // (the actions further out: Wzx 09/11/2026)
     ST_ARC0 = 204, ST_ARC1 = 336;
 
@@ -1760,7 +1766,7 @@ void BrickApp::stSelHud() {
         }
         else if (dist > (quick ? 12 : 30) * s) {   // the nearest action within 30° (quick: 45°)
             float bestA = quick ? 45.0f : 30.0f;
-            for (int k = 0; k < 4; ++k) {
+            for (int k = 0; k < ST_NACT; ++k) {
                 float da = std::fabs(ang - kStActs[k].ang);
                 da = std::min(da, 360 - da);
                 if (da <= bestA) { bestA = da; hot = k; }
@@ -1775,7 +1781,7 @@ void BrickApp::stSelHud() {
         s_void->PushClipRectFullScreen();
         s_void->PushTexture(ImGui::GetIO().Fonts->TexRef);
         ImDrawList* dl = flick ? s_void : ImGui::GetForegroundDrawList();
-        if (flick && hot >= 0 && hot < 4) {
+        if (flick && hot >= 0 && hot < ST_NACT) {
             ImDrawList* fg = ImGui::GetForegroundDrawList();
             const StAct& A = kStActs[hot];
             const float r = A.ang * 0.0174533f, rad = 30 * s;
@@ -1802,7 +1808,7 @@ void BrickApp::stSelHud() {
             dl->AddCircleFilled(ImVec2(c.x + std::cos(r) * ST_R_COL * s, c.y + std::sin(r) * ST_R_COL * s), 0.8f * s, stA(C_ACCENT, 0.4f), 6);
         }
         if (dist > 4 * s) {   // the dashed line of the gesture (stops at the button of the action aimed)
-            const float lim = hot >= 0 && hot < 4 ? std::min(dist, ST_R_ACT * s) : hot >= 100 ? std::min(dist, ST_R_COL * s) : dist;
+            const float lim = hot >= 0 && hot < ST_NACT ? std::min(dist, ST_R_ACT * s) : hot >= 100 ? std::min(dist, ST_R_COL * s) : dist;
             const float kq = lim / dist;
             const float dx = (u.mouse.x - c.x) * kq, dy = (u.mouse.y - c.y) * kq;
             const int n = (int)(lim / (6 * s));
@@ -1818,7 +1824,7 @@ void BrickApp::stSelHud() {
             stPartKind(m_lib.parts[m_bricks[sel[0]].part], kd, w, l);
             stPicto(dl, kd, w, l, c, 40 * s, stA(C_TEXT, hot >= 0 ? 0.3f : 0.85f), 1.0f * s);
         }
-        for (int k = 0; k < 4; ++k) {
+        for (int k = 0; k < ST_NACT; ++k) {
             const StAct& A = kStActs[k];
             const bool on = hot == k;
             const float r = A.ang * 0.0174533f, rad = (A.danger ? (on ? 23 : 19) : (on ? 30 : 26)) * s;   // (Supprimer smaller)
@@ -1853,7 +1859,7 @@ void BrickApp::stSelHud() {
         }
         {   // the title above: what the release will do
             std::string t = "GLISSE VERS UNE ACTION";
-            if (hot >= 0 && hot < 4) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
+            if (hot >= 0 && hot < ST_NACT) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
             else if (hot >= 100) t = stUpper(colorFr(m_lib.palette[cols[hot - 100]].name));
             const float tw = stTrackW(u, 9.5f, t.c_str(), 1.8f * s, true);
             ImDrawList* keep = u.dl;
@@ -1865,7 +1871,6 @@ void BrickApp::stSelHud() {
         if (m_opt.stMenu) return;   // (captures: stays open)
         const bool act = m_stMenuSticky ? (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                                         : !ImGui::IsMouseDown(m_stMenuBtn == 1 ? ImGuiMouseButton_Right : ImGuiMouseButton_Left);
-        if (act && m_stMenuBtn == 1 && !m_stMenuSticky && hot < 0 && dist < 12 * s) { m_stMenuSticky = true; return; }   // released in place: stays open, the next click acts
         if (act) {   // released (or, opened by a quick right click, the next click): the action
             m_stMenu = false;
             if (m_stMenuSticky) m_stMenuEat = ImGui::GetFrameCount();
@@ -1874,6 +1879,17 @@ void BrickApp::stSelHud() {
             else if (hot == 3) rotateSelected(-1);
             else if (hot == 1) duplicateSelected();
             else if (hot == 2) deleteSelected();
+            else if (hot == 4 && !sel.empty()) {   // the part in the library: searched by its id, its card ringed and shown
+                const Part& P = m_lib.parts[m_bricks[sel[0]].part];
+                std::string id = P.name;
+                if (id.size() > 4 && id.substr(id.size() - 4) == ".dat") id = id.substr(0, id.size() - 4);
+                m_search = id;
+                m_searchOpen = true;
+                m_cardsScroll = 0;
+                m_libFound = m_bricks[sel[0]].part;
+                m_libFoundScroll = true;
+                m_pTray.collapsed = false;
+            }
             else if (hot >= 100) applyColor(cols[hot - 100]);
         }
         return;

@@ -781,6 +781,8 @@ private:
     float m_paintRadius = 17;         // the circle of the brush (px at the scale 1; halved, Wzx 09/11/2026)
     double m_paintT0 = -1;            // PEINDRE: when its colours came out (the arc pops like the marking menu)
     std::vector<float> m_paintHov;    // PEINDRE: the hover of each colour (it grows)
+    int m_libFound = -1;              // the part found in the library from the marking menu (its card ringed)
+    bool m_libFoundScroll = false;
     double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
     void paintOne(int brick);
     void stFile();         // the scene menu (m_popup 8): Nouvelle scène, Ouvrir, Enregistrer, Enregistrer sous
