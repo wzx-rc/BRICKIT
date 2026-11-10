@@ -213,43 +213,58 @@ void BrickApp::veAnalyze() {
                 if (!veNear(studs.v, q)) { studs.v.push_back(q); studs.t.push_back(CONN_STUD); }
             }
     }
-    // cylinders: the rings of one line (same axis, same centre, same radius, same side) give one segment from the first to
-    // the last; Ø 8 (r 0.16): round axles / holes, Ø 12 (r 0.24, not vertical: the studs): pins / pin holes
+    // cylinders (Wzx 10/11/2026): the rings of one line (same axis, same centre, same radius, same side) give the line;
+    // an axle or a pin (outward) runs as far as the mesh has vertices at its radius around that line (a single ring is
+    // enough: the end joined to an arm has none); holes (inward) are cut where their rings are apart (two walls with a
+    // hole each: one voxel per wall, nothing in the air between). Diameter 8 (r 0.16): round axles / holes; 12 (r 0.24,
+    // not vertical outward: the studs): pins / pin holes
+    m_veCyl.clear();
     {
-        // a line: an axle (outward) from its first ring to its last; holes (inward) cut where the rings are apart (two
-        // walls with a hole each: one voxel per wall, nothing in the air between)
-        struct Line { int axis; float u, v; bool r8, outward; std::vector<float> at; };
+        struct Line { int axis; float u, v, r; bool r8, outward; std::vector<float> at; };
         std::vector<Line> found;
         for (const VeRing& a : rings) {
             const bool r8 = std::fabs(a.r - 0.16f) < 0.025f, r12 = std::fabs(a.r - 0.24f) < 0.025f;
             if (!r8 && !r12) continue;
-            if (r12 && a.axis == 1) continue;
+            if (r12 && a.axis == 1 && a.outward) continue;
             Line* l = nullptr;
             for (Line& q : found)
                 if (q.axis == a.axis && q.r8 == r8 && q.outward == a.outward && std::fabs(q.u - a.u) < 0.01f && std::fabs(q.v - a.v) < 0.01f) { l = &q; break; }
-            if (!l) { found.push_back({a.axis, a.u, a.v, r8, a.outward, {}}); l = &found.back(); }
+            if (!l) { found.push_back({a.axis, a.u, a.v, a.r, r8, a.outward, {}}); l = &found.back(); }
             l->at.push_back(a.at);
         }
-        struct Seg { int axis; float u, v; bool r8, outward; float lo, hi; int n; };
-        std::vector<Seg> lines;
         for (Line& l : found) {
             std::sort(l.at.begin(), l.at.end());
-            size_t i0 = 0;
-            for (size_t i = 1; i <= l.at.size(); ++i)
-                if (i == l.at.size() || (!l.outward && l.at[i] - l.at[i - 1] > 0.25f)) {
-                    lines.push_back({l.axis, l.u, l.v, l.r8, l.outward, l.at[i0], l.at[i - 1], (int)(i - i0)});
-                    i0 = i;
+            std::vector<std::pair<float, float>> segs;
+            if (l.outward) {   // the extent of the cylinder: the vertices at its radius around the line
+                const int a1 = (l.axis + 1) % 3, a2 = (l.axis + 2) % 3;
+                float lo = 1e9f, hi = -1e9f;
+                for (const auto& vx : m.vertices) {
+                    const float du = (&vx.pos.x)[a1] - l.u, dv = (&vx.pos.x)[a2] - l.v;
+                    if (std::fabs(std::sqrt(du * du + dv * dv) - l.r) > 0.012f) continue;
+                    lo = std::min(lo, (&vx.pos.x)[l.axis]);
+                    hi = std::max(hi, (&vx.pos.x)[l.axis]);
                 }
-        }
-        for (Seg& l : lines) {
-            if (l.n < 2) continue;
-            if (l.hi - l.lo < 0.2f) l.lo = l.hi = (l.lo + l.hi) * 0.5f;   // (a hole through a thin wall: one voxel in its middle)
-            VeSug& sg = l.r8 ? (l.outward ? axles : axleHoles) : (l.outward ? pins : pinHoles);
-            const uint8_t t = l.r8 ? (l.outward ? CONN_AXLE : CONN_AXLEHOLE) : (l.outward ? CONN_PIN : CONN_PINHOLE);
-            const int nst = l.hi - l.lo < 0.01f ? 0 : std::max(1, (int)std::lround((l.hi - l.lo) / 0.4f));
-            for (int k = 0; k <= nst; ++k) {
-                const float3 q = pt(l.axis, nst ? l.lo + (l.hi - l.lo) * k / nst : l.lo, l.u, l.v);
-                if (!veNear(sg.v, q)) { sg.v.push_back(q); sg.t.push_back(t); }
+                if (hi - lo >= 0.2f) segs.push_back({lo, hi});
+            } else {
+                size_t s0 = 0;
+                for (size_t i = 1; i <= l.at.size(); ++i)
+                    if (i == l.at.size() || l.at[i] - l.at[i - 1] > 0.25f) {
+                        if (i - s0 >= 2) segs.push_back({l.at[s0], l.at[i - 1]});
+                        s0 = i;
+                    }
+            }
+            for (auto sg2 : segs) {
+                float lo = sg2.first, hi = sg2.second;
+                m_veCyl.push_back({l.axis, l.u, l.v, l.r, l.outward, lo, hi});
+                if (hi - lo < 0.2f) lo = hi = (lo + hi) * 0.5f;
+                else { lo += 0.2f; hi -= 0.2f; if (hi < lo) lo = hi = (lo + hi) * 0.5f; }   // (the voxels half a stud inside the ends)
+                VeSug& sg = l.r8 ? (l.outward ? axles : axleHoles) : (l.outward ? pins : pinHoles);
+                const uint8_t t = l.r8 ? (l.outward ? CONN_AXLE : CONN_AXLEHOLE) : (l.outward ? CONN_PIN : CONN_PINHOLE);
+                const int nst = hi - lo < 0.01f ? 0 : std::max(1, (int)std::lround((hi - lo) / 0.4f));
+                for (int k = 0; k <= nst; ++k) {
+                    const float3 q = pt(l.axis, nst ? lo + (hi - lo) * k / nst : lo, l.u, l.v);
+                    if (!veNear(sg.v, q)) { sg.v.push_back(q); sg.t.push_back(t); }
+                }
             }
         }
     }
@@ -736,6 +751,49 @@ void BrickApp::uiVoxelEditor() {
                 const float dd = std::hypot(sx - u.mouse.x, sy - u.mouse.y);
                 if (dd < bd) { bd = dd; snapP = sg.v[k]; snapT = sg.t[k]; why = "AIMANT · " + stUpper(sg.label); snapOk = true; }
             }
+        if (!snapOk && hit) {   // the smart snap 1: on a cylinder found, its axis (the middle of the matter), along it by ½ tenon
+            for (const VeCyl& c : m_veCyl) {
+                const int a1 = (c.axis + 1) % 3, a2 = (c.axis + 2) % 3;
+                const float du = (&hp.x)[a1] - c.u, dv = (&hp.x)[a2] - c.v, at = (&hp.x)[c.axis];
+                if (std::fabs(std::sqrt(du * du + dv * dv) - c.r) > 0.03f || at < c.lo - 0.05f || at > c.hi + 0.05f) continue;
+                float q = c.hi - c.lo < 0.2f ? (c.lo + c.hi) * 0.5f : std::clamp(c.lo + 0.2f + std::round((at - c.lo - 0.2f) / 0.4f) * 0.4f, c.lo, c.hi);
+                (&snapP.x)[c.axis] = q;
+                (&snapP.x)[a1] = c.u;
+                (&snapP.x)[a2] = c.v;
+                const bool r8 = std::fabs(c.r - 0.16f) < 0.03f;
+                if (m_veAutoType) snapT = r8 ? (c.outward ? CONN_AXLE : CONN_AXLEHOLE) : (c.outward ? CONN_PIN : CONN_PINHOLE);
+                why = std::string(c.outward ? "AXE DU CYLINDRE" : "CENTRE DU TROU") + (r8 ? " · Ø 8" : " · Ø 12");
+                snapOk = true;
+                break;
+            }
+        }
+        if (!snapOk && hit && std::fabs(hn.y) < 0.7f) {   // the smart snap 2: a side, the middle of the matter under the cursor
+            const auto& M = P.mesh;   // (a ray from the face into the part: the face behind; the voxel half way)
+            const float3 o2 = hp - hn * 1e-4f, d2 = hn * -1.0f;
+            float best2 = 1e30f;
+            for (size_t k = 0; k + 2 < M.indices.size(); k += 3) {
+                const float3 &A = M.vertices[M.indices[k]].pos, &B = M.vertices[M.indices[k + 1]].pos, &C = M.vertices[M.indices[k + 2]].pos;
+                const float3 e1 = B - A, e2 = C - A, pv = cross(d2, e2);
+                const float det = dot(e1, pv);
+                if (std::fabs(det) < 1e-12f) continue;
+                const float inv = 1.0f / det;
+                const float3 tv = o2 - A;
+                const float uu = dot(tv, pv) * inv;
+                if (uu < 0 || uu > 1) continue;
+                const float3 qv = cross(tv, e1);
+                const float vv = dot(d2, qv) * inv;
+                if (vv < 0 || uu + vv > 1) continue;
+                const float t = dot(e2, qv) * inv;
+                if (t > 1e-4f && t < best2) best2 = t;
+            }
+            if (best2 < 1.2f) {
+                snapP = hp - hn * (best2 * 0.5f);
+                snapP.y = std::round(snapP.y / 0.04f) * 0.04f;
+                if (m_veAutoType) snapT = CONN_AXLE;   // (the matter of a side: most often an axle)
+                why = "CENTRE DE LA MATIÈRE";
+                snapOk = true;
+            }
+        }
         if (!snapOk && hit) {   // the half-stud grid on the face, the type from its side
             const Part& p = P;
             snapP = hp;

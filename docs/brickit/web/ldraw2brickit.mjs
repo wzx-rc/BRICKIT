@@ -285,6 +285,125 @@ function buildMesh(trisL, crease = 35) {
   return { verts, idx, mn, mx, faces, vcol: printed ? vcol : null };
 }
 
+// ---------------------------------------------------------------- the shapes of the mesh (the Voxel Editor of the
+// native app, BrickVoxelEditor.inl, the same rules): rings of vertices (the ends of the cylinders), the studs (two rings
+// r 0.24 one above the other, 0.16 apart), round axles / holes (r 0.16) and pins / pin holes (r 0.24) along their axis.
+// Used when the LDCad shadow library knows nothing of the part (Wzx 10/11/2026: « mets à jour les algos de détection »)
+function meshRings(verts) {
+  const n = verts.length / 6, out = [];
+  if (n < 8 || n > 400000) return out;
+  const P = (i, k) => verts[i * 6 + k], N = (i, k) => verts[i * 6 + 3 + k];
+  for (let ax = 0; ax < 3; ax++) {
+    const a1 = (ax + 1) % 3, a2 = (ax + 2) % 3;
+    const planes = new Map();
+    for (let i = 0; i < n; i++) { const k = Math.round(P(i, ax) / 0.004); let g = planes.get(k); if (!g) planes.set(k, (g = [])); g.push(i); }
+    for (const [key, ids] of planes) {
+      if (ids.length < 8) continue;
+      const cell = (x) => Math.floor(x / 0.12);
+      const grid = new Map();
+      for (const i of ids) { const k = cell(P(i, a1)) + "," + cell(P(i, a2)); let g = grid.get(k); if (!g) grid.set(k, (g = [])); g.push(i); }
+      const lab = new Set();
+      for (const i0 of ids) {
+        if (lab.has(i0)) continue;
+        const st = [i0], cl = [];
+        lab.add(i0);
+        while (st.length && cl.length < 4000) {
+          const i = st.pop();
+          cl.push(i);
+          const cu = cell(P(i, a1)), cv = cell(P(i, a2));
+          for (let du = -1; du <= 1; du++) for (let dv = -1; dv <= 1; dv++) {
+            const g = grid.get(cu + du + "," + (cv + dv));
+            if (!g) continue;
+            for (const j of g) {
+              if (lab.has(j)) continue;
+              const d1 = P(j, a1) - P(i, a1), d2 = P(j, a2) - P(i, a2);
+              if (d1 * d1 + d2 * d2 < 0.0144) { lab.add(j); st.push(j); }
+            }
+          }
+        }
+        if (cl.length < 8) continue;
+        // the centre: a circle fitted on the points (Kasa: a part of a circle too)
+        let mu = 0, mv = 0;
+        for (const i of cl) { mu += P(i, a1); mv += P(i, a2); }
+        mu /= cl.length; mv /= cl.length;
+        const S = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        for (const i of cl) {
+          const x = P(i, a1) - mu, y = P(i, a2) - mv, z = -(x * x + y * y), r3 = [x, y, 1];
+          for (let a = 0; a < 3; a++) { for (let b = 0; b < 3; b++) S[a][b] += r3[a] * r3[b]; S[a][3] += r3[a] * z; }
+        }
+        let ok = true;
+        for (let c = 0; c < 3 && ok; c++) {
+          let piv = c;
+          for (let r = c + 1; r < 3; r++) if (Math.abs(S[r][c]) > Math.abs(S[piv][c])) piv = r;
+          [S[c], S[piv]] = [S[piv], S[c]];
+          if (Math.abs(S[c][c]) < 1e-12) { ok = false; break; }
+          for (let r = 0; r < 3; r++) if (r !== c) { const f = S[r][c] / S[c][c]; for (let k = 0; k < 4; k++) S[r][k] -= f * S[c][k]; }
+        }
+        if (!ok) continue;
+        const cu = mu - S[0][3] / S[0][0] * 0.5, cv = mv - S[1][3] / S[1][1] * 0.5;
+        let rm = 0, outw = 0;
+        for (const i of cl) {
+          const du = P(i, a1) - cu, dv = P(i, a2) - cv;
+          rm += Math.hypot(du, dv);
+          outw += N(i, a1) * du + N(i, a2) * dv;
+        }
+        rm /= cl.length;
+        if (rm < 0.1 || rm > 0.3) continue;
+        let dev = 0;
+        for (const i of cl) dev = Math.max(dev, Math.abs(Math.hypot(P(i, a1) - cu, P(i, a2) - cv) - rm));
+        if (dev > 0.008) continue;
+        out.push({ axis: ax, at: key * 0.004, u: cu, v: cv, r: rm, outward: outw > 0 });
+      }
+    }
+  }
+  return out;
+}
+function meshShapes(verts) {
+  const rings = meshRings(verts), res = [];
+  const pt = (ax, at, u, v) => { const r = [0, 0, 0]; r[ax] = at; r[(ax + 1) % 3] = u; r[(ax + 2) % 3] = v; return r.map(r4); };
+  for (const a of rings) {   // studs
+    if (a.axis !== 1 || !a.outward || Math.abs(a.r - 0.24) > 0.025) continue;
+    for (const b of rings)
+      if (b.axis === 1 && b.outward && Math.abs(b.r - a.r) < 0.02 && Math.abs(b.u - a.u) < 0.01 && Math.abs(b.v - a.v) < 0.01 && Math.abs(a.at - b.at - 0.16) < 0.02)
+        res.push({ p: pt(1, b.at, a.u, a.v), type: "stud" });
+  }
+  const found = [];
+  for (const a of rings) {
+    const r8 = Math.abs(a.r - 0.16) < 0.025, r12 = Math.abs(a.r - 0.24) < 0.025;
+    if (!r8 && !r12) continue;
+    if (r12 && a.axis === 1 && a.outward) continue;
+    let l = found.find((q) => q.axis === a.axis && q.r8 === r8 && q.outward === a.outward && Math.abs(q.u - a.u) < 0.01 && Math.abs(q.v - a.v) < 0.01);
+    if (!l) found.push((l = { axis: a.axis, u: a.u, v: a.v, r: a.r, r8, outward: a.outward, at: [] }));
+    l.at.push(a.at);
+  }
+  const nv = verts.length / 6;
+  for (const l of found) {
+    l.at.sort((x, y) => x - y);
+    const segs = [];
+    if (l.outward) {   // the extent of the cylinder: the vertices at its radius around the line
+      const a1 = (l.axis + 1) % 3, a2 = (l.axis + 2) % 3;
+      let lo = 1e9, hi = -1e9;
+      for (let i = 0; i < nv; i++) {
+        if (Math.abs(Math.hypot(verts[i * 6 + a1] - l.u, verts[i * 6 + a2] - l.v) - l.r) > 0.012) continue;
+        lo = Math.min(lo, verts[i * 6 + l.axis]); hi = Math.max(hi, verts[i * 6 + l.axis]);
+      }
+      if (hi - lo >= 0.2) segs.push([lo, hi]);
+    } else {
+      let s0 = 0;
+      for (let i = 1; i <= l.at.length; i++)
+        if (i === l.at.length || l.at[i] - l.at[i - 1] > 0.25) { if (i - s0 >= 2) segs.push([l.at[s0], l.at[i - 1]]); s0 = i; }
+    }
+    const type = l.r8 ? (l.outward ? "axle" : "axlehole") : (l.outward ? "pin" : "pinhole");
+    for (let [lo, hi] of segs) {
+      if (hi - lo < 0.2) lo = hi = (lo + hi) / 2;
+      else { lo += 0.2; hi -= 0.2; if (hi < lo) lo = hi = (lo + hi) / 2; }
+      const nst = hi - lo < 0.01 ? 0 : Math.max(1, Math.round((hi - lo) / 0.4));
+      for (let k = 0; k <= nst; k++) res.push({ p: pt(l.axis, nst ? lo + (hi - lo) * k / nst : lo, l.u, l.v), type });
+    }
+  }
+  return res;
+}
+
 // ---------------------------------------------------------------- connection voxels
 const r4 = (x) => Math.round(x * 10000) / 10000;
 function buildVoxels(part, mesh, opts) {
@@ -342,6 +461,8 @@ function buildVoxels(part, mesh, opts) {
       }
     }
   }
+  // LDCad knows nothing: the shapes of the mesh (studs, round axles and holes, pins and pin holes along their axis)
+  if (!snaps.length) for (const sh of meshShapes(mesh.verts)) { if (sh.type === "stud") studs.push(sh.p); add(sh.p, sh.type); }
   // footprint rule for System parts: anti-stud at every occupied 20 LDU cell on the bottom face
   if (opts.system) {
     const bottomY = 0;

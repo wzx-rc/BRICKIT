@@ -596,6 +596,8 @@ private:
     std::vector<std::pair<std::vector<float3>, std::vector<uint8_t>>> m_veUndo;
     std::vector<VeSug> m_veSugs;
     std::vector<int> m_veSimilar;
+    struct VeCyl { int axis; float u, v, r; bool outward; float lo, hi; };   // the cylinders found (the smart snap: their axis)
+    std::vector<VeCyl> m_veCyl;
     void openVoxelEditor(int part);
     void renderVoxelEditor();
     void uiVoxelEditor();
