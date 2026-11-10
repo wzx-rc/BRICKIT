@@ -93,7 +93,11 @@ void BrickApp::touchDown(const TouchEvent& e) {
 
     // a finger on a panel: the mouse of the PC. A second finger while that finger carries a brick from the library
     // turns it (the web: libDrag + another finger)
-    if (g.type == TG_MOUSE) {
+    if (g.type == TG_MOUSE && g.paint) {   // Pinceau / Pipette: a second finger lets the stroke go and moves the camera
+        io.AddMouseButtonEvent(0, false);
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+        g.type = TG_NONE;
+    } else if (g.type == TG_MOUSE) {
         if (m_holding && !g.second) { g.second = true; g.secondId = e.id; g.ax = e.x; g.ay = e.y; g.rotated = false; }
         return;
     }
@@ -168,6 +172,14 @@ void BrickApp::touchDown(const TouchEvent& e) {
         return;
     }
     if (m_reading) { g.type = TG_ORBIT; return; }   // reading the instructions: no editing
+    if ((m_paintTool || m_pipette) && !m_holding && !m_pivotEdit) {   // PEINDRE: the finger (or the Pencil) is the brush of the PC
+        g.type = TG_MOUSE;
+        g.paint = true;
+        io.AddMouseSourceEvent(e.pen ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+        io.AddMousePosEvent(e.x, e.y);
+        io.AddMouseButtonEvent(0, true);
+        return;
+    }
     if (!m_holding && !m_pivotEdit) {
         GizmoHandle gh = pickGizmo(e.x, e.y);
         if (gh.kind == 2) {   // centre sphere: free move, the brick goes in hand and drops on release
@@ -436,12 +448,13 @@ void BrickApp::touchTestFrame() {
         return ImVec2(cx, cy);
     };
     static ImVec2 a;
+    if (t == "paint" && f == 10) { m_paintMode = true; m_paintTool = true; m_pipette = false; }   // (its panels drawn before the tap)
     if (f == 20) {
         yaw0 = m_scene.camera.yaw;
         dist0 = m_scene.camera.distance;
         count0 = m_bricks.size();
         m_mode = 1;
-        select(-1);
+        if (t != "paint") select(-1);
         if (t == "orbit") { a = emptyPoint(); touchBegan(1, a.x, a.y, false); }
         if (t == "pinch") { touchBegan(1, cx - 60, cy, false); touchBegan(2, cx + 60, cy, false); }
         if (t == "undo") {
@@ -452,6 +465,13 @@ void BrickApp::touchTestFrame() {
             line("deleted 1 brick: " + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()));
         }
         if (t == "menu") { a = brickPoint(target); touchBegan(1, a.x, a.y, false); }   // a finger held still: the marking menu
+        if (t == "paint") {   // PEINDRE: a finger taps a brick, it takes the colour
+            a = brickPoint(target);
+            m_color = (m_bricks[target].color + 3) % std::max(1, (int)m_lib.palette.size());
+            count0 = 0;
+            for (const Brick& b : m_bricks) count0 += b.color == m_color;
+            touchBegan(1, a.x, a.y, false);
+        }
         if (t == "pick" || t == "hold2") {
             a = brickPoint(target);
             pos0 = m_bricks[target].pos;
@@ -472,6 +492,12 @@ void BrickApp::touchTestFrame() {
     if (t == "menu" && mc.x != 0 && !endF && m_tg.type == TG_MENU) { endF = f + 6; }
     if (t == "menu" && endF && f == endF) touchEnded(1, mc.x + std::cos(1.5708f) * 100 * m_ui, mc.y + std::sin(1.5708f) * 100 * m_ui, false);
     if (t == "menu" && endF && f == endF + 6) line(std::string("menu: slide to Dupliquer then lift, bricks ") + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + (m_bricks.size() == count0 + 1 && !m_stMenu ? " OK" : " FAIL"));
+    if (t == "paint" && f == 24) touchEnded(1, a.x, a.y, false);
+    if (t == "paint" && f == 28) {
+        size_t n = 0;
+        for (const Brick& b : m_bricks) n += b.color == m_color;
+        line("paint: tap with the Pinceau, bricks of the colour " + std::to_string(count0) + " -> " + std::to_string(n) + (n > count0 ? " OK" : " FAIL"));
+    }
     if (t == "orbit" && f > 20 && f <= 32) touchMoved(1, a.x + (f - 20) * 15.0f, a.y);
     if (t == "orbit" && f == 33) {
         touchEnded(1, a.x + 180, a.y, false);

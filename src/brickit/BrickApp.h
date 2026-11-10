@@ -227,6 +227,7 @@ private:
         float3 hitPoint;
         float sx = 0, sy = 0, moved = 0;
         bool tap = false;
+        bool paint = false;           // TG_MOUSE in the view: the Pinceau / Pipette (a second finger turns it into the camera)
         bool second = false, rotated = false;   // a second finger while a brick is in hand: swipe turns / tilts, tap turns
         uint64_t secondId = 0;
         float ax = 0, ay = 0;

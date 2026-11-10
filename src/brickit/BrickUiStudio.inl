@@ -485,12 +485,18 @@ void BrickApp::stTools() {
         {ST_ROT, "Tourner : anneaux sur la sélection (6)", "6", m_mode == 3 && !m_paintTool && !m_pipette, 5},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
-    const ImVec2 a(14 * s + m_dockL, top), b(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
+    // iPad (Wzx 10/11/2026): a row at the top centre (the left hand keeps the ring of the side); PC: the column on the left
+    const bool row = m_ipad;
+    const float bw = row ? 46 * s : W - pad * 2;
+    const float rowW = pad * 2 + ts.size() * (bw + 2 * s) - 2 * s;
+    const ImVec2 a = row ? ImVec2(std::floor(ImGui::GetIO().DisplaySize.x * 0.5f - rowW * 0.5f), top) : ImVec2(14 * s + m_dockL, top);
+    const ImVec2 b = row ? ImVec2(a.x + rowW, top + bh + pad * 2) : ImVec2(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
     stGlass(u.dl, a, b, 18 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    float y = a.y + pad;
+    float y = a.y + pad, x = a.x + pad;
     for (const T& t : ts) {
-        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + bh);
+        const ImVec2 ba = row ? ImVec2(x, a.y + pad) : ImVec2(a.x + pad, y), bb = row ? ImVec2(x + bw, b.y - pad) : ImVec2(b.x - pad, y + bh);
+        x += bw + 2 * s;
         const bool h = u.hover(ba, bb) && m_popup == 0;
         if (t.on) {   // the active tool: a translucent yellow, a fine rim
             u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 13 * s);
