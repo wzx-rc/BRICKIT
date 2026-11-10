@@ -520,6 +520,10 @@ private:
     ImTextureID stepImage(int n);
     float manualPage(Ui& u, ImVec2 a, float w, int n, int corner, bool big, bool draw);
     void pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main);
+    // iPad: a finger or the Pencil dragged on a page scrolls it, as in any iPad app, with a little inertia (Wzx 10/11/2026)
+    void dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id);
+    int m_dsId = -1, m_dsFling = -1;
+    float m_dsVel = 0;
     void uiManual();
     void uiManualBig();
     void pdfOpen(const std::wstring& path, const std::string& name, bool save);

@@ -2761,6 +2761,24 @@ float BrickApp::manualPage(Ui& u, ImVec2 a, float w, int n, int corner, bool big
     return H;
 }
 
+void BrickApp::dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id) {
+    if (!m_ipad) return;
+    ImGuiIO& io = ImGui::GetIO();
+    const float dt = std::max(1e-3f, io.DeltaTime);
+    if (u.pressed && u.hover(a, b)) { m_dsId = id; m_dsVel = 0; if (m_dsFling == id) m_dsFling = -1; }
+    if (m_dsId == id) {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            const float dy = io.MouseDelta.y;
+            scroll -= dy;
+            m_dsVel = m_dsVel * 0.5f + (-dy / dt) * 0.5f;
+        } else { m_dsId = -1; m_dsFling = std::fabs(m_dsVel) > 60 * u.s ? id : -1; }
+    } else if (m_dsFling == id) {   // thrown: it glides, slowing down
+        scroll += m_dsVel * dt;
+        m_dsVel *= std::pow(0.04f, dt);
+        if (std::fabs(m_dsVel) < 20 * u.s) m_dsFling = -1;
+    }
+}
+
 // Vertical PDF view (.pdfview): white pages one under the other, gap 10, rendered when they come near the view.
 void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     const float s = u.s;
@@ -2791,6 +2809,11 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     }
     const bool over = u.hover(a, b);
     if (over && ImGui::GetIO().MouseWheel != 0) { scroll -= ImGui::GetIO().MouseWheel * 90 * s; if (main) m_pdfScrollGoal = -1; }
+    {
+        const float before = scroll;
+        dragScroll(u, a, b, scroll, main ? 1 : 2);
+        if (main && scroll != before) { m_pdfScrollGoal = -1; m_pdfLock = 0; }
+    }
     if (main && m_pdfScrollGoal >= 0) {
         scroll += (m_pdfScrollGoal - scroll) * std::min(1.0f, ImGui::GetIO().DeltaTime * 12);   // behavior: "smooth"
         if (std::fabs(m_pdfScrollGoal - scroll) < 0.5f) { scroll = m_pdfScrollGoal; m_pdfScrollGoal = -1; }
@@ -2913,6 +2936,7 @@ void BrickApp::uiManual() {
     else {
         const bool over = u.hover(ba, bb);
         if (over && ImGui::GetIO().MouseWheel != 0) m_manScroll -= ImGui::GetIO().MouseWheel * 60 * s;
+        dragScroll(u, ba, bb, m_manScroll, 3);
         m_manScroll = std::clamp(m_manScroll, 0.0f, std::max(0.0f, pagesH - bodyH));
         u.dl->PushClipRect(ba, bb, true);
         float py = ba.y - m_manScroll;
@@ -2972,6 +2996,7 @@ void BrickApp::uiManualBig() {
     const float content = h1 + 12 * s + h2, viewH = std::min(content, d.y * 0.92f);
     ImVec2 a((d.x - w) * 0.5f, (d.y - viewH) * 0.5f), b(a.x + w, a.y + viewH);
     if (u.hover(a, b) && ImGui::GetIO().MouseWheel != 0) m_bigScroll -= ImGui::GetIO().MouseWheel * 80 * s;
+    dragScroll(u, a, b, m_bigScroll, 4);
     m_bigScroll = std::clamp(m_bigScroll, 0.0f, std::max(0.0f, content - viewH));
     u.dl->AddRectFilled(ImVec2(a.x, a.y + 24 * s), ImVec2(b.x, b.y + 24 * s), IM_COL32(0, 0, 0, 60), 8 * s);   // drop-shadow
     u.dl->PushClipRect(a, b, true);
