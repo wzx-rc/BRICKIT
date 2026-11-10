@@ -378,4 +378,33 @@ void BrickApp::cycleGrab() {
     autosave();
 }
 
+// the labels of the connectors set by hand (mode DEV, a right click on a card): <data>/conn_labels.json, { "3001": 4, ... }
+void BrickApp::loadConnLabels() {
+    std::string t;
+    const std::wstring d = brickitDataDir();
+    if (d.empty() || !readText(d + L"\\conn_labels.json", t)) return;
+    app::Json j;
+    if (!app::Json::parse(t, j)) return;
+    for (const auto& [id, v] : j.o) {
+        const int i = m_lib.find(id);
+        if (i < 0 || v.type != app::Json::Number) continue;
+        m_lib.parts[i].connSrc = (uint8_t)std::clamp((int)v.n, 0, 4);
+    }
+    m_connCountsDirty = true;
+}
+void BrickApp::saveConnLabels() {
+    const std::wstring d = brickitDataDir();
+    if (d.empty()) return;
+    std::string j = "{";
+    bool first = true;
+    for (const Part& p : m_lib.parts) {
+        if (p.connSrc == p.connAuto) continue;   // (only what was changed by hand)
+        j += (first ? "\n  \"" : ",\n  \"") + p.name + "\": " + std::to_string(p.connSrc);
+        first = false;
+    }
+    j += "\n}\n";
+    writeText(d + L"\\conn_labels.json", j);
+    m_connCountsDirty = true;
+}
+
 } // namespace brickit

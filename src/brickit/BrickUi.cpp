@@ -126,6 +126,8 @@ void BrickApp::buildNav() {
 }
 
 // a decorated part: a sticker or a printed pattern (« ... Pattern », « ... Sticker » in its LDraw title)
+ImU32 stConnCol(int src);          // (BrickUiStudio.inl: mode DEV, the source of the connectors)
+const char* stConnName(int src);
 static bool partDeco(const Part& p) {
     std::string t = p.label;
     for (char& c : t) c = (char)std::tolower((unsigned char)c);
@@ -3704,8 +3706,11 @@ void BrickApp::uiCtxMenu() {
     Ui u = ui(m_ui);
     const float s = m_ui;
     const char* item = "Modifier la miniature";
-    const float w = u.textW(12, item) + 28 * s, h = 30 * s;
-    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + 22 * s);
+    // + the source of its connectors, to set by hand (mode DEV, Wzx 10/11/2026)
+    static const int kConn[4] = {4, 1, 2, 3};
+    const int nConn = m_studioUi ? 4 : 0;
+    const float w = std::max(u.textW(12, item), u.textW(11, "Échec, aucun connecteur") + 30 * s) + 28 * s, h = 30 * s, rh = 24 * s;
+    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (b.x > d.x) { a.x -= b.x - d.x; b.x = d.x; }
     if (b.y > d.y) { a.y -= b.y - d.y; b.y = d.y; }
@@ -3719,8 +3724,33 @@ void BrickApp::uiCtxMenu() {
     const bool hov = u.hover(ia, ib);
     if (hov) u.dl->AddRectFilled(ia, ib, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
     u.text(ImVec2(ia.x + 10 * s, ia.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), item);
+    int connHit = -1;
+    if (nConn) {
+        Part& P = m_lib.parts[m_ctxPart];
+        float y = ib.y + 6 * s;
+        u.text(ImVec2(a.x + 12 * s, y), 9, IM_COL32(0x8a, 0x8c, 0x96, 255), "CONNECTEURS");
+        y += 14 * s;
+        for (int k = 0; k < nConn; ++k) {
+            const int src = kConn[k];
+            const ImVec2 ra(a.x + 4 * s, y), rb(b.x - 4 * s, y + rh - 2 * s);
+            const bool hv = u.hover(ra, rb);
+            if (hv) { u.dl->AddRectFilled(ra, rb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s); connHit = src; }
+            u.dl->AddRect(ImVec2(ra.x + 8 * s, ra.y + 5 * s), ImVec2(ra.x + 22 * s, rb.y - 5 * s), stConnCol(src), 3 * s, 0, 2.0f * s);
+            if (P.connSrc == src) u.dl->AddRectFilled(ImVec2(ra.x + 12 * s, ra.y + 9 * s), ImVec2(ra.x + 18 * s, rb.y - 9 * s), stConnCol(src), 1 * s);
+            std::string t = stConnName(src);
+            if (src == P.connAuto && src != 4) t += "  (conversion)";
+            u.text(ImVec2(ra.x + 30 * s, ra.y + 4 * s), 11, P.connSrc == src ? IM_COL32(0xff, 0xff, 0xff, 255) : IM_COL32(0xb0, 0xb2, 0xb8, 255), t.c_str());
+            y += rh;
+        }
+    }
     if (u.pressed) {
         if (hov) openThumbEditor(m_ctxPart);
+        if (connHit >= 0) {
+            Part& P = m_lib.parts[m_ctxPart];
+            P.connSrc = (uint8_t)(P.connSrc == connHit && connHit == 4 ? P.connAuto : connHit);   // (Validé again: back to the conversion)
+            saveConnLabels();
+            toast(std::string("Connecteurs de ") + P.name + " : " + stConnName(P.connSrc));
+        }
         m_ctxPart = -1;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_ctxPart = -1;

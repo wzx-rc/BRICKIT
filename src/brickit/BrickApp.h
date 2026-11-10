@@ -580,6 +580,11 @@ private:
     void renderThumbEditor();
     void saveThumbOverride();
     void uiCtxMenu();
+    void loadConnLabels();   // mode DEV: the source of the connectors of the parts, the labels set by hand
+    void saveConnLabels();
+    void stConnLegend();     // mode DEV: the legend of the colours of the cards (and their counts)
+    bool m_connCountsDirty = true;
+    int m_connCounts[5] = {0, 0, 0, 0, 0};
     // temporary brick tray (BrickBac.cpp): thumbnails in their colour, placed freely, kept in bac.json
     struct BacItem { int part = -1, color = 0; float x = 0, y = 0; ImTextureID tex = 0; };
     std::vector<BacItem> m_bac;

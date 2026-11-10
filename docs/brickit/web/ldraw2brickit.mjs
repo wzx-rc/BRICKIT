@@ -293,6 +293,22 @@ function buildVoxels(part, mesh, opts) {
   const B = (p) => { const q = toB(p); return [r4(q[0] - off[0]), r4(q[1] - off[1]), r4(q[2] - off[2])]; };
   const vox = [], studs = [], types = [];
   const add = (p, type) => { if (!vox.some((v) => Math.hypot(v[0] - p[0], v[1] - p[1], v[2] - p[2]) < 0.02)) { vox.push(p); types.push(type); } };
+  // the old BrickIt (Maya library) when LDCad knows nothing: its voxels, typed by their height (bottom: anti-stud, top:
+  // stud, between: pin hole), if its size is the size of the part
+  if (!snaps.length && opts.old && opts.old.vox.length) {
+    const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];
+    const fits = !opts.old.max || opts.old.max.every((v, k) => Math.abs(v - size[k]) < 0.06);
+    if (fits) {
+      const top = Math.max(...opts.old.vox.map((v) => v[1]));
+      for (const v of opts.old.vox) {
+        const p = [r4(v[0]), r4(v[1]), r4(v[2])];
+        const t = p[1] < 0.02 ? "antistud" : p[1] > top - 0.02 ? "stud" : "pinhole";
+        if (t === "stud") studs.push(p);
+        add(p, t);
+      }
+      return { vox, studs, types, source: "old" };
+    }
+  }
   for (const s of snaps) {
     const d = [s.p1[0] - s.p0[0], s.p1[1] - s.p0[1], s.p1[2] - s.p0[2]];
     const len = Math.hypot(...d) || 1;
@@ -330,11 +346,28 @@ function buildVoxels(part, mesh, opts) {
   if (opts.system) {
     const bottomY = 0;
     const cellsX = Math.round((mesh.mx[0] - mesh.mn[0]) / 0.8), cellsZ = Math.round((mesh.mx[2] - mesh.mn[2]) / 0.8);
-    const verts = [];   // any vertex strictly inside a cell (any height) marks it as occupied
-    for (const f of mesh.faces) for (const p of f.t) verts.push([p[0] - mesh.mn[0], p[2] - mesh.mn[2]]);
+    // a cell is occupied when a flat face of the bottom (horizontal, at the lowest height) covers part of it: not any
+    // vertex at any height (a lying axle, a cylinder had anti-studs under it: Wzx 10/11/2026)
+    const flat = [];
+    for (const f of mesh.faces) {
+      if (Math.abs(f.n[1]) < 0.95 || !f.t.every((p) => p[1] - mesh.mn[1] < 0.02)) continue;
+      flat.push(f.t.map((p) => [p[0] - mesh.mn[0], p[2] - mesh.mn[2]]));
+    }
+    const inTri = (x, z, t) => {
+      const d = (a, b) => (x - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (z - b[1]);
+      const d1 = d(t[0], t[1]), d2 = d(t[1], t[2]), d3 = d(t[2], t[0]);
+      return !((d1 < -1e-9 || d2 < -1e-9 || d3 < -1e-9) && (d1 > 1e-9 || d2 > 1e-9 || d3 > 1e-9));
+    };
+    const covered = (cx, cz) => {
+      for (const t of flat) {
+        if (t.some((p) => Math.abs(p[0] - cx) < 0.39 && Math.abs(p[1] - cz) < 0.39)) return true;
+        for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) if (inTri(cx + a * 0.0975, cz + b * 0.0975, t)) return true;
+      }
+      return false;
+    };
     for (let i = 0; i < cellsX; i++) for (let k = 0; k < cellsZ; k++) {
       const cx = 0.4 + i * 0.8, cz = 0.4 + k * 0.8;
-      const occ = verts.some((v) => Math.abs(v[0] - cx) < 0.38 && Math.abs(v[1] - cz) < 0.38);
+      const occ = covered(cx, cz);
       const already = vox.some((v, j) => types[j] === "antistud" && Math.abs(v[0] - cx) < 0.05 && Math.abs(v[2] - cz) < 0.05);   // raised anti-stud from LDCad
       if (occ && !already) add([r4(cx), bottomY, r4(cz)], "antistud");
     }
@@ -343,7 +376,7 @@ function buildVoxels(part, mesh, opts) {
     const onGrid = (x) => Math.abs(((x - 0.4) / 0.8) - Math.round((x - 0.4) / 0.8)) < 0.03;
     for (let i = vox.length - 1; i >= 0; i--) if (types[i] === "antistud" && !(onGrid(vox[i][0]) && onGrid(vox[i][2]))) { vox.splice(i, 1); types.splice(i, 1); }
   }
-  return { vox, studs, types };
+  return { vox, studs, types, source: snaps.length ? "shadow" : vox.length ? "auto" : "fail" };
 }
 
 // ---------------------------------------------------------------- main
@@ -352,7 +385,7 @@ export function convertPart(id, opts = {}) {
   let maxY = -1e9; for (const t of part.tris) for (const p of t) maxY = Math.max(maxY, p[1]);
   part.maxY = maxY;
   const mesh = buildMesh(part.tris, opts.crease ?? 35);
-  const { vox, studs, types } = buildVoxels(part, mesh, opts);
+  const { vox, studs, types, source } = buildVoxels(part, mesh, opts);
   const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];
   const topY = studs.length ? Math.max(...studs.map((s) => s[1])) : r4(size[1]);
   const columns = studs.map((s) => [s[0], s[2]]);
@@ -367,6 +400,7 @@ export function convertPart(id, opts = {}) {
       hasStuds: studs.length > 0, topY: r4(topY), grab, columns, grabPoints, voxels: vox,
       connectorTypes: types, ldraw: id + ".dat",
       snapCount: part.snaps.length,
+      connSource: source,   // where the connectors come from: shadow (LDCad), old (the old BrickIt), auto (rules), fail (none)
     },
   };
 }

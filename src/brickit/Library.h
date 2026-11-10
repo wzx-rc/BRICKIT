@@ -52,6 +52,10 @@ struct Part {
     bool printed = false;     // a printed part: the colour of the print per vertex (uv = 0xRRGGBB, 1)   // geometry in memory or in a pack (loaded on demand)
     vp3d::MeshData ldrawMesh;  // DEV mode: the LDraw mesh while a replacement is shown
     bool hasLdrawMesh = false, devActive = false;
+    // where its connectors come from (mode DEV, its colour): 0 unknown, 1 LDCad shadow library, 2 automatic (rules, or the
+    // old BrickIt), 3 none (failed), 4 validated by hand. connAuto: the value of the conversion (conn_status.json)
+    uint8_t connSrc = 0, connAuto = 0;
+    bool connOld = false;     // (automatic, from the voxels of the old BrickIt)
     float3 bmin, bmax;
 };
 

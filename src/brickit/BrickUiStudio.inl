@@ -814,6 +814,62 @@ bool BrickApp::paintHit(int b, ImVec2 at, bool fx) {
     return changed;
 }
 
+// mode DEV: the colour of the source of the connectors (Wzx 10/11/2026): sky blue LDCad, apple green validated by
+// hand, orange automatic (rules or the old BrickIt), red none
+ImU32 stConnCol(int src) {
+    switch (src) {
+    case 1: return IM_COL32(0x5a, 0xc8, 0xfa, 255);
+    case 2: return IM_COL32(0xff, 0x95, 0x00, 255);
+    case 3: return IM_COL32(0xff, 0x3b, 0x30, 255);
+    case 4: return IM_COL32(0x8e, 0xe0, 0x00, 255);
+    default: return IM_COL32(0x80, 0x80, 0x80, 255);
+    }
+}
+const char* stConnName(int src) {
+    switch (src) {
+    case 1: return "Shadow Library (LDCad)";
+    case 2: return "Auto (sans Shadow Library)";
+    case 3: return "Échec, aucun connecteur";
+    case 4: return "Validé à la main";
+    default: return "Inconnu";
+    }
+}
+
+void BrickApp::stConnLegend() {
+    if (!m_dev || !m_studioUi) return;
+    if (m_connCountsDirty) {
+        for (int& c : m_connCounts) c = 0;
+        for (const Part& p : m_lib.parts) {
+            std::string t = p.label;
+            for (char& c : t) c = (char)std::tolower((unsigned char)c);
+            if (t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos) continue;   // (no stickers)
+            ++m_connCounts[std::clamp((int)p.connSrc, 0, 4)];
+        }
+        m_connCountsDirty = false;
+    }
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const float W = 236 * s, rowH = 19 * s, pad = 12 * s;
+    const int order[4] = {1, 4, 2, 3};
+    const float H = pad + 16 * s + 4 * rowH + 18 * s + pad;
+    const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : ImGui::GetIO().DisplaySize.y) - 12 * s;
+    const ImVec2 a(14 * s, bottom - H), b(a.x + W, bottom);
+    stGlass(u.dl, a, b, 14 * s, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    stTrack(u, ImVec2(a.x + pad, a.y + pad), 7.5f, C_DIM, "DEV · CONNECTEURS", 1.4f * s);
+    float y = a.y + pad + 16 * s;
+    for (int k : order) {
+        u.dl->AddRect(ImVec2(a.x + pad, y + 3 * s), ImVec2(a.x + pad + 16 * s, y + 15 * s), stConnCol(k), 4 * s, 0, 2.0f * s);
+        u.text(ImVec2(a.x + pad + 24 * s, y + 9 * s - u.fs(9) * 0.55f), 9, C_TEXT, stConnName(k));
+        char n[16];
+        snprintf(n, sizeof(n), "%d", m_connCounts[k]);
+        u.text(ImVec2(b.x - pad - u.textW(9, n), y + 9 * s - u.fs(9) * 0.55f), 9, C_DIM, n);
+        y += rowH;
+    }
+    u.text(ImVec2(a.x + pad, y + 4 * s), 8, C_FAINT, "clic droit sur une carte : changer");
+}
+
 void BrickApp::paintOne(int brick) {
     if (brick < 0 || brick >= (int)m_bricks.size()) return;
     m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
@@ -1489,6 +1545,7 @@ void BrickApp::stDrawer() {
         const bool h = live && u.hover(a, b) && u.hover(ca, cb);
         const bool on = part == taken;
         cardBg(a, b, h, on);
+        if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 12 * s, 0, 2.0f * s);   // DEV: where its connectors come from
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (!sheet && thumbUv(part, tex, uv0, uv1)) {   // IMAGE: the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
@@ -1916,6 +1973,7 @@ void BrickApp::drawUiStudio() {
     uiPopups();
     uiManual();
     uiDevPanel();
+    stConnLegend();
     uiInfoSheet();   // (no Bac à briques in the Studio interface, Wzx 09/11/2026)
     uiThumbEditor();
     uiCtxMenu();

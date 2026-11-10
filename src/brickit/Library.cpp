@@ -279,6 +279,20 @@ bool Library::load(const std::wstring& dir, std::string* error) {
             }
         }
     }
+    if (!fullDir.empty() && readFile(fullDir + L"\\conn_status.json", text)) {   // where the connectors of every part come from
+        Json st;
+        if (Json::parse(std::string(text.begin(), text.end()), st))
+            for (const auto& [id, v] : st.o) {
+                int i = find(id);
+                if (i < 0) i = find(id + ".dat");
+                if (i < 0) continue;
+                const std::string t = v.str();
+                Part& p = parts[i];
+                p.connAuto = t == "shadow" ? 1 : t == "auto" || t == "old" ? 2 : t == "fail" ? 3 : 0;
+                p.connOld = t == "old";
+                p.connSrc = p.connAuto;
+            }
+    }
     return true;
 }
 

@@ -67,6 +67,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         plat::errorBox("BrickIt - library", err);
         return false;
     }
+    loadConnLabels();   // (the connector labels set by hand, mode DEV)
     m_rs.raster = !opt.pathTrace;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
