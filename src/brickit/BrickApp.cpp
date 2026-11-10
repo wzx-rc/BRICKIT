@@ -1101,7 +1101,7 @@ void BrickApp::frame() {
     if (m_frame == 24 && !m_opt.infoPart.empty()) m_infoPart = m_lib.find(m_opt.infoPart);   // scripted test: part sheet
     if (m_frame == 24 && !m_opt.thumbEdit.empty()) { openThumbEditor(m_lib.find(m_opt.thumbEdit)); m_teView.yaw += 0.6f; m_teView.zoom = 1.15f; }   // scripted test: Edit thumbnail
     if (m_frame == 90 && m_opt.thumbEditSave) m_teSave = true;
-    if (m_frame == 24 && !m_opt.voxelEdit.empty()) { m_dev = true; openVoxelEditor(m_lib.find(m_opt.voxelEdit)); m_veView.yaw += 0.5f; }   // (captures: the Voxel Editor)
+    if (m_frame == 24 && !m_opt.voxelEdit.empty()) { m_dev = true; openVoxelEditor(m_lib.find(m_opt.voxelEdit)); m_veView.yaw += 0.5f; if (m_opt.veSolid) m_veXray = false; }   // (captures: the Voxel Editor)
     if (m_frame == 20 && m_opt.bacTest) {   // scripted test: the tray open, ten bricks of the scene added (one thumbnail each)
         m_bacOpen = true;
         const int sel = m_selected;
@@ -1417,6 +1417,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--build-full-thumbs") opt.fullThumbs = next();
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
+        else if (a == L"--ve-solid") opt.veSolid = true;
         else if (a == L"--voxel-edit") { std::wstring w = next(); opt.voxelEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-dir") opt.thumbDir = next();
         else if (a == L"--bac-file") opt.bacFile = next();
