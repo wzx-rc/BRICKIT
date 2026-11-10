@@ -1250,6 +1250,7 @@ void BrickApp::stColors() {
 // pour l'avoir en Classic BrickIt UX style »: LEGO / TECHNIC, the tree of the families, a grid of big thumbnails)
 
 // STUDIO | CLASSIC, right aligned at `right`; returns true when it changed
+static float stStyleSwitchW(Ui& u, float s) { return stTrackW(u, 7.6f, "STUDIO", 1.2f * s, true) + stTrackW(u, 7.6f, "CLASSIC", 1.2f * s, true) + 38 * s; }
 static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, bool live, float s) {
     static const char* kL[2] = {"STUDIO", "CLASSIC"};
     float w[2];
@@ -1270,6 +1271,23 @@ static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, b
         x += w[k];
     }
     return changed;
+}
+// DÉCORS: the parts with stickers or printed patterns shown or hidden (Réglages too), a chip ending at `right`;
+// returns its left edge
+static float stDecoChip(Ui& u, bool& hideDeco, float right, float y, float h, bool live, float s, bool& changed) {
+    const char* t = "DÉCORS";
+    const float w = stTrackW(u, 7.6f, t, 1.2f * s, true) + 34 * s;
+    const ImVec2 a(right - w, y), b(right, y + h);
+    const bool on = !hideDeco, hv = live && u.hover(a, b);
+    u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.16f) : IM_COL32(255, 255, 255, hv ? 16 : 8), h * 0.5f);
+    u.dl->AddRect(a, b, on ? stA(C_ACCENT, 0.7f) : IM_COL32(255, 255, 255, 34), h * 0.5f, 0, 1.0f);
+    const ImVec2 c(a.x + 12 * s, (a.y + b.y) * 0.5f);   // a little box: ticked when they are shown
+    u.dl->AddRect(ImVec2(c.x - 4.5f * s, c.y - 4.5f * s), ImVec2(c.x + 4.5f * s, c.y + 4.5f * s), on ? C_ACCENT : C_DIM, 2 * s, 0, 1.2f * s);
+    if (on) u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 2.5f * s, c.y), ImVec2(c.x - 0.5f * s, c.y + 2.2f * s), ImVec2(c.x + 3 * s, c.y - 2.5f * s)}.data(), 3, C_ACCENT, 0, 1.4f * s);
+    stTrack(u, ImVec2(a.x + 22 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.52f), 7.6f, on ? C_ACCENT_TXT : C_DIM, t, 1.2f * s);
+    if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(on ? "Pièces décorées (stickers, motifs imprimés) affichées : clic pour les cacher" : "Pièces décorées (stickers, motifs imprimés) cachées : clic pour les afficher");
+    if (hv && u.pressed) { hideDeco = !hideDeco; changed = true; }
+    return a.x;
 }
 
 // the grip of the library: a drag along the edge resizes it, dragged to a side of the screen it docks there (a ghost
@@ -1415,7 +1433,7 @@ void BrickApp::stDrawerClassic() {
     const bool techFam = m_stFam == "technic" || m_stFam == "mecanique";
     if (!m_searchOpen) m_clsTechnic = techFam;
     {
-        const float th = 28 * s, tw = std::min(118 * s, (x1 - x0 - 190 * s) * 0.5f);
+        const float th = 28 * s, tw = std::min(118 * s, (x1 - x0 - 270 * s) * 0.5f);
         if (studio) stTrack(u, ImVec2(x0 + 2 * s, y + th * 0.5f - u.fs(9) * 0.52f), 9, C_DIM, "BIBLIOTHÈQUE", 2.4f * s);
         for (int k = 0; k < 2 && !studio; ++k) {
             const ImVec2 a(x0 + k * (tw + 6 * s), y), b(a.x + tw, y + th);
@@ -1436,6 +1454,11 @@ void BrickApp::stDrawerClassic() {
             }
         }
         if (stStyleSwitch(u, m_libClassic, x1, y + 1 * s, 26 * s, live, s)) { m_cardsScroll = 0; savePrefs(); }
+        {   // DÉCORS, left of the switch (Wzx 10/11/2026: « je ne vois pas le filtre avec / sans pièces décals »)
+            bool ch = false;
+            stDecoChip(u, m_hideDeco, x1 - stStyleSwitchW(u, s) - 8 * s, y + 1 * s, 26 * s, live, s, ch);
+            if (ch) { m_stKey.clear(); m_clsGridScroll = 0; savePrefs(); }
+        }
         y += th + 8 * s;
     }
     // ---- the search
@@ -1770,7 +1793,7 @@ void BrickApp::stDrawer() {
     y += famH + 8 * s;
     // ---- line 2, the categories of the family: pills with their pictogram (TOUTES first)
     if (!fam->subs.empty() && !m_searchOpen) {
-        const ImVec2 ra(padX, y), rb(d.x - padX - 196 * s, y + subH);   // (STUDIO | CLASSIC on the right)
+        const ImVec2 ra(padX, y), rb(d.x - padX - 290 * s, y + subH);   // (DÉCORS, STUDIO | CLASSIC on the right)
         float x = ra.x - m_stSubScroll, total = 0;
         u.dl->PushClipRect(ra, rb, true);
         for (int i = -1; i < (int)fam->subs.size(); ++i) {
@@ -1793,6 +1816,11 @@ void BrickApp::stDrawer() {
         m_stSubScroll = std::clamp(m_stSubScroll, 0.0f, maxS);
     }
     if (stStyleSwitch(u, m_libClassic, d.x - padX, y + 5 * s, subH - 10 * s, live, s)) { m_clsGridScroll = 0; savePrefs(); }
+    {
+        bool ch = false;
+        stDecoChip(u, m_hideDeco, d.x - padX - stStyleSwitchW(u, s) - 8 * s, y + 5 * s, subH - 10 * s, live, s, ch);
+        if (ch) { m_stKey.clear(); m_cardsScroll = 0; savePrefs(); }
+    }
     y += subH + 10 * s;
     const bool tiles = !m_searchOpen && !fam->subs.empty() && m_stSub < 0;   // Toutes: one tile per category
     const StSub* sub = !m_searchOpen && m_stSub >= 0 ? &fam->subs[m_stSub] : nullptr;

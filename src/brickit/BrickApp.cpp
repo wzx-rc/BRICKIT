@@ -868,6 +868,26 @@ void BrickApp::buildDemo() {
     m_status = buf;
 }
 
+// F (Wzx 10/11/2026, as Maya): the camera framed on the selection, its direction kept; nothing selected: the whole scene
+void BrickApp::frameSelection() {
+    const std::vector<int> sel = selection();
+    if (sel.empty()) { frameAll(); return; }
+    float3 mn(1e30f), mx(-1e30f);
+    for (int i : sel) {
+        if (i < 0 || i >= (int)m_bricks.size() || !m_lib.parts[m_bricks[i].part].loaded) continue;
+        const Box b = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
+        mn = minv(mn, b.mn);
+        mx = maxv(mx, b.mx);
+    }
+    if (mn.x > mx.x) return;
+    Camera& cam = m_scene.camera;
+    cam.target = (mn + mx) * 0.5f;
+    const float r = std::max(0.4f, length(mx - mn) * 0.5f);
+    cam.distance = std::max(1.0f, r / std::tan(cam.fovY * 0.5f) * 1.15f);
+    cam.focusDistance = cam.distance;
+    m_renderer->resetAccumulation();
+}
+
 void BrickApp::frameAll() {
     float3 mn(1e30f), mx(-1e30f);
     for (const Brick& b : m_bricks) {
