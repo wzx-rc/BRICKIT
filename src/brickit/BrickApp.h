@@ -324,6 +324,7 @@ private:
     void restore(const std::vector<Brick>& snap);
     bool saveScene(const std::wstring& path);
     bool openScene(const std::wstring& path);
+    void shareScene();               // iPad: Partager (the .brick to another app)
     void saveDialog();
     void openDialog();
     void noteRecent(int part);

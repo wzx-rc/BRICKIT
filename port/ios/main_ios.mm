@@ -32,12 +32,36 @@ using namespace Diligent;
 @end
 
 @interface BKViewController : UIViewController
+- (BOOL)openDocument:(NSURL*)url;
 @end
 
 @implementation BKViewController {
     std::unique_ptr<brickit::BrickApp> _app;
     CADisplayLink* _displayLink;
     BOOL _ready;
+    NSString* _pendingOpen;   // a .brick handed by the system before the app was ready
+}
+
+// A .brick from Fichiers, AirDrop, Mail or another app: copied into Documents (the app's folder in Fichiers, where
+// Enregistrer writes) and opened. Files opened in place stay where they are (security-scoped access while copying).
+- (BOOL)openDocument:(NSURL*)url {
+    if (!url.isFileURL) return NO;
+    const BOOL scoped = [url startAccessingSecurityScopedResource];
+    NSString* docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    NSString* dest = [docs stringByAppendingPathComponent:url.lastPathComponent];
+    NSFileManager* fm = [NSFileManager defaultManager];
+    BOOL ok = YES;
+    if (![[url.path stringByStandardizingPath] isEqualToString:[dest stringByStandardizingPath]]) {
+        [fm removeItemAtPath:dest error:nil];
+        ok = [fm copyItemAtURL:url toURL:[NSURL fileURLWithPath:dest] error:nil];
+    }
+    if (scoped) [url stopAccessingSecurityScopedResource];
+    if (!ok) return NO;
+    // the copy of the Inbox (AirDrop, Mail) is not needed any more
+    if ([url.path rangeOfString:@"/Documents/Inbox/"].location != NSNotFound) [fm removeItemAtURL:url error:nil];
+    if (!_ready || !_app) { _pendingOpen = dest; return YES; }
+    _app->openScene(brickit::plat::fromUtf8(dest.UTF8String));
+    return YES;
 }
 
 - (void)loadView {
@@ -123,6 +147,7 @@ using namespace Diligent;
         return;
     }
     _ready = YES;
+    if (_pendingOpen) { _app->openScene(brickit::plat::fromUtf8(_pendingOpen.UTF8String)); _pendingOpen = nil; }
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(drawFrame:)];
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willResignActive:)
@@ -214,6 +239,10 @@ static uint64_t touchId(UITouch* t) { return (uint64_t)(uintptr_t)(__bridge void
     self.window.rootViewController = [[BKViewController alloc] init];
     [self.window makeKeyAndVisible];
     return YES;
+}
+// a .brick opened from another app (Fichiers, AirDrop, Mail, « Ouvrir dans BrickIt »)
+- (BOOL)application:(UIApplication*)app openURL:(NSURL*)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options {
+    return [(BKViewController*)self.window.rootViewController openDocument:url];
 }
 @end
 

@@ -97,4 +97,15 @@ void saveFileDialog(const wchar_t*, const wchar_t* defExt, const std::wstring& s
     if (done) done(fromUtf8(docs.UTF8String) + L"/" + name);
 }
 
+// the share sheet (a popover on the iPad: anchored at the top right, under the header)
+void shareFile(const std::wstring& path) {
+    NSURL* url = [NSURL fileURLWithPath:ns(path)];
+    UIActivityViewController* a = [[UIActivityViewController alloc] initWithActivityItems:@[ url ] applicationActivities:nil];
+    UIViewController* top = topController();
+    a.popoverPresentationController.sourceView = top.view;
+    a.popoverPresentationController.sourceRect = CGRectMake(top.view.bounds.size.width - 120, 50, 1, 1);
+    a.popoverPresentationController.permittedArrowDirections = UIPopoverArrowDirectionUp;
+    [top presentViewController:a animated:YES completion:nil];
+}
+
 } // namespace brickit::plat

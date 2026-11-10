@@ -949,7 +949,13 @@ void BrickApp::stFile() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; const char* key; int id; };
-    const It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    if (m_ipad) {   // the iPad: saved in Documents (the app's folder in Fichiers), Partager sends the .brick to another app
+        its[1].label = "OUVRIR (FICHIERS)…";
+        its[2].label = "ENREGISTRER (.BRICK)";
+        its[3] = {"PARTAGER… (AIRDROP, MAIL, PC)", "", 4};
+        for (It& it : its) it.key = "";
+    }
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + 4 * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -970,6 +976,7 @@ void BrickApp::stFile() {
             if (it.id == 0) newScene();
             else if (it.id == 1) openDialog();
             else if (it.id == 2) saveNow();
+            else if (it.id == 4) shareScene();
             else saveDialog();
         }
         y += ih;
