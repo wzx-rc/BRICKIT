@@ -1407,13 +1407,17 @@ void BrickApp::stDrawerClassic() {
     const float pad = 12 * s;
     const float x0 = p0.x + pad + (m_libDock == 2 ? 8 * s : 0), x1 = p1.x - pad - (m_libDock == 1 ? 8 * s : 0);
     float y = p0.y + (bottom ? 16 * s : 12 * s);
-    // ---- LEGO / TECHNIC, the switch STUDIO | CLASSIC
+    // Studio docked on a side: the compact Studio (Wzx 10/11/2026): the families in pictograms, the categories in pills
+    // going to the line, the Studio cards in a grid; Classic: LEGO / TECHNIC and the tree
+    const bool studio = !m_libClassic;
+    // ---- LEGO / TECHNIC (Classic) or the title (Studio), the switch STUDIO | CLASSIC
     const auto& fams = stFams();
     const bool techFam = m_stFam == "technic" || m_stFam == "mecanique";
     if (!m_searchOpen) m_clsTechnic = techFam;
     {
         const float th = 28 * s, tw = std::min(118 * s, (x1 - x0 - 190 * s) * 0.5f);
-        for (int k = 0; k < 2; ++k) {
+        if (studio) stTrack(u, ImVec2(x0 + 2 * s, y + th * 0.5f - u.fs(9) * 0.52f), 9, C_DIM, "BIBLIOTHÈQUE", 2.4f * s);
+        for (int k = 0; k < 2 && !studio; ++k) {
             const ImVec2 a(x0 + k * (tw + 6 * s), y), b(a.x + tw, y + th);
             const bool on = m_clsTechnic == (k == 1), h = live && u.hover(a, b);
             u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.95f) : IM_COL32(255, 255, 255, h ? 16 : 7), 6 * s);
@@ -1460,9 +1464,60 @@ void BrickApp::stDrawerClassic() {
         y += 30 * s + 10 * s;
     }
     // ---- the tree: Récentes, Favoris, the families of the tab, their categories
-    const float treeW = bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
+    const float treeW = studio ? 0.0f : bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
+    if (studio) {   // the families: pictograms with their name, as many per line as fit
+        const int nc = std::max(3, (int)((x1 - x0) / (78 * s)));
+        const float cw = (x1 - x0) / nc, chh = 52 * s;
+        int k = 0;
+        for (const StFam& f : fams) {
+            const int c = k % nc, r = k / nc;
+            const ImVec2 a(x0 + c * cw, y + r * chh), b(a.x + cw, a.y + chh);
+            const bool on = m_stFam == f.key && !m_searchOpen, h = live && u.hover(a, b);
+            if (on) {
+                u.dl->AddRectFilledMultiColor(ImVec2(a.x + 2 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 24), IM_COL32(246, 196, 0, 24));
+                u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 3 * s), ImVec2(b.x - 12 * s, b.y - 3 * s), IM_COL32(246, 196, 0, 255), 2.0f * s);
+            } else if (h) u.dl->AddRectFilled(ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(255, 255, 255, 9), 10 * s);
+            stIco(u.dl, f.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 17 * s), 23 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+            std::string lab = stUpper(f.label);
+            while (lab.size() > 3 && stTrackW(u, 7, lab.c_str(), 0.9f * s, true) > cw - 6 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, 7, lab.c_str(), 0.9f * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, b.y - 15 * s), 7, on ? C_ACCENT_TXT : (h ? C_TEXT : C_DIM), lab.c_str(), 0.9f * s);
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", f.label);
+            if (h && u.pressed) {
+                m_stFamSub[m_stFam] = m_stSub;
+                m_stFam = f.key;
+                auto it = m_stFamSub.find(f.key);
+                m_stSub = it != m_stFamSub.end() ? it->second : -1;
+                m_searchOpen = false;
+                m_search.clear();
+                m_clsGridScroll = 0;
+            }
+            ++k;
+        }
+        y += ((k + nc - 1) / nc) * chh + 8 * s;
+        const StFam* cf = nullptr;
+        for (const StFam& f : fams) if (m_stFam == f.key) cf = &f;
+        if (cf && !cf->subs.empty() && !m_searchOpen) {   // the categories: pills, to the line
+            const float ph = 26 * s;
+            float px = x0;
+            for (int i = -1; i < (int)cf->subs.size(); ++i) {
+                const std::string lab = stUpper(i < 0 ? "Toutes" : cf->subs[i].label);
+                const float lw = stTrackW(u, 7.6f, lab.c_str(), 1.0f * s, true), w = 6 * s + 20 * s + 5 * s + lw + 10 * s;
+                if (px + w > x1 && px > x0) { px = x0; y += ph + 5 * s; }
+                const ImVec2 a(px, y), b(px + w, y + ph);
+                const bool on = m_stSub == i, h = live && u.hover(a, b);
+                u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), ph * 0.5f);
+                u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), ph * 0.5f, 0, 1.0f);
+                stIco(u.dl, i < 0 ? "all" : cf->subs[i].ico, ImVec2(a.x + 6 * s + 10 * s, (a.y + b.y) * 0.5f), 19 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                stTrack(u, ImVec2(a.x + 6 * s + 20 * s + 5 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.55f), 7.6f, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), lab.c_str(), 1.0f * s);
+                if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; m_clsGridScroll = 0; }
+                px += w + 5 * s;
+            }
+            y += ph + 10 * s;
+        }
+    }
     const ImVec2 ta(x0, y), tb(x0 + treeW, p1.y - pad - 40 * s);
-    {
+    if (!studio) {
         struct Row { const StFam* f; int sub; };
         std::vector<Row> rows;
         for (const StFam& f : fams) {
@@ -1518,10 +1573,11 @@ void BrickApp::stDrawerClassic() {
         u.dl->PopClipRect();
     }
     {   // the size of the thumbnails, under the tree
-        const float sy = p1.y - pad - 18 * s, tx0 = x0 + 22 * s, tx1 = x0 + treeW - 22 * s;
+        const float sw = studio ? std::min(220 * s, x1 - x0) : treeW;
+        const float sy = p1.y - pad - 18 * s, tx0 = x0 + 22 * s, tx1 = x0 + sw - 22 * s;
         const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
         stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
-        stIco(u.dl, "brick", ImVec2(x0 + treeW - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
+        stIco(u.dl, "brick", ImVec2(x0 + sw - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
         const float k = (cs - 0.6f) / 1.4f, kx = tx0 + (tx1 - tx0) * k;
         u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), IM_COL32(255, 255, 255, 40), 2 * s);
         u.dl->AddLine(ImVec2(tx0, sy), ImVec2(kx, sy), stA(C_ACCENT, 0.9f), 2 * s);
@@ -1569,9 +1625,9 @@ void BrickApp::stDrawerClassic() {
     }
     const std::vector<int>& parts = m_stParts;
     // ---- the grid
-    const float gx0 = x0 + treeW + 12 * s;
-    const ImVec2 ga(gx0, ta.y), gb(x1, p1.y - pad);
-    const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f), gap = 4 * s;
+    const float gx0 = studio ? x0 : x0 + treeW + 12 * s;
+    const ImVec2 ga(gx0, ta.y), gb(x1, studio ? p1.y - pad - 38 * s : p1.y - pad);
+    const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f), gap = (studio ? 8 : 4) * s;
     const float cell0 = 104 * s * cs;
     const int cols = std::max(1, (int)((gb.x - ga.x + gap) / (cell0 + gap)));
     const float cell = std::min(cell0 * 1.3f, (gb.x - ga.x - (cols - 1) * gap) / cols);   // (the cells fill the width, not much bigger than asked)
@@ -1598,14 +1654,20 @@ void BrickApp::stDrawerClassic() {
         const Part& P = m_lib.parts[part];
         const bool h = live && u.hover(a, b) && u.hover(ga, gb);
         const bool on = part == taken;
-        u.dl->AddRectFilled(a, b, stA(h ? IM_COL32(30, 31, 36, 255) : IM_COL32(22, 23, 27, 255), alpha), 4 * s);
-        if (on) u.dl->AddRect(a, b, C_ACCENT, 4 * s, 0, 1.5f * s);
+        const float rr = (studio ? 12 : 4) * s;   // (Studio: the cards of the drawer, Classic: flat cells)
+        if (studio) {
+            u.dl->AddRectFilled(a, b, stA(IM_COL32(18, 19, 24, 255), alpha), rr);
+            u.dl->AddRect(a, b, stA(on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 102 : 41), alpha), rr, 0, on ? 1.5f * s : 1.0f);
+        } else {
+            u.dl->AddRectFilled(a, b, stA(h ? IM_COL32(30, 31, 36, 255) : IM_COL32(22, 23, 27, 255), alpha), rr);
+            if (on) u.dl->AddRect(a, b, C_ACCENT, rr, 0, 1.5f * s);
+        }
         if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 4 * s, 0, 2.0f * s);
         if (part == m_libFound) u.dl->AddRect(ImVec2(a.x - 1 * s, a.y - 1 * s), ImVec2(b.x + 1 * s, b.y + 1 * s), C_ACCENT, 5 * s, 0, 2.5f * s);
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (thumbUv(part, tex, uv0, uv1)) {
-            const float z = 1.3f;
+            const float z = studio ? 1.5f : 1.3f;
             const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
             u.dl->AddImage(tex, ImVec2(a.x + 4 * s, a.y + 4 * s), ImVec2(b.x - 4 * s, b.y - 4 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
                            stA(IM_COL32(232, 234, 238, 255), alpha * (on ? 0.4f : 1.0f)));

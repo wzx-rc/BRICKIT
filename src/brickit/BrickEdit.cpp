@@ -601,7 +601,7 @@ void BrickApp::editInput() {
     }
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !m_rmbMoved && inView) {
         if (m_holding) cancelHeld();
-        else if (m_dev) { const int b = pickBrick(mp.x, mp.y); if (b >= 0) { m_ctxPart = m_bricks[b].part; m_ctxPos = mp; } }   // DEV: Edit thumbnail
+        else if (m_dev && !m_studioUi) { const int b = pickBrick(mp.x, mp.y); if (b >= 0) { m_ctxPart = m_bricks[b].part; m_ctxPos = mp; } }   // DEV: Edit thumbnail
     }
     if (!inView) return;
     if (io.KeyAlt) return;   // Alt + left drag orbits
