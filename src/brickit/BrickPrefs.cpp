@@ -120,6 +120,9 @@ std::string BrickApp::prefsJson() {
         j += m_studioUi ? "true" : "false";
         j += ", \"libCards\": " + std::to_string(m_stCardMode);
         j += ", \"cardScale\": " + std::to_string(m_stCardScale);
+        j += std::string(", \"highPoly\": ") + (m_highPoly ? "true" : "false");
+        j += ", \"libDock\": " + std::to_string(m_libDock) + ", \"libH\": " + std::to_string(m_libH) + ", \"libW\": " + std::to_string(m_libW);
+        j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
         j += ", \"hideDeco\": ";
@@ -218,6 +221,11 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
         if (tj["cardScale"].type == app::Json::Number) m_stCardScale = std::clamp((float)tj["cardScale"].n, 0.6f, 2.0f);
+        if (tj["highPoly"].type == app::Json::Bool) m_highPoly = tj["highPoly"].b;
+        if (tj["libDock"].type == app::Json::Number) m_libDock = std::clamp((int)tj["libDock"].n, 0, 2);
+        if (tj["libH"].type == app::Json::Number) m_libH = std::max(0.0f, (float)tj["libH"].n);
+        if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
+        if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
         else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
         for (const auto& kv : tj["looks"].o)
@@ -377,6 +385,35 @@ void BrickApp::cycleGrab() {
     snprintf(t, sizeof(t), "Pivot d'accroche : voxel %d / %d", g + 1, (int)p.voxels.size());
     toast(t);
     autosave();
+}
+
+// the labels of the connectors set by hand (mode DEV, a right click on a card): <data>/conn_labels.json, { "3001": 4, ... }
+void BrickApp::loadConnLabels() {
+    std::string t;
+    const std::wstring d = brickitDataDir();
+    if (d.empty() || !readText(d + L"\\conn_labels.json", t)) return;
+    app::Json j;
+    if (!app::Json::parse(t, j)) return;
+    for (const auto& [id, v] : j.o) {
+        const int i = m_lib.find(id);
+        if (i < 0 || v.type != app::Json::Number) continue;
+        m_lib.parts[i].connSrc = (uint8_t)std::clamp((int)v.n, 0, 4);
+    }
+    m_connCountsDirty = true;
+}
+void BrickApp::saveConnLabels() {
+    const std::wstring d = brickitDataDir();
+    if (d.empty()) return;
+    std::string j = "{";
+    bool first = true;
+    for (const Part& p : m_lib.parts) {
+        if (p.connSrc == p.connAuto) continue;   // (only what was changed by hand)
+        j += (first ? "\n  \"" : ",\n  \"") + p.name + "\": " + std::to_string(p.connSrc);
+        first = false;
+    }
+    j += "\n}\n";
+    writeText(d + L"\\conn_labels.json", j);
+    m_connCountsDirty = true;
 }
 
 } // namespace brickit

@@ -14,6 +14,7 @@
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
+#include <set>
 #include <memory>
 #include <vector>
 
@@ -52,6 +53,9 @@ struct Options {
     std::wstring thumbSampleDir; std::string thumbSampleParts;   // --thumb-sample <dir> <part,part,...>
     std::string thumbEdit;      // --thumb-edit <part>: the thumbnail editor open (captures); --thumb-edit-save: saved at frame 90
     bool thumbEditSave = false;
+    std::string voxelEdit;      // --voxel-edit <part>: the Voxel Editor open (captures)
+    bool veSolid = false;       // --ve-solid: without the X-ray
+    bool crashTest = false;     // --crash-test: a crash at frame 30 (the crash log checked)
     std::wstring bacFile;       // --bac-file <file>: the tray there (tests); --bac-test: the tray open with the selection + bricks 590..599
     bool bacTest = false;
     std::wstring thumbDir;      // --thumb-dir <dir>: the overrides there instead of %LOCALAPPDATA% (tests)
@@ -73,6 +77,7 @@ struct Options {
     int libCards = -1;     // --lib-cards 0 / 1: the cards of the drawer, Image / Fiche (captures)
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
     int stSub = -2;
+    int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
@@ -190,6 +195,9 @@ private:
     // the same scene for every renderer (Rapide, HQ, RC, path tracing), saved in brickit_prefs.json ("light")
     void buildHdriList();     // L"" (procedural sky), assets\hdri\*.hdr | *.exr, then the user's HDRI
     void setHdri(const std::wstring& path);
+    float3 hdriSunDir() const;   // the sun follows the HDRI (Wzx 09/11/2026): its brightest spot, turned with the HDRI
+    bool m_hdriSun = false;      // the HDRI has a sun (a spot far brighter than the rest)
+    float m_hdriSunAz = 0, m_hdriSunEl = 0;   // where, in the image (radians: azimuth of its column, elevation)
     void loadHdriDialog();
     uint32_t gridLineValue() const;
     std::vector<std::wstring> m_hdriPaths, m_hdriCustom;
@@ -582,6 +590,44 @@ private:
     void renderThumbEditor();
     void saveThumbOverride();
     void uiCtxMenu();
+    void frameSelection();   // F: the view on the selection (a glide)
+    void frameAnimate();
+    bool m_frameAnim = false;
+    double m_frameT0 = 0;
+    float3 m_frameFromT, m_frameToT;
+    float m_frameFromD = 0, m_frameToD = 0;
+    void setHighPoly(bool on);   // HD: the parts with their HD mesh (48-segment primitives, bevelled studs)
+    bool m_highPoly = false;
+    // Voxel Editor (mode DEV, BrickVoxelEditor.inl): the connectors of a part placed by hand, assisted
+    struct VeSug { std::string label, detail; std::vector<float3> v; std::vector<uint8_t> t; };
+    int m_vePart = -1, m_veMat = -1, m_veGlass = -1, m_veObj = -1, m_veSel = -1, m_veTool = 1, m_veType = 0, m_veMirror = 0, m_veSugHot = -1, m_veCtx = -1;
+    bool m_veBuilt = false, m_veDirty = false, m_veLineA = false, m_veAutoType = true, m_veXray = true, m_veXrayShown = true, m_veNav = false;
+    Scene m_veScene;
+    ThumbView m_veView;
+    ImVec4 m_veRect{0, 0, 0, 0};
+    float3 m_veLineP;
+    std::vector<float3> m_veVox;
+    std::vector<uint8_t> m_veConn;
+    std::vector<std::pair<std::vector<float3>, std::vector<uint8_t>>> m_veUndo;
+    std::vector<VeSug> m_veSugs;
+    std::vector<int> m_veSimilar;
+    struct VeCyl { int axis; float u, v, r; bool outward; float lo, hi; };   // the cylinders found (the smart snap: their axis)
+    std::vector<VeCyl> m_veCyl;
+    void openVoxelEditor(int part);
+    void renderVoxelEditor();
+    void uiVoxelEditor();
+    void veAnalyze();
+    void vePush();
+    void veAdd(const float3& q, uint8_t t);
+    void veSave(bool validate);
+    int veNextPart() const;
+    void loadVoxEdits();
+    void saveVoxEdits();
+    void loadConnLabels();   // mode DEV: the source of the connectors of the parts, the labels set by hand
+    void saveConnLabels();
+    void stConnLegend();     // mode DEV: the legend of the colours of the cards (and their counts)
+    bool m_connCountsDirty = true;
+    int m_connCounts[5] = {0, 0, 0, 0, 0};
     // temporary brick tray (BrickBac.cpp): thumbnails in their colour, placed freely, kept in bac.json
     struct BacItem { int part = -1, color = 0; float x = 0, y = 0; ImTextureID tex = 0; };
     std::vector<BacItem> m_bac;
@@ -655,7 +701,9 @@ private:
     ImVec2 m_mtCard{0, 0};             // mouse tests: the centre of a card of the library
     int m_swipeDragged = -1;           // row whose drag just ended (its release is not a click)
     float m_cardsVel = 0, m_famVel = 0, m_catVel = 0;
-    bool swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live);
+    // vertical: the library docked on a side (Wzx 10/11/2026): an up / down drag scrolls, a sideways drag takes the part
+    bool swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live, bool vertical = false);
+    float m_clsVel = 0;
     bool swipeTaken(int id) const { return m_swipe.id == id && m_swipe.dir == 1; }   // the default size does not fit the screen               // cool rim light of the web (raster)   // placement preview (ghostMat of the web)
     int m_firstBrickObject = 0;        // scene objects before it: the stage
     ViewRect m_vp;
@@ -765,6 +813,35 @@ private:
     void stPaintPanel();
     void stPaintColors();   // PEINDRE: every colour in a strip under the header
     void nudgeSelected(int dx, int dy, int dz);   // the arrows of the keyboard: the selection moved by a stud (a plate up / down)
+    struct PaintFx { ImVec2 p; int color; double t0; int kind; };   // 0 Pipette (a drop to the active colour), 1 / 2 a splash
+    std::vector<PaintFx> m_paintFx;
+    void stPaintFx();
+    bool paintHit(int brick, ImVec2 at, bool fx);
+    ImVec2 m_paintSwatchAt = ImVec2(-1, -1);   // the active colour of the panel Peindre (where the drop of the Pipette lands)
+    double m_paintSwatchPop = -10;
+    bool m_paintStroke = false, m_paintCircle = false, m_paintUndo = false;   // the Pinceau held: a stroke; past a moment, the circle
+    double m_paintStrokeT0 = 0, m_paintSampleT = 0;
+    ImVec2 m_paintStrokeAt, m_paintSampleAt;
+    std::vector<int> m_paintDone;     // the bricks of the stroke already painted
+    float m_paintRadius = 17;         // the circle of the brush (px at the scale 1; halved, Wzx 09/11/2026)
+    double m_paintT0 = -1;            // PEINDRE: when its colours came out (the arc pops like the marking menu)
+    std::vector<float> m_paintHov;    // PEINDRE: the hover of each colour (it grows)
+    // the library: docked at the bottom (0), on the left (1) or the right (2), its size (its grip), Studio or Classic
+    int m_libDock = 0;
+    float m_libH = 0, m_libW = 0;   // (0: the height of before, 540 px at the scale 1 on a side)
+    bool m_libClassic = false;
+    int m_libGrip = 0, m_libDockPreview = -1;
+    ImVec2 m_libGripAt;
+    float m_libGrip0 = 0;
+    float m_dockL = 0, m_dockR = 0;   // the width the library takes on the left / the right
+    std::set<std::string> m_clsOpen = {"basique", "technic"};   // Classic: the families open in the tree
+    float m_clsTreeScroll = 0, m_clsGridScroll = 0;
+    bool m_clsTechnic = false;
+    void stDrawerClassic();
+    void stLibGrip(Ui& u, ImVec2 a, ImVec2 b, bool live);
+    void stLibPressEnd(Ui& u, ImVec2 p0, ImVec2 p1);
+    int m_libFound = -1;              // the part found in the library from the marking menu (its card ringed)
+    bool m_libFoundScroll = false;
     double m_stMenuT0 = 0;  // when the marking menu opened (the colours come out one by one)   // PEINDRE: the Pinceau and the Pipette in big, « Groupe entier »
     void paintOne(int brick);
     void stFile();         // the scene menu (m_popup 8): Nouvelle scène, Ouvrir, Enregistrer, Enregistrer sous

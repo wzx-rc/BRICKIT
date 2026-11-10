@@ -3,6 +3,7 @@
 #pragma once
 #ifdef _WIN32
 #include "Gfx.h"
+#include <unordered_set>
 #include "app/ImGuiLayer.h"
 #include "vp3d/Renderer.h"
 
@@ -54,15 +55,18 @@ public:
     // views: the textures of BrickIt stop at 200, so that the font atlas, when it grows, always finds a free slot (a
     // full heap gave it a slot already taken: all the text garbled, then a hang)
     ImTextureID createTexture(const uint8_t* rgba, uint32_t w, uint32_t h) override {
-        if (m_live >= 200) return (ImTextureID)0;
+        // (counted by their ids: a texture let go twice no longer lowers the count, which let it pass the limit; the limit
+        // 170 leaves the font atlas of ImGui room to grow: a crash in ImGui_ImplDX12_UpdateTexture, Wzx 10/11/2026)
+        if ((int)m_ids.size() >= 170) return (ImTextureID)0;
         const ImTextureID id = l.createTexture(rgba, w, h);
-        if (id) ++m_live;
+        if (id) m_ids.insert(id);
         return id;
     }
-    void releaseTexture(ImTextureID id) override { if (id) { l.releaseTexture(id); m_live = m_live > 0 ? m_live - 1 : 0; } }
+    void releaseTexture(ImTextureID id) override { if (id && m_ids.erase(id)) l.releaseTexture(id); }
+    int liveTextures() const override { return (int)m_ids.size(); }
 
 private:
-    int m_live = 0;
+    std::unordered_set<ImTextureID> m_ids;
     void sync() { fontBold = l.fontBold; fontSmall = l.fontSmall; dpi = l.dpi; }
 };
 

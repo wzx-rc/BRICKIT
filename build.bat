@@ -21,7 +21,7 @@ if not exist "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" (
 call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>nul
 :havevc
 
-set "CFG=/O2 /DNDEBUG /MT"
+set "CFG=/O2 /DNDEBUG /MT /Zi /FS"
 if /i "%1"=="debug" set "CFG=/Od /Zi /MTd /D_DEBUG"
 
 set "OUT=build\bin"
@@ -82,7 +82,7 @@ git diff --quiet HEAD -- src assets 2>nul || set "CM=%CM%+"
 rem the application icon of BrickIt (tools\brickit\app_icon.py)
 rc /nologo /fo build\obj\res\wzx.res src\brickit\res\brickit.rc || exit /b 1
 cl %CFLAGS% /c src\brickit\*.cpp %E%\src\app\ImGuiLayer.cpp %E%\src\app\Theme.cpp %E%\src\app\Content.cpp /Fo:build\obj\brickit\ || exit /b 1
-link /nologo /OUT:%OUT%\BrickIt.exe build\obj\brickit\*.obj build\obj\res\wzx.res build\lib\vp3d.lib build\lib\imgui_te_mt.lib d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib /SUBSYSTEM:WINDOWS || exit /b 1
+link /nologo /OUT:%OUT%\BrickIt.exe build\obj\brickit\*.obj build\obj\res\wzx.res build\lib\vp3d.lib build\lib\imgui_te_mt.lib d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib dbghelp.lib /SUBSYSTEM:WINDOWS /DEBUG /OPT:REF /OPT:ICF || exit /b 1
 rem Technic packs of the web builder (geometry, read as they are)
 if not exist "%OUT%\assets\brickit\technic" mkdir "%OUT%\assets\brickit\technic"
 xcopy /Y /Q /D docs\brickit\web\technic\g*.wasm "%OUT%\assets\brickit\technic\" >nul

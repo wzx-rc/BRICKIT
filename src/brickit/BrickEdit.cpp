@@ -494,6 +494,7 @@ void BrickApp::finishMarquee(bool add) {
 void BrickApp::editInput() {
     ImGuiIO& io = ImGui::GetIO();
     const bool keys = !io.WantTextInput;
+    if (m_vePart >= 0) return;   // (the Voxel Editor has the keyboard and the mouse)
     if (m_reading) {   // reading the instructions: the pages, Échap closes; no editing (the camera still orbits)
         readInput();
         if (keys && ImGui::IsKeyPressed(ImGuiKey_Escape)) stopReading();
@@ -538,7 +539,7 @@ void BrickApp::editInput() {
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) { m_focusDim = !m_focusDim; syncObjects(); toast(m_focusDim ? "Mode focus : les autres briques à 50 %" : "Mode focus désactivé"); }
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) frameSelection();   // F: the view framed on the selection (as Maya; nothing selected: everything)
         if (ImGui::IsKeyPressed(ImGuiKey_Space)) pickUpSelected();
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_T) && m_holding) {   // tilt towards the viewer
             float3 r, u, f;
@@ -575,18 +576,18 @@ void BrickApp::editInput() {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
     }
     if (m_holding && inView && m_opt.spawnPart.empty() && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) updateHeld(mp.x, mp.y);
+    if (io.KeyAlt) { m_pressed = false; return; }   // Maya: Alt + a button is the camera (no pick, no menu, no paint)
 
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbPos = mp; m_rmbMoved = false; }
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && (std::fabs(mp.x - m_rmbPos.x) + std::fabs(mp.y - m_rmbPos.y)) > 4) m_rmbMoved = true;
-    // Studio: the right button on a brick does what the held left press does, the marking menu (Wzx 09/11/2026).
-    // Held still: the menu opens at once where it is held, its release acts; a quick click: the menu stays open and
-    // the next click acts. Dragging still orbits the camera.
+    // Studio: the right button on a brick opens the marking menu at once (Wzx 09/11/2026, as Maya): released on an
+    // action it acts, a quick flick in a direction acts at once (stSelHud), released in place it stays open and the
+    // next click acts. Off a brick, the right drag orbits the camera.
     if (m_studioUi && !m_ipad && !m_holding && !m_mechOn && !m_reading) {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbBrick = inView ? pickBrick(mp.x, mp.y) : -1; m_rmbT = ImGui::GetTime(); }
-        if (m_rmbBrick >= 0 && !m_rmbMoved && (ImGui::IsMouseReleased(ImGuiMouseButton_Right) ||
-                                               (ImGui::IsMouseDown(ImGuiMouseButton_Right) && ImGui::GetTime() - m_rmbT > 0.16))) {
-            const bool sticky = !ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        if (m_rmbBrick >= 0) {
+            const bool sticky = false;
             if (m_selected != m_rmbBrick) select(m_rmbBrick);
             m_stMenu = true;
             m_stMenuT0 = ImGui::GetTime();
@@ -601,7 +602,7 @@ void BrickApp::editInput() {
     }
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !m_rmbMoved && inView) {
         if (m_holding) cancelHeld();
-        else if (m_dev) { const int b = pickBrick(mp.x, mp.y); if (b >= 0) { m_ctxPart = m_bricks[b].part; m_ctxPos = mp; } }   // DEV: Edit thumbnail
+        else if (m_dev && !m_studioUi) { const int b = pickBrick(mp.x, mp.y); if (b >= 0) { m_ctxPart = m_bricks[b].part; m_ctxPos = mp; } }   // DEV: Edit thumbnail
     }
     if (!inView) return;
     if (io.KeyAlt) return;   // Alt + left drag orbits
@@ -613,19 +614,53 @@ void BrickApp::editInput() {
         return;
     }
     if (m_pipette && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_pipette = false;
+    if (m_paintStroke) {   // the Pinceau held: held a moment (or moved), a circle of rays paints all it covers
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !m_paintTool) {
+            m_paintStroke = false;
+            m_paintCircle = false;
+            if (m_paintUndo) autosave();
+            m_paintUndo = false;
+        } else {
+            const double now = ImGui::GetTime();
+            if (!m_paintCircle && (now - m_paintStrokeT0 > 0.18 || std::fabs(mp.x - m_paintStrokeAt.x) + std::fabs(mp.y - m_paintStrokeAt.y) > 6 * m_ui)) {
+                m_paintCircle = true;
+                m_paintSampleT = -1;
+            }
+            if (m_paintCircle && (std::fabs(mp.x - m_paintSampleAt.x) + std::fabs(mp.y - m_paintSampleAt.y) > 3 || now - m_paintSampleT > 0.08)) {
+                m_paintSampleAt = mp;
+                m_paintSampleT = now;
+                const float R = m_paintRadius * m_ui;
+                bool changed = false;
+                auto ray = [&](float x, float y) { const int b = pickBrick(x, y); if (b >= 0) changed |= paintHit(b, ImVec2(x, y), true); };
+                ray(mp.x, mp.y);
+                for (int k = 0; k < 6; ++k) ray(mp.x + std::cos(k * 1.0472f) * R * 0.5f, mp.y + std::sin(k * 1.0472f) * R * 0.5f);
+                for (int k = 0; k < 12; ++k) ray(mp.x + std::cos(k * 0.5236f + 0.26f) * R * 0.92f, mp.y + std::sin(k * 0.5236f + 0.26f) * R * 0.92f);
+                if (changed) syncObjects();
+            }
+            return;   // (the stroke has the mouse)
+        }
+    }
     if (m_pipette && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // the pipette of the HUD: the colour of the brick clicked
         const int b = pickBrick(mp.x, mp.y);
         if (b >= 0) {
             m_color = m_bricks[b].color;
             m_pipette = false;
+            m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});   // (a ring, a drop to the active colour)
+            m_paintSwatchPop = ImGui::GetTime() + 0.58;
             if (m_paintMode) m_paintTool = true;   // (PEINDRE: back to the Pinceau with the colour taken)
-            toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
+            if (!m_paintMode) toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
         }
         return;
     }
     if (m_paintTool && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // Studio, Pinceau: the colour on the brick clicked
         const int b = pickBrick(mp.x, mp.y);
-        if (b >= 0) { if (m_paintGroup || unitGroup(b) < 0) { select(b); applyColor(m_color); } else paintOne(b); }   // (Peindre › Groupe entier off: the brick alone)
+        m_paintStroke = true;   // (held: the circle; editInput above)
+        m_paintCircle = false;
+        m_paintUndo = false;
+        m_paintStrokeT0 = ImGui::GetTime();
+        m_paintStrokeAt = m_paintSampleAt = mp;
+        m_paintDone.clear();
+        if (b >= 0 && paintHit(b, mp, true)) syncObjects();
         return;
     }
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {

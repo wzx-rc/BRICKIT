@@ -2,6 +2,7 @@
 // (BrickApp.cpp and the other files compile unchanged on the iPad).
 #ifdef _WIN32
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "GfxDx12.h"
 #include "Platform.h"
 #include "backends/imgui_impl_win32.h"

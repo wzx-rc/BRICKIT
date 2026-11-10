@@ -55,6 +55,7 @@ public:
     virtual ImTextureID viewportTexture() = 0;
     virtual ImTextureID createTexture(const uint8_t* rgba, uint32_t w, uint32_t h) = 0;   // 0 on failure
     virtual void releaseTexture(ImTextureID id) = 0;
+    virtual int liveTextures() const { return -1; }   // (the crash reports: the textures of BrickIt alive)
 
     ImFont* fontBold = nullptr;
     ImFont* fontSmall = nullptr;

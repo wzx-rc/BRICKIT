@@ -3,10 +3,13 @@
 // the SVG icons (Svg.cpp), the French texts. Everything is drawn with ImDrawList in one window behind the ImGui popups;
 // clicks are hit-tested here. m_ui scales the whole interface (4K: 2).
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "Platform.h"
 #include "Svg.h"
 #include "app/Theme.h"
 #include "app/Json.h"
+#include <array>
+#include <unordered_set>
 #include "Image.h"
 #include <algorithm>
 #include <functional>
@@ -126,6 +129,8 @@ void BrickApp::buildNav() {
 }
 
 // a decorated part: a sticker or a printed pattern (« ... Pattern », « ... Sticker » in its LDraw title)
+ImU32 stConnCol(int src);          // (BrickUiStudio.inl: mode DEV, the source of the connectors)
+const char* stConnName(int src);
 static bool partDeco(const Part& p) {
     std::string t = p.label;
     for (char& c : t) c = (char)std::tolower((unsigned char)c);
@@ -2063,7 +2068,7 @@ void BrickApp::drawToast() {
     ImVec2 ts = f->CalcTextSizeA(12 * s, 1e9f, 0, m_toast.c_str());
     ImVec2 d = ImGui::GetIO().DisplaySize;
     float a = (float)std::clamp(3.2 - (ImGui::GetTime() - m_toastTime), 0.0, 0.4) / 0.4f;
-    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, (m_ipad ? 20 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
+    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, m_vePart >= 0 ? d.y - 190 * s : (m_ipad ? 20 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
     dl->AddRectFilled(p0, p1, alphaOf(IM_COL32(15, 16, 19, 224), a), 18 * s);
     dl->AddRect(p0, p1, alphaOf(IM_COL32(247, 197, 30, 115), a), 18 * s);
     dl->AddText(f, 12 * s, ImVec2(p0.x + 12 * s, p0.y + 5 * s), alphaOf(C_TEXT, a), m_toast.c_str());
@@ -3056,7 +3061,7 @@ void BrickApp::drawDropzone() {
 // the pointer at once, the brick in hand when it leaves the tray), any other direction = the row slides with the
 // pointer and keeps its speed on release (decelerating, as the touch scrolling of the web). The other rows: the
 // dominant direction (sideways = slide). Returns true while the row is being dragged.
-bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live) {
+bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, float maxScroll, bool live, bool vertical) {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 m = io.MousePos;
     const float s = m_ui, dt = std::max(1e-3f, io.DeltaTime);
@@ -3072,15 +3077,16 @@ bool BrickApp::swipeRow(int id, ImVec2 a, ImVec2 b, float& scroll, float& vel, f
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             const float dx = m.x - m_swipe.start.x, dy = m.y - m_swipe.start.y;
             if (m_swipe.dir == 0 && dx * dx + dy * dy > 49 * s * s) {
-                if (id == 0) m_swipe.dir = (dy < 0 && std::fabs(dx) <= -dy * 5.671f) ? 2 : 1;   // tan(80) = 5.671
+                if (id == 0 && vertical) m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 2 : 1;   // (sideways: the part toward the view; up / down: the scroll)
+                else if (id == 0) m_swipe.dir = (dy < 0 && std::fabs(dx) <= -dy * 5.671f) ? 2 : 1;   // tan(80) = 5.671
                 else m_swipe.dir = std::fabs(dx) > std::fabs(dy) ? 1 : 2;
             }
             if (m_swipe.dir == 1) {
-                const float step = m.x - m_swipe.last.x;
+                const float step = vertical ? m.y - m_swipe.last.y : m.x - m_swipe.last.x;
                 scroll -= step;
                 vel = vel * 0.6f + (-step / dt) * 0.4f;   // smoothed speed (px / s)
                 dragging = true;
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                ImGui::SetMouseCursor(vertical ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
             }
             m_swipe.last = m;
         } else {
@@ -3403,8 +3409,8 @@ void BrickApp::uiSettings() {
         {"Animations", {{"Oui", m_animOn}, {"Non", !m_animOn}}, 7},
         {"Sauvegarde automatique", {{"Oui", m_autosaveOn}, {"Non", !m_autosaveOn}}, 8},
     };
-    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform)
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
+    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform), no voxels, Studio only
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 6 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12 || r.id == 14 || r.id == 18; }), rows.end());
     const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
     // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
     const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);
@@ -3665,7 +3671,7 @@ void BrickApp::uiSettings() {
         if (slider(103, "Opacité de la grille", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", alphaShown)) lookChanged = true;
         {
             char ib[96];
-            snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil reste fixe", m_hdriLoadMs);
+            snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil suit la HDRI", m_hdriLoadMs);
             u.text(ImVec2(x0 + pad, ly), 10, C_DIM, ib);
             ly += 16 * s;   // à propos: the version (title of the window)
             const std::wstring vw = versionString();
@@ -3675,6 +3681,7 @@ void BrickApp::uiSettings() {
         }
         if (lookChanged) {   // live: the environment and the grid of every renderer (accumulations reset)
             m_scene.env.hdriRotation = radians(m_hdriRotDeg);
+            if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
             m_scene.env.hdriIntensity = m_hdriInt;
             m_scene.gridLine = gridLineValue();
             m_renderer->resetAccumulation();
@@ -3721,8 +3728,12 @@ void BrickApp::uiCtxMenu() {
     Ui u = ui(m_ui);
     const float s = m_ui;
     const char* item = "Modifier la miniature";
-    const float w = u.textW(12, item) + 28 * s, h = 30 * s;
-    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + 22 * s);
+    // + the source of its connectors, to set by hand (mode DEV, Wzx 10/11/2026)
+    static const int kConn[4] = {4, 1, 2, 3};
+    const int nConn = m_studioUi ? 4 : 0;
+    const float w = std::max(u.textW(12, item), u.textW(11, "Échec, aucun connecteur") + 30 * s) + 28 * s, h = 30 * s, rh = 24 * s;
+    const float veH = m_studioUi ? h : 0;   // « Éditer les voxels » (Voxel Editor)
+    ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + veH + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (b.x > d.x) { a.x -= b.x - d.x; b.x = d.x; }
     if (b.y > d.y) { a.y -= b.y - d.y; b.y = d.y; }
@@ -3736,8 +3747,41 @@ void BrickApp::uiCtxMenu() {
     const bool hov = u.hover(ia, ib);
     if (hov) u.dl->AddRectFilled(ia, ib, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
     u.text(ImVec2(ia.x + 10 * s, ia.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), item);
+    bool veHov = false;
+    if (veH > 0) {
+        const ImVec2 ea(ia.x, ib.y + 2 * s), eb(ib.x, ib.y + 2 * s + h - 4 * s);
+        veHov = u.hover(ea, eb);
+        if (veHov) u.dl->AddRectFilled(ea, eb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
+        u.text(ImVec2(ea.x + 10 * s, ea.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), "Éditer les voxels");
+    }
+    int connHit = -1;
+    if (nConn) {
+        Part& P = m_lib.parts[m_ctxPart];
+        float y = ib.y + veH + 6 * s;
+        u.text(ImVec2(a.x + 12 * s, y), 9, IM_COL32(0x8a, 0x8c, 0x96, 255), "CONNECTEURS");
+        y += 14 * s;
+        for (int k = 0; k < nConn; ++k) {
+            const int src = kConn[k];
+            const ImVec2 ra(a.x + 4 * s, y), rb(b.x - 4 * s, y + rh - 2 * s);
+            const bool hv = u.hover(ra, rb);
+            if (hv) { u.dl->AddRectFilled(ra, rb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s); connHit = src; }
+            u.dl->AddRect(ImVec2(ra.x + 8 * s, ra.y + 5 * s), ImVec2(ra.x + 22 * s, rb.y - 5 * s), stConnCol(src), 3 * s, 0, 2.0f * s);
+            if (P.connSrc == src) u.dl->AddRectFilled(ImVec2(ra.x + 12 * s, ra.y + 9 * s), ImVec2(ra.x + 18 * s, rb.y - 9 * s), stConnCol(src), 1 * s);
+            std::string t = stConnName(src);
+            if (src == P.connAuto && src != 4) t += "  (conversion)";
+            u.text(ImVec2(ra.x + 30 * s, ra.y + 4 * s), 11, P.connSrc == src ? IM_COL32(0xff, 0xff, 0xff, 255) : IM_COL32(0xb0, 0xb2, 0xb8, 255), t.c_str());
+            y += rh;
+        }
+    }
     if (u.pressed) {
         if (hov) openThumbEditor(m_ctxPart);
+        if (veHov) openVoxelEditor(m_ctxPart);
+        if (connHit >= 0) {
+            Part& P = m_lib.parts[m_ctxPart];
+            P.connSrc = (uint8_t)(P.connSrc == connHit && connHit == 4 ? P.connAuto : connHit);   // (Validé again: back to the conversion)
+            saveConnLabels();
+            toast(std::string("Connecteurs de ") + P.name + " : " + stConnName(P.connSrc));
+        }
         m_ctxPart = -1;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_ctxPart = -1;
@@ -3808,5 +3852,6 @@ void BrickApp::uiThumbEditor() {
 
 #include "BrickUiIpad.inl"
 #include "BrickUiStudio.inl"
+#include "BrickVoxelEditor.inl"
 
 } // namespace brickit

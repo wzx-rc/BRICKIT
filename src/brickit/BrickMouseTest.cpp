@@ -33,7 +33,13 @@ void BrickApp::mouseTestFrame() {
     const bool swipeTest = t.rfind("swipe", 0) == 0;
     if (m_frame == (swipeTest ? 22 : 10)) {
         m_mouseScript.clear();
-        if (t == "marquee") {
+        if (t == "paint") {   // PEINDRE: the Pinceau held across the stage (the circle of the brush)
+            m_paintMode = true; m_paintTool = true; m_pipette = false;
+            const ImVec2 a(m_stage.x + sw * 0.2f, m_stage.y + sh * 0.55f), b(m_stage.x + sw * 0.8f, m_stage.y + sh * 0.5f);
+            m_mouseScript.push_back({12, a.x, a.y, -1});
+            m_mouseScript.push_back({13, a.x, a.y, 0});
+            for (int k = 1; k <= 60; ++k) m_mouseScript.push_back({13 + k, a.x + (b.x - a.x) * k / 60.0f, a.y + (b.y - a.y) * k / 60.0f, -1});
+        } else if (t == "marquee") {
             m_mode = 0;
             select(-1);
             dragScript(m_mouseScript, 12, ImVec2(m_stage.x + sw * 0.08f, m_stage.y + sh * 0.12f), ImVec2(m_stage.x + sw * 0.92f, m_stage.y + sh * 0.9f));

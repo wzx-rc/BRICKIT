@@ -1,4 +1,5 @@
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "Stage.h"
 #include "Image.h"
 #include "Platform.h"
@@ -35,6 +36,7 @@ bool BrickApp::savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint
 bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
                           const std::wstring& exeDir, float dpi) {
     m_opt = opt;
+    if (opt.shotPath.empty()) crashInit(brickitDataDir() + L"\\crashlogs", versionString());   // (a crash, a freeze: a report; not the captures)
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
     ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
@@ -67,6 +69,24 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         plat::errorBox("BrickIt - library", err);
         return false;
     }
+    loadConnLabels();   // (the connector labels set by hand, mode DEV)
+    loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
+    crashSetState([this]() {   // what a crash report says of the app
+        char b[1200];
+        const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
+        snprintf(b, sizeof(b), "Image %d · briques %d · sélection %d · en main %d\nInterface %s · popup %d · bibliothèque dock %d %s · HD %d · DEV %d\n"
+                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n"
+                 "Textures BrickIt : %d (limite 170) · miniatures chargées %d · textures ImGui %d · atlas de police %dx%d\n",
+                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classique", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
+                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "fermé", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
+                 m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str(),
+                 m_gui ? m_gui->liveTextures() : -1, (int)m_lazyThumbs.size(), ImGui::GetCurrentContext() ? ImGui::GetPlatformIO().Textures.Size : -1,
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Width : 0,
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0);
+        return std::string(b);
+    });
+    if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
+    if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
@@ -103,6 +123,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     buildNav();
     if (opt.shotPath.empty()) loadPrefs();   // captures stay reproducible
     if (opt.ipadCreme || !opt.ipadOpen.empty()) m_ipadCreme = true;
+    if (m_ipad) { m_dev = false; m_showVox = false; }   // iPad: no developer mode, no voxels (Wzx 10/11/2026)
     else if (opt.useDefaults) { std::string dt; if (readDefaultPrefs(dt)) applyPrefs(dt); }   // (--use-defaults: a capture with the default settings)
     if (m_uiScaleUser != 1.0f) { m_ui *= m_uiScaleUser; th::apply(m_ui); }   // settings: UI scale over the screen scale
     if (opt.dev) m_dev = true;
@@ -113,6 +134,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (!opt.stFam.empty()) { m_stFam = opt.stFam; m_stSub = -1; }
     if (opt.stSub >= -1) m_stSub = opt.stSub;
+    if (opt.libDock >= 0) m_libDock = opt.libDock;
+    if (opt.libClassic >= 0) m_libClassic = opt.libClassic != 0;
     if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
     if (opt.stGroups) m_pGroups.visible = true;
     if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
@@ -504,6 +527,19 @@ void BrickApp::buildHdriList() {
 
 // Loaded once (cached): switching back is instant. The renderer rebuilds the importance table of the path tracer,
 // the SH and the mips of the raster view when the image changes (Renderer::uploadEnvironment).
+// the sun where the HDRI has its sun, turned with it (the lookup of the shaders: u = atan2(d.x, -d.z) / 2pi + 0.5 - rotation / 2pi);
+// an HDRI without a clear sun (a soft studio): the sun of before, turned with the rotation. Elevation kept 18 to 70°
+float3 BrickApp::hdriSunDir() const {
+    const float rot = radians(m_hdriRotDeg);
+    if (m_hdriSun) {
+        const float phi = m_hdriSunAz + rot, el = std::clamp(m_hdriSunEl, radians(18.0f), radians(70.0f));
+        return normalize(float3(std::sin(phi) * std::cos(el), std::sin(el), -std::cos(phi) * std::cos(el)));
+    }
+    const float3 d = normalize(float3(-28, 34, 30));
+    const float phi0 = std::atan2(d.x, -d.z) + rot, h = std::sqrt(d.x * d.x + d.z * d.z);
+    return normalize(float3(std::sin(phi0) * h, d.y, -std::cos(phi0) * h));
+}
+
 void BrickApp::setHdri(const std::wstring& path) {
     const auto t0 = std::chrono::steady_clock::now();
     vp3d::EnvImagePtr img;
@@ -519,6 +555,24 @@ void BrickApp::setHdri(const std::wstring& path) {
         img = e;
         m_hdriCache[path] = img;
     }
+    m_hdriPath = path;
+    {   // its sun: the brightest spot (the mean of the texels over half the peak, around the peak), if it stands out
+        float peak = 0;
+        double mean = 0;
+        uint32_t px = 0, py = 0;
+        for (uint32_t y = 0; y < img->height; ++y)
+            for (uint32_t x = 0; x < img->width; ++x) {
+                const float3 c = img->texel(x, y);
+                const float l = 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z;
+                mean += l;
+                if (l > peak) { peak = l; px = x; py = y; }
+            }
+        mean /= std::max(1.0, (double)img->width * img->height);
+        m_hdriSun = img->width > 0 && peak > 12.0f * (float)mean;
+        m_hdriSunAz = ((px + 0.5f) / std::max(1u, img->width) - 0.5f) * 2.0f * 3.14159265f;
+        m_hdriSunEl = 1.5707963f - (py + 0.5f) / std::max(1u, img->height) * 3.14159265f;
+    }
+    if (!m_ipad && !m_cornell) m_scene.sun.direction = hdriSunDir();
     m_hdriPath = path;
     m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -553,7 +607,7 @@ void BrickApp::applyLook() {
         g.baseColor = lin(0x0e0f11);
         g.roughness = 0.8f;
         m_scene.sun.enabled = true;
-        m_scene.sun.direction = normalize(float3(-28, 34, 30));
+        m_scene.sun.direction = hdriSunDir();   // (follows the HDRI and its rotation)
         m_scene.sun.color = lin(0xfff1e0);
         m_scene.sun.intensity = 3.4f;
         m_scene.env.hemiSky = lin(0x9aa3b8);   // HemisphereLight(0x9aa3b8, 0x1a1a1c, 0.25)
@@ -602,6 +656,30 @@ void BrickApp::applyLook() {
     }
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
+}
+
+// the HD switch (header): the meshes of the scene that have an HD version swapped in place, the view rebuilt
+void BrickApp::setHighPoly(bool on) {
+    crumb("HD : %d", on ? 1 : 0);
+    m_highPoly = on;
+    if (!m_lib.hasHd) { if (on) toast("Pas encore de pièces HD : la bibliothèque HD n'est pas construite"); return; }
+    m_lib.setHighPoly(on);
+    for (int i = 0; i < (int)m_partMesh.size(); ++i) {
+        const int mesh = m_partMesh[i];
+        if (mesh < 0 || m_lib.parts[i].hdPack < 0) continue;
+        Part* p = m_lib.get(m_lib.parts[i].name);
+        if (!p) continue;
+        m_scene.meshes[mesh] = p->mesh;
+        if (mesh < (int)m_scene.lods.size() && m_scene.lods[mesh].lod1 >= 0) {
+            const float3 ext = p->bmax - p->bmin;
+            m_scene.meshes[m_scene.lods[mesh].lod1] = simplifyCluster(p->mesh, std::max(0.12f, std::max(ext.x, std::max(ext.y, ext.z)) / 40.0f));
+        }
+    }
+    ++m_scene.geometryVersion;
+    m_renderer->resetAccumulation();
+    m_teObj = -1;
+    m_veObj = -1;
+    savePrefs();
 }
 
 int BrickApp::meshOf(int part) {
@@ -695,6 +773,7 @@ void BrickApp::syncObjects() {
 }
 
 void BrickApp::toast(const std::string& text) {
+    crumb("Message : %s", text.c_str());
     m_toast = text;
     m_toastTime = ImGui::GetCurrentContext() ? ImGui::GetTime() : 0.0;
 }
@@ -834,6 +913,45 @@ void BrickApp::buildDemo() {
     m_status = buf;
 }
 
+// F (Wzx 10/11/2026, as Maya): the camera framed on the selection, its direction kept; nothing selected: the whole scene
+void BrickApp::frameSelection() {
+    crumb("F : cadrer la sélection");
+    const std::vector<int> sel = selection();
+    if (sel.empty()) { frameAll(); return; }
+    float3 mn(1e30f), mx(-1e30f);
+    for (int i : sel) {
+        if (i < 0 || i >= (int)m_bricks.size() || !m_lib.parts[m_bricks[i].part].loaded) continue;
+        const Box b = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
+        mn = minv(mn, b.mn);
+        mx = maxv(mx, b.mx);
+    }
+    if (mn.x > mx.x) return;
+    Camera& cam = m_scene.camera;
+    const float r = std::max(0.4f, length(mx - mn) * 0.5f);
+    // a glide rather than a jump (Wzx 10/11/2026): the target and the distance eased in 0.55 s, the view pulling back a
+    // little half way (a short flight); any move of the camera stops it
+    m_frameFromT = cam.target;
+    m_frameFromD = cam.distance;
+    m_frameToT = (mn + mx) * 0.5f;
+    m_frameToD = std::max(1.0f, r / std::tan(cam.fovY * 0.5f) * 1.15f);
+    m_frameT0 = ImGui::GetTime();
+    m_frameAnim = true;
+}
+// the glide of F, each frame
+void BrickApp::frameAnimate() {
+    if (!m_frameAnim) return;
+    Camera& cam = m_scene.camera;
+    const float t = std::clamp((float)(ImGui::GetTime() - m_frameT0) / 0.55f, 0.0f, 1.0f);
+    const float e = t < 0.5f ? 4 * t * t * t : 1 - std::pow(-2 * t + 2, 3.0f) * 0.5f;   // (ease in-out, cubic)
+    cam.target = m_frameFromT + (m_frameToT - m_frameFromT) * e;
+    const float d = m_frameFromD + (m_frameToD - m_frameFromD) * e;
+    const float bump = 0.18f * std::sin(3.14159265f * e) * std::min(1.0f, length(m_frameToT - m_frameFromT) / std::max(0.5f, d));
+    cam.distance = d * (1 + bump);
+    cam.focusDistance = cam.distance;
+    m_renderer->resetAccumulation();
+    if (t >= 1) m_frameAnim = false;
+}
+
 void BrickApp::frameAll() {
     float3 mn(1e30f), mx(-1e30f);
     for (const Brick& b : m_bricks) {
@@ -902,16 +1020,27 @@ void BrickApp::updateGridFade() {
 
 void BrickApp::cameraInput() {
     ImGuiIO& io = ImGui::GetIO();
+    frameAnimate();   // (the glide of F, even with the mouse over a panel)
     if (io.WantCaptureMouse || m_overUi) return;
     if (m_stMenu || m_stMenuEat == ImGui::GetFrameCount()) return;   // the marking menu has the mouse (right held on a brick: no orbit)
     if (!m_opt.shotPath.empty()) return;   // a capture (--shot): the camera of the command line, whatever the mouse does
     Camera& cam = m_scene.camera;
     bool changed = false;
+    if (m_frameAnim && (io.MouseWheel != 0 || (io.KeyAlt && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Middle) || ImGui::IsMouseDown(ImGuiMouseButton_Right)))))
+        m_frameAnim = false;   // (the user takes the camera: the glide of F stops)
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_leftOrbit = false;
     // left drag on empty space (and in the Move / Rotate modes) orbits, as the web
-    const bool orbit = ImGui::IsMouseDown(ImGuiMouseButton_Right) || (ImGui::IsMouseDown(ImGuiMouseButton_Left) && (io.KeyAlt || m_leftOrbit));
-    const bool pan = ImGui::IsMouseDown(ImGuiMouseButton_Middle) || (io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right));
-    if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+    // Studio: the right button never moves the camera (it is the marking menu, Wzx 09/11/2026)
+    // Maya navigation (Wzx 10/11/2026): the camera moves only with Alt. Alt + left: orbit, Alt + middle: pan,
+    // Alt + right: dolly; the wheel zooms. Without Alt the mouse never moves the camera.
+    const bool alt = io.KeyAlt;
+    const bool orbit = alt && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
+    const bool dolly = alt && ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (dolly && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x - io.MouseDelta.y) * 0.004f));
+        changed = true;
+    } else if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
         float3 r, u, f;
         cam.basis(r, u, f);
         float k = cam.distance * std::tan(cam.fovY * 0.5f) * 2.0f / std::max(1.0f, io.DisplaySize.y);
@@ -1014,6 +1143,7 @@ void BrickApp::frame() {
     if (m_frame == 24 && !m_opt.infoPart.empty()) m_infoPart = m_lib.find(m_opt.infoPart);   // scripted test: part sheet
     if (m_frame == 24 && !m_opt.thumbEdit.empty()) { openThumbEditor(m_lib.find(m_opt.thumbEdit)); m_teView.yaw += 0.6f; m_teView.zoom = 1.15f; }   // scripted test: Edit thumbnail
     if (m_frame == 90 && m_opt.thumbEditSave) m_teSave = true;
+    if (m_frame == 24 && !m_opt.voxelEdit.empty()) { m_dev = true; openVoxelEditor(m_lib.find(m_opt.voxelEdit)); m_veView.yaw += 0.5f; if (m_opt.veSolid) m_veXray = false; }   // (captures: the Voxel Editor)
     if (m_frame == 20 && m_opt.bacTest) {   // scripted test: the tray open, ten bricks of the scene added (one thumbnail each)
         m_bacOpen = true;
         const int sel = m_selected;
@@ -1041,7 +1171,7 @@ void BrickApp::frame() {
     const float scale = (pathTraced() && moving) ? m_opt.ptMoveScale : (pathTraced() ? 1.0f : (m_opt.renderScale > 0 ? m_opt.renderScale : m_renderScale));
     // the stage: between the top bar and the tray (no UI: the whole window)
     if (m_opt.noUi || m_uiRects.size() < 2) m_stage = ImVec4(0, 0, ds.x, ds.y);
-    else m_stage = ImVec4(0, m_uiRects[0].w, ds.x, std::max(m_uiRects[0].w + 16, m_uiRects[1].y));
+    else m_stage = ImVec4(m_dockL, m_uiRects[0].w, ds.x - m_dockR, std::max(m_uiRects[0].w + 16, m_uiRects[1].y));   // (minus the library docked on a side)
     const float sw = m_stage.z - m_stage.x, sh = m_stage.w - m_stage.y;
     m_vp = {0, 0, std::max(16, (int)(sw * scale)), std::max(16, (int)(sh * scale))};
     if (m_rs.raster || m_rcMode) m_rs.samplesPerFrame = 1;
@@ -1116,7 +1246,7 @@ void BrickApp::frame() {
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
     const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
-    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || uiDrag;   // (or the thumbnail editor)
+    const bool sheet = (m_infoPart >= 0 && !m_dev) || m_teditPart >= 0 || m_vePart >= 0 || uiDrag;   // (or the thumbnail editor, the Voxel Editor)
     if (sheet && !m_frozenTex && m_frame > 0) {
         std::vector<uint8_t> img;
         uint32_t w = 0, h = 0;
@@ -1130,6 +1260,7 @@ void BrickApp::frame() {
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
     if (m_frozenTex) {
         if (m_teditPart >= 0) renderThumbEditor();
+        else if (m_vePart >= 0) renderVoxelEditor();
         else if (!uiDrag || m_infoPart >= 0) renderPreview();
         ImGui::GetBackgroundDrawList()->AddImage(m_frozenTex, ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
     } else {
@@ -1208,6 +1339,16 @@ void BrickApp::frame() {
     m_cpuMs = m_cpuMs * 0.9 + 0.1 * (t1.QuadPart - t0.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_gui->render(true);
     ++m_frame;
+    crashHeartbeat();
+    if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
+    if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
+        const std::wstring p = crashLastUnseen();
+        if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + std::string(p.begin(), p.end()));
+    }
+    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
+        const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");
+        toast("Rapport écrit : " + std::string(p.begin(), p.end()));
+    }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
     if (!m_opt.groupSnapTest.empty() && m_frame == 5) groupSnapTest();
@@ -1300,6 +1441,9 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }
         if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
         if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }
+        if (a == L"--lib-dock") { opt.libDock = _wtoi(next().c_str()); continue; }
+        if (a == L"--high-poly") { opt.highPoly = _wtoi(next().c_str()); continue; }
+        if (a == L"--lib-classic") { opt.libClassic = _wtoi(next().c_str()); continue; }
         if (a == L"--build-hq-thumbs") { opt.hqThumbs = next(); continue; }
         if (a == L"--hq-cat") { const std::wstring v = next(); opt.hqCat = std::string(v.begin(), v.end()); continue; }
         if (a == L"--hq-px") { opt.hqPx = _wtoi(next().c_str()); continue; }
@@ -1325,6 +1469,9 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--build-full-thumbs") opt.fullThumbs = next();
         else if (a == L"--thumb-edit") { std::wstring w = next(); opt.thumbEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-edit-save") opt.thumbEditSave = true;
+        else if (a == L"--ve-solid") opt.veSolid = true;
+        else if (a == L"--crash-test") opt.crashTest = true;
+        else if (a == L"--voxel-edit") { std::wstring w = next(); opt.voxelEdit.assign(w.begin(), w.end()); }
         else if (a == L"--thumb-dir") opt.thumbDir = next();
         else if (a == L"--bac-file") opt.bacFile = next();
         else if (a == L"--bac-test") opt.bacTest = true;

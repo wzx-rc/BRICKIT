@@ -125,6 +125,7 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
     t.shadow = dark ? IM_COL32(0, 0, 0, 90) : IM_COL32(20, 20, 18, 30);
 
     if (t.id == "classic") {   // the original PC interface (BrickUiIpad.inl uiTheme(false))
+        t.brickSwatch = true;   // (the colours as 1x1 bricks seen from above, as Glass: Wzx 09/11/2026)
         t.dark = true;
         t.bg = IM_COL32(0x13, 0x14, 0x17, 255);
         t.panel = IM_COL32(24, 25, 29, 235);

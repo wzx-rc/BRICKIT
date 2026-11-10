@@ -47,12 +47,14 @@ static std::string stUpper(std::string t) { return upperFr(t); }
 // the line icons of the mock-up (24 x 24, stroked), centred on c
 static void stIcon(ImDrawList* dl, const char* d, ImVec2 c, float size, ImU32 col, float thick) {
     const float k = size / 24.0f;
+    if (d[0] == 'F') { svg::shape(dl, d + 1, ImVec2(c.x - 12 * k, c.y - 12 * k), k, col, 0, 0); return; }   // a filled icon (Recraft: Pipette, Pinceau)
     svg::path(dl, d, ImVec2(c.x - 12 * k, c.y - 12 * k), k, col, thick);
 }
 static const char* ST_SEL = "M5 3l6 16 2-6 6-2z";
 static const char* ST_BUILD = "M4 10h16v9H4zM7 10V7M12 10V7M17 10V7";
-static const char* ST_PAINT = "M14 4l6 6-8 8H6v-6zM4 20h4";
-static const char* ST_PICK = "M14 4a2.8 2.8 0 0 1 4 4l-2 2 1 1-2 2-6 6H5v-4l6-6 2-2 1 1z";
+// Pinceau and Pipette: filled, drawn with Recraft (Wzx 09/11/2026: « plus lisibles »), the 24 box
+static const char* ST_PAINT = "FM9.49 12.65C9.58 12.57 9.7 12.44 9.79 12.35L17.8 4.35C18.25 3.9 18.67 3.35 19.34 3.31C20.64 3.33 21.05 4.7 20.17 5.53C19.87 5.81 19.59 6.11 19.3 6.41L12.42 13.27C12.02 13.67 11.56 14.16 11.15 14.53C11.09 14.47 11.03 14.4 10.98 14.34C10.49 13.77 9.96 13.22 9.49 12.65zM3.29 20.24C3.49 19.41 3.7 18.58 3.92 17.76C4.13 16.99 4.23 16.34 4.64 15.64C5.33 14.46 6.18 13.9 7.48 13.56C7.48 13.56 7.9 14 7.94 14.04L9.55 15.62C9.81 15.87 10.2 16.21 10.43 16.47C10.11 18.54 8.41 20.24 6.26 20.24L3.29 20.24z";
+static const char* ST_PICK = "FM13.53 5.27C13.97 4.81 14.44 4.37 14.89 3.92C15.5 3.31 15.94 2.71 16.89 2.68C18.68 2.49 19.79 4.78 18.67 6C17.96 6.77 17.11 7.47 16.43 8.23C17.07 8.46 17.1 9.25 16.4 9.34C16.12 9.37 15.69 8.84 15.48 8.64C15.25 8.41 15.03 8.18 14.81 7.95L12.58 5.74C12.17 5.34 12.76 4.35 13.53 5.27zM7.51 15.48C7.17 15.57 6.42 15.81 6.12 15.83C5.46 15.89 5.62 15.17 5.71 14.8L6.06 13.38C6.12 13.11 6.39 12.92 6.58 12.73L10.4 8.91C11.05 8.27 11.76 7.6 12.38 6.95C12.66 7.2 12.96 7.52 13.23 7.78L14.06 8.6C14.18 8.73 14.5 9.08 14.62 9.15C14.37 9.43 14.05 9.73 13.78 10L11.36 12.41C10.5 13.28 9.53 14.27 8.62 15.11C8.49 15.23 7.73 15.42 7.51 15.48zM6.24 20.87C5.34 20.85 4.65 19.98 4.98 19.11C5.26 18.38 5.71 18.06 6.19 17.53C6.63 17.93 7.17 18.54 7.42 19.08C7.82 19.92 7.14 20.82 6.24 20.87z";
 static const char* ST_MOVE = "M12 3v18M3 12h18M12 3 9 6M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3";
 static const char* ST_ROT = "M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5";
 static const char* ST_ROTL = "M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5";
@@ -409,11 +411,10 @@ void BrickApp::stHeader() {
     };
     if (roundBtn(ST_SET, "Réglages (échelle, rendu, lumière) et Thème", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
     if (roundBtn(ST_MORE, "Plus : grille, auto pivot, sécurité, animations, voxels, fenêtres, DEV, bac", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
-    {   // the render: Rapide / HQ / Ray tracing
+    if (!m_ipad) {   // the render: Rapide / HQ / Ray tracing (iPad: none, Wzx 10/11/2026)
         struct R { const char* label; bool on; int id; const char* tip; };
         std::vector<R> rs = {{"RAPIDE", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Temps réel rapide"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "Temps réel haute qualité : ombres, GI douce"},
                              {"RAY TRACING", pathTraced(), 2, "Rendu progressif réaliste (path tracing)"}};
-        if (m_ipad) rs.resize(2);
         float w = 6 * s;
         for (const R& r : rs) w += stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s + 2 * s;
         const ImVec2 ra(rx - w, cy - 14 * s), rb(rx, cy + 14 * s);
@@ -438,6 +439,19 @@ void BrickApp::stHeader() {
         }
         rx -= w + 10 * s;
     }
+    {   // HD: the parts in high definition (Wzx 10/11/2026: « un switcher HighPoly »)
+        const char* t = "HD";
+        const float bw = stTrackW(u, 9.5f, t, 1.3f * s, true) + 26 * s;
+        const ImVec2 ba(rx - bw, cy - 14 * s), bb(rx, cy + 14 * s);
+        const bool h = u.hover(ba, bb) && m_popup == 0, on = m_highPoly;
+        u.dl->AddRectFilled(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 20 : 10), 14 * s);
+        u.dl->AddRect(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, 34), 14 * s, 0, 1.0f);
+        stTrack(u, ImVec2(ba.x + 13 * s, cy - u.fs(9.5f) * 0.52f), 9.5f, on ? C_INK : (m_lib.hasHd ? C_DIM : C_FAINT), t, 1.3f * s);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0)
+            ImGui::SetTooltip("%s", m_lib.hasHd ? "Pièces HD : les arrondis lisses (primitives 48 segments, tenons biseautés) quand elles existent" : "Pièces HD : la bibliothèque HD n'est pas encore construite");
+        if (h && u.pressed) setHighPoly(!m_highPoly);
+        rx -= bw + 10 * s;
+    }
     if (roundBtn(ST_REDO, "Rétablir (Ctrl+Y)", false, !m_redo.empty())) redo();
     if (roundBtn(ST_UNDO, "Annuler (Ctrl+Z)", false, !m_undo.empty() || m_holding)) undo();
 }
@@ -446,7 +460,8 @@ void BrickApp::stHeader() {
 
 void BrickApp::stTools() {
     if (m_mechOn) return;
-    if (m_paintMode) { stPaintColors(); stPaintPanel(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
+    if (!m_paintMode) { m_paintT0 = -1; m_paintSwatchAt = ImVec2(-1, -1); }   // (the colours of PEINDRE come out again next time)
+    if (m_paintMode) { stPaintPanel(); stPaintColors(); return; }   // (the tools under the strip of colours)   // (PEINDRE: no tools on the left)
     Ui u = ui(m_ui);
     const float s = m_ui;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
@@ -460,7 +475,7 @@ void BrickApp::stTools() {
         {ST_ROT, "Tourner : anneaux sur la sélection (6)", "6", m_mode == 3 && !m_paintTool && !m_pipette, 5},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
-    const ImVec2 a(14 * s, top), b(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
+    const ImVec2 a(14 * s + m_dockL, top), b(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
     stGlass(u.dl, a, b, 18 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     float y = a.y + pad;
@@ -498,7 +513,7 @@ void BrickApp::stBadge() {
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     const char* g = m_build.gridSnap ? "GRILLE 1 TENON" : "SANS GRILLE";
     const float w1 = stTrackW(u, 9, "1 : 1", 1.2f * s, true) + 16 * s, w2 = stTrackW(u, 9, g, 1.2f * s, true) + 16 * s;
-    float bx = 76 * s;   // right of the panels on the left (tools / Peindre, Groupes)
+    float bx = 76 * s + m_dockL;   // right of the panels on the left (tools / Peindre, Groupes)
     for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 200 * s && m_uiRects[k].y < top + 30 * s) bx = std::max(bx, m_uiRects[k].z + 10 * s);
     const ImVec2 a(bx, top), b(a.x + w1 + w2, top + 22 * s);
     const bool h = u.hover(a, b) && m_popup == 0;
@@ -519,9 +534,11 @@ void BrickApp::stMore() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; bool on; int id; };
-    const std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
+    std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
                                  {"Animations des briques (A)", m_animOn, 3}, {"Voxels (V)", m_showVox, 4}, {"Groupes", m_pGroups.visible, 5},
                                  {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
+    if (m_ipad)   // iPad (Wzx 10/11/2026): no voxels, no developer mode, no view transform
+        its.erase(std::remove_if(its.begin(), its.end(), [](const It& t) { return t.id == 4 || t.id == 7 || t.id == 8; }), its.end());
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -563,23 +580,47 @@ void BrickApp::stMore() {
 
 // ------------------------------------------------------------------ Peindre: the big Pinceau / Pipette, Groupe entier
 
-// the mode PEINDRE (Wzx 09/11/2026): the Pinceau and the Pipette in big, at the bottom in the middle (above the drawer),
-// « Groupe entier » beside them; at the top, under the header, every colour in a strip (stPaintColors)
+static std::string stFit(Ui& u, float px, std::string t, float maxW, bool bold);
+static ImU32 stSrgb(const Color& c, int alpha) {
+    return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), alpha);
+}
+
+// the mode PEINDRE (Wzx 09/11/2026): under the header in the middle, the colour taken in big (a 1x1 brick), the Pinceau, the Pipette,
+// « Groupe entier »; around it every colour on an arc (stPaintColors), out one by one like the marking menu
 void BrickApp::stPaintPanel() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float top = m_uiRects.back().w + 10 * s;   // under the strip of colours, in the middle (Wzx 09/11/2026)
-    const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s;
-    const float W = pad + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
-    const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 16 * s;
+    const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s, cw = 96 * s;
+    const float W = pad + cw + 14 * s + 2 * bw + 6 * s + 14 * s + swW + pad, H = bh + 2 * pad;
+    const ImVec2 a((m_dockL + d.x - m_dockR - W) * 0.5f, top), b(a.x + W, top + H);   // (the middle of the view)
     stGlass(u.dl, a, b, 20 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
-    const B bs[2] = {{ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2},
-                     {ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3}};
     float x = a.x + pad;
+    if (!m_lib.palette.empty()) {   // the colour taken, in big: a 1x1 brick, its name under it
+        const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
+        const float tp = (float)(ImGui::GetTime() - m_paintSwatchPop);   // the drop of the Pipette landed: a pop
+        const float pop = tp >= 0 && tp < 0.35f ? 1.0f + 0.22f * std::sin(tp / 0.35f * 3.14159f) : 1.0f;
+        const float sz = 50 * s * pop, cx = x + cw * 0.5f, y0 = a.y + pad + 3 * s + 25 * s - sz * 0.5f;
+        m_paintSwatchAt = ImVec2(cx, a.y + pad + 28 * s);
+        const ImVec2 p0(cx - sz * 0.5f, y0), p1(cx + sz * 0.5f, y0 + sz);
+        u.dl->AddRectFilled(ImVec2(p0.x + 2 * s, p0.y + 4 * s), ImVec2(p1.x + 2 * s, p1.y + 4 * s), IM_COL32(0, 0, 0, 70), 6 * s);
+        const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
+        if (g_studTex) u.dl->AddImage(g_studTex, p0, p1, ImVec2(0, 0), ImVec2(1, 1), cc);
+        else u.dl->AddRectFilled(p0, p1, cc, 6 * s);
+        const std::string nm = stFit(u, 7.5f, stUpper(colorFr(c.name)), cw - 4 * s, true);
+        const float lw = stTrackW(u, 7.5f, nm.c_str(), 1.2f * s, true);
+        stTrack(u, ImVec2(cx - lw * 0.5f, b.y - pad - 15 * s), 7.5f, C_TEXT, nm.c_str(), 1.2f * s);
+        if (u.hover(ImVec2(x, a.y), ImVec2(x + cw, b.y)) && m_popup == 0) ImGui::SetTooltip("Couleur active : %s · %d", colorFr(c.name), c.id);
+        x += cw + 7 * s;
+        u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
+        x += 7 * s;
+    }
+    struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
+    const B bs[2] = {{ST_PICK, "PIPETTE", "Pipette : clic sur une brique pour prendre sa couleur (4)", m_pipette, 3},
+                     {ST_PAINT, "PINCEAU", "Pinceau : clic sur une brique pour la peindre (3)", m_paintTool, 2}};   // (Pipette left, Pinceau right: Wzx)
     for (const B& t : bs) {
         const ImVec2 ba(x, a.y + pad), bb(x + bw, a.y + pad + bh);
         const bool h = u.hover(ba, bb) && m_popup == 0;
@@ -610,54 +651,241 @@ void BrickApp::stPaintPanel() {
     }
 }
 
-// PEINDRE: every colour in a strip under the header (unies, transparentes, métallisées), the current one ringed
+// PEINDRE: every colour on an arc that hangs under the panel (unies, transparentes, métallisées), out one by one from the middle
+// (the pop of the marking menu: 0.4 > 1.15 > 1), the one under the mouse grows; the current one ringed
 void BrickApp::stPaintColors() {
     Ui u = ui(m_ui);
-    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 10 * s;
+    const ImVec4 pr = m_uiRects.empty() ? ImVec4(0, 46 * s, d.x, 140 * s) : m_uiRects.back();   // the panel (drawn just before)
     const char* keys[3] = {"standard", "transparent", "metallic"};
-    int n[3] = {0, 0, 0};
-    for (const Color& c : m_lib.palette) for (int g = 0; g < 3; ++g) n[g] += c.group == keys[g] ? 1 : 0;
-    const float maxW = d.x - 2 * 260 * s, gapG = 16 * s, pad = 10 * s;
-    const int total = n[0] + n[1] + n[2];
-    const float sw = std::clamp((maxW - 2 * pad - 2 * gapG) / std::max(1, total) - 3 * s, 14 * s, 26 * s), step = sw + 3 * s;
-    const float W = 2 * pad + total * step - 3 * s + 2 * gapG, H = sw + 2 * pad;
-    const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
-    stGlass(u.dl, a, b, H * 0.5f, s);
-    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-    float x = a.x + pad;
+    std::vector<int> order;   // the palette in its groups, with -1 between two groups
     for (int g = 0; g < 3; ++g) {
-        if (g) { u.dl->AddLine(ImVec2(x + gapG * 0.5f - 1.5f * s, a.y + 10 * s), ImVec2(x + gapG * 0.5f - 1.5f * s, b.y - 10 * s), IM_COL32(255, 255, 255, 30), 1.0f); x += gapG; }
-        for (int i = 0; i < (int)m_lib.palette.size(); ++i) {
-            const Color& c = m_lib.palette[i];
-            if (c.group != keys[g]) continue;
-            const ImVec2 p0(x, a.y + pad), p1(x + sw, a.y + pad + sw);
-            const bool tr = c.group == "transparent";
-            const ImU32 cc = IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), tr ? 165 : 255);
-            const bool h = u.hover(p0, p1) && m_popup == 0;
-            const float lift = h ? -2 * s : 0;
-            if (g_studTex) u.dl->AddImage(g_studTex, ImVec2(p0.x, p0.y + lift), ImVec2(p1.x, p1.y + lift), ImVec2(0, 0), ImVec2(1, 1), cc);
-            else u.dl->AddRectFilled(p0, p1, cc, 3 * s);
-            if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2 * s, p0.y - 2 * s + lift), ImVec2(p1.x + 2 * s, p1.y + 2 * s + lift), C_ACCENT, 4 * s, 0, 1.5f * s);
-            if (h) {
-                ImGui::SetTooltip("%s · %d", colorFr(c.name), c.id);
-                if (u.pressed) {   // the colour of the Pinceau (the selection is not painted: the next click paints)
-                    m_color = i;
-                    m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), i), m_recentColors.end());
-                    m_recentColors.insert(m_recentColors.begin(), i);
-                    if (m_recentColors.size() > 12) m_recentColors.resize(12);
-                    m_paintTool = true;
-                    m_pipette = false;
-                }
-            }
-            x += step;
+        bool any = false;
+        for (int i = 0; i < (int)m_lib.palette.size(); ++i)
+            if (m_lib.palette[i].group == keys[g]) { if (!any && !order.empty()) order.push_back(-1); any = true; order.push_back(i); }
+    }
+    if (order.empty()) return;
+    if (m_paintT0 < 0) m_paintT0 = ImGui::GetTime();
+    const float tIn = (float)(ImGui::GetTime() - m_paintT0), dt = ImGui::GetIO().DeltaTime;
+    if (m_paintHov.size() != m_lib.palette.size()) m_paintHov.assign(m_lib.palette.size(), 0.0f);
+    // the arc: a chord across the screen (its ends at the height of the panel), its lowest point under the panel
+    const float vw = d.x - m_dockL - m_dockR, cxm = m_dockL + vw * 0.5f, half = std::max(200 * s, std::min(vw * 0.5f - 300 * s, 760 * s));   // (clear of the Couleur panel on the right)
+    const float yEnd = pr.y + 56 * s, sag = std::max(160 * s, pr.w - yEnd + 70 * s);   // (the ends under the badge of the grid)
+    const float R = (half * half + sag * sag) / (2 * sag), cy = yEnd + sag - R;   // the centre of the circle (above)
+    const float th = std::asin(std::clamp(half / R, 0.0f, 1.0f));
+    const float L = 2 * th * R;   // the length of the arc
+    int nCol = 0, nGap = 0;
+    for (int i : order) (i < 0 ? nGap : nCol)++;
+    const float gapW = 0.9f;   // a group gap, in steps
+    const float step = L / std::max(1.0f, (float)(nCol - 1) + nGap * gapW);
+    const float sw = std::clamp(step - 4 * s, 12 * s, 26 * s);
+    struct P { int i; ImVec2 p; float e; };
+    std::vector<P> ps;
+    std::vector<float> gaps;   // the angles of the gaps between two groups (a small line: Wzx 09/11/2026)
+    float t = 0;
+    for (int k = 0; k < (int)order.size(); ++k) {
+        if (order[k] < 0) { gaps.push_back(-th + (t + step * (gapW - 1) * 0.5f) / R); t += step * gapW; continue; }
+        const float ang = -th + t / R;   // 0 = straight down
+        const ImVec2 p(cxm + std::sin(ang) * R, cy + std::cos(ang) * R);
+        const float rank = std::fabs(t - L * 0.5f) / std::max(1.0f, step);   // out from the middle
+        ps.push_back({order[k], p, std::clamp((tIn - 0.012f * rank) / 0.28f, 0.0f, 1.0f)});
+        t += step;
+    }
+    // the colour under the mouse: the nearest within its square
+    int hot = -1;
+    float best = 1e9f;
+    if (m_popup == 0 && !(m_grip.id >= 0 && m_grip.moved))
+        for (const P& q : ps) {
+            const float dx = u.mouse.x - q.p.x, dy = u.mouse.y - q.p.y, dd = dx * dx + dy * dy;
+            if (std::fabs(dx) < step * 0.5f + 1 && std::fabs(dy) < sw * 0.8f && dd < best) { best = dd; hot = q.i; }
+        }
+    for (const P& q : ps) {
+        float& hv = m_paintHov[q.i];
+        hv += ((q.i == hot ? 1.0f : 0.0f) - hv) * std::min(1.0f, dt * 16);
+        m_uiRects.push_back(ImVec4(q.p.x - step * 0.5f, q.p.y - sw * 0.6f, q.p.x + step * 0.5f, q.p.y + sw * 0.6f));
+    }
+    auto draw = [&](const P& q) {
+        if (q.e <= 0) return;
+        const float pop = q.e < 0.6f ? 0.4f + 0.75f * (q.e / 0.6f) : 1.15f - 0.15f * ((q.e - 0.6f) / 0.4f);
+        const float hv = m_paintHov[q.i];
+        const float hs = sw * 0.5f * pop * (1.0f + 0.6f * hv);
+        // out from the panel: from 72 % of the way, like the radius of the marking menu
+        const float k = 0.72f + 0.28f * std::min(1.0f, q.e / 0.6f);
+        const ImVec2 o(cxm, (pr.y + pr.w) * 0.5f);
+        const ImVec2 p(o.x + (q.p.x - o.x) * k, o.y + (q.p.y - o.y) * k - 4 * s * hv);
+        const Color& c = m_lib.palette[q.i];
+        const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
+        u.dl->AddRectFilled(ImVec2(p.x - hs + 2 * s, p.y - hs + 3 * s), ImVec2(p.x + hs + 2 * s, p.y + hs + 3 * s), IM_COL32(0, 0, 0, (int)(70 + 40 * hv)), 4 * s);
+        if (g_studTex) u.dl->AddImage(g_studTex, ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), ImVec2(0, 0), ImVec2(1, 1), cc);
+        else u.dl->AddRectFilled(ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), cc, 4 * s);
+        if (q.i == m_color) u.dl->AddRect(ImVec2(p.x - hs - 3 * s, p.y - hs - 3 * s), ImVec2(p.x + hs + 3 * s, p.y + hs + 3 * s), C_ACCENT, 5 * s, 0, 1.5f * s);
+    };
+    for (float ga : gaps) {   // between unies, transparentes, métallisées: a small line across the arc
+        const float a = std::clamp((tIn - 0.15f) / 0.25f, 0.0f, 1.0f);
+        const ImVec2 p(cxm + std::sin(ga) * R, cy + std::cos(ga) * R), n(std::sin(ga), std::cos(ga));
+        const float h = sw * 0.75f;
+        u.dl->AddLine(ImVec2(p.x - n.x * h, p.y - n.y * h), ImVec2(p.x + n.x * h, p.y + n.y * h), IM_COL32(255, 255, 255, (int)(70 * a)), 1.5f * s);
+    }
+    for (const P& q : ps) if (m_paintHov[q.i] < 0.01f) draw(q);
+    for (const P& q : ps) if (m_paintHov[q.i] >= 0.01f && q.i != hot) draw(q);
+    for (const P& q : ps) if (q.i == hot) draw(q);   // (the hovered one on top)
+    if (hot >= 0) {
+        const Color& c = m_lib.palette[hot];
+        ImGui::SetTooltip("%s · %d", colorFr(c.name), c.id);
+        if (u.pressed) {   // the colour of the Pinceau (the selection is not painted: the next click paints)
+            m_color = hot;
+            m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), hot), m_recentColors.end());
+            m_recentColors.insert(m_recentColors.begin(), hot);
+            if (m_recentColors.size() > 12) m_recentColors.resize(12);
+            m_paintTool = true;
+            m_pipette = false;
         }
     }
 }
 
 // the brick alone painted (Peindre, Groupe entier off): its group stays as it is
+// PEINDRE: what confirms a gesture (Wzx 09/11/2026). The Pipette: a ring closes on the brick, a drop of its colour flies
+// to the active colour (which pops). The Pinceau: a splash, a ring and drops; held, the circle of the brush
+void BrickApp::stPaintFx() {
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const float s = m_ui;
+    const double now = ImGui::GetTime();
+    auto colU = [&](int i, float a) {
+        if (i < 0 || i >= (int)m_lib.palette.size()) return IM_COL32(255, 255, 255, (int)(255 * a));
+        const Color& c = m_lib.palette[i];
+        return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), (int)(255 * std::clamp(a, 0.0f, 1.0f)));
+    };
+    for (size_t n = 0; n < m_paintFx.size(); ++n) {
+        const PaintFx& f = m_paintFx[n];
+        const float t = (float)(now - f.t0);
+        if (f.kind == 0) {   // Pipette
+            const float e1 = std::clamp(t / 0.22f, 0.0f, 1.0f);
+            if (e1 < 1) {   // a ring that closes on the brick, the colour inside
+                const float r = (30 - 22 * e1 * e1) * s;
+                dl->AddCircleFilled(f.p, r, colU(f.color, 0.35f * (1 - e1)), 32);
+                dl->AddCircle(f.p, r, IM_COL32(255, 255, 255, (int)(230 * (1 - e1 * 0.5f))), 32, 2.0f * s);
+            }
+            const float e2 = std::clamp((t - 0.18f) / 0.42f, 0.0f, 1.0f);
+            if (t >= 0.18f && e2 < 1) {   // the drop flies to the active colour (or up, out of the mode Peindre)
+                const ImVec2 to = m_paintSwatchAt.x >= 0 ? m_paintSwatchAt : ImVec2(f.p.x, f.p.y - 60 * s);
+                const float k = e2 < 0.5f ? 2 * e2 * e2 : 1 - 2 * (1 - e2) * (1 - e2);   // ease in-out
+                const ImVec2 mid((f.p.x + to.x) * 0.5f, std::min(f.p.y, to.y) - 90 * s);
+                const float u = 1 - k;
+                const ImVec2 q(u * u * f.p.x + 2 * u * k * mid.x + k * k * to.x, u * u * f.p.y + 2 * u * k * mid.y + k * k * to.y);
+                const float r = (9 - 3 * k) * s, a = m_paintSwatchAt.x >= 0 ? 1.0f : 1 - k;
+                dl->AddCircleFilled(ImVec2(q.x + 1.5f * s, q.y + 2.5f * s), r, IM_COL32(0, 0, 0, (int)(80 * a)), 24);
+                dl->AddCircleFilled(q, r, colU(f.color, a), 24);
+                dl->AddCircle(q, r, IM_COL32(255, 255, 255, (int)(220 * a)), 24, 1.5f * s);
+                dl->AddCircleFilled(ImVec2(q.x - r * 0.35f, q.y - r * 0.35f), r * 0.25f, IM_COL32(255, 255, 255, (int)(150 * a)), 12);
+            }
+        } else {   // Pinceau: a splash
+            const float e = std::clamp(t / 0.45f, 0.0f, 1.0f), o = 1 - (1 - e) * (1 - e);
+            const float big = f.kind == 1 ? 1.0f : 0.6f;
+            dl->AddCircle(f.p, (6 + 30 * o) * s * big, colU(f.color, 0.9f * (1 - e)), 32, (3.0f - 2.0f * e) * s);
+            dl->AddCircle(f.p, (6 + 30 * o) * s * big + 1.5f * s, IM_COL32(255, 255, 255, (int)(110 * (1 - e))), 32, 1.0f * s);
+            const uint32_t seed = (uint32_t)(f.p.x * 13 + f.p.y * 7);
+            for (int k = 0; k < 7; ++k) {   // drops thrown out
+                const float ang = (k / 7.0f + ((seed >> (k * 3)) & 7) / 56.0f) * 6.2831853f;
+                const float d = (8 + 26 * o * (0.7f + 0.3f * (((seed >> k) & 3) / 3.0f))) * s * big;
+                const ImVec2 q(f.p.x + std::cos(ang) * d, f.p.y + std::sin(ang) * d + 10 * s * e * e);
+                dl->AddCircleFilled(q, (3.2f * (1 - e) + 0.6f) * s * big, colU(f.color, 1 - e), 12);
+            }
+        }
+    }
+    m_paintFx.erase(std::remove_if(m_paintFx.begin(), m_paintFx.end(), [&](const PaintFx& f) { return now - f.t0 > 0.7; }), m_paintFx.end());
+    if (m_paintStroke && m_paintTool) {   // the brush held: its circle (grows while the press waits)
+        const ImVec2 mp = ImGui::GetIO().MousePos;
+        const float g = m_paintCircle ? 1.0f : std::clamp((float)(now - m_paintStrokeT0) / 0.18f, 0.0f, 1.0f);
+        const float r = m_paintRadius * s * g;
+        if (r > 2) {
+            dl->AddCircleFilled(mp, r, colU(m_color, m_paintCircle ? 0.18f : 0.1f), 48);
+            dl->AddCircle(mp, r, colU(m_color, 0.95f), 48, 2.0f * s);
+            dl->AddCircle(mp, r + 1.5f * s, IM_COL32(255, 255, 255, 120), 48, 1.0f * s);
+        }
+    }
+}
+
+// the Pinceau on a brick (its whole group with « Groupe entier »): the colour, once per stroke, one undo for the stroke
+bool BrickApp::paintHit(int b, ImVec2 at, bool fx) {
+    if (b < 0 || b >= (int)m_bricks.size() || std::find(m_paintDone.begin(), m_paintDone.end(), b) != m_paintDone.end()) return false;
+    const std::vector<int> unit = m_paintGroup ? unitOf(b) : std::vector<int>{b};
+    bool changed = false;
+    for (int i : unit) {
+        if (std::find(m_paintDone.begin(), m_paintDone.end(), i) == m_paintDone.end()) m_paintDone.push_back(i);
+        if (m_bricks[i].color != m_color) {
+            if (!m_paintUndo) { pushUndo(); m_paintUndo = true; }
+            m_bricks[i].color = m_color;
+            changed = true;
+        }
+    }
+    if (fx && m_paintFx.size() < 40) m_paintFx.push_back({at, m_color, ImGui::GetTime(), m_paintCircle ? 2 : 1});
+    if (changed) {
+        m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
+        m_recentColors.insert(m_recentColors.begin(), m_color);
+        if (m_recentColors.size() > 12) m_recentColors.resize(12);
+    }
+    return changed;
+}
+
+// mode DEV: the colour of the source of the connectors (Wzx 10/11/2026): sky blue LDCad, apple green validated by
+// hand, orange automatic (rules or the old BrickIt), red none
+ImU32 stConnCol(int src) {
+    switch (src) {
+    case 1: return IM_COL32(0x5a, 0xc8, 0xfa, 255);
+    case 2: return IM_COL32(0xff, 0x95, 0x00, 255);
+    case 3: return IM_COL32(0xff, 0x3b, 0x30, 255);
+    case 4: return IM_COL32(0x8e, 0xe0, 0x00, 255);
+    default: return IM_COL32(0x80, 0x80, 0x80, 255);
+    }
+}
+const char* stConnName(int src) {
+    switch (src) {
+    case 1: return "Shadow Library (LDCad)";
+    case 2: return "Auto (sans Shadow Library)";
+    case 3: return "Échec, aucun connecteur";
+    case 4: return "Validé à la main";
+    default: return "Inconnu";
+    }
+}
+
+void BrickApp::stConnLegend() {
+    if (!m_dev || !m_studioUi) return;
+    if (m_connCountsDirty) {
+        for (int& c : m_connCounts) c = 0;
+        for (const Part& p : m_lib.parts) {
+            std::string t = p.label;
+            for (char& c : t) c = (char)std::tolower((unsigned char)c);
+            if (t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos) continue;   // (no stickers)
+            ++m_connCounts[std::clamp((int)p.connSrc, 0, 4)];
+        }
+        m_connCountsDirty = false;
+    }
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const float W = 236 * s, rowH = 19 * s, pad = 12 * s;
+    const int order[4] = {1, 4, 2, 3};
+    const float H = pad + 16 * s + 4 * rowH + 18 * s + pad;
+    const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : ImGui::GetIO().DisplaySize.y) - 12 * s;
+    float x0 = 14 * s + m_dockL;   // (right of the panel of the mode DEV when it is open there)
+    for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 40 * s && m_uiRects[k].w > bottom - H) x0 = std::max(x0, m_uiRects[k].z + 12 * s);
+    const ImVec2 a(x0, bottom - H), b(a.x + W, bottom);
+    stGlass(u.dl, a, b, 14 * s, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    stTrack(u, ImVec2(a.x + pad, a.y + pad), 7.5f, C_DIM, "DEV · CONNECTEURS", 1.4f * s);
+    float y = a.y + pad + 16 * s;
+    for (int k : order) {
+        u.dl->AddRect(ImVec2(a.x + pad, y + 3 * s), ImVec2(a.x + pad + 16 * s, y + 15 * s), stConnCol(k), 4 * s, 0, 2.0f * s);
+        u.text(ImVec2(a.x + pad + 24 * s, y + 9 * s - u.fs(9) * 0.55f), 9, C_TEXT, stConnName(k));
+        char n[16];
+        snprintf(n, sizeof(n), "%d", m_connCounts[k]);
+        u.text(ImVec2(b.x - pad - u.textW(9, n), y + 9 * s - u.fs(9) * 0.55f), 9, C_DIM, n);
+        y += rowH;
+    }
+    u.text(ImVec2(a.x + pad, y + 4 * s), 8, C_FAINT, "clic droit sur une carte : changer");
+}
+
 void BrickApp::paintOne(int brick) {
     if (brick < 0 || brick >= (int)m_bricks.size()) return;
     m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), m_color), m_recentColors.end());
@@ -801,7 +1029,7 @@ void BrickApp::stGroups() {
     const float W = 320 * s, pad = 12 * s, rowH = 30 * s, headH = common.empty() ? 30 * s : 46 * s, footH = 30 * s;
     const float maxH = std::max(160 * s, drawerTop - 12 * s - top);
     const float listH = std::min(std::max(1, (int)rows.size()) * rowH, maxH - pad - headH - footH - pad);
-    const ImVec2 a((m_paintMode ? 14 : 74) * s, top + (m_paintMode ? 52 * s : 0)), b(a.x + W, a.y + pad + headH + listH + footH + pad);
+    const ImVec2 a((m_paintMode ? 14 : 74) * s + m_dockL, top + (m_paintMode ? 52 * s : 0)), b(a.x + W, a.y + pad + headH + listH + footH + pad);
     stGlass(u.dl, a, b, 18 * s, s);
     u.dl->AddRectFilled(a, b, IM_COL32(14, 15, 17, 120), 18 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -953,7 +1181,7 @@ void BrickApp::stColors() {
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s, bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : d.y) - 12 * s;
     const float W = 214 * s, pad = 12 * s, cols = 6, gap = 5 * s;
     const float sw = std::floor((W - 2 * pad - (cols - 1) * gap) / cols);
-    const ImVec2 a(d.x - 14 * s - W, top), b(d.x - 14 * s, bottom);
+    const ImVec2 a(d.x - 14 * s - m_dockR - W, top), b(d.x - 14 * s - m_dockR, bottom);
     stGlass(u.dl, a, b, 16 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     // vertical ribs, as in the trans-clear brick (very faint)
@@ -1031,17 +1259,491 @@ void BrickApp::stColors() {
 
 // ------------------------------------------------------------------ the library drawer (bottom)
 
+// ------------------------------------------------------------------ the library: its grip, its dock, the Classic layout
+// (Wzx 10/11/2026: « avec le grip redimensionner la fenêtre Bibliothèque ou la déplacer à droite ou à gauche », « un switch
+// pour l'avoir en Classic BrickIt UX style »: LEGO / TECHNIC, the tree of the families, a grid of big thumbnails)
+
+// STUDIO | CLASSIC, right aligned at `right`; returns true when it changed
+static float stStyleSwitchW(Ui& u, float s) { return stTrackW(u, 7.6f, "STUDIO", 1.2f * s, true) + stTrackW(u, 7.6f, "CLASSIC", 1.2f * s, true) + 38 * s; }
+static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, bool live, float s) {
+    static const char* kL[2] = {"STUDIO", "CLASSIC"};
+    float w[2];
+    for (int k = 0; k < 2; ++k) w[k] = stTrackW(u, 7.6f, kL[k], 1.2f * s, true) + 16 * s;
+    const ImVec2 a(right - w[0] - w[1] - 6 * s, y), b(right, y + h);
+    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 8), h * 0.5f);
+    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 34), h * 0.5f, 0, 1.0f);
+    bool changed = false;
+    float x = a.x + 3 * s;
+    for (int k = 0; k < 2; ++k) {
+        const ImVec2 ka(x, a.y + 3 * s), kb(x + w[k], b.y - 3 * s);
+        const bool on = classic == (k == 1), hv = live && u.hover(ka, kb);
+        if (on) u.dl->AddRectFilled(ka, kb, stA(C_ACCENT, 0.9f), (kb.y - ka.y) * 0.5f);
+        else if (hv) u.dl->AddRectFilled(ka, kb, IM_COL32(255, 255, 255, 14), (kb.y - ka.y) * 0.5f);
+        stTrack(u, ImVec2(ka.x + 8 * s, (ka.y + kb.y) * 0.5f - u.fs(7.6f) * 0.52f), 7.6f, on ? C_INK : C_DIM, kL[k], 1.2f * s);
+        if (hv && u.pressed && !on) { classic = k == 1; changed = true; }
+        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(k ? "Bibliothèque Classic : LEGO / TECHNIC, arbre des familles, grande grille" : "Bibliothèque Studio : familles en pictos, cartes en bandeau");
+        x += w[k];
+    }
+    return changed;
+}
+// DÉCORS: the parts with stickers or printed patterns shown or hidden (Réglages too), a chip ending at `right`;
+// returns its left edge
+static float stDecoChip(Ui& u, bool& hideDeco, float right, float y, float h, bool live, float s, bool& changed) {
+    const char* t = "DÉCORS";
+    const float w = stTrackW(u, 7.6f, t, 1.2f * s, true) + 34 * s;
+    const ImVec2 a(right - w, y), b(right, y + h);
+    const bool on = !hideDeco, hv = live && u.hover(a, b);
+    u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.16f) : IM_COL32(255, 255, 255, hv ? 16 : 8), h * 0.5f);
+    u.dl->AddRect(a, b, on ? stA(C_ACCENT, 0.7f) : IM_COL32(255, 255, 255, 34), h * 0.5f, 0, 1.0f);
+    const ImVec2 c(a.x + 12 * s, (a.y + b.y) * 0.5f);   // a little box: ticked when they are shown
+    u.dl->AddRect(ImVec2(c.x - 4.5f * s, c.y - 4.5f * s), ImVec2(c.x + 4.5f * s, c.y + 4.5f * s), on ? C_ACCENT : C_DIM, 2 * s, 0, 1.2f * s);
+    if (on) u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 2.5f * s, c.y), ImVec2(c.x - 0.5f * s, c.y + 2.2f * s), ImVec2(c.x + 3 * s, c.y - 2.5f * s)}.data(), 3, C_ACCENT, 0, 1.4f * s);
+    stTrack(u, ImVec2(a.x + 22 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.52f), 7.6f, on ? C_ACCENT_TXT : C_DIM, t, 1.2f * s);
+    if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(on ? "Pièces décorées (stickers, motifs imprimés) affichées : clic pour les cacher" : "Pièces décorées (stickers, motifs imprimés) cachées : clic pour les afficher");
+    if (hv && u.pressed) { hideDeco = !hideDeco; changed = true; }
+    return a.x;
+}
+
+// the grip of the library: a drag along the edge resizes it, dragged to a side of the screen it docks there (a ghost
+// shows where), a click without moving folds the bottom drawer
+void BrickApp::stLibGrip(Ui& u, ImVec2 a, ImVec2 b, bool live) {
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const bool bottom = m_libDock == 0;
+    const ImVec2 hc = bottom ? ImVec2((a.x + b.x) * 0.5f, a.y + 6.5f * s) : ImVec2(m_libDock == 1 ? b.x - 6 * s : a.x + 6 * s, (a.y + b.y) * 0.5f);
+    const float gz = m_ipad ? 2.0f : 1.0f;   // iPad: a grip for a finger
+    const ImVec2 za = bottom ? ImVec2(hc.x - 70 * s, a.y - (gz - 1) * 6 * s) : ImVec2(hc.x - 8 * gz * s, hc.y - 70 * s);
+    const ImVec2 zb = bottom ? ImVec2(hc.x + 70 * s, a.y + 13 * gz * s) : ImVec2(hc.x + 8 * gz * s, hc.y + 70 * s);
+    const bool hv = live && u.hover(za, zb);
+    const ImU32 hcol = m_libGrip || hv ? stA(C_ACCENT, 0.9f) : IM_COL32(255, 255, 255, 46);
+    if (bottom) u.dl->AddRectFilled(ImVec2(hc.x - 22 * s, hc.y - 1.5f * s), ImVec2(hc.x + 22 * s, hc.y + 1.5f * s), hcol, 2 * s);
+    else u.dl->AddRectFilled(ImVec2(hc.x - 1.5f * s, hc.y - 22 * s), ImVec2(hc.x + 1.5f * s, hc.y + 22 * s), hcol, 2 * s);
+    if (hv && !m_libGrip) {
+        ImGui::SetMouseCursor(bottom ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+        if (ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Glisser : redimensionner · vers un bord : accrocher à gauche, à droite ou en bas · clic : replier");
+    }
+    if (hv && u.pressed) {
+        m_libGrip = 1;
+        m_libGripAt = u.mouse;
+        m_libGrip0 = bottom ? b.y - a.y : b.x - a.x;
+        m_libDockPreview = -1;
+    }
+    if (!m_libGrip) return;
+    ImGui::SetMouseCursor(bottom ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+    const ImVec2 m = u.mouse;
+    const bool moved = std::fabs(m.x - m_libGripAt.x) + std::fabs(m.y - m_libGripAt.y) > 5 * s;
+    int prev = -1;
+    if (bottom) {
+        if (m.y < d.y * 0.8f && m.x < d.x * 0.1f) prev = 1;
+        else if (m.y < d.y * 0.8f && m.x > d.x * 0.9f) prev = 2;
+        else if (moved && !m_pTray.collapsed) m_libH = std::max(120 * s, m_libGrip0 + (m_libGripAt.y - m.y));
+    } else {
+        if (m.y > d.y * 0.86f) prev = 0;
+        else if (m_libDock == 1 && m.x > d.x * 0.9f) prev = 2;
+        else if (m_libDock == 2 && m.x < d.x * 0.1f) prev = 1;
+        else m_libW = std::clamp(m_libGrip0 + (m_libDock == 1 ? m.x - m_libGripAt.x : m_libGripAt.x - m.x), 280 * s, d.x * 0.5f);
+    }
+    m_libDockPreview = prev;
+    if (prev >= 0) {   // the ghost of where it docks
+        const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
+        const float gw = std::clamp(m_libW > 0 ? m_libW : 540 * s, 280 * s, d.x * 0.5f);
+        const ImVec2 ga = prev == 0 ? ImVec2(0, d.y * 0.7f) : prev == 1 ? ImVec2(0, top) : ImVec2(d.x - gw, top);
+        const ImVec2 gb = prev == 0 ? ImVec2(d.x, d.y) : prev == 1 ? ImVec2(gw, d.y) : ImVec2(d.x, d.y);
+        ImDrawList* fg = ImGui::GetForegroundDrawList();
+        fg->AddRectFilled(ga, gb, stA(C_ACCENT, 0.12f), 14 * s);
+        fg->AddRect(ga, gb, stA(C_ACCENT, 0.8f), 14 * s, 0, 2 * s);
+        const char* t = prev == 0 ? "BIBLIOTHÈQUE EN BAS" : prev == 1 ? "BIBLIOTHÈQUE À GAUCHE" : "BIBLIOTHÈQUE À DROITE";
+        ImDrawList* keep = u.dl;
+        u.dl = fg;
+        const float tw = stTrackW(u, 10, t, 2 * s, true);
+        stTrack(u, ImVec2((ga.x + gb.x - tw) * 0.5f, (ga.y + gb.y) * 0.5f - u.fs(10) * 0.5f), 10, C_ACCENT_TXT, t, 2 * s);
+        u.dl = keep;
+    }
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        if (prev >= 0 && prev != m_libDock) { m_libDock = prev; m_pTray.collapsed = false; m_cardsScroll = 0; m_clsGridScroll = 0; }
+        else if (!moved && bottom) m_pTray.collapsed = !m_pTray.collapsed;
+        m_libGrip = 0;
+        m_libDockPreview = -1;
+        savePrefs();
+    }
+}
+
+// a press on a card (Studio or Classic): long = its sheet; dragged out of the library = in hand under the cursor; click =
+// in hand in the middle of the view
+void BrickApp::stLibPressEnd(Ui& u, ImVec2 p0, ImVec2 p1) {
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const double now = ImGui::GetTime();
+    if (m_libPress >= 0 && (swipeTaken(0) || m_swipeDragged == 0)) m_libPress = -1;
+    if (m_libPress < 0) return;
+    const bool inside = u.mouse.x >= p0.x && u.mouse.x <= p1.x && u.mouse.y >= p0.y && u.mouse.y <= p1.y;
+    const ImVec2 dm(u.mouse.x - m_libPressPos.x, u.mouse.y - m_libPressPos.y);
+    const bool moved = dm.x * dm.x + dm.y * dm.y > 49 * s * s;
+    if (!m_libLong && !moved && now - m_libPressTime > 0.48) { m_libLong = true; m_infoPart = m_libPress; }
+    if (moved && ImGui::IsMouseDown(ImGuiMouseButton_Left) && inside) {
+        ImTextureID tex;
+        ImVec2 uv0, uv1;
+        if (thumbUv(m_libPress, tex, uv0, uv1)) {
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            const float g = 80 * s;
+            const ImVec2 c(u.mouse.x, u.mouse.y - g * 0.35f);
+            fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), IM_COL32(30, 31, 34, 200), 14 * s);
+            fg->AddRect(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), C_ACCENT, 14 * s, 0, 1.2f * s);
+            const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / 1.4f) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / 1.4f) * 0.5f);
+            fg->AddImage(tex, ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), IM_COL32(255, 255, 255, 235));
+        }
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+    if (moved && !inside) {
+        const int part = m_libPress;
+        m_libPress = -1;
+        m_libSel = part;
+        spawn(part, u.mouse.x, u.mouse.y);
+        m_dragStarted = true;
+        m_pressed = false;
+    } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        const float stageBottom = m_libDock == 0 ? p0.y : d.y;
+        if (!m_libLong && !moved) { m_libSel = m_libPress; spawn(m_libPress, (m_dockL + d.x - m_dockR) * 0.5f, (46 * s + stageBottom) * 0.55f); }
+        m_libPress = -1;
+    }
+}
+
+// the Classic layout (any dock), and the Studio layout docked on a side: LEGO / TECHNIC, the search, the tree of the
+// families and their categories (+ / -), a grid of big thumbnails scrolling down
+void BrickApp::stDrawerClassic() {
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
+    const bool bottom = m_libDock == 0;
+    ImVec2 p0, p1;
+    if (bottom) {
+        const float H = m_pTray.collapsed ? 30 * s : (m_libH > 0 ? std::clamp(m_libH, 220 * s, d.y * 0.62f) : 320 * s);
+        p0 = ImVec2(0, d.y - H);
+        p1 = ImVec2(d.x, d.y);
+    } else {
+        const float W = std::clamp(m_libW > 0 ? m_libW : 540 * s, 280 * s, d.x * 0.5f);
+        p0 = ImVec2(m_libDock == 1 ? 0 : d.x - W, top);
+        p1 = ImVec2(m_libDock == 1 ? W : d.x, d.y);
+        (m_libDock == 1 ? m_dockL : m_dockR) = W;
+    }
+    const float alpha = m_mechOn ? 0.45f : 1.0f;
+    u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(10, 11, 13, 240), IM_COL32(10, 11, 13, 240), IM_COL32(14, 15, 17, 248), IM_COL32(14, 15, 17, 248));
+    if (bottom) u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), IM_COL32(255, 255, 255, 28), 1.0f);
+    else u.dl->AddLine(ImVec2(m_libDock == 1 ? p1.x : p0.x, p0.y), ImVec2(m_libDock == 1 ? p1.x : p0.x, p1.y), IM_COL32(255, 255, 255, 28), 1.0f);
+    if (bottom) m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
+    else { m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y)); m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y)); }   // ([1]: nothing at the bottom)
+    const bool live = !m_mechOn && m_popup == 0 && m_ctxPart < 0;
+    stLibGrip(u, p0, p1, live);
+    if (bottom && m_pTray.collapsed) { stTrack(u, ImVec2(14 * s, p0.y + 10 * s), 9, C_DIM, "BIBLIOTHÈQUE", 2 * s); return; }
+    const float pad = 12 * s;
+    const float x0 = p0.x + pad + (m_libDock == 2 ? 8 * s : 0), x1 = p1.x - pad - (m_libDock == 1 ? 8 * s : 0);
+    float y = p0.y + (bottom ? 16 * s : 12 * s);
+    // Studio docked on a side: the compact Studio (Wzx 10/11/2026): the families in pictograms, the categories in pills
+    // going to the line, the Studio cards in a grid; Classic: LEGO / TECHNIC and the tree
+    const bool studio = !m_libClassic;
+    // ---- LEGO / TECHNIC (Classic) or the title (Studio), the switch STUDIO | CLASSIC
+    const auto& fams = stFams();
+    const bool techFam = m_stFam == "technic" || m_stFam == "mecanique";
+    if (!m_searchOpen) m_clsTechnic = techFam;
+    {
+        const float th = 28 * s, tw = std::min(118 * s, (x1 - x0 - 270 * s) * 0.5f);
+        if (studio) stTrack(u, ImVec2(x0 + 2 * s, y + th * 0.5f - u.fs(9) * 0.52f), 9, C_DIM, "BIBLIOTHÈQUE", 2.4f * s);
+        for (int k = 0; k < 2 && !studio; ++k) {
+            const ImVec2 a(x0 + k * (tw + 6 * s), y), b(a.x + tw, y + th);
+            const bool on = m_clsTechnic == (k == 1), h = live && u.hover(a, b);
+            u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.95f) : IM_COL32(255, 255, 255, h ? 16 : 7), 6 * s);
+            const char* t = k ? "TECHNIC" : "LEGO";
+            const float lw = stTrackW(u, 9, t, 3 * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, on ? C_INK : C_DIM, t, 3 * s);
+            if (h && u.pressed && !on) {
+                m_clsTechnic = k == 1;
+                m_stFam = k ? "technic" : "basique";
+                auto it = m_stFamSub.find(m_stFam);
+                m_stSub = it != m_stFamSub.end() ? it->second : -1;
+                m_clsOpen.insert(m_stFam);
+                m_searchOpen = false;
+                m_search.clear();
+                m_clsGridScroll = 0;
+            }
+        }
+        if (stStyleSwitch(u, m_libClassic, x1, y + 1 * s, 26 * s, live, s)) { m_cardsScroll = 0; savePrefs(); }
+        {   // DÉCORS, left of the switch (Wzx 10/11/2026: « je ne vois pas le filtre avec / sans pièces décals »)
+            bool ch = false;
+            stDecoChip(u, m_hideDeco, x1 - stStyleSwitchW(u, s) - 8 * s, y + 1 * s, 26 * s, live, s, ch);
+            if (ch) { m_stKey.clear(); m_clsGridScroll = 0; savePrefs(); }
+        }
+        y += th + 8 * s;
+    }
+    // ---- the search
+    {
+        const ImVec2 sa(x0, y), sb(x1, y + 30 * s);
+        stGlass(u.dl, sa, sb, 15 * s, s);
+        stIcon(u.dl, ST_SEARCH, ImVec2(sa.x + 16 * s, (sa.y + sb.y) * 0.5f), 14 * s, C_DIM, 1.4f * s);
+        ImGui::SetNextWindowPos(ImVec2(sa.x + 30 * s, sa.y + 2 * s));
+        ImGui::SetNextWindowSize(ImVec2(sb.x - sa.x - 40 * s, sb.y - sa.y - 4 * s));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2 * s, 5 * s));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(C_TEXT));
+        ImGui::PushStyleColor(ImGuiCol_TextDisabled, ImGui::ColorConvertU32ToFloat4(C_FAINT));
+        ImGui::Begin("##clsearch", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s", m_search.c_str());
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::InputTextWithHint("##q", "3001, 2x4, roue…", buf, sizeof(buf))) { m_search = buf; m_searchOpen = !m_search.empty(); m_clsGridScroll = 0; }
+        ImGui::End();
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(3);
+        y += 30 * s + 10 * s;
+    }
+    // ---- the tree: Récentes, Favoris, the families of the tab, their categories
+    const float treeW = studio ? 0.0f : bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
+    if (studio) {   // the families: pictograms with their name, as many per line as fit
+        const int nc = std::max(3, (int)((x1 - x0) / (78 * s)));
+        const float cw = (x1 - x0) / nc, chh = 52 * s;
+        int k = 0;
+        for (const StFam& f : fams) {
+            const int c = k % nc, r = k / nc;
+            const ImVec2 a(x0 + c * cw, y + r * chh), b(a.x + cw, a.y + chh);
+            const bool on = m_stFam == f.key && !m_searchOpen, h = live && u.hover(a, b);
+            if (on) {
+                u.dl->AddRectFilledMultiColor(ImVec2(a.x + 2 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 24), IM_COL32(246, 196, 0, 24));
+                u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 3 * s), ImVec2(b.x - 12 * s, b.y - 3 * s), IM_COL32(246, 196, 0, 255), 2.0f * s);
+            } else if (h) u.dl->AddRectFilled(ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(255, 255, 255, 9), 10 * s);
+            stIco(u.dl, f.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 17 * s), 23 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+            std::string lab = stUpper(f.label);
+            while (lab.size() > 3 && stTrackW(u, 7, lab.c_str(), 0.9f * s, true) > cw - 6 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, 7, lab.c_str(), 0.9f * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, b.y - 15 * s), 7, on ? C_ACCENT_TXT : (h ? C_TEXT : C_DIM), lab.c_str(), 0.9f * s);
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", f.label);
+            if (h && u.pressed) {
+                m_stFamSub[m_stFam] = m_stSub;
+                m_stFam = f.key;
+                auto it = m_stFamSub.find(f.key);
+                m_stSub = it != m_stFamSub.end() ? it->second : -1;
+                m_searchOpen = false;
+                m_search.clear();
+                m_clsGridScroll = 0;
+            }
+            ++k;
+        }
+        y += ((k + nc - 1) / nc) * chh + 8 * s;
+        const StFam* cf = nullptr;
+        for (const StFam& f : fams) if (m_stFam == f.key) cf = &f;
+        if (cf && !cf->subs.empty() && !m_searchOpen) {   // the categories: pills, to the line
+            const float ph = 26 * s;
+            float px = x0;
+            for (int i = -1; i < (int)cf->subs.size(); ++i) {
+                const std::string lab = stUpper(i < 0 ? "Toutes" : cf->subs[i].label);
+                const float lw = stTrackW(u, 7.6f, lab.c_str(), 1.0f * s, true), w = 6 * s + 20 * s + 5 * s + lw + 10 * s;
+                if (px + w > x1 && px > x0) { px = x0; y += ph + 5 * s; }
+                const ImVec2 a(px, y), b(px + w, y + ph);
+                const bool on = m_stSub == i, h = live && u.hover(a, b);
+                u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), ph * 0.5f);
+                u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), ph * 0.5f, 0, 1.0f);
+                stIco(u.dl, i < 0 ? "all" : cf->subs[i].ico, ImVec2(a.x + 6 * s + 10 * s, (a.y + b.y) * 0.5f), 19 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                stTrack(u, ImVec2(a.x + 6 * s + 20 * s + 5 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.55f), 7.6f, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), lab.c_str(), 1.0f * s);
+                if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; m_clsGridScroll = 0; }
+                px += w + 5 * s;
+            }
+            y += ph + 10 * s;
+        }
+    }
+    const ImVec2 ta(x0, y), tb(x0 + treeW, p1.y - pad - 40 * s);
+    if (!studio) {
+        struct Row { const StFam* f; int sub; };
+        std::vector<Row> rows;
+        for (const StFam& f : fams) {
+            const bool tech = !strcmp(f.key, "technic") || !strcmp(f.key, "mecanique");
+            const bool always = !strcmp(f.key, "recent") || !strcmp(f.key, "fav");
+            if (!always && tech != m_clsTechnic) continue;
+            rows.push_back({&f, -1});
+            if (m_clsOpen.count(f.key))
+                for (int q = 0; q < (int)f.subs.size(); ++q) rows.push_back({&f, q});
+        }
+        const float rh = 23 * s, viewH = tb.y - ta.y;
+        const float maxS = std::max(0.0f, rows.size() * rh - viewH);
+        if (live && u.hover(ta, tb) && ImGui::GetIO().MouseWheel != 0) m_clsTreeScroll -= ImGui::GetIO().MouseWheel * rh * 3;
+        m_clsTreeScroll = std::clamp(m_clsTreeScroll, 0.0f, maxS);
+        u.dl->PushClipRect(ta, tb, true);
+        float ry = ta.y - m_clsTreeScroll;
+        for (size_t i = 0; i < rows.size(); ++i, ry += rh) {
+            if (ry + rh < ta.y || ry > tb.y) continue;
+            const Row& r = rows[i];
+            const ImVec2 ra(ta.x, ry), rb(tb.x, ry + rh);
+            const bool h = live && u.hover(ra, rb) && u.hover(ta, tb);
+            const bool sel = !m_searchOpen && m_stFam == r.f->key && m_stSub == r.sub;
+            const bool famRow = r.sub < 0, leaf = r.f->subs.empty();
+            if (h) u.dl->AddRectFilled(ra, rb, IM_COL32(255, 255, 255, 10), 5 * s);
+            const float cy = ry + rh * 0.5f;
+            if (famRow) {
+                float tx = ra.x + 6 * s;
+                if (!leaf) {   // + / -
+                    const bool open = m_clsOpen.count(r.f->key) > 0;
+                    u.dl->AddLine(ImVec2(tx, cy), ImVec2(tx + 8 * s, cy), C_DIM, 1.2f * s);
+                    if (!open) u.dl->AddLine(ImVec2(tx + 4 * s, cy - 4 * s), ImVec2(tx + 4 * s, cy + 4 * s), C_DIM, 1.2f * s);
+                }
+                tx += 16 * s;
+                u.text(ImVec2(tx, cy - u.fs(11) * 0.55f), 11, sel ? C_ACCENT_TXT : C_TEXT, r.f->label);
+            } else {
+                const float lx = ra.x + 10 * s;   // the tree line
+                const bool last = r.sub == (int)r.f->subs.size() - 1;
+                u.dl->AddLine(ImVec2(lx, ry), ImVec2(lx, last ? cy : ry + rh), IM_COL32(255, 255, 255, 50), 1.0f);
+                u.dl->AddLine(ImVec2(lx, cy), ImVec2(lx + 8 * s, cy), IM_COL32(255, 255, 255, 50), 1.0f);
+                u.text(ImVec2(lx + 12 * s, cy - u.fs(10.5f) * 0.55f), 10.5f, sel ? C_ACCENT_TXT : C_DIM, r.f->subs[r.sub].label);
+            }
+            if (h && u.pressed) {
+                if (famRow && !leaf) { if (m_clsOpen.count(r.f->key) && m_stFam == r.f->key) m_clsOpen.erase(r.f->key); else m_clsOpen.insert(r.f->key); }
+                m_stFamSub[m_stFam] = m_stSub;
+                m_stFam = r.f->key;
+                m_stSub = r.sub;
+                m_stW = m_stL = 0;
+                m_searchOpen = false;
+                m_search.clear();
+                m_clsGridScroll = 0;
+            }
+        }
+        u.dl->PopClipRect();
+    }
+    {   // the size of the thumbnails, under the tree
+        const float sw = studio ? std::min(220 * s, x1 - x0) : treeW;
+        const float sy = p1.y - pad - 18 * s, tx0 = x0 + 22 * s, tx1 = x0 + sw - 22 * s;
+        const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
+        stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
+        stIco(u.dl, "brick", ImVec2(x0 + sw - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
+        const float k = (cs - 0.6f) / 1.4f, kx = tx0 + (tx1 - tx0) * k;
+        u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), IM_COL32(255, 255, 255, 40), 2 * s);
+        u.dl->AddLine(ImVec2(tx0, sy), ImVec2(kx, sy), stA(C_ACCENT, 0.9f), 2 * s);
+        const bool hs = live && u.hover(ImVec2(tx0 - 8 * s, sy - 10 * s), ImVec2(tx1 + 8 * s, sy + 10 * s));
+        if (hs && u.pressed) m_stCardDrag = true;
+        if (m_stCardDrag) {
+            m_stCardScale = 0.6f + std::clamp((u.mouse.x - tx0) / (tx1 - tx0), 0.0f, 1.0f) * 1.4f;
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                m_stCardDrag = false;
+                for (auto& t : m_lazyThumbs) m_gui->releaseTexture(t.second.first);
+                m_lazyThumbs.clear();
+                savePrefs();
+            }
+        }
+        u.dl->AddCircleFilled(ImVec2(kx, sy), (hs || m_stCardDrag ? 7 : 6) * s, IM_COL32(0xf4, 0xf4, 0xf6, 255), 20);
+    }
+    // ---- the parts: the category, or the whole family (its categories together), or the search (cached)
+    const StFam* fam = nullptr;
+    for (const StFam& f : fams) if (m_stFam == f.key) fam = &f;
+    if (!fam) { m_stFam = "basique"; m_stSub = -1; fam = &fams[2]; }
+    if (m_stSub >= (int)fam->subs.size()) m_stSub = -1;
+    const StSub* sub = !m_searchOpen && m_stSub >= 0 ? &fam->subs[m_stSub] : nullptr;
+    {
+        int avail = 0;
+        for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
+        const std::string key = "cls|" + m_stFam + "|" + std::to_string(m_stSub) + "|" + (m_searchOpen ? m_search : std::string()) + "|" + std::to_string(avail) + "|" +
+                                std::to_string(m_recent.size()) + "|" + std::to_string(m_fav.size()) + (m_hideDeco ? "|d" : "");
+        if (key != m_stKey) {
+            m_stKey = key;
+            m_stParts.clear();
+            if (m_searchOpen) m_stParts = visibleParts();
+            else if (m_stFam == "recent") m_stParts = m_recent;
+            else if (m_stFam == "fav") m_stParts = m_fav;
+            else
+                for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
+                    const Part& p = m_lib.parts[i];
+                    if (!p.available() || (m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
+                    const std::string& c = partCat(i);
+                    bool in = false;
+                    if (sub) in = stInSub(*sub, c, p.sub);
+                    else for (const StSub& q : fam->subs) if (stInSub(q, c, p.sub)) { in = true; break; }
+                    if (in) m_stParts.push_back(i);
+                }
+        }
+    }
+    const std::vector<int>& parts = m_stParts;
+    // ---- the grid
+    const float gx0 = studio ? x0 : x0 + treeW + 12 * s;
+    const ImVec2 ga(gx0, ta.y), gb(x1, studio ? p1.y - pad - 38 * s : p1.y - pad);
+    const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f), gap = (studio ? 8 : 4) * s;
+    const float cell0 = 104 * s * cs;
+    const int cols = std::max(1, (int)((gb.x - ga.x + gap) / (cell0 + gap)));
+    const float cell = std::min(cell0 * 1.3f, (gb.x - ga.x - (cols - 1) * gap) / cols);   // (the cells fill the width, not much bigger than asked)
+    const int rowsN = ((int)parts.size() + cols - 1) / cols;
+    const float contentH = rowsN * (cell + gap) - gap, viewH = gb.y - ga.y;
+    if (live && u.hover(ga, gb) && ImGui::GetIO().MouseWheel != 0) m_clsGridScroll -= ImGui::GetIO().MouseWheel * (cell + gap);
+    for (int k = 0; k < (int)parts.size() && m_libFoundScroll; ++k)
+        if (parts[k] == m_libFound) { m_clsGridScroll = (k / cols) * (cell + gap) - (viewH - cell) * 0.5f; m_libFoundScroll = false; }
+    if (!bottom) swipeRow(0, ga, gb, m_clsGridScroll, m_clsVel, std::max(0.0f, contentH - viewH), live, true);   // (a side: drag up / down to scroll, sideways to take)
+    m_clsGridScroll = std::clamp(m_clsGridScroll, 0.0f, std::max(0.0f, contentH - viewH));
+    if (parts.empty()) {
+        const char* msg = m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici"
+                        : m_stFam == "fav" ? "Aucun favori : appui long sur une pièce, puis Favori" : "Aucune pièce ici";
+        u.text(ImVec2(ga.x + 8 * s, ga.y + 12 * s), 11.5f, C_DIM, msg);
+    }
+    u.dl->PushClipRect(ga, gb, true);
+    const double now = ImGui::GetTime();
+    const int taken = m_libPress >= 0 ? m_libPress : (m_holding ? m_libSel : -1);
+    bool hovered = false;
+    for (int k = 0; k < (int)parts.size(); ++k) {
+        const int c = k % cols, r = k / cols;
+        const ImVec2 a(ga.x + c * (cell + gap), ga.y + r * (cell + gap) - m_clsGridScroll), b(a.x + cell, a.y + cell);
+        if (b.y < ga.y || a.y > gb.y) continue;
+        const int part = parts[k];
+        const Part& P = m_lib.parts[part];
+        const bool h = live && u.hover(a, b) && u.hover(ga, gb);
+        const bool on = part == taken;
+        const float rr = (studio ? 12 : 4) * s;   // (Studio: the cards of the drawer, Classic: flat cells)
+        if (studio) {
+            u.dl->AddRectFilled(a, b, stA(IM_COL32(18, 19, 24, 255), alpha), rr);
+            u.dl->AddRect(a, b, stA(on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 102 : 41), alpha), rr, 0, on ? 1.5f * s : 1.0f);
+        } else {
+            u.dl->AddRectFilled(a, b, stA(h ? IM_COL32(30, 31, 36, 255) : IM_COL32(22, 23, 27, 255), alpha), rr);
+            if (on) u.dl->AddRect(a, b, C_ACCENT, rr, 0, 1.5f * s);
+        }
+        if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 4 * s, 0, 2.0f * s);
+        if (part == m_libFound) u.dl->AddRect(ImVec2(a.x - 1 * s, a.y - 1 * s), ImVec2(b.x + 1 * s, b.y + 1 * s), C_ACCENT, 5 * s, 0, 2.5f * s);
+        ImTextureID tex;
+        ImVec2 uv0, uv1;
+        if (thumbUv(part, tex, uv0, uv1)) {
+            const float z = studio ? 1.5f : 1.3f;
+            const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
+            u.dl->AddImage(tex, ImVec2(a.x + 4 * s, a.y + 4 * s), ImVec2(b.x - 4 * s, b.y - 4 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
+                           stA(IM_COL32(232, 234, 238, 255), alpha * (on ? 0.4f : 1.0f)));
+        }
+        if (std::find(m_fav.begin(), m_fav.end(), part) != m_fav.end()) stPicto(u.dl, "star", 0, 0, ImVec2(b.x - 10 * s, a.y + 10 * s), 10 * s, C_ACCENT_TXT, 1.0f * s);
+        if (h) {
+            if (m_stHov != part) { m_stHov = part; m_stHovT = now - m_stSheetSeen < 0.25 ? now - 0.6 : now; m_stHovA = a; m_stHovB = b; }
+            hovered = true;
+            if (u.pressed) { m_libFound = -1; m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
+            if (m_dev && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_ctxPart = part; m_ctxPos = u.mouse; }
+        }
+    }
+    u.dl->PopClipRect();
+    if (contentH > viewH) {   // a thin scroll bar
+        const float bh = viewH * viewH / contentH, by = ga.y + (viewH - bh) * (m_clsGridScroll / (contentH - viewH));
+        u.dl->AddRectFilled(ImVec2(gb.x + 3 * s, by), ImVec2(gb.x + 5 * s, by + bh), IM_COL32(255, 255, 255, 40), 2 * s);
+    }
+    if (!hovered || m_libPress >= 0 || ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (!hovered) m_stHov = -1; }
+    else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
+    stLibPressEnd(u, p0, p1);
+}
+
 void BrickApp::stDrawer() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
+    m_dockL = m_dockR = 0;
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
+    if (m_libDock != 0 || m_libClassic) { stDrawerClassic(); return; }   // (Classic, or docked on a side)
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
     // the cards at the size of the slider of the drawer (Wzx 09/11/2026); the drawer keeps its height: as many rows as fit
     const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
     const float famH = 58 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
-    const float bodyH = 2 * tileH + gap;
+    // the height of the drawer: its grip (m_libH), never less than two rows of tiles
+    const float chrome = 12 * s + famH + 8 * s + subH + 10 * s + 12 * s;
+    const float bodyH = m_libH > 0 ? std::clamp(m_libH - chrome, 2 * tileH + gap, std::max(2 * tileH + gap, d.y * 0.62f - chrome)) : 2 * tileH + gap;
     const int nRows = std::max(1, (int)((bodyH + gap) / (cardH + gap)));
     const float rowsY = (bodyH - (nRows * (cardH + gap) - gap)) * 0.5f;
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + bodyH + 12 * s;
@@ -1051,14 +1753,10 @@ void BrickApp::stDrawer() {
     u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), IM_COL32(255, 255, 255, 28), 1.0f);
     for (float x = 96 * s; x < d.x; x += 96 * s) u.dl->AddLine(ImVec2(x, p0.y + 1), ImVec2(x, p1.y), IM_COL32(255, 255, 255, 5), 1.0f);   // the faint ribs
     m_uiRects.push_back(ImVec4(0, p0.y, d.x, d.y));
-    const bool live = !m_mechOn && m_popup == 0;
-    // the handle: a click folds the drawer
-    {
-        const ImVec2 ha(d.x * 0.5f - 22 * s, p0.y + 5 * s), hb(d.x * 0.5f + 22 * s, p0.y + 8 * s);
-        u.dl->AddRectFilled(ha, hb, IM_COL32(255, 255, 255, 40), 2 * s);
-        if (live && u.hover(ImVec2(d.x * 0.5f - 60 * s, p0.y), ImVec2(d.x * 0.5f + 60 * s, p0.y + (m_ipad ? 26 : 12) * s)) && u.pressed) m_pTray.collapsed = !m_pTray.collapsed;
-        if (m_pTray.collapsed) { stTrack(u, ImVec2(padX, p0.y + 10 * s), 9, C_DIM, "BIBLIOTHÈQUE", 2 * s); return; }
-    }
+    const bool live = !m_mechOn && m_popup == 0 && m_ctxPart < 0;   // (the menu of a card open, DEV: its click is not a press on the card under it)
+    // the grip: dragged it resizes the drawer or docks it on a side, a click folds it
+    stLibGrip(u, p0, p1, live);
+    if (m_pTray.collapsed) { stTrack(u, ImVec2(padX, p0.y + 10 * s), 9, C_DIM, "BIBLIOTHÈQUE", 2 * s); return; }
     // ---- line 1, the families: a glass strip of pictogram tabs (Maquette 4.1)
     const auto& fams = stFams();
     const StFam* fam = nullptr;
@@ -1110,7 +1808,7 @@ void BrickApp::stDrawer() {
     y += famH + 8 * s;
     // ---- line 2, the categories of the family: pills with their pictogram (TOUTES first)
     if (!fam->subs.empty() && !m_searchOpen) {
-        const ImVec2 ra(padX, y), rb(d.x - padX, y + subH);
+        const ImVec2 ra(padX, y), rb(d.x - padX - 290 * s, y + subH);   // (DÉCORS, STUDIO | CLASSIC on the right)
         float x = ra.x - m_stSubScroll, total = 0;
         u.dl->PushClipRect(ra, rb, true);
         for (int i = -1; i < (int)fam->subs.size(); ++i) {
@@ -1131,6 +1829,12 @@ void BrickApp::stDrawer() {
         const float maxS = std::max(0.0f, total - 6 * s - (rb.x - ra.x));
         if (live && u.hover(ra, rb) && ImGui::GetIO().MouseWheel != 0) m_stSubScroll -= ImGui::GetIO().MouseWheel * 120 * s;
         m_stSubScroll = std::clamp(m_stSubScroll, 0.0f, maxS);
+    }
+    if (stStyleSwitch(u, m_libClassic, d.x - padX, y + 5 * s, subH - 10 * s, live, s)) { m_clsGridScroll = 0; savePrefs(); }
+    {
+        bool ch = false;
+        stDecoChip(u, m_hideDeco, d.x - padX - stStyleSwitchW(u, s) - 8 * s, y + 5 * s, subH - 10 * s, live, s, ch);
+        if (ch) { m_stKey.clear(); m_cardsScroll = 0; savePrefs(); }
     }
     y += subH + 10 * s;
     const bool tiles = !m_searchOpen && !fam->subs.empty() && m_stSub < 0;   // Toutes: one tile per category
@@ -1325,6 +2029,10 @@ void BrickApp::stDrawer() {
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / nRows, r = k % nRows;
+        if (parts[k] == m_libFound && m_libFoundScroll) {   // (found from the marking menu: brought into view once, centred)
+            m_cardsScroll = std::max(0.0f, c * (cardW + gap) - (cb.x - ca.x - cardW) * 0.5f);
+            m_libFoundScroll = false;
+        }
         const ImVec2 a(ca.x + c * (cardW + gap) - m_cardsScroll, ca.y + rowsY + r * (cardH + gap)), b(a.x + cardW, a.y + cardH);
         if (b.x < ca.x || a.x > cb.x) continue;
         const int part = parts[k];
@@ -1333,6 +2041,8 @@ void BrickApp::stDrawer() {
         const bool h = live && u.hover(a, b) && u.hover(ca, cb);
         const bool on = part == taken;
         cardBg(a, b, h, on);
+        if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 12 * s, 0, 2.0f * s);
+        if (part == m_libFound) u.dl->AddRect(ImVec2(a.x - 2 * s, a.y - 2 * s), ImVec2(b.x + 2 * s, b.y + 2 * s), C_ACCENT, 13 * s, 0, 2.5f * s);   // (found from the marking menu)   // DEV: where its connectors come from
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (!sheet && thumbUv(part, tex, uv0, uv1)) {   // IMAGE: the image alone, zoomed as far as the part allows (Wzx 09/11/2026)
@@ -1383,7 +2093,7 @@ void BrickApp::stDrawer() {
                 m_stHovB = b;
             }
             hovered = true;
-            if (u.pressed) { m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
+            if (u.pressed) { m_libFound = -1; m_libPress = part; m_libPressPos = u.mouse; m_libPressTime = now; m_libLong = false; }
             if (m_dev && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_ctxPart = part; m_ctxPos = u.mouse; }
         }
     }
@@ -1394,38 +2104,7 @@ void BrickApp::stDrawer() {
         const float bw = viewW * viewW / contentW, bx = ca.x + (viewW - bw) * (m_cardsScroll / (contentW - viewW));
         u.dl->AddRectFilled(ImVec2(bx, cb.y + 3 * s), ImVec2(bx + bw, cb.y + 5 * s), IM_COL32(255, 255, 255, 40), 2 * s);
     }
-    // a press on a card: long = its sheet; dragged out of the drawer = in hand under the cursor; click = in hand in the middle
-    if (m_libPress >= 0 && (swipeTaken(0) || m_swipeDragged == 0)) m_libPress = -1;
-    if (m_libPress >= 0) {
-        const ImVec2 dm(u.mouse.x - m_libPressPos.x, u.mouse.y - m_libPressPos.y);
-        const bool moved = dm.x * dm.x + dm.y * dm.y > 49 * s * s;
-        if (!m_libLong && !moved && now - m_libPressTime > 0.48) { m_libLong = true; m_infoPart = m_libPress; }
-        if (moved && ImGui::IsMouseDown(ImGuiMouseButton_Left) && u.mouse.y >= p0.y) {
-            ImTextureID tex;
-            ImVec2 uv0, uv1;
-            if (thumbUv(m_libPress, tex, uv0, uv1)) {
-                ImDrawList* fg = ImGui::GetForegroundDrawList();
-                const float g = 80 * s;
-                const ImVec2 c(u.mouse.x, u.mouse.y - g * 0.35f);
-                fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), IM_COL32(30, 31, 34, 200), 14 * s);
-                fg->AddRect(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), C_ACCENT, 14 * s, 0, 1.2f * s);
-                const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / 1.4f) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / 1.4f) * 0.5f);
-                fg->AddImage(tex, ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), IM_COL32(255, 255, 255, 235));
-            }
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        }
-        if (moved && u.mouse.y < p0.y) {
-            const int part = m_libPress;
-            m_libPress = -1;
-            m_libSel = part;
-            spawn(part, u.mouse.x, u.mouse.y);
-            m_dragStarted = true;
-            m_pressed = false;
-        } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            if (!m_libLong && !moved) { m_libSel = m_libPress; spawn(m_libPress, d.x * 0.5f, (46 * s + p0.y) * 0.55f); }
-            m_libPress = -1;
-        }
-    }
+    stLibPressEnd(u, p0, p1);
 }
 
 // the sheet of a card held under the cursor for 0.5 s: the image big, the dimension line, the name, the id
@@ -1495,9 +2174,11 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
 
 // the six actions of the ring, by direction (0° right, clockwise)
 struct StAct { float ang; const char* label; const char* icon; bool danger; };
-static const StAct kStActs[4] = {{0, "TOURNER", ST_ROT, false}, {60, "DUPLIQUER", ST_DUP, false}, {120, "SUPPRIMER", ST_DEL, true},
-                                 {180, "TOURNER", ST_ROTL, false}};   // (no Basculer, no Fiche: Wzx 09/11/2026)
-static const float ST_R_ACT = 74, ST_R_COL = 132, ST_ARC0 = 204, ST_ARC1 = 336;
+static const int ST_NACT = 5;
+static const StAct kStActs[ST_NACT] = {{0, "TOURNER", ST_ROT, false}, {90, "DUPLIQUER", ST_DUP, false}, {135, "SUPPRIMER", ST_DEL, true},   // (Dupliquer straight down, Supprimer bottom left and smaller: Wzx)
+                                 {180, "TOURNER", ST_ROTL, false}, {45, "BIBLIOTHÈQUE", ST_SEARCH, false}};   // (bottom right: the part found in the library, Wzx 10/11/2026)   // (no Basculer, no Fiche: Wzx 09/11/2026)
+static const float ST_R_ACT = 100, ST_R_COL = 156,   // (the actions further out: Wzx 09/11/2026)
+    ST_ARC0 = 204, ST_ARC1 = 336;
 
 // the colours of the arc: the recent ones, then the usual ones
 std::vector<int> BrickApp::stArcColors() const {
@@ -1533,29 +2214,63 @@ void BrickApp::stSelHud() {
         if (ang < 0) ang += 360;
         const std::vector<int> cols = stArcColors();
         int hot = -1;   // 0..5 an action, 100 + k a colour
-        if (dist > 30 * s && dist < 104 * s) {   // the nearest action within 30°
-            for (int k = 0; k < 4; ++k) {
-                float da = std::fabs(ang - kStActs[k].ang);
-                da = std::min(da, 360 - da);
-                if (da <= 30) hot = k;
-            }
-        }
-        else if (dist >= 104 * s && dist < 186 * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty()) {
+        // quick mode (as Maya): in the first instants a short flick is enough, the nearest action within 45°
+        const bool quick = ImGui::GetTime() - m_stMenuT0 < 0.35 && !m_stMenuSticky;
+        // the colours: their band of the upper arc; elsewhere, past the middle, the nearest action, however far the
+        // gesture goes (the line stops at the button, the button still acts: Wzx 09/11/2026)
+        const bool inCols = dist >= (ST_R_ACT + 24) * s && dist < (ST_R_COL + 54) * s && ang > ST_ARC0 - 10 && ang < ST_ARC1 + 10 && !cols.empty();
+        if (inCols) {
             const int k = (int)std::lround((ang - ST_ARC0) / (ST_ARC1 - ST_ARC0) * (cols.size() - 1));
             hot = 100 + std::clamp(k, 0, (int)cols.size() - 1);
         }
-        ImDrawList* dl = ImGui::GetForegroundDrawList();
+        else if (dist > (quick ? 12 : 30) * s) {   // the nearest action within 30° (quick: 45°)
+            float bestA = quick ? 45.0f : 30.0f;
+            for (int k = 0; k < ST_NACT; ++k) {
+                float da = std::fabs(ang - kStActs[k].ang);
+                da = std::min(da, 360 - da);
+                if (da <= bestA) { bestA = da; hot = k; }
+            }
+        }
+        // quick mode, a flick under way: not the whole menu, only the action aimed (Wzx 09/11/2026); the menu is drawn
+        // into a list thrown away
+        const bool flick = quick && dist > 12 * s;
+        static ImDrawList* s_void = nullptr;
+        if (!s_void) s_void = IM_NEW(ImDrawList)(ImGui::GetDrawListSharedData());
+        s_void->_ResetForNewFrame();
+        s_void->PushClipRectFullScreen();
+        s_void->PushTexture(ImGui::GetIO().Fonts->TexRef);
+        ImDrawList* dl = flick ? s_void : ImGui::GetForegroundDrawList();
+        if (flick && hot >= 0 && hot < ST_NACT) {
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            const StAct& A = kStActs[hot];
+            const float r = A.ang * 0.0174533f, rad = 30 * s;
+            const ImVec2 p(c.x + std::cos(r) * ST_R_ACT * s, c.y + std::sin(r) * ST_R_ACT * s);
+            const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
+            fg->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 80), 40);
+            fg->AddCircleFilled(p, rad, IM_COL32(30, 32, 36, 235), 40);
+            fg->AddCircleFilled(p, rad, stA(tint, 0.42f), 40);
+            fg->AddCircle(p, rad, tint, 40, 1.5f * s);
+            stIcon(fg, A.icon, p, 21 * s, IM_COL32_WHITE, 1.3f * s);
+            const float lw = stTrackW(u, 8, A.label, 1.4f * s, true);
+            ImDrawList* keep = u.dl;
+            u.dl = fg;
+            stTrack(u, ImVec2(p.x - lw * 0.5f, p.y + rad + 4 * s), 8, IM_COL32_WHITE, A.label, 1.4f * s);
+            u.dl = keep;
+        }
         // a dark halo, the guides, the gesture
-        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 160 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
-        dl->AddCircleFilled(c, 160 * s, IM_COL32(6, 7, 9, 70), 64);
-        dl->AddCircle(c, 100 * s, IM_COL32(255, 255, 255, 30), 64, 1.0f);
+        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 184 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
+        dl->AddCircleFilled(c, 184 * s, IM_COL32(6, 7, 9, 70), 64);
+        dl->AddCircle(c, ST_R_ACT * s, IM_COL32(255, 255, 255, 30), 64, 1.0f);
         dl->AddCircle(c, 34 * s, IM_COL32(255, 255, 255, 50), 40, 1.0f);
         for (float a = ST_ARC0; a < ST_ARC1; a += 4) {   // the dotted guide of the arc
             const float r = a * 0.0174533f;
             dl->AddCircleFilled(ImVec2(c.x + std::cos(r) * ST_R_COL * s, c.y + std::sin(r) * ST_R_COL * s), 0.8f * s, stA(C_ACCENT, 0.4f), 6);
         }
-        if (dist > 4 * s) {   // the dashed line of the gesture
-            const int n = (int)(dist / (6 * s));
+        if (dist > 4 * s) {   // the dashed line of the gesture (stops at the button of the action aimed)
+            const float lim = hot >= 0 && hot < ST_NACT ? std::min(dist, ST_R_ACT * s) : hot >= 100 ? std::min(dist, ST_R_COL * s) : dist;
+            const float kq = lim / dist;
+            const float dx = (u.mouse.x - c.x) * kq, dy = (u.mouse.y - c.y) * kq;
+            const int n = (int)(lim / (6 * s));
             for (int i = 0; i < n; i += 2) {
                 const float t0 = i / (float)n, t1 = std::min(1.0f, (i + 1) / (float)n);
                 dl->AddLine(ImVec2(c.x + dx * t0, c.y + dy * t0), ImVec2(c.x + dx * t1, c.y + dy * t1), C_ACCENT, 1.3f * s);
@@ -1568,16 +2283,16 @@ void BrickApp::stSelHud() {
             stPartKind(m_lib.parts[m_bricks[sel[0]].part], kd, w, l);
             stPicto(dl, kd, w, l, c, 40 * s, stA(C_TEXT, hot >= 0 ? 0.3f : 0.85f), 1.0f * s);
         }
-        for (int k = 0; k < 4; ++k) {
+        for (int k = 0; k < ST_NACT; ++k) {
             const StAct& A = kStActs[k];
             const bool on = hot == k;
-            const float r = A.ang * 0.0174533f, rad = (on ? 30 : 26) * s;
+            const float r = A.ang * 0.0174533f, rad = (A.danger ? (on ? 23 : 19) : (on ? 30 : 26)) * s;   // (Supprimer smaller)
             const ImVec2 p(c.x + std::cos(r) * ST_R_ACT * s, c.y + std::sin(r) * ST_R_ACT * s);
             const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
             dl->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 70), 40);
             dl->AddCircleFilled(p, rad, on ? stA(tint, 0.42f) : IM_COL32(44, 46, 50, 215), 40);
             dl->AddCircle(p, rad, on ? tint : IM_COL32(255, 255, 255, 70), 40, on ? 1.5f * s : 1.0f);
-            stIcon(dl, A.icon, p, 21 * s, on ? IM_COL32_WHITE : (A.danger ? IM_COL32(255, 154, 144, 255) : C_TEXT), 1.3f * s);
+            stIcon(dl, A.icon, p, (A.danger ? 15 : 21) * s, on ? IM_COL32_WHITE : (A.danger ? IM_COL32(255, 154, 144, 255) : C_TEXT), 1.3f * s);
             const float lw = stTrackW(u, 8, A.label, 1.4f * s, true);
             const ImVec2 lp(p.x - lw * 0.5f, p.y + rad + 4 * s);
             ImDrawList* keep = u.dl;
@@ -1603,12 +2318,12 @@ void BrickApp::stSelHud() {
         }
         {   // the title above: what the release will do
             std::string t = "GLISSE VERS UNE ACTION";
-            if (hot >= 0 && hot < 4) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
+            if (hot >= 0 && hot < ST_NACT) t = std::string(kStActs[hot].label) + (hot == 0 ? " À DROITE" : hot == 3 ? " À GAUCHE" : "");
             else if (hot >= 100) t = stUpper(colorFr(m_lib.palette[cols[hot - 100]].name));
             const float tw = stTrackW(u, 9.5f, t.c_str(), 1.8f * s, true);
             ImDrawList* keep = u.dl;
             u.dl = dl;
-            stTrack(u, ImVec2(c.x - tw * 0.5f, c.y - 178 * s), 9.5f, C_ACCENT_TXT, t.c_str(), 1.8f * s);
+            stTrack(u, ImVec2(c.x - tw * 0.5f, c.y - 202 * s), 9.5f, C_ACCENT_TXT, t.c_str(), 1.8f * s);
             u.dl = keep;
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_stMenu = false; return; }
@@ -1627,6 +2342,28 @@ void BrickApp::stSelHud() {
             else if (hot == 3) rotateSelected(-1);
             else if (hot == 1) duplicateSelected();
             else if (hot == 2) deleteSelected();
+            else if (hot == 4 && !sel.empty()) {   // the part in the library: searched by its id, its card ringed and shown
+                const Part& P = m_lib.parts[m_bricks[sel[0]].part];
+                std::string id = P.name;
+                if (id.size() > 4 && id.substr(id.size() - 4) == ".dat") id = id.substr(0, id.size() - 4);
+                // its family and its category opened and selected, the card shown there (Wzx 10/11/2026: where it comes
+                // from); a part in no category: found by a search
+                const int pi = m_bricks[sel[0]].part;
+                bool placed = false;
+                for (const StFam& f : stFams()) {
+                    if (!strcmp(f.key, "recent") || !strcmp(f.key, "fav")) continue;
+                    for (size_t q = 0; q < f.subs.size() && !placed; ++q)
+                        if (stInSub(f.subs[q], partCat(pi), P.sub)) { m_stFam = f.key; m_stSub = (int)q; placed = true; }
+                    if (placed) break;
+                }
+                m_stW = m_stL = 0;
+                m_search = placed ? std::string() : id;
+                m_searchOpen = !placed;
+                m_cardsScroll = 0;
+                m_libFound = pi;
+                m_libFoundScroll = true;
+                m_pTray.collapsed = false;
+            }
             else if (hot >= 100) applyColor(cols[hot - 100]);
         }
         return;
@@ -1707,6 +2444,13 @@ void BrickApp::stHeld() {
 // ------------------------------------------------------------------ the whole interface
 
 void BrickApp::drawUiStudio() {
+    if (m_vePart >= 0) {   // the Voxel Editor: the whole screen (nothing of the Studio under it)
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        m_uiRects.push_back(ImVec4(0, 0, d.x, 0));
+        m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y));
+        uiVoxelEditor();
+        return;
+    }
     stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {
@@ -1719,6 +2463,7 @@ void BrickApp::drawUiStudio() {
     stBadge();
     stColors();
     stSelHud();
+    stPaintFx();
     stHeld();
     uiMechPanel();
     uiReader();
@@ -1727,8 +2472,10 @@ void BrickApp::drawUiStudio() {
     uiPopups();
     uiManual();
     uiDevPanel();
+    stConnLegend();
     uiInfoSheet();   // (no Bac à briques in the Studio interface, Wzx 09/11/2026)
     uiThumbEditor();
+    uiVoxelEditor();
     uiCtxMenu();
     uiDevReview();
     uiManualBig();

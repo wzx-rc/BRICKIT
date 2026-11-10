@@ -38,6 +38,9 @@ struct Part {
     std::vector<std::pair<std::string, int>> connectors;
     bool base = false;        // one of the 50 base parts
     int pack = -1;            // Technic pack holding the geometry (-1: base part)
+    int sdPack = -1, hdPack = -1;   // HD (full_hd: the 48-segment primitives, bevelled studs): its pack, and the normal one
+    vp3d::MeshData sdMesh;    // (a base part: its normal mesh kept while the HD one is shown)
+    bool sdSaved = false;
     int heightPlates = 3;
     float topY = 0.96f;
     bool hasStuds = false;    // studs on top (above topY): left out of the body box (overlap safety, stacking)
@@ -52,6 +55,10 @@ struct Part {
     bool printed = false;     // a printed part: the colour of the print per vertex (uv = 0xRRGGBB, 1)   // geometry in memory or in a pack (loaded on demand)
     vp3d::MeshData ldrawMesh;  // DEV mode: the LDraw mesh while a replacement is shown
     bool hasLdrawMesh = false, devActive = false;
+    // where its connectors come from (mode DEV, its colour): 0 unknown, 1 LDCad shadow library, 2 automatic (rules, or the
+    // old BrickIt), 3 none (failed), 4 validated by hand. connAuto: the value of the conversion (conn_status.json)
+    uint8_t connSrc = 0, connAuto = 0;
+    bool connOld = false;     // (automatic, from the voxels of the old BrickIt)
     float3 bmin, bmax;
 };
 
@@ -63,11 +70,23 @@ public:
     bool loadPack(int pack, std::string* error = nullptr);
     bool loadAll(std::string* error = nullptr);    // every Technic pack (benchmarks, the part grid; not the full library)
     void unloadPack(int pack);                      // frees the geometry of a pack (thumbnails of the full library)
+    // HD meshes (<full>_hd, Wzx 10/11/2026: « un switcher HighPoly qui switch sur la pièce HD quand elle existe »)
+    bool hasHd = false;
+    bool highPoly = false;
+    void setHighPoly(bool on);
     int technicPacks = 0;
     std::wstring fullDir;                           // folder of the full library (empty: not built)                           // packs [0, technicPacks): Technic; then the full LDraw library
     // Part geometry, loading its pack when needed (nullptr when unknown or not loadable).
     Part* get(const std::string& name);
     int find(const std::string& name) const;
+    // the voxels placed by hand (Voxel Editor, <data>/voxel_edits.json): over those of the conversion, when a part loads
+    std::unordered_map<std::string, std::pair<std::vector<float3>, std::vector<uint8_t>>> voxEdits;
+    void applyVoxEdit(Part& p) const {
+        auto it = voxEdits.find(p.name);
+        if (it == voxEdits.end()) return;
+        p.voxels = it->second.first;
+        p.conn = it->second.second;
+    }
 
     std::vector<Part> parts;
     std::vector<Color> palette;

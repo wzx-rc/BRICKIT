@@ -40,12 +40,16 @@ if (process.argv[2] === "--worker") {
   process.env.SHADOW = shadow;
   const { convertPart } = await import(pathToFileURL(CONVERTER).href);
   console.warn = () => {};
+  // the old BrickIt (Maya library, tools/brickit/old_library_index.mjs): its voxels for the parts LDCad does not know
+  const OLD = process.env.OLD_INDEX && fs.existsSync(process.env.OLD_INDEX) ? JSON.parse(fs.readFileSync(process.env.OLD_INDEX, "utf8")) : {};
+  const nameKey = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b0+(\d)/g, "$1").replace(/ /g, "");
   process.on("message", (ids) => {
     const res = [];
-    for (const [id, sys] of ids) {
+    for (const [id, sys, title, statusOnly] of ids) {
       try {
         const t0 = performance.now();
-        const r = convertPart(id, { system: sys });   // (Technic: the pin / axle holes, as the Technic packs)
+        const r = convertPart(id, { system: sys, old: OLD[nameKey(title || "")] });   // (Technic: the pin / axle holes, as the Technic packs)
+        if (statusOnly) { res.push({ id, statusOnly: true, conn: r.meta.connSource }); continue; }
         if (!r.mesh.idx.length) { res.push({ id, fail: "no geometry" }); continue; }
         const vb = Buffer.from(new Float32Array(r.mesh.verts).buffer), ib = Buffer.from(new Uint32Array(r.mesh.idx).buffer);
         // a printed part: one colour per vertex after the indices (0xRRGGBB, 0xffffffff = the colour of the brick)
@@ -85,7 +89,25 @@ if (process.argv[2] === "--worker") {
     heads.set(id, h);
     list.push(id);
   }
-  console.log("parts to convert", list.length, "skipped (base / technic)", skip.size, "workers", workers);
+  // the parts of the base set and of the Technic packs: not converted again, only where their connectors come from
+  // (conn_status.json, the colours of the mode DEV)
+  const statusOnly = new Set();
+  // HD (HIRES=1 BEVEL=1 INCLUDE_ALL=1, Wzx 10/11/2026: « pièces plus définies, arrondies plus lisses »): every part again,
+  // the base set and the Technic packs too, with the 48-segment primitives of LDraw (p/48) and bevelled studs
+  if (process.env.INCLUDE_ALL === "1") for (const id of skip) {
+    const f = path.join(ldraw, "parts", id + ".dat");
+    if (!fs.existsSync(f)) continue;
+    heads.set(id, header(f));
+    list.push(id);
+  }
+  if (process.env.INCLUDE_ALL !== "1") for (const id of skip) {
+    const f = path.join(ldraw, "parts", id + ".dat");
+    if (!fs.existsSync(f)) continue;
+    heads.set(id, header(f));
+    statusOnly.add(id);
+    list.push(id);
+  }
+  console.log("parts to convert", list.length - statusOnly.size, "status only (base / technic)", statusOnly.size, "workers", workers);
   const results = [];
   const t0 = Date.now();
   await new Promise((done) => {
@@ -95,7 +117,7 @@ if (process.argv[2] === "--worker") {
       const ch = fork(fileURLToPath(import.meta.url), ["--worker", ldraw, shadow, tmp], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
       const feed = () => {
         if (next >= list.length) { ch.kill(); if (--running === 0) done(); return; }
-        ch.send(list.slice(next, next + CH).map((id) => [id, heads.get(id).category !== "Technic"]));
+        ch.send(list.slice(next, next + CH).map((id) => [id, heads.get(id).category !== "Technic", heads.get(id).title, statusOnly.has(id)]));
         next += CH;
       };
       ch.on("message", (r) => {
@@ -108,7 +130,10 @@ if (process.argv[2] === "--worker") {
       feed();
     }
   });
-  const ok = results.filter((r) => !r.fail), fails = results.filter((r) => r.fail);
+  const status = {};   // every part: shadow / old / auto / fail (failed conversions too)
+  for (const r of results) status[r.id] = r.fail ? "fail" : r.statusOnly ? r.conn : r.meta.connSource;
+  fs.writeFileSync(path.join(out, "conn_status.json"), JSON.stringify(status));
+  const ok = results.filter((r) => !r.fail && !r.statusOnly), fails = results.filter((r) => r.fail);
   fs.writeFileSync(path.join(out, "fails.json"), JSON.stringify(fails, null, 1));
   console.log("converted", ok.length, "failed", fails.length, "in", ((Date.now() - t0) / 1000).toFixed(0), "s");
 

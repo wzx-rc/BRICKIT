@@ -239,6 +239,146 @@ function loadPart(name) {
   return { tris, snaps, prims };
 }
 
+// ---------------------------------------------------------------- the cracks of the LDraw meshes (Wzx 10/11/2026: « certains
+// plans ne se ferment pas, les vertex sont superposés mais pas fusionnés »): the primitives meet with vertices that do not
+// coincide (another tessellation, a hair apart, a vertex in the middle of the edge of the face next to it). Repaired in
+// LDU: (1) the vertices closer than 0.02 LDU merged; (2) a vertex at the end of an open edge, within 0.3 LDU of another
+// open edge, moved onto it; (3) the T-junctions split: a triangle with vertices on its edges is cut into a fan around its
+// centre (flat, the same colour). REPAIR=1 (or opts.repair).
+function repairTris(tris) {
+  const q = (x) => Math.round(x * 50);
+  const keyOf = (p) => q(p[0]) + "," + q(p[1]) + "," + q(p[2]);
+  // (1) weld
+  const rep = new Map();
+  for (const t of tris) for (let i = 0; i < 3; i++) {
+    const k = keyOf(t[i]);
+    if (!rep.has(k)) rep.set(k, t[i].slice());
+    t[i] = rep.get(k);
+  }
+  const ekey = (a, b) => { const ka = keyOf(a), kb = keyOf(b); return ka < kb ? ka + "|" + kb : kb + "|" + ka; };
+  const openEdges = () => {
+    const E = new Map();
+    for (const t of tris) for (let i = 0; i < 3; i++) {
+      const a = t[i], b = t[(i + 1) % 3], k = ekey(a, b);
+      const e = E.get(k);
+      if (e) e.n++; else E.set(k, { a, b, n: 1, t });
+    }
+    return [...E.values()].filter((e) => e.n === 1 && keyOf(e.a) !== keyOf(e.b));
+  };
+  const proj = (p, a, b) => {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    if (L2 < 1e-12) return null;
+    const t = ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2]) / L2;
+    const c = [a[0] + d[0] * t, a[1] + d[1] * t, a[2] + d[2] * t];
+    return { t, c, dist: Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) };
+  };
+  // a grid of the edges (cells of 2 LDU)
+  const grid = (edges) => {
+    const G = new Map(), cell = (x) => Math.floor(x / 2);
+    edges.forEach((e, i) => {
+      const lo = [0, 1, 2].map((k) => cell(Math.min(e.a[k], e.b[k]) - 0.3)), hi = [0, 1, 2].map((k) => cell(Math.max(e.a[k], e.b[k]) + 0.3));
+      if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 4000) return;
+      for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) {
+        const k = x + "," + y + "," + z; let g = G.get(k); if (!g) G.set(k, (g = [])); g.push(i);
+      }
+    });
+    return (p) => G.get(cell(p[0]) + "," + cell(p[1]) + "," + cell(p[2])) || [];
+  };
+  // (2a) a flat face whose edge is a chord of an arc finer than it (the 48-segment primitives along a face drawn for 16):
+  // the sliver between the chord and the arc filled (a fan from the start of the chord), in the plane of the face
+  {
+    const open = openEdges(), near = grid(open);
+    const ends = new Map();
+    for (const e of open) { ends.set(keyOf(e.a), e.a); ends.set(keyOf(e.b), e.b); }
+    const endList = [...ends.values()];
+    const EG = new Map(), ec = (x) => Math.floor(x / 2);
+    for (const p of endList) { const k = ec(p[0]) + "," + ec(p[1]) + "," + ec(p[2]); let g = EG.get(k); if (!g) EG.set(k, (g = [])); g.push(p); }
+    for (const e of open) {
+      const t = e.t, a = e.a, b = e.b;
+      const u = [t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]], v = [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]];
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], nl = Math.hypot(...n);
+      if (nl < 1e-9) continue;
+      const N = n.map((x) => x / nl), L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      if (L < 0.2) continue;
+      const lo = [0, 1, 2].map((k) => ec(Math.min(a[k], b[k]) - 1)), hi = [0, 1, 2].map((k) => ec(Math.max(a[k], b[k]) + 1));
+      if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 500) continue;
+      const pts = [];
+      for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++)
+        for (const p of EG.get(x + "," + y + "," + z) || []) {
+          if (p === a || p === b) continue;
+          const pl = (p[0] - a[0]) * N[0] + (p[1] - a[1]) * N[1] + (p[2] - a[2]) * N[2];
+          if (Math.abs(pl) > 0.01) continue;   // (in the plane of the face)
+          const r = proj(p, a, b);
+          if (!r || r.t <= 0.002 || r.t >= 0.998 || r.dist < 1e-4 || r.dist > Math.max(0.05, L * 0.25)) continue;
+          // outside the face: on the other side of the chord from its third vertex
+          const third = t.find((q) => q !== a && q !== b) || t[0], r3 = proj(third, a, b);
+          const side = (c, w) => (w[0] - c[0]) * (third[0] - r3.c[0]) + (w[1] - c[1]) * (third[1] - r3.c[1]) + (w[2] - c[2]) * (third[2] - r3.c[2]);
+          if (side(r.c, p) >= 0) continue;
+          pts.push({ p, t: r.t });
+        }
+      if (!pts.length) continue;
+      pts.sort((x, y) => x.t - y.t);
+      const chain = [a, ...pts.map((o) => o.p), b];
+      for (let i = 1; i + 1 < chain.length; i++) {   // (wound as the face: its normal)
+        const p1 = chain[i], p2 = chain[i + 1];
+        const c1 = [p1[0] - a[0], p1[1] - a[1], p1[2] - a[2]], c2 = [p2[0] - a[0], p2[1] - a[1], p2[2] - a[2]];
+        const cz = [c1[1] * c2[2] - c1[2] * c2[1], c1[2] * c2[0] - c1[0] * c2[2], c1[0] * c2[1] - c1[1] * c2[0]];
+        const nt = cz[0] * N[0] + cz[1] * N[1] + cz[2] * N[2] >= 0 ? [a, p1, p2] : [a, p2, p1];
+        nt.c = t.c;
+        tris.push(nt);
+      }
+    }
+  }
+  // (2) the ends of the open edges moved onto the open edge next to them
+  {
+    const open = openEdges(), near = grid(open);
+    const ends = new Map();
+    for (const e of open) { ends.set(keyOf(e.a), e.a); ends.set(keyOf(e.b), e.b); }
+    for (const [k, p] of ends) {
+      let best = null;
+      for (const i of near(p)) {
+        const e = open[i];
+        if (keyOf(e.a) === k || keyOf(e.b) === k) continue;
+        const r = proj(p, e.a, e.b);
+        if (!r || r.t <= 0.001 || r.t >= 0.999 || r.dist > 0.3) continue;
+        if (!best || r.dist < best.dist) best = r;
+      }
+      if (best && best.dist > 1e-6) { p[0] = best.c[0]; p[1] = best.c[1]; p[2] = best.c[2]; }   // (the shared vertex object: every triangle follows)
+    }
+  }
+  // (3) the T-junctions: the vertices lying inside an edge of a triangle
+  const verts = [...new Map(tris.flatMap((t) => t.map((p) => [keyOf(p), p]))).values()];
+  const VG = new Map(), vcell = (x) => Math.floor(x / 2);
+  verts.forEach((p) => { const k = vcell(p[0]) + "," + vcell(p[1]) + "," + vcell(p[2]); let g = VG.get(k); if (!g) VG.set(k, (g = [])); g.push(p); });
+  const onEdge = (a, b) => {
+    const lo = [0, 1, 2].map((k) => vcell(Math.min(a[k], b[k]) - 0.01)), hi = [0, 1, 2].map((k) => vcell(Math.max(a[k], b[k]) + 0.01));
+    if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 2000) return [];
+    const out = [];
+    for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++)
+      for (const p of VG.get(x + "," + y + "," + z) || []) {
+        if (p === a || p === b) continue;
+        const r = proj(p, a, b);
+        if (r && r.t > 1e-4 && r.t < 1 - 1e-4 && r.dist < 0.01) out.push({ p, t: r.t });
+      }
+    return out.sort((u, v) => u.t - v.t).map((o) => o.p);
+  };
+  const out = [];
+  let split = 0;
+  for (const t of tris) {
+    const ins = [onEdge(t[0], t[1]), onEdge(t[1], t[2]), onEdge(t[2], t[0])];
+    if (!ins[0].length && !ins[1].length && !ins[2].length) { out.push(t); continue; }
+    split++;
+    const poly = [t[0], ...ins[0], t[1], ...ins[1], t[2], ...ins[2]];
+    const c = [(t[0][0] + t[1][0] + t[2][0]) / 3, (t[0][1] + t[1][1] + t[2][1]) / 3, (t[0][2] + t[1][2] + t[2][2]) / 3];
+    for (let i = 0; i < poly.length; i++) {
+      const nt = [c, poly[i], poly[(i + 1) % poly.length]];
+      nt.c = t.c;
+      out.push(nt);
+    }
+  }
+  return { tris: out, split };
+}
+
 // ---------------------------------------------------------------- geometry: to BrickIt space, weld, crease normals
 const toB = (p) => [p[0] * LDU, -p[1] * LDU, -p[2] * LDU];
 function buildMesh(trisL, crease = 35) {
@@ -285,6 +425,125 @@ function buildMesh(trisL, crease = 35) {
   return { verts, idx, mn, mx, faces, vcol: printed ? vcol : null };
 }
 
+// ---------------------------------------------------------------- the shapes of the mesh (the Voxel Editor of the
+// native app, BrickVoxelEditor.inl, the same rules): rings of vertices (the ends of the cylinders), the studs (two rings
+// r 0.24 one above the other, 0.16 apart), round axles / holes (r 0.16) and pins / pin holes (r 0.24) along their axis.
+// Used when the LDCad shadow library knows nothing of the part (Wzx 10/11/2026: « mets à jour les algos de détection »)
+function meshRings(verts) {
+  const n = verts.length / 6, out = [];
+  if (n < 8 || n > 400000) return out;
+  const P = (i, k) => verts[i * 6 + k], N = (i, k) => verts[i * 6 + 3 + k];
+  for (let ax = 0; ax < 3; ax++) {
+    const a1 = (ax + 1) % 3, a2 = (ax + 2) % 3;
+    const planes = new Map();
+    for (let i = 0; i < n; i++) { const k = Math.round(P(i, ax) / 0.004); let g = planes.get(k); if (!g) planes.set(k, (g = [])); g.push(i); }
+    for (const [key, ids] of planes) {
+      if (ids.length < 8) continue;
+      const cell = (x) => Math.floor(x / 0.12);
+      const grid = new Map();
+      for (const i of ids) { const k = cell(P(i, a1)) + "," + cell(P(i, a2)); let g = grid.get(k); if (!g) grid.set(k, (g = [])); g.push(i); }
+      const lab = new Set();
+      for (const i0 of ids) {
+        if (lab.has(i0)) continue;
+        const st = [i0], cl = [];
+        lab.add(i0);
+        while (st.length && cl.length < 4000) {
+          const i = st.pop();
+          cl.push(i);
+          const cu = cell(P(i, a1)), cv = cell(P(i, a2));
+          for (let du = -1; du <= 1; du++) for (let dv = -1; dv <= 1; dv++) {
+            const g = grid.get(cu + du + "," + (cv + dv));
+            if (!g) continue;
+            for (const j of g) {
+              if (lab.has(j)) continue;
+              const d1 = P(j, a1) - P(i, a1), d2 = P(j, a2) - P(i, a2);
+              if (d1 * d1 + d2 * d2 < 0.0144) { lab.add(j); st.push(j); }
+            }
+          }
+        }
+        if (cl.length < 8) continue;
+        // the centre: a circle fitted on the points (Kasa: a part of a circle too)
+        let mu = 0, mv = 0;
+        for (const i of cl) { mu += P(i, a1); mv += P(i, a2); }
+        mu /= cl.length; mv /= cl.length;
+        const S = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        for (const i of cl) {
+          const x = P(i, a1) - mu, y = P(i, a2) - mv, z = -(x * x + y * y), r3 = [x, y, 1];
+          for (let a = 0; a < 3; a++) { for (let b = 0; b < 3; b++) S[a][b] += r3[a] * r3[b]; S[a][3] += r3[a] * z; }
+        }
+        let ok = true;
+        for (let c = 0; c < 3 && ok; c++) {
+          let piv = c;
+          for (let r = c + 1; r < 3; r++) if (Math.abs(S[r][c]) > Math.abs(S[piv][c])) piv = r;
+          [S[c], S[piv]] = [S[piv], S[c]];
+          if (Math.abs(S[c][c]) < 1e-12) { ok = false; break; }
+          for (let r = 0; r < 3; r++) if (r !== c) { const f = S[r][c] / S[c][c]; for (let k = 0; k < 4; k++) S[r][k] -= f * S[c][k]; }
+        }
+        if (!ok) continue;
+        const cu = mu - S[0][3] / S[0][0] * 0.5, cv = mv - S[1][3] / S[1][1] * 0.5;
+        let rm = 0, outw = 0;
+        for (const i of cl) {
+          const du = P(i, a1) - cu, dv = P(i, a2) - cv;
+          rm += Math.hypot(du, dv);
+          outw += N(i, a1) * du + N(i, a2) * dv;
+        }
+        rm /= cl.length;
+        if (rm < 0.1 || rm > 0.3) continue;
+        let dev = 0;
+        for (const i of cl) dev = Math.max(dev, Math.abs(Math.hypot(P(i, a1) - cu, P(i, a2) - cv) - rm));
+        if (dev > 0.008) continue;
+        out.push({ axis: ax, at: key * 0.004, u: cu, v: cv, r: rm, outward: outw > 0 });
+      }
+    }
+  }
+  return out;
+}
+function meshShapes(verts) {
+  const rings = meshRings(verts), res = [];
+  const pt = (ax, at, u, v) => { const r = [0, 0, 0]; r[ax] = at; r[(ax + 1) % 3] = u; r[(ax + 2) % 3] = v; return r.map(r4); };
+  for (const a of rings) {   // studs
+    if (a.axis !== 1 || !a.outward || Math.abs(a.r - 0.24) > 0.025) continue;
+    for (const b of rings)
+      if (b.axis === 1 && b.outward && Math.abs(b.r - a.r) < 0.02 && Math.abs(b.u - a.u) < 0.01 && Math.abs(b.v - a.v) < 0.01 && Math.abs(a.at - b.at - 0.16) < 0.02)
+        res.push({ p: pt(1, b.at, a.u, a.v), type: "stud" });
+  }
+  const found = [];
+  for (const a of rings) {
+    const r8 = Math.abs(a.r - 0.16) < 0.025, r12 = Math.abs(a.r - 0.24) < 0.025;
+    if (!r8 && !r12) continue;
+    if (r12 && a.axis === 1 && a.outward) continue;
+    let l = found.find((q) => q.axis === a.axis && q.r8 === r8 && q.outward === a.outward && Math.abs(q.u - a.u) < 0.01 && Math.abs(q.v - a.v) < 0.01);
+    if (!l) found.push((l = { axis: a.axis, u: a.u, v: a.v, r: a.r, r8, outward: a.outward, at: [] }));
+    l.at.push(a.at);
+  }
+  const nv = verts.length / 6;
+  for (const l of found) {
+    l.at.sort((x, y) => x - y);
+    const segs = [];
+    if (l.outward) {   // the extent of the cylinder: the vertices at its radius around the line
+      const a1 = (l.axis + 1) % 3, a2 = (l.axis + 2) % 3;
+      let lo = 1e9, hi = -1e9;
+      for (let i = 0; i < nv; i++) {
+        if (Math.abs(Math.hypot(verts[i * 6 + a1] - l.u, verts[i * 6 + a2] - l.v) - l.r) > 0.012) continue;
+        lo = Math.min(lo, verts[i * 6 + l.axis]); hi = Math.max(hi, verts[i * 6 + l.axis]);
+      }
+      if (hi - lo >= 0.2) segs.push([lo, hi]);
+    } else {
+      let s0 = 0;
+      for (let i = 1; i <= l.at.length; i++)
+        if (i === l.at.length || l.at[i] - l.at[i - 1] > 0.25) { if (i - s0 >= 2) segs.push([l.at[s0], l.at[i - 1]]); s0 = i; }
+    }
+    const type = l.r8 ? (l.outward ? "axle" : "axlehole") : (l.outward ? "pin" : "pinhole");
+    for (let [lo, hi] of segs) {
+      if (hi - lo < 0.2) lo = hi = (lo + hi) / 2;
+      else { lo += 0.2; hi -= 0.2; if (hi < lo) lo = hi = (lo + hi) / 2; }
+      const nst = hi - lo < 0.01 ? 0 : Math.max(1, Math.round((hi - lo) / 0.4));
+      for (let k = 0; k <= nst; k++) res.push({ p: pt(l.axis, nst ? lo + (hi - lo) * k / nst : lo, l.u, l.v), type });
+    }
+  }
+  return res;
+}
+
 // ---------------------------------------------------------------- connection voxels
 const r4 = (x) => Math.round(x * 10000) / 10000;
 function buildVoxels(part, mesh, opts) {
@@ -293,6 +552,22 @@ function buildVoxels(part, mesh, opts) {
   const B = (p) => { const q = toB(p); return [r4(q[0] - off[0]), r4(q[1] - off[1]), r4(q[2] - off[2])]; };
   const vox = [], studs = [], types = [];
   const add = (p, type) => { if (!vox.some((v) => Math.hypot(v[0] - p[0], v[1] - p[1], v[2] - p[2]) < 0.02)) { vox.push(p); types.push(type); } };
+  // the old BrickIt (Maya library) when LDCad knows nothing: its voxels, typed by their height (bottom: anti-stud, top:
+  // stud, between: pin hole), if its size is the size of the part
+  if (!snaps.length && opts.old && opts.old.vox.length) {
+    const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];
+    const fits = !opts.old.max || opts.old.max.every((v, k) => Math.abs(v - size[k]) < 0.06);
+    if (fits) {
+      const top = Math.max(...opts.old.vox.map((v) => v[1]));
+      for (const v of opts.old.vox) {
+        const p = [r4(v[0]), r4(v[1]), r4(v[2])];
+        const t = p[1] < 0.02 ? "antistud" : p[1] > top - 0.02 ? "stud" : "pinhole";
+        if (t === "stud") studs.push(p);
+        add(p, t);
+      }
+      return { vox, studs, types, source: "old" };
+    }
+  }
   for (const s of snaps) {
     const d = [s.p1[0] - s.p0[0], s.p1[1] - s.p0[1], s.p1[2] - s.p0[2]];
     const len = Math.hypot(...d) || 1;
@@ -326,15 +601,34 @@ function buildVoxels(part, mesh, opts) {
       }
     }
   }
+  // LDCad knows nothing: the shapes of the mesh (studs, round axles and holes, pins and pin holes along their axis)
+  if (!snaps.length) for (const sh of meshShapes(mesh.verts)) { if (sh.type === "stud") studs.push(sh.p); add(sh.p, sh.type); }
   // footprint rule for System parts: anti-stud at every occupied 20 LDU cell on the bottom face
   if (opts.system) {
     const bottomY = 0;
     const cellsX = Math.round((mesh.mx[0] - mesh.mn[0]) / 0.8), cellsZ = Math.round((mesh.mx[2] - mesh.mn[2]) / 0.8);
-    const verts = [];   // any vertex strictly inside a cell (any height) marks it as occupied
-    for (const f of mesh.faces) for (const p of f.t) verts.push([p[0] - mesh.mn[0], p[2] - mesh.mn[2]]);
+    // a cell is occupied when a flat face of the bottom (horizontal, at the lowest height) covers part of it: not any
+    // vertex at any height (a lying axle, a cylinder had anti-studs under it: Wzx 10/11/2026)
+    const flat = [];
+    for (const f of mesh.faces) {
+      if (Math.abs(f.n[1]) < 0.95 || !f.t.every((p) => p[1] - mesh.mn[1] < 0.02)) continue;
+      flat.push(f.t.map((p) => [p[0] - mesh.mn[0], p[2] - mesh.mn[2]]));
+    }
+    const inTri = (x, z, t) => {
+      const d = (a, b) => (x - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (z - b[1]);
+      const d1 = d(t[0], t[1]), d2 = d(t[1], t[2]), d3 = d(t[2], t[0]);
+      return !((d1 < -1e-9 || d2 < -1e-9 || d3 < -1e-9) && (d1 > 1e-9 || d2 > 1e-9 || d3 > 1e-9));
+    };
+    const covered = (cx, cz) => {
+      for (const t of flat) {
+        if (t.some((p) => Math.abs(p[0] - cx) < 0.39 && Math.abs(p[1] - cz) < 0.39)) return true;
+        for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) if (inTri(cx + a * 0.0975, cz + b * 0.0975, t)) return true;
+      }
+      return false;
+    };
     for (let i = 0; i < cellsX; i++) for (let k = 0; k < cellsZ; k++) {
       const cx = 0.4 + i * 0.8, cz = 0.4 + k * 0.8;
-      const occ = verts.some((v) => Math.abs(v[0] - cx) < 0.38 && Math.abs(v[1] - cz) < 0.38);
+      const occ = covered(cx, cz);
       const already = vox.some((v, j) => types[j] === "antistud" && Math.abs(v[0] - cx) < 0.05 && Math.abs(v[2] - cz) < 0.05);   // raised anti-stud from LDCad
       if (occ && !already) add([r4(cx), bottomY, r4(cz)], "antistud");
     }
@@ -343,7 +637,7 @@ function buildVoxels(part, mesh, opts) {
     const onGrid = (x) => Math.abs(((x - 0.4) / 0.8) - Math.round((x - 0.4) / 0.8)) < 0.03;
     for (let i = vox.length - 1; i >= 0; i--) if (types[i] === "antistud" && !(onGrid(vox[i][0]) && onGrid(vox[i][2]))) { vox.splice(i, 1); types.splice(i, 1); }
   }
-  return { vox, studs, types };
+  return { vox, studs, types, source: snaps.length ? "shadow" : vox.length ? "auto" : "fail" };
 }
 
 // ---------------------------------------------------------------- main
@@ -351,8 +645,9 @@ export function convertPart(id, opts = {}) {
   const part = loadPart(id + ".dat");
   let maxY = -1e9; for (const t of part.tris) for (const p of t) maxY = Math.max(maxY, p[1]);
   part.maxY = maxY;
+  if (opts.repair || process.env.REPAIR === "1") part.tris = repairTris(part.tris).tris;   // (the cracks closed)
   const mesh = buildMesh(part.tris, opts.crease ?? 35);
-  const { vox, studs, types } = buildVoxels(part, mesh, opts);
+  const { vox, studs, types, source } = buildVoxels(part, mesh, opts);
   const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];
   const topY = studs.length ? Math.max(...studs.map((s) => s[1])) : r4(size[1]);
   const columns = studs.map((s) => [s[0], s[2]]);
@@ -367,6 +662,7 @@ export function convertPart(id, opts = {}) {
       hasStuds: studs.length > 0, topY: r4(topY), grab, columns, grabPoints, voxels: vox,
       connectorTypes: types, ldraw: id + ".dat",
       snapCount: part.snaps.length,
+      connSource: source,   // where the connectors come from: shadow (LDCad), old (the old BrickIt), auto (rules), fail (none)
     },
   };
 }
