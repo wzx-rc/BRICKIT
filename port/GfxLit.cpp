@@ -91,6 +91,7 @@ void GfxRendererLit::renderView(const vp3d::Scene& scene, const vp3d::RenderSett
     s.exposure = rs.exposure;
     s.vignette = rs.vignette;
     s.tonemapper = rs.tonemapper;
+    s.bevel = rs.bevel ? rs.bevelScale : 0.0f;   // rounded edges without ray tracing (the box of each part)
     const auto t0 = std::chrono::steady_clock::now();
     m_lit.render(scene, s, m_view->GetDefaultView(TEXTURE_VIEW_RENDER_TARGET), w, h);
     m_ms = m_ms * 0.9f + 0.1f * std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();

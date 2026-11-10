@@ -125,6 +125,7 @@ std::string BrickApp::prefsJson() {
         j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
+        j += std::string(", \"bevel\": ") + (m_rs.bevel ? "true" : "false");
         j += ", \"ghostCol\": " + std::to_string(m_ghostCol) + ", \"ghostAlpha\": " + std::to_string(m_ghostAlphaPref) + ", \"ghostGlow\": " + std::to_string(m_ghostGlow);
         j += ", \"hideDeco\": ";
         j += m_hideDeco ? "true" : "false";
@@ -221,6 +222,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libCards"].type == app::Json::Number) m_stCardMode = std::clamp((int)tj["libCards"].n, 0, 1);
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
+        if (tj["bevel"].type == app::Json::Bool) m_rs.bevel = tj["bevel"].b;
         if (tj["ghostCol"].type == app::Json::Number) m_ghostCol = std::clamp((int)tj["ghostCol"].n, 0, 5);
         if (tj["ghostAlpha"].type == app::Json::Number) m_ghostAlphaPref = std::clamp((float)tj["ghostAlpha"].n, 0.05f, 1.0f);
         if (tj["ghostGlow"].type == app::Json::Number) m_ghostGlow = std::clamp((int)tj["ghostGlow"].n, 0, 3);

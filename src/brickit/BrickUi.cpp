@@ -3424,6 +3424,7 @@ void BrickApp::uiSettings() {
         {"Brique en main : couleur de l'aperçu", {{"Jaune", m_ghostCol == 0}, {"Blanc", m_ghostCol == 1}, {"Bleu", m_ghostCol == 2}, {"Vert", m_ghostCol == 3}, {"Rose", m_ghostCol == 4}, {"Brique", m_ghostCol == 5}}, 21},
         {"Brique en main : opacité", {{"15 %", m_ghostAlphaPref < 0.2f}, {"32 %", m_ghostAlphaPref >= 0.2f && m_ghostAlphaPref < 0.4f}, {"50 %", m_ghostAlphaPref >= 0.4f && m_ghostAlphaPref < 0.6f}, {"75 %", m_ghostAlphaPref >= 0.6f}}, 22},
         {"Brique en main : intensité", {{"Aucune", m_ghostGlow == 0}, {"Douce", m_ghostGlow == 1}, {"Normale", m_ghostGlow == 2}, {"Forte", m_ghostGlow == 3}}, 23},
+        {"Arêtes arrondies (biseau)", {{"Oui", m_rs.bevel}, {"Non", !m_rs.bevel}}, 24},
         {"Anneau de la main gauche (tourner, basculer)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
         {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
         {"Rendu", {{"Rapide", m_rs.raster && m_quality == 0}, {"HQ", m_rs.raster && m_quality == 1}, {"PT", pathTraced()}, {"RC", m_rcMode}}, 2},
@@ -3736,6 +3737,7 @@ void BrickApp::uiSettings() {
         case 16: m_selHud = clickOpt == 0; m_arcOpen = false; break;
         case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
         case 19: m_stCardMode = clickOpt; m_cardsScroll = 0; break;
+        case 24: m_rs.bevel = clickOpt == 0; m_renderer->resetAccumulation(); break;
         case 21: m_ghostCol = clickOpt; applyGhostLook(); break;
         case 22: { static const float k[4] = {0.15f, 0.32f, 0.5f, 0.75f}; m_ghostAlphaPref = k[std::clamp(clickOpt, 0, 3)]; break; }
         case 23: m_ghostGlow = clickOpt; applyGhostLook(); break;
