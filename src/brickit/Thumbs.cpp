@@ -814,7 +814,7 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
     // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
     // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).
-    if (m_lazyThumbs.size() >= 120) {
+    if (m_lazyThumbs.size() >= 90) {
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;

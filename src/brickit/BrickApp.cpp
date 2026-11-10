@@ -75,10 +75,14 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         char b[1200];
         const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
         snprintf(b, sizeof(b), "Image %d · briques %d · sélection %d · en main %d\nInterface %s · popup %d · bibliothèque dock %d %s · HD %d · DEV %d\n"
-                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n",
+                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n"
+                 "Textures BrickIt : %d (limite 170) · miniatures chargées %d · textures ImGui %d · atlas de police %dx%d\n",
                  m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classique", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
                  m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "fermé", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
-                 m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str());
+                 m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str(),
+                 m_gui ? m_gui->liveTextures() : -1, (int)m_lazyThumbs.size(), ImGui::GetCurrentContext() ? ImGui::GetPlatformIO().Textures.Size : -1,
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Width : 0,
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0);
         return std::string(b);
     });
     if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
