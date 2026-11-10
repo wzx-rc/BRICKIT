@@ -239,6 +239,146 @@ function loadPart(name) {
   return { tris, snaps, prims };
 }
 
+// ---------------------------------------------------------------- the cracks of the LDraw meshes (Wzx 10/11/2026: « certains
+// plans ne se ferment pas, les vertex sont superposés mais pas fusionnés »): the primitives meet with vertices that do not
+// coincide (another tessellation, a hair apart, a vertex in the middle of the edge of the face next to it). Repaired in
+// LDU: (1) the vertices closer than 0.02 LDU merged; (2) a vertex at the end of an open edge, within 0.3 LDU of another
+// open edge, moved onto it; (3) the T-junctions split: a triangle with vertices on its edges is cut into a fan around its
+// centre (flat, the same colour). REPAIR=1 (or opts.repair).
+function repairTris(tris) {
+  const q = (x) => Math.round(x * 50);
+  const keyOf = (p) => q(p[0]) + "," + q(p[1]) + "," + q(p[2]);
+  // (1) weld
+  const rep = new Map();
+  for (const t of tris) for (let i = 0; i < 3; i++) {
+    const k = keyOf(t[i]);
+    if (!rep.has(k)) rep.set(k, t[i].slice());
+    t[i] = rep.get(k);
+  }
+  const ekey = (a, b) => { const ka = keyOf(a), kb = keyOf(b); return ka < kb ? ka + "|" + kb : kb + "|" + ka; };
+  const openEdges = () => {
+    const E = new Map();
+    for (const t of tris) for (let i = 0; i < 3; i++) {
+      const a = t[i], b = t[(i + 1) % 3], k = ekey(a, b);
+      const e = E.get(k);
+      if (e) e.n++; else E.set(k, { a, b, n: 1, t });
+    }
+    return [...E.values()].filter((e) => e.n === 1 && keyOf(e.a) !== keyOf(e.b));
+  };
+  const proj = (p, a, b) => {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    if (L2 < 1e-12) return null;
+    const t = ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2]) / L2;
+    const c = [a[0] + d[0] * t, a[1] + d[1] * t, a[2] + d[2] * t];
+    return { t, c, dist: Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) };
+  };
+  // a grid of the edges (cells of 2 LDU)
+  const grid = (edges) => {
+    const G = new Map(), cell = (x) => Math.floor(x / 2);
+    edges.forEach((e, i) => {
+      const lo = [0, 1, 2].map((k) => cell(Math.min(e.a[k], e.b[k]) - 0.3)), hi = [0, 1, 2].map((k) => cell(Math.max(e.a[k], e.b[k]) + 0.3));
+      if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 4000) return;
+      for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) {
+        const k = x + "," + y + "," + z; let g = G.get(k); if (!g) G.set(k, (g = [])); g.push(i);
+      }
+    });
+    return (p) => G.get(cell(p[0]) + "," + cell(p[1]) + "," + cell(p[2])) || [];
+  };
+  // (2a) a flat face whose edge is a chord of an arc finer than it (the 48-segment primitives along a face drawn for 16):
+  // the sliver between the chord and the arc filled (a fan from the start of the chord), in the plane of the face
+  {
+    const open = openEdges(), near = grid(open);
+    const ends = new Map();
+    for (const e of open) { ends.set(keyOf(e.a), e.a); ends.set(keyOf(e.b), e.b); }
+    const endList = [...ends.values()];
+    const EG = new Map(), ec = (x) => Math.floor(x / 2);
+    for (const p of endList) { const k = ec(p[0]) + "," + ec(p[1]) + "," + ec(p[2]); let g = EG.get(k); if (!g) EG.set(k, (g = [])); g.push(p); }
+    for (const e of open) {
+      const t = e.t, a = e.a, b = e.b;
+      const u = [t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]], v = [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]];
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], nl = Math.hypot(...n);
+      if (nl < 1e-9) continue;
+      const N = n.map((x) => x / nl), L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      if (L < 0.2) continue;
+      const lo = [0, 1, 2].map((k) => ec(Math.min(a[k], b[k]) - 1)), hi = [0, 1, 2].map((k) => ec(Math.max(a[k], b[k]) + 1));
+      if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 500) continue;
+      const pts = [];
+      for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++)
+        for (const p of EG.get(x + "," + y + "," + z) || []) {
+          if (p === a || p === b) continue;
+          const pl = (p[0] - a[0]) * N[0] + (p[1] - a[1]) * N[1] + (p[2] - a[2]) * N[2];
+          if (Math.abs(pl) > 0.01) continue;   // (in the plane of the face)
+          const r = proj(p, a, b);
+          if (!r || r.t <= 0.002 || r.t >= 0.998 || r.dist < 1e-4 || r.dist > Math.max(0.05, L * 0.25)) continue;
+          // outside the face: on the other side of the chord from its third vertex
+          const third = t.find((q) => q !== a && q !== b) || t[0], r3 = proj(third, a, b);
+          const side = (c, w) => (w[0] - c[0]) * (third[0] - r3.c[0]) + (w[1] - c[1]) * (third[1] - r3.c[1]) + (w[2] - c[2]) * (third[2] - r3.c[2]);
+          if (side(r.c, p) >= 0) continue;
+          pts.push({ p, t: r.t });
+        }
+      if (!pts.length) continue;
+      pts.sort((x, y) => x.t - y.t);
+      const chain = [a, ...pts.map((o) => o.p), b];
+      for (let i = 1; i + 1 < chain.length; i++) {   // (wound as the face: its normal)
+        const p1 = chain[i], p2 = chain[i + 1];
+        const c1 = [p1[0] - a[0], p1[1] - a[1], p1[2] - a[2]], c2 = [p2[0] - a[0], p2[1] - a[1], p2[2] - a[2]];
+        const cz = [c1[1] * c2[2] - c1[2] * c2[1], c1[2] * c2[0] - c1[0] * c2[2], c1[0] * c2[1] - c1[1] * c2[0]];
+        const nt = cz[0] * N[0] + cz[1] * N[1] + cz[2] * N[2] >= 0 ? [a, p1, p2] : [a, p2, p1];
+        nt.c = t.c;
+        tris.push(nt);
+      }
+    }
+  }
+  // (2) the ends of the open edges moved onto the open edge next to them
+  {
+    const open = openEdges(), near = grid(open);
+    const ends = new Map();
+    for (const e of open) { ends.set(keyOf(e.a), e.a); ends.set(keyOf(e.b), e.b); }
+    for (const [k, p] of ends) {
+      let best = null;
+      for (const i of near(p)) {
+        const e = open[i];
+        if (keyOf(e.a) === k || keyOf(e.b) === k) continue;
+        const r = proj(p, e.a, e.b);
+        if (!r || r.t <= 0.001 || r.t >= 0.999 || r.dist > 0.3) continue;
+        if (!best || r.dist < best.dist) best = r;
+      }
+      if (best && best.dist > 1e-6) { p[0] = best.c[0]; p[1] = best.c[1]; p[2] = best.c[2]; }   // (the shared vertex object: every triangle follows)
+    }
+  }
+  // (3) the T-junctions: the vertices lying inside an edge of a triangle
+  const verts = [...new Map(tris.flatMap((t) => t.map((p) => [keyOf(p), p]))).values()];
+  const VG = new Map(), vcell = (x) => Math.floor(x / 2);
+  verts.forEach((p) => { const k = vcell(p[0]) + "," + vcell(p[1]) + "," + vcell(p[2]); let g = VG.get(k); if (!g) VG.set(k, (g = [])); g.push(p); });
+  const onEdge = (a, b) => {
+    const lo = [0, 1, 2].map((k) => vcell(Math.min(a[k], b[k]) - 0.01)), hi = [0, 1, 2].map((k) => vcell(Math.max(a[k], b[k]) + 0.01));
+    if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 2000) return [];
+    const out = [];
+    for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++)
+      for (const p of VG.get(x + "," + y + "," + z) || []) {
+        if (p === a || p === b) continue;
+        const r = proj(p, a, b);
+        if (r && r.t > 1e-4 && r.t < 1 - 1e-4 && r.dist < 0.01) out.push({ p, t: r.t });
+      }
+    return out.sort((u, v) => u.t - v.t).map((o) => o.p);
+  };
+  const out = [];
+  let split = 0;
+  for (const t of tris) {
+    const ins = [onEdge(t[0], t[1]), onEdge(t[1], t[2]), onEdge(t[2], t[0])];
+    if (!ins[0].length && !ins[1].length && !ins[2].length) { out.push(t); continue; }
+    split++;
+    const poly = [t[0], ...ins[0], t[1], ...ins[1], t[2], ...ins[2]];
+    const c = [(t[0][0] + t[1][0] + t[2][0]) / 3, (t[0][1] + t[1][1] + t[2][1]) / 3, (t[0][2] + t[1][2] + t[2][2]) / 3];
+    for (let i = 0; i < poly.length; i++) {
+      const nt = [c, poly[i], poly[(i + 1) % poly.length]];
+      nt.c = t.c;
+      out.push(nt);
+    }
+  }
+  return { tris: out, split };
+}
+
 // ---------------------------------------------------------------- geometry: to BrickIt space, weld, crease normals
 const toB = (p) => [p[0] * LDU, -p[1] * LDU, -p[2] * LDU];
 function buildMesh(trisL, crease = 35) {
@@ -505,6 +645,7 @@ export function convertPart(id, opts = {}) {
   const part = loadPart(id + ".dat");
   let maxY = -1e9; for (const t of part.tris) for (const p of t) maxY = Math.max(maxY, p[1]);
   part.maxY = maxY;
+  if (opts.repair || process.env.REPAIR === "1") part.tris = repairTris(part.tris).tris;   // (the cracks closed)
   const mesh = buildMesh(part.tris, opts.crease ?? 35);
   const { vox, studs, types, source } = buildVoxels(part, mesh, opts);
   const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];
