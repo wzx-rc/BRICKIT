@@ -98,6 +98,10 @@ void BrickApp::openVoxelEditor(int part) {
     m_veView = defaultThumbView();
     m_veObj = -1;
     m_veCtx = -1;
+    m_toast.clear();   // (nothing of the Builder follows into the editor)
+    m_libPress = -1;
+    m_infoPart = -1;
+    m_stHov = -1;
     veAnalyze();
 }
 
@@ -415,7 +419,10 @@ void BrickApp::uiVoxelEditor() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImGuiIO& io = ImGui::GetIO();
     Part& P = m_lib.parts[m_vePart];
-    u.dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(8, 9, 11, 246));
+    // its own space (Wzx 10/11/2026: « un truc qui fige l'éditeur et ouvre toute une nouvelle interface indépendante »):
+    // an opaque ground of its own, the Builder frozen behind (its view, its keys, its mouse: nothing reaches it)
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), d, IM_COL32(6, 7, 9, 255));
+    u.dl->AddRectFilledMultiColor(ImVec2(0, 0), d, IM_COL32(20, 22, 27, 255), IM_COL32(20, 22, 27, 255), IM_COL32(7, 8, 10, 255), IM_COL32(7, 8, 10, 255));
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
     const bool typing = io.WantTextInput;
     const bool ctrl = io.KeyCtrl;
@@ -906,6 +913,6 @@ void BrickApp::uiVoxelEditor() {
             if (h && u.pressed && i != m_vePart) { veSave(false); openVoxelEditor(i); return; }
             cx += cs + 8 * s;
         }
-        if (q.size() == 1) u.text(ImVec2(x0, qa.y + 50 * s), 10.5f, C_DIM, "Aucune autre pièce rouge ou orange dans la liste ouverte de la bibliothèque.");
+        if (q.size() == 1) u.text(ImVec2(x0 + 72 * s, qa.y + 58 * s), 10.5f, C_DIM, "Aucune autre pièce rouge ou orange dans la liste ouverte de la bibliothèque.");
     }
 }
