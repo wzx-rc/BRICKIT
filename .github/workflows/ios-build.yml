@@ -1,5 +1,5 @@
 # BrickIt iPad: builds an unsigned .ipa on a GitHub macOS runner (no Mac needed).
-# Install: download the "BrickIt-iPad-unsigned" artifact of the run, unzip it, open the .ipa in Sideloadly on the PC
+# Install: download the .ipa from the release « ipad » (Releases of the repository), open it in Sideloadly on the PC
 # (free Apple ID, iPad on USB). A free Apple ID signs for 7 days: install again from Sideloadly after that,
 # the data of the app is kept as long as the app is not deleted.
 #
@@ -21,6 +21,9 @@ on:
 
 env:
   MOLTENVK_VERSION: v1.4.1
+
+permissions:
+  contents: write   # the release « ipad » that carries the .ipa
 
 jobs:
   build-ipa:
@@ -113,8 +116,20 @@ jobs:
           path: build/ios
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: BrickIt-iPad-unsigned
-          path: ${{ env.IPA }}
-          retention-days: 30
+      # The .ipa (about 700 MB with the full library) goes to the release « ipad » and not to an artifact: release files
+      # do not count in the Actions storage (0.5 GB on the free plan, full with one .ipa). Only the last one is kept.
+      - name: Publish the .ipa (release ipad)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N="$(basename "$IPA")"
+          NOTES="Dernier build iPad : $N (branche ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}). Télécharger le .ipa ci-dessous, l'ouvrir dans Sideloadly."
+          if ! gh release view ipad >/dev/null 2>&1; then
+            gh release create ipad --prerelease --target "$GITHUB_SHA" --title "BrickIt iPad" --notes "$NOTES"
+          fi
+          gh release upload ipad "$IPA" --clobber
+          gh release view ipad --json assets -q '.assets[].name' | while read -r a; do
+            [ "$a" != "$N" ] && gh release delete-asset ipad "$a" -y || true
+          done
+          gh release edit ipad --notes "$NOTES"
+          echo "::notice::.ipa : https://github.com/${GITHUB_REPOSITORY}/releases/tag/ipad"
