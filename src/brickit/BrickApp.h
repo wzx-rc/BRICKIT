@@ -215,6 +215,7 @@ private:
     // BrickTouch.cpp: the touch gestures of the web (canvas pointer events), iPad
     enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM, TG_MENU };   // TG_MENU: a long press opened the marking menu (Studio)
     struct TouchEvent { int type; uint64_t id; float x, y; bool pen; };   // type 0 began, 1 moved, 2 ended, 3 cancelled
+    static constexpr float kIpadTopStrip = 12;   // iPad: points above the top bar, no touch starts there (the system swipe)
     struct TouchPt { float x, y, sx, sy; double t; bool pen; };
     struct TouchGesture {
         int type = 0;                 // TG_* (BrickTouch.cpp)

@@ -53,6 +53,10 @@ jobs:
         run: |
           if git ls-remote --exit-code --heads origin bibliotheque >/dev/null; then
             python3 tools/brickit/library_fetch.py assets/brickit/full
+            if [ -f assets/brickit/full/thumbs_hq.pack ]; then   # the HD thumbnails, 512 -> 384 px for the iPad
+              python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+              python3 tools/brickit/thumbs_resize.py assets/brickit/full/thumbs_hq.pack 384
+            fi
             du -sh assets/brickit/full
           else
             echo "::warning::No branch bibliotheque: the iPad gets the base and Technic parts only"

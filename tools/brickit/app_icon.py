@@ -28,11 +28,11 @@ def faces():
         out += [side, top]
     return out
 
-def render(size):
+def render(size, ios=False):
     S = 1024
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    m = int(S * 0.06)
+    m = 0 if ios else int(S * 0.06)   # iPad: the whole square, opaque (iPadOS rounds the corners itself)
     # the dark smoked square of the interface, a soft vertical gradient and a fine light rim
     grad = Image.new("RGBA", (S, S))
     gd = ImageDraw.Draw(grad)
@@ -40,15 +40,16 @@ def render(size):
         t = y / S
         gd.line([(0, y), (S, y)], fill=(int(44 - 16 * t), int(46 - 16 * t), int(51 - 17 * t), 255))
     mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle((m, m, S - m, S - m), radius=0 if ios else int(S * 0.2), fill=255)
     im.paste(grad, (0, 0), mask)
-    d.rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), outline=(255, 255, 255, 46), width=max(2, int(S * 0.008)))
+    if not ios:
+        d.rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), outline=(255, 255, 255, 46), width=max(2, int(S * 0.008)))
     # the brick, fitted in the middle
     fs = faces()
     xs = [p[0] for f in fs for p in f]
     ys = [p[1] for f in fs for p in f]
     ext = max(max(xs) - min(xs), max(ys) - min(ys))
-    k = S * 0.66 / ext
+    k = S * (0.6 if ios else 0.66) / ext
     cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     # the stroke: thin at 256 px, thicker at the small sizes so that it still reads
     stroke_px = {16: 1.3, 24: 1.5, 32: 1.7, 48: 2.0, 64: 2.4, 128: 3.6, 256: 5.5}.get(size, 5.5)
@@ -63,6 +64,14 @@ def render(size):
     return im.resize((size, size), Image.LANCZOS)
 
 if __name__ == "__main__":
+    import sys
+    if "--ios" in sys.argv:   # the iPad app icon (ios/icons, CFBundleIcons~ipad of ios/Info.plist.in)
+        out = os.path.join(ROOT, "ios", "icons")
+        os.makedirs(out, exist_ok=True)
+        for name, px in (("AppIcon76x76@2x~ipad.png", 152), ("AppIcon83.5x83.5@2x~ipad.png", 167), ("AppIcon76x76~ipad.png", 76), ("AppIcon1024.png", 1024)):
+            render(px, ios=True).convert("RGB").save(os.path.join(out, name))
+        print("ok", out)
+        sys.exit(0)
     os.makedirs(OUT, exist_ok=True)
     sizes = [16, 24, 32, 48, 64, 128, 256]
     imgs = [render(s) for s in sizes]

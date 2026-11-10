@@ -86,6 +86,8 @@ void BrickApp::touchPump() {
 void BrickApp::touchDown(const TouchEvent& e) {
     ImGuiIO& io = ImGui::GetIO();
     const double now = ImGui::GetTime();
+    // the strip above the top bar: a finger coming down from the edge of the screen (iPadOS) presses nothing
+    if (m_studioUi && !m_ipadCreme && m_touches.empty() && m_tg.type == TG_NONE && e.y < kIpadTopStrip * m_ui) return;
     m_touches[e.id] = {e.x, e.y, e.x, e.y, now, e.pen};
     TouchGesture& g = m_tg;
 
