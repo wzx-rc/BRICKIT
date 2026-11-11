@@ -2913,7 +2913,7 @@ void BrickApp::uiManual() {
     const float H = padT + headH + (folded ? 0 : gap + bodyH) + padB;
     ImVec2 p0(x0, y0), p1(x1, y0 + H);
     u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 16 * s), ImVec2(p1.x, p1.y + 16 * s), IM_COL32(0, 0, 0, 40), 16 * s);   // shadow
-    u.dl->AddRectFilled(p0, p1, C_PANEL, rr(16 * s));
+    u.dl->AddRectFilled(p0, p1, (C_PANEL & 0x00FFFFFFu) | (std::max<ImU32>(C_PANEL >> 24, 248u) << 24), rr(16 * s));   // nearly opaque: it floats over the tools / colours
     u.dl->AddRect(p0, p1, C_LINE, rr(16 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     if (gripPanel(3, m_pManual, p0, ImVec2(p0.x + 34 * s + 2 * padX, p0.y + padT + headH), p0)) return;
