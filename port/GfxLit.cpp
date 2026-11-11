@@ -207,6 +207,8 @@ bool GfxGuiLit::init(GfxRendererLit& renderer, float dpiScale, const std::string
 
 void GfxGuiLit::shutdown() {
     m_textures.clear();
+    m_doomed[0].clear();
+    m_doomed[1].clear();
     m_imgui.shutdown();
     if (ImGui::GetCurrentContext()) ImGui::DestroyContext();
 }
@@ -231,6 +233,8 @@ void GfxGuiLit::render(bool) {
     const float clear[4] = {0x13 / 255.0f, 0x14 / 255.0f, 0x17 / 255.0f, 1.0f};   // the dark stage behind the panels
     ctx->ClearRenderTarget(rtv, clear, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
     m_imgui.render(ImGui::GetDrawData(), rtv);
+    m_doomed[1].swap(m_doomed[0]);   // (released a frame after the frame that may have drawn them)
+    m_doomed[0].clear();
 }
 
 ImTextureID GfxGuiLit::viewportTexture() { return (ImTextureID)(uintptr_t)m_r->viewportSRV(); }
@@ -257,6 +261,11 @@ ImTextureID GfxGuiLit::createTexture(const uint8_t* rgba, uint32_t w, uint32_t h
     return id;
 }
 
-void GfxGuiLit::releaseTexture(ImTextureID id) { m_textures.erase(id); }
+void GfxGuiLit::releaseTexture(ImTextureID id) {
+    auto it = m_textures.find(id);
+    if (it == m_textures.end()) return;
+    m_doomed[0].push_back(it->second);
+    m_textures.erase(it);
+}
 
 } // namespace brickit

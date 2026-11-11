@@ -2560,6 +2560,7 @@ void BrickApp::drawUiStudio() {
     }
     stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
+    manualReserveDock();
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {
         const ImVec2 c((m_stage.x + m_stage.z) * 0.5f, (m_stage.y + m_stage.w) * 0.5f);
         ImDrawList* dl = ImGui::GetWindowDrawList();
