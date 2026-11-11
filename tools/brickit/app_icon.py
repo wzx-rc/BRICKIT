@@ -1,71 +1,44 @@
-# BrickIt PC: the application icon (taskbar, title bar, Explorer): the pictogram of the family « Briques » of the
-# Studio interface as it is when active (Wzx 09/11/2026): a 2x4 brick in thin amber lines, isometric, its faces
-# lightly tinted, on the dark smoked grey of the interface.
-# Usage: py tools/brickit/app_icon.py   -> src/brickit/res/brickit.ico (16 to 256 px) and brickit_256.png
-import math, os
+# BrickIt: the application icons, from the two 1024 px sources chosen by Wzx (11/11/2026, made with Gemini from his
+# reference): A = the yellow 2x2 brick in white viewfinder corners on navy (the icon everywhere), B = the same brick
+# without the viewfinder (Réglages › Icône de l'app : B).
+#   ios/icons/source/brickit_v1_viseur_1024.png       (A)
+#   ios/icons/source/brickit_v1_sans_viseur_1024.png  (B)
+# Usage: py tools/brickit/app_icon.py
+#   -> ios/icons/AppIcon*.png (A) and AppIconB*.png (B): the iPad (full square, iPadOS rounds the corners)
+#   -> src/brickit/res/brickit.ico, brickit_b.ico (16 to 256 px, rounded with a margin) and brickit_256.png: the PC
+#   -> assets/brickit/ui_kit/logo/brickit_a.png, brickit_b.png (128 px, rounded): the logo of the header in the app
+import os
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT = os.path.join(ROOT, "src", "brickit", "res")
-C30, S30 = math.cos(math.radians(30)), 0.5
+SRC = {"a": os.path.join(ROOT, "ios", "icons", "source", "brickit_v1_viseur_1024.png"),
+       "b": os.path.join(ROOT, "ios", "icons", "source", "brickit_v1_sans_viseur_1024.png")}
 
-def P(x, y, z):
-    return ((x - z) * C30, (x + z) * S30 - y)
-
-def faces():
-    """The 2x4 brick: two sides, the top, eight studs (side, then top), back to front."""
-    w, l, h = 2.0, 4.0, 1.2
-    out = [
-        [P(0, 0, l), P(w, 0, l), P(w, h, l), P(0, h, l)],
-        [P(w, 0, 0), P(w, h, 0), P(w, h, l), P(w, 0, l)],
-        [P(0, h, 0), P(w, h, 0), P(w, h, l), P(0, h, l)],
-    ]
-    for (i, j) in sorted([(i, j) for i in range(2) for j in range(4)], key=lambda q: q[0] + q[1]):
-        cx, cz, r, sh = i + 0.5, j + 0.5, 0.3, 0.22
-        side = [P(cx + r * math.cos(t), h, cz + r * math.sin(t)) for t in [math.pi / 4 + k * math.pi / 16 for k in range(17)]]
-        side += [P(cx + r * math.cos(t), h + sh, cz + r * math.sin(t)) for t in [math.pi / 4 + k * math.pi / 16 for k in range(16, -1, -1)]]
-        top = [P(cx + r * math.cos(t), h + sh, cz + r * math.sin(t)) for t in [k * 2 * math.pi / 40 for k in range(40)]]
-        out += [side, top]
-    return out
-
-def render(size):
+def rounded(im, size, margin):
+    """The square rounded as the iPad does (22.37 %), with a transparent margin (PC), at `size` px."""
     S = 1024
-    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    m = int(S * 0.06)
-    # the dark smoked square of the interface, a soft vertical gradient and a fine light rim
-    grad = Image.new("RGBA", (S, S))
-    gd = ImageDraw.Draw(grad)
-    for y in range(S):
-        t = y / S
-        gd.line([(0, y), (S, y)], fill=(int(44 - 16 * t), int(46 - 16 * t), int(51 - 17 * t), 255))
-    mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), fill=255)
-    im.paste(grad, (0, 0), mask)
-    d.rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), outline=(255, 255, 255, 46), width=max(2, int(S * 0.008)))
-    # the brick, fitted in the middle
-    fs = faces()
-    xs = [p[0] for f in fs for p in f]
-    ys = [p[1] for f in fs for p in f]
-    ext = max(max(xs) - min(xs), max(ys) - min(ys))
-    k = S * 0.66 / ext
-    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-    # the stroke: thin at 256 px, thicker at the small sizes so that it still reads
-    stroke_px = {16: 1.3, 24: 1.5, 32: 1.7, 48: 2.0, 64: 2.4, 128: 3.6, 256: 5.5}.get(size, 5.5)
-    width = max(2, int(round(stroke_px * S / size)))
-    layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ld = ImageDraw.Draw(layer)
-    for f in fs:
-        pts = [(S / 2 + (x - cx) * k, S / 2 + (y - cy) * k) for (x, y) in f]
-        ld.polygon(pts, fill=(217, 180, 67, 46))
-        ld.line(pts + [pts[0]], fill=(226, 191, 79, 255), width=width, joint="curve")
-    im.alpha_composite(layer)
-    return im.resize((size, size), Image.LANCZOS)
+    m = int(S * margin)
+    body = im.convert("RGBA").resize((S - 2 * m, S - 2 * m), Image.LANCZOS)
+    mask = Image.new("L", (S - 2 * m, S - 2 * m), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, S - 2 * m - 1, S - 2 * m - 1), radius=int((S - 2 * m) * 0.2237), fill=255)
+    out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    out.paste(body, (m, m), mask)
+    return out.resize((size, size), Image.LANCZOS)
 
 if __name__ == "__main__":
-    os.makedirs(OUT, exist_ok=True)
-    sizes = [16, 24, 32, 48, 64, 128, 256]
-    imgs = [render(s) for s in sizes]
-    imgs[-1].save(os.path.join(OUT, "brickit_256.png"))
-    imgs[-1].save(os.path.join(OUT, "brickit.ico"), sizes=[(s, s) for s in sizes], append_images=imgs[:-1])
-    print("ok", os.path.join(OUT, "brickit.ico"))
+    ios = os.path.join(ROOT, "ios", "icons")
+    res = os.path.join(ROOT, "src", "brickit", "res")
+    logo = os.path.join(ROOT, "assets", "brickit", "ui_kit", "logo")
+    os.makedirs(logo, exist_ok=True)
+    for k, path in SRC.items():
+        src = Image.open(path).convert("RGB")
+        pre = "AppIcon" if k == "a" else "AppIconB"
+        for name, px in (("76x76@2x~ipad", 152), ("83.5x83.5@2x~ipad", 167), ("76x76~ipad", 76)):
+            src.resize((px, px), Image.LANCZOS).save(os.path.join(ios, pre + name + ".png"), optimize=True)
+        if k == "a": src.save(os.path.join(ios, "AppIcon1024.png"), optimize=True)
+        sizes = [16, 24, 32, 48, 64, 128, 256]
+        imgs = [rounded(src, s, 0.03) for s in sizes]
+        imgs[-1].save(os.path.join(res, "brickit.ico" if k == "a" else "brickit_b.ico"), sizes=[(s, s) for s in sizes], append_images=imgs[:-1])
+        if k == "a": imgs[-1].save(os.path.join(res, "brickit_256.png"))
+        rounded(src, 128, 0.0).save(os.path.join(logo, "brickit_%s.png" % k), optimize=True)
+    print("ok")

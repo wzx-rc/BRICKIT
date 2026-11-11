@@ -1,2 +1,4 @@
-// BrickIt PC: the application icon (tools/brickit/app_icon.py): a red rounded square, a 2x2 brick in white thin lines
+// BrickIt PC: the application icons (tools/brickit/app_icon.py): 1 = A, the yellow 2x2 brick in white viewfinder
+// corners on navy (Explorer, taskbar); 2 = B, the brick without the viewfinder (Réglages › Icône de l'app, WM_SETICON)
 1 ICON "brickit.ico"
+2 ICON "brickit_b.ico"

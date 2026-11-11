@@ -35,6 +35,9 @@ void saveFileDialog(const wchar_t* filter, const wchar_t* defExt, const std::wst
                     std::function<void(const std::wstring&)> done);
 // iPad: the share sheet with that file (AirDrop, Mail, Fichiers, other apps); elsewhere: nothing
 void shareFile(const std::wstring& path);
+// the icon of the app: 0 = A (with the viewfinder), 1 = B (without). iPad: the home screen icon (iOS confirms it with
+// a message); PC: the icon of the window and the taskbar (the .exe keeps A in Explorer)
+void setAppIcon(int which);
 
 } // namespace brickit::plat
 

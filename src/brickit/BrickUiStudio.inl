@@ -328,10 +328,14 @@ void BrickApp::stHeader() {
     u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), IM_COL32(255, 255, 255, 20), 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
     const float cy = H * 0.5f;
-    // the logo: a red square, a brick pictogram in white; BRICKIT / B U I L D E R
+    // the logo: the app icon (Wzx 11/11/2026: A, the yellow brick in its viewfinder; B, the brick alone); BRICKIT / B U I L D E R
     float x = 14 * s;
-    u.dl->AddRectFilled(ImVec2(x, cy - 14 * s), ImVec2(x + 28 * s, cy + 14 * s), IM_COL32(0xd0, 0x10, 0x1b, 255), 3 * s);
-    stPicto(u.dl, "brick", 2, 2, ImVec2(x + 14 * s, cy), 18 * s, IM_COL32(255, 255, 255, 235), 1.1f * s);
+    if (ImTextureID lt = kitTex(m_appIcon == 1 ? "logo/brickit_b.png" : "logo/brickit_a.png")) {
+        u.dl->AddImageRounded(lt, ImVec2(x - 1 * s, cy - 16 * s), ImVec2(x + 31 * s, cy + 16 * s), ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 7 * s);
+    } else {   // (no image: the red square of before)
+        u.dl->AddRectFilled(ImVec2(x, cy - 14 * s), ImVec2(x + 28 * s, cy + 14 * s), IM_COL32(0xd0, 0x10, 0x1b, 255), 3 * s);
+        stPicto(u.dl, "brick", 2, 2, ImVec2(x + 14 * s, cy), 18 * s, IM_COL32(255, 255, 255, 235), 1.1f * s);
+    }
     x += 38 * s;
     stTrack(u, ImVec2(x, cy - 15 * s), 13, C_TEXT, "BRICKIT", 1.6f * s);
     stTrack(u, ImVec2(x, cy + 1 * s), 8, C_FAINT, "BUILDER", 3.2f * s, false);

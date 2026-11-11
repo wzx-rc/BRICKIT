@@ -97,6 +97,14 @@ void saveFileDialog(const wchar_t*, const wchar_t* defExt, const std::wstring& s
     if (done) done(fromUtf8(docs.UTF8String) + L"/" + name);
 }
 
+void setAppIcon(int which) {
+    UIApplication* app = [UIApplication sharedApplication];
+    if (!app.supportsAlternateIcons) return;
+    NSString* want = which == 1 ? @"B" : nil;
+    if ((want == nil && app.alternateIconName == nil) || [want isEqualToString:app.alternateIconName]) return;
+    [app setAlternateIconName:want completionHandler:nil];
+}
+
 // the share sheet (a popover on the iPad: anchored at the top right, under the header)
 void shareFile(const std::wstring& path) {
     NSURL* url = [NSURL fileURLWithPath:ns(path)];
