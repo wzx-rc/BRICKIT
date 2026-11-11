@@ -1,5 +1,6 @@
 // BrickIt - viewport editing: the brick in hand (typed snap), selection, duplicate, rotate, colours, undo, files.
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include <algorithm>
 #include "Platform.h"
 #include <cstdio>
@@ -475,6 +476,17 @@ void BrickApp::shareScene() {
         if (m_scenePath.empty()) return;
     } else saveScene(m_scenePath);
     plat::shareFile(m_scenePath);
+}
+
+// iPad: « Envoyer un rapport »: the state of the app, its last actions and the last crash or freeze, in one file
+// (Rapports/report_<date>.txt), then the share sheet (Mail, AirDrop, Fichiers)
+void BrickApp::sendReport() {
+    m_popup = 0;
+    crumb("Rapport demandé");
+    const std::wstring p = crashWriteReport("RAPPORT (envoyé depuis l'app)");
+    if (p.empty()) { toast("Rapport impossible : le journal n'est pas actif"); return; }
+    if (m_ipad) plat::shareFile(p);
+    else toast("Rapport écrit : " + plat::toUtf8(p));
 }
 
 // --------------------------------------------------------------------------- input

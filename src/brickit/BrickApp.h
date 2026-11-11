@@ -326,6 +326,7 @@ private:
     bool saveScene(const std::wstring& path);
     bool openScene(const std::wstring& path);
     void shareScene();               // iPad: Partager (the .brick to another app)
+    void sendReport();               // iPad: Envoyer un rapport (state + journal + last crash, share sheet)
     void saveDialog();
     void openDialog();
     void noteRecent(int part);

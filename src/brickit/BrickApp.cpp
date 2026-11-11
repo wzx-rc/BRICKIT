@@ -36,7 +36,7 @@ bool BrickApp::savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint
 bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
                           const std::wstring& exeDir, float dpi) {
     m_opt = opt;
-    if (opt.shotPath.empty()) crashInit(brickitDataDir() + L"\\crashlogs", versionString());   // (a crash, a freeze: a report; not the captures)
+    if (opt.shotPath.empty()) crashInit(plat::reportsDir(), versionString());   // (a crash, a freeze: a report; not the captures)
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
     ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
@@ -1345,7 +1345,10 @@ void BrickApp::frame() {
     if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
     if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
         const std::wstring p = crashLastUnseen();
-        if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + std::string(p.begin(), p.end()));
+        if (!p.empty() && m_ipad)   // the iPad: no folder to look into, the report is sent from here (Mail, AirDrop, Fichiers)
+            plat::confirm(L"BrickIt s'est arrêté", L"La dernière session s'est terminée brutalement. Envoyer le rapport ?\n(il reste aussi dans Fichiers › BrickIt › Rapports)",
+                          [p]() { plat::shareFile(p); });
+        else if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + plat::toUtf8(p));
     }
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
         const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");

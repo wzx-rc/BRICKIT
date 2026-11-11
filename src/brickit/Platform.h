@@ -18,6 +18,10 @@ bool makeDir(const std::wstring& path);
 // folder given by setDataDir (iPad: Application Support/BrickIt), else $HOME/BrickIt. Created when missing.
 std::wstring dataDir();
 void setDataDir(const std::wstring& dir);
+// Folder of the crash / freeze reports. Windows: <dataDir>\crashlogs. iPad: Documents/Rapports (set by the shell,
+// visible in Fichiers › BrickIt). Elsewhere: <dataDir>/crashlogs. Created when missing.
+std::wstring reportsDir();
+void setReportsDir(const std::wstring& dir);
 
 // ---- system dialogs. The answer comes through a callback: at once on Windows (modal dialogs, as before), later on
 // the iPad (the document picker / alert run while the app keeps drawing). Filters use the Windows format:

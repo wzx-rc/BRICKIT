@@ -86,7 +86,11 @@ jobs:
       - name: Configure (Xcode project)
         run: |
           if [ "${{ steps.engine.outputs.have }}" = "true" ]; then SRC=port; EXTRA="-DMOLTENVK_LIBRARY=$MOLTENVK_LIBRARY"; else SRC=ios; EXTRA="-DBRICKIT_GIT=$(git rev-parse --short HEAD)"; fi
+          # -g + dwarf-with-dsym: the symbols of each build in BrickIt.app.dSYM (published next to the .ipa), to read the
+          # crash reports of the iPad (Rapports/crash_*.txt, MetricKit, .ips): atos -o <dSYM> -l <adresse de chargement> ...
           cmake -S $SRC -B build/ios -G Xcode \
+            -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -g" -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG -g" \
+            -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
             -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DBRICKIT_BUILD="${{ github.run_number }}" $EXTRA
 
@@ -109,9 +113,18 @@ jobs:
           rm -rf build/Payload/BrickIt.app
           cp -R "$APP" build/Payload/
           NAME="BrickIt-iPad-$(cat VERSION | tr -d '[:space:]')-$KIND-$(git rev-parse --short HEAD).ipa"
-          (cd build && rm -f *.ipa && zip -qr "$NAME" Payload)
+          (cd build && rm -f *.ipa *.dSYM.zip && zip -qr "$NAME" Payload)
           echo "IPA=build/$NAME" >> "$GITHUB_ENV"
-          ls -la build/*.ipa
+          # the symbols of this very build (the UUID in a crash report matches: dwarfdump --uuid)
+          DSYM=$(find build/ios -path "*Release-iphoneos/BrickIt.app.dSYM" -maxdepth 3 -type d | head -1)
+          if [ -n "$DSYM" ]; then
+            (cd "$(dirname "$DSYM")" && zip -qr "$GITHUB_WORKSPACE/build/${NAME%.ipa}.dSYM.zip" BrickIt.app.dSYM)
+            echo "DSYM=build/${NAME%.ipa}.dSYM.zip" >> "$GITHUB_ENV"
+            dwarfdump --uuid "$DSYM" || true
+          else
+            echo "::warning::No BrickIt.app.dSYM: the crash reports will not get function names"
+          fi
+          ls -la build/*.ipa build/*.dSYM.zip 2>/dev/null || true
 
       - name: Save the build directory
         if: always() && steps.engine.outputs.have == 'true'
@@ -132,8 +145,10 @@ jobs:
             gh release create ipad --prerelease --target "$GITHUB_SHA" --title "BrickIt iPad" --notes "$NOTES"
           fi
           gh release upload ipad "$IPA" --clobber
+          D=""
+          if [ -n "$DSYM" ] && [ -f "$DSYM" ]; then gh release upload ipad "$DSYM" --clobber; D="$(basename "$DSYM")"; fi
           gh release view ipad --json assets -q '.assets[].name' | while read -r a; do
-            [ "$a" != "$N" ] && gh release delete-asset ipad "$a" -y || true
+            [ "$a" != "$N" ] && [ "$a" != "$D" ] && gh release delete-asset ipad "$a" -y || true
           done
           gh release edit ipad --notes "$NOTES"
           echo "::notice::.ipa : https://github.com/${GITHUB_REPOSITORY}/releases/tag/ipad"
