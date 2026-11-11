@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <map>
+#include <vector>
 #include <string>
 
 namespace brickit {
@@ -83,6 +84,9 @@ private:
     GfxRendererLit* m_r = nullptr;
     player::ImGuiDiligent m_imgui;
     std::map<ImTextureID, Diligent::RefCntAutoPtr<Diligent::ITexture>> m_textures;
+    // released images: kept until the frame that may still draw them is rendered (the draw lists hold raw views:
+    // freed at once, ImGui bound a dead view, crash of 10/11/2026 in ShaderVariable::Set)
+    std::vector<Diligent::RefCntAutoPtr<Diligent::ITexture>> m_doomed[2];
     std::chrono::steady_clock::time_point m_last;
     bool m_started = false;
 };

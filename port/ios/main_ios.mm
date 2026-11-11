@@ -3,6 +3,7 @@
 // translated to Metal). No ray tracing on the iPad Pro 2nd generation (A12Z): raster image only.
 // This file is the iOS shell, as BrickAppWin.cpp is the Windows one: window, device, display loop, raw touches.
 #include "BrickApp.h"
+#include "CrashLog.h"
 #include "GfxLit.h"
 #include "Platform.h"
 #include "imgui.h"
@@ -10,6 +11,7 @@
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
 #include "Graphics/GraphicsEngine/interface/SwapChain.h"
 
+#import <MetricKit/MetricKit.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <UIKit/UIKit.h>
 
@@ -30,6 +32,33 @@ using namespace Diligent;
     return [CAMetalLayer class];
 }
 @end
+
+// The diagnostics of iOS (MetricKit): at the launch after a crash, a hang or a CPU / disk excess, iOS hands its own
+// report (the stacks of all threads, as addresses + the UUID of the binary). Written as Rapports/metrickit_<date>.json
+// next to the reports of BrickIt; « Envoyer un rapport » joins the last one.
+@interface BKDiagnostics : NSObject <MXMetricManagerSubscriber>
+@property(copy, nonatomic) NSString* dir;
+@end
+
+@implementation BKDiagnostics
+- (void)didReceiveMetricPayloads:(NSArray<MXMetricPayload*>*)payloads {
+}
+- (void)didReceiveDiagnosticPayloads:(NSArray<MXDiagnosticPayload*>*)payloads API_AVAILABLE(ios(14.0)) {
+    NSDateFormatter* f = [NSDateFormatter new];
+    f.dateFormat = @"yyyyMMdd_HHmmss";
+    int k = 0;
+    for (MXDiagnosticPayload* p in payloads) {
+        NSData* json = [p JSONRepresentation];
+        if (!json.length) continue;
+        NSString* name = [NSString stringWithFormat:@"metrickit_%@%@.json", [f stringFromDate:p.timeStampEnd ?: [NSDate date]], k ? [NSString stringWithFormat:@"_%d", k + 1] : @""];
+        [json writeToFile:[self.dir stringByAppendingPathComponent:name] atomically:YES];
+        brickit::crumb("Diagnostic iOS reçu : %s (%lu plantage(s))", name.UTF8String, (unsigned long)p.crashDiagnostics.count);
+        ++k;
+    }
+}
+@end
+
+static BKDiagnostics* g_diagnostics;
 
 @interface BKViewController : UIViewController
 - (BOOL)openDocument:(NSURL*)url;
@@ -105,6 +134,14 @@ using namespace Diligent;
     NSString* appDir = [self prepareAppFolder:data];
     chdir(appDir.fileSystemRepresentation);
     brickit::plat::setDataDir(brickit::plat::fromUtf8(data.UTF8String));
+    // the crash / freeze reports: Documents/Rapports, visible in Fichiers › BrickIt (CrashLog.cpp, started by initCommon)
+    NSString* reports = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject
+                         stringByAppendingPathComponent:@"Rapports"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:reports withIntermediateDirectories:YES attributes:nil error:nil];
+    brickit::plat::setReportsDir(brickit::plat::fromUtf8(reports.UTF8String));
+    g_diagnostics = [BKDiagnostics new];
+    g_diagnostics.dir = reports;
+    [[MXMetricManager sharedManager] addSubscriber:g_diagnostics];
 
     IEngineFactoryVk* factory = GetEngineFactoryVk();
     EngineVkCreateInfo ci;
@@ -152,11 +189,24 @@ using namespace Diligent;
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willResignActive:)
                                                  name:UIApplicationWillResignActiveNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didBecomeActive:)
+                                                 name:UIApplicationDidBecomeActiveNotification object:nil];
 }
 
 // iOS may end the app at any time once it is in the background: settings and autosave as on PC exit
 - (void)willResignActive:(NSNotification*)n {
+    brickit::crashSetActive(false);   // (the display loop stops: not a freeze for the watchdog)
     if (_app) _app->saveSession();
+}
+
+- (void)didBecomeActive:(NSNotification*)n {
+    brickit::crashSetActive(true);
+}
+
+// iOS asks for memory back: noted in the journal (an app killed for memory leaves no crash, only this line)
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    brickit::crumb("Avertissement mémoire d'iOS");
 }
 
 - (void)showError:(NSString*)text {

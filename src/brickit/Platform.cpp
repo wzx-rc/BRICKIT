@@ -12,7 +12,7 @@
 
 namespace brickit::plat {
 
-static std::wstring g_dataDir;
+static std::wstring g_dataDir, g_reportsDir;
 
 std::string toUtf8(const std::wstring& w) {
     std::string s;
@@ -66,6 +66,18 @@ bool makeDir(const std::wstring& path) {
 }
 
 void setDataDir(const std::wstring& dir) { g_dataDir = dir; }
+void setReportsDir(const std::wstring& dir) { g_reportsDir = dir; }
+
+std::wstring reportsDir() {
+    std::wstring d = g_reportsDir;
+#ifdef _WIN32
+    if (d.empty()) d = dataDir() + L"\\crashlogs";
+#else
+    if (d.empty()) d = dataDir() + L"/crashlogs";
+#endif
+    makeDir(d);
+    return d;
+}
 
 std::wstring dataDir() {
     std::wstring d = g_dataDir;

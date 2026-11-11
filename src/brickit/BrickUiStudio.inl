@@ -522,9 +522,15 @@ void BrickApp::stBadge() {
     const float w1 = stTrackW(u, 9, "1 : 1", 1.2f * s, true) + 16 * s, w2 = stTrackW(u, 9, g, 1.2f * s, true) + 16 * s;
     float bx = 76 * s + m_dockL;   // right of the panels on the left (tools / Peindre, Groupes)
     for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 200 * s && m_uiRects[k].y < top + 30 * s) bx = std::max(bx, m_uiRects[k].z + 10 * s);
-    const ImVec2 a(bx, top), b(a.x + w1 + w2, top + 22 * s);
+    float by = top;   // under the tools row when the docked Notice pushes the badge into it
+    for (int it = 0; it < 3; ++it)
+        for (size_t k = 1; k < m_uiRects.size(); ++k) {
+            const ImVec4& r = m_uiRects[k];
+            if (r.x < bx + w1 + w2 && r.z > bx && r.y < by + 22 * s && r.w > by && r.x >= m_dockL) by = r.w + 8 * s;
+        }
+    const ImVec2 a(bx, by), b(a.x + w1 + w2, by + 22 * s);
     const bool h = u.hover(a, b) && m_popup == 0;
-    u.dl->AddRectFilled(a, b, IM_COL32(10, 11, 13, h ? 170 : 120), 11 * s);
+    u.dl->AddRectFilled(a, b, IM_COL32(10, 11, 13, h ? 200 : by > top ? 175 : 120), 11 * s);   // darker when pushed under the tools (over the bricks)
     u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 50), 11 * s, 0, 1.0f);
     u.dl->AddLine(ImVec2(a.x + w1, a.y), ImVec2(a.x + w1, b.y), IM_COL32(255, 255, 255, 50), 1.0f);
     stTrack(u, ImVec2(a.x + 8 * s, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, C_TEXT, "1 : 1", 1.2f * s);
@@ -911,15 +917,16 @@ void BrickApp::stFile() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; const char* key; int id; };
-    It its[4] = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
+    std::vector<It> its = {{"NOUVELLE SCÈNE", "Ctrl+N", 0}, {"OUVRIR…", "Ctrl+O", 1}, {"ENREGISTRER", "Ctrl+S", 2}, {"ENREGISTRER SOUS…", "Ctrl+Maj+S", 3}};
     if (m_ipad) {   // the iPad: saved in Documents (the app's folder in Fichiers), Partager sends the .brick to another app
         its[1].label = "OUVRIR (FICHIERS)…";
         its[2].label = "ENREGISTRER (.BRICK)";
         its[3] = {"PARTAGER… (AIRDROP, MAIL, PC)", "", 4};
+        its.push_back({"ENVOYER UN RAPPORT (BUG)", "", 5});   // the state, the last actions, the last crash: one file
         for (It& it : its) it.key = "";
     }
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
-    const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + 4 * ih + 22 * s);
+    const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
     u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 228), 14 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -939,6 +946,7 @@ void BrickApp::stFile() {
             else if (it.id == 1) openDialog();
             else if (it.id == 2) saveNow();
             else if (it.id == 4) shareScene();
+            else if (it.id == 5) sendReport();
             else saveDialog();
         }
         y += ih;
@@ -2508,6 +2516,7 @@ void BrickApp::drawUiStudio() {
     }
     stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
+    manualReserveDock();
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {
         const ImVec2 c((m_stage.x + m_stage.z) * 0.5f, (m_stage.y + m_stage.w) * 0.5f);
         ImDrawList* dl = ImGui::GetWindowDrawList();

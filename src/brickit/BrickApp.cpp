@@ -36,7 +36,7 @@ bool BrickApp::savePng(const std::wstring& path, std::vector<uint8_t> rgba, uint
 bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> renderer, std::unique_ptr<GfxGui> gui,
                           const std::wstring& exeDir, float dpi) {
     m_opt = opt;
-    if (opt.shotPath.empty()) crashInit(brickitDataDir() + L"\\crashlogs", versionString());   // (a crash, a freeze: a report; not the captures)
+    if (opt.shotPath.empty()) crashInit(plat::reportsDir(), versionString());   // (a crash, a freeze: a report; not the captures)
     m_renderer = std::move(renderer);
     m_gui = std::move(gui);
     ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;   // (the arrows moved the focus of ImGui: the pages of the manual scrolled from anywhere)
@@ -127,6 +127,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.dev) m_dev = true;
     devLoadAll();   // DEV replacements kept next to the exe
     if (opt.manual) m_pManual.visible = true;
+    if (opt.manualDock >= 0) { m_manDock = opt.manualDock; m_pManual.floating = false; }
+    if (opt.manualW > 0) { m_manW = opt.manualW * m_ui; m_manH = opt.manualH * m_ui; }
     if (opt.settings) { m_popup = 5; m_popupAt = ImVec2(1e6f, 34 * m_ui); }
     if (opt.settingsTab >= 0) m_setTab = std::clamp(opt.settingsTab, 0, 1);
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
@@ -1341,7 +1343,10 @@ void BrickApp::frame() {
     if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
     if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
         const std::wstring p = crashLastUnseen();
-        if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + std::string(p.begin(), p.end()));
+        if (!p.empty() && m_ipad)   // the iPad: no folder to look into, the report is sent from here (Mail, AirDrop, Fichiers)
+            plat::confirm(L"BrickIt s'est arrêté", L"La dernière session s'est terminée brutalement. Envoyer le rapport ?\n(il reste aussi dans Fichiers › BrickIt › Rapports)",
+                          [p]() { plat::shareFile(p); });
+        else if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + plat::toUtf8(p));
     }
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
         const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");
@@ -1543,6 +1548,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--dev") opt.dev = true;
         else if (a == L"--pdf") opt.pdfPath = next();
         else if (a == L"--manual") opt.manual = true;
+        else if (a == L"--manual-dock") { opt.manual = true; opt.manualDock = _wtoi(next().c_str()); }
+        else if (a == L"--manual-size") { opt.manual = true; opt.manualW = (float)_wtof(next().c_str()); opt.manualH = (float)_wtof(next().c_str()); }
         else if (a == L"--float-tray") { opt.floatTray = true; opt.floatX = (float)_wtof(next().c_str()); opt.floatY = (float)_wtof(next().c_str()); }
         else if (a == L"--opts-right") opt.optsRight = true;
         else if (a == L"--cornell") opt.cornell = true;

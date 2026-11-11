@@ -818,6 +818,7 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;
+        if (old->second.second >= m_frame) return false;   // all of them on screen this frame: none can go (the others next frames)
         m_gui->releaseTexture(old->second.first);
         m_lazyThumbs.erase(old);
     }

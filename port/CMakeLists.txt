@@ -151,5 +151,5 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     target_compile_options(BrickIt PRIVATE -fobjc-arc)
     target_link_libraries(BrickIt PRIVATE brickit_app ${BRICKIT_BACKENDS}
         "-framework UIKit" "-framework QuartzCore" "-framework Metal" "-framework IOSurface" "-framework CoreGraphics"
-        "-framework UniformTypeIdentifiers")
+        "-framework UniformTypeIdentifiers" "-framework MetricKit")
 endif()

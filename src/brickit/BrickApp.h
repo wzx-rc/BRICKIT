@@ -78,6 +78,7 @@ struct Options {
     std::string stFam;     // --st-fam basique / technic ...: the family of the drawer (captures)
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
+    int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
@@ -322,6 +323,7 @@ private:
     bool saveScene(const std::wstring& path);
     bool openScene(const std::wstring& path);
     void shareScene();               // iPad: Partager (the .brick to another app)
+    void sendReport();               // iPad: Envoyer un rapport (state + journal + last crash, share sheet)
     void saveDialog();
     void openDialog();
     void noteRecent(int part);
@@ -529,6 +531,10 @@ private:
     std::map<int, int> m_hiMaterial;     // material -> its copy highlighted (current step)
     int m_manRight = 2;
     float m_manW = 0, m_manH = 0, m_manScroll = 0, m_bigScroll = 0;
+    int m_manDock = 0;                // Notice docked (Wzx 11/11/2026): 0 no, 1 in the dock space on the left, 2 on the right
+    float m_manDockX = 0;             // its x this frame (after the library docked on that side)
+    float manualWidth() const;
+    void manualReserveDock();         // drawUiStudio, after the library: the docked Notice takes its band (m_dockL / m_dockR)
     bool m_manBig = false, m_pdfBig = false, m_manResizing = false;
     ImVec2 m_manResize0;
     float m_manW0 = 0, m_manH0 = 0;
