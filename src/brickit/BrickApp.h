@@ -873,6 +873,7 @@ private:
     // Réglages › Brique en main (Wzx 10/11/2026): the look of the placement preview (the ghost and the yellow marks)
     int m_ghostCol = 0;               // 0 jaune, 1 blanc, 2 bleu, 3 vert, 4 rose, 5 la couleur de la brique
     float m_ghostAlphaPref = 0.32f;   // its opacity
+    int m_appIcon = 0;                // Réglages › Icône de l'app: 0 A (viewfinder), 1 B (the brick alone); the header logo too
     int m_ghostGlow = 2;              // its glow: 0 none, 1 soft, 2 normal, 3 strong
     float3 ghostSrgb() const;         // the colour of the marks (sRGB 0..1)
     ImU32 ghostU32(float alpha) const;

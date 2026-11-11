@@ -131,6 +131,15 @@ void saveFileDialog(const wchar_t* filter, const wchar_t* defExt, const std::wst
     fileDialog(true, filter, defExt, suggested, done);
 }
 void shareFile(const std::wstring&) {}
+void setAppIcon(int which) {   // the resources 1 (A) and 2 (B) of brickit.rc, on the window (title bar, taskbar, Alt+Tab)
+    if (!g_window) return;
+    HINSTANCE hi = GetModuleHandleW(nullptr);
+    const LPCWSTR id = MAKEINTRESOURCEW(which == 1 ? 2 : 1);
+    HICON big = (HICON)LoadImageW(hi, id, IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0);
+    HICON small = (HICON)LoadImageW(hi, id, IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
+    if (big) SendMessageW(g_window, WM_SETICON, ICON_BIG, (LPARAM)big);
+    if (small) SendMessageW(g_window, WM_SETICON, ICON_SMALL, (LPARAM)small);
+}
 #elif !defined(__APPLE__)
 // Linux test build: no dialogs (scripted runs give the paths on the command line).
 void setWindow(void*) {}
@@ -139,6 +148,7 @@ void confirm(const std::wstring&, const std::wstring&, std::function<void()> onO
 void openFileDialog(const wchar_t*, const wchar_t*, std::function<void(const std::wstring&)>, const std::wstring&) {}
 void saveFileDialog(const wchar_t*, const wchar_t*, const std::wstring&, std::function<void(const std::wstring&)>) {}
 void shareFile(const std::wstring&) {}
+void setAppIcon(int) {}
 #endif
 
 } // namespace brickit::plat

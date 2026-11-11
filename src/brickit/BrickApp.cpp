@@ -1343,6 +1343,7 @@ void BrickApp::frame() {
     ++m_frame;
     crashHeartbeat();
     if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
+    if (m_frame == 2 && !m_ipad && m_appIcon == 1) plat::setAppIcon(1);   // PC: the icon B on the window (the .exe keeps A)
     if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
         const std::wstring p = crashLastUnseen();
         if (!p.empty() && m_ipad)   // the iPad: no folder to look into, the report is sent from here (Mail, AirDrop, Fichiers)

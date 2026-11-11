@@ -136,7 +136,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set_source_files_properties(${BRICKIT_TECHNIC_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION assets/brickit/technic)
     set_source_files_properties(${BRICKIT_SHADERS} PROPERTIES MACOSX_PACKAGE_LOCATION shaders)
     # the app icon (tools/brickit/app_icon.py --ios): loose PNGs at the root of the bundle, CFBundleIcons~ipad
-    file(GLOB BRICKIT_ICONS ${BRICKIT_ROOT}/ios/icons/AppIcon76x76*.png ${BRICKIT_ROOT}/ios/icons/AppIcon83.5x83.5*.png)
+    file(GLOB BRICKIT_ICONS ${BRICKIT_ROOT}/ios/icons/AppIcon76x76*.png ${BRICKIT_ROOT}/ios/icons/AppIcon83.5x83.5*.png
+                            ${BRICKIT_ROOT}/ios/icons/AppIconB76x76*.png ${BRICKIT_ROOT}/ios/icons/AppIconB83.5x83.5*.png)
     add_executable(BrickIt MACOSX_BUNDLE ios/main_ios.mm ${BRICKIT_SHADERS} ${BRICKIT_BUNDLE_FILES} ${BRICKIT_THEMES}
                    ${BRICKIT_TECHNIC_FILES} ${BRICKIT_ICONS})
     set_target_properties(BrickIt PROPERTIES RESOURCE "${BRICKIT_ICONS}")

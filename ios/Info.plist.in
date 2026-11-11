@@ -38,6 +38,18 @@
                 <string>AppIcon83.5x83.5</string>
             </array>
         </dict>
+        <!-- Réglages › Icône de l'app : B (the brick without the viewfinder), UIApplication setAlternateIconName -->
+        <key>CFBundleAlternateIcons</key>
+        <dict>
+            <key>B</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>AppIconB76x76</string>
+                    <string>AppIconB83.5x83.5</string>
+                </array>
+            </dict>
+        </dict>
     </dict>
     <key>UILaunchScreen</key>
     <dict/>

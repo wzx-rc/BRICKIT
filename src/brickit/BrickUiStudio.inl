@@ -331,9 +331,11 @@ void BrickApp::stHeader() {
     u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), IM_COL32(255, 255, 255, 20), 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
     const float cy = T + 23 * s;
-    // the logo: a red square, a brick pictogram in white; BRICKIT / B U I L D E R
+    // the logo: the app icon (Wzx 11/11/2026: A, the yellow brick in its viewfinder; B, the brick alone); BRICKIT / B U I L D E R
     float x = 14 * s;
-    if (m_ipad) {   // iPad (Wzx 10/11/2026): the app icon, a 2x4 brick in thin amber lines on smoked grey
+    if (ImTextureID lt = kitTex(m_appIcon == 1 ? "logo/brickit_b.png" : "logo/brickit_a.png")) {
+        u.dl->AddImageRounded(lt, ImVec2(x - 1 * s, cy - 16 * s), ImVec2(x + 31 * s, cy + 16 * s), ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 7 * s);
+    } else if (m_ipad) {   // iPad (Wzx 10/11/2026): the app icon, a 2x4 brick in thin amber lines on smoked grey
         const ImVec2 la(x, cy - 15 * s), lb(x + 30 * s, cy + 15 * s);
         u.dl->AddRectFilled(la, lb, IM_COL32(38, 40, 45, 255), 7 * s);
         u.dl->AddRect(la, lb, IM_COL32(255, 255, 255, 40), 7 * s, 0, 1.0f);

@@ -229,11 +229,15 @@ void BrickApp::uiHeader() {
     u.dl->AddRectFilled(ImVec2(0, 0), ImVec2(d.x, H), C_PANEL);
     u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), C_LINE, 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
-    // logo: yellow 20 px square "3D" + BrickIt Builder
+    // logo: the app icon (A / B, Réglages) + BrickIt Builder (the old yellow « 3D » square when the image is missing)
     ImVec2 l(10 * s, 5 * s);
-    u.dl->AddRectFilled(l, ImVec2(l.x + 20 * s, l.y + 20 * s), C_ACCENT, 5 * s);
-    float tw = u.textW(9, "3D", true);
-    u.text(ImVec2(l.x + 10 * s - tw * 0.5f, l.y + 4.5f * s), 9, C_INK, "3D", true);
+    if (ImTextureID lt = kitTex(m_appIcon == 1 ? "logo/brickit_b.png" : "logo/brickit_a.png"))
+        u.dl->AddImageRounded(lt, l, ImVec2(l.x + 20 * s, l.y + 20 * s), ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 4.5f * s);
+    else {
+        u.dl->AddRectFilled(l, ImVec2(l.x + 20 * s, l.y + 20 * s), C_ACCENT, 5 * s);
+        float tw = u.textW(9, "3D", true);
+        u.text(ImVec2(l.x + 10 * s - tw * 0.5f, l.y + 4.5f * s), 9, C_INK, "3D", true);
+    }
     u.text(ImVec2(l.x + 26 * s, l.y + 3 * s), 12, C_TEXT, "BrickIt Builder", true);
 
     // buttons, right aligned, in the order of the web
@@ -3493,6 +3497,7 @@ void BrickApp::uiSettings() {
         {"Échelle de l'interface", scales, 0},
         {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
         {"Interface", {{"Studio", m_studioUi}, {"Classique", !m_studioUi}}, 18},
+        {"Icône de l'app", {{"A : viseur", m_appIcon == 0}, {"B : brique seule", m_appIcon == 1}}, 25},
         {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
         {"Pièces décorées (stickers, motifs)", {{"Masquées", m_hideDeco}, {"Affichées", !m_hideDeco}}, 20},
         {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
@@ -3813,6 +3818,7 @@ void BrickApp::uiSettings() {
         case 18: m_studioUi = clickOpt == 0; m_stMenu = false; break;
         case 19: m_stCardMode = clickOpt; m_cardsScroll = 0; break;
         case 24: m_rs.bevel = clickOpt == 0; m_renderer->resetAccumulation(); break;
+        case 25: if (m_appIcon != clickOpt) { m_appIcon = clickOpt; plat::setAppIcon(m_appIcon); } break;
         case 21: m_ghostCol = clickOpt; applyGhostLook(); break;
         case 22: { static const float k[4] = {0.15f, 0.32f, 0.5f, 0.75f}; m_ghostAlphaPref = k[std::clamp(clickOpt, 0, 3)]; break; }
         case 23: m_ghostGlow = clickOpt; applyGhostLook(); break;
