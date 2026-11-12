@@ -518,7 +518,10 @@ void BrickApp::finishMarquee(bool add) {
 void BrickApp::editInput() {
     ImGuiIO& io = ImGui::GetIO();
     const bool keys = !io.WantTextInput;
-    if (m_vePart >= 0) return;   // (the Voxel Editor has the keyboard and the mouse)
+    if (m_vePart >= 0) { m_veKeysFrame = m_frame; return; }   // (the Voxel Editor has the keyboard and the mouse)
+    // the frame the editor closes (V: Valider) and the next: its keys are not the Builder's (V toggled the voxels, which
+    // shows the selected brick at 30 %: « la brique sélectionnée est translucide », Wzx 12/11/2026)
+    if (m_frame - m_veKeysFrame <= 2) return;
     if (m_reading) {   // reading the instructions: the pages, Échap closes; no editing (the camera still orbits)
         readInput();
         if (keys && ImGui::IsKeyPressed(ImGuiKey_Escape)) stopReading();

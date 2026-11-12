@@ -192,6 +192,7 @@ private:
     void buildHouse();        // the GI reference house (--write-house)
     void setLookdev(bool on); // GI look development: every colour the same light grey (live, Réglages › Lumière)
     void openTestHouse();
+    int m_veKeysFrame = -100;   // the last frame the Voxel Editor had the keyboard
     void buildExcavatorDemo();   // Scène › Démo : pelleteuse et engrenages
     void buildMechShowcase(float originX);   // the stations of the mechanical demo (BrickMechTests.cpp)     // Dossier › Ouvrir la maison test (docs/brickit/tests/maison_gi.v3d.json)
     // Réglages > Lumière (native addition): environment image, its rotation and intensity, colour of the ground grid;

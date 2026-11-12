@@ -212,7 +212,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (st["uiScale"].num() >= 0.5) m_uiScaleUser = (float)st["uiScale"].num();
         if (st["ssao"].type == app::Json::Bool) m_ssaoOn = st["ssao"].b;
         if (st["autosave"].type == app::Json::Bool) m_autosaveOn = st["autosave"].b;
-        if (st["showVox"].type == app::Json::Bool) m_showVox = st["showVox"].b;
+        // (the voxels shown is not kept from one session to the next: it shows the selected brick at 30 %, Wzx 12/11/2026)
         if (st["aa"].type == app::Json::Number) m_rs.aaQuality = std::clamp((int)st["aa"].n, 0, 2);
         if (st["stillAA"].type == app::Json::Bool) m_stillAA = st["stillAA"].b;
         if (st["touchHud"].type == app::Json::Bool) m_touchHud = st["touchHud"].b;
