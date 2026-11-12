@@ -953,7 +953,7 @@ void BrickApp::stFile() {
             else if (it.id == 2) saveNow();
             else if (it.id == 4) shareScene();
             else if (it.id == 5) sendReport();
-            else if (it.id == 6) openTestHouse();
+            else if (it.id == 6) openOfficialHouse();   // (the building of set 31153 with its minifigs, Wzx 12/11/2026)
             else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; toast("Démo : pelleteuse et mécanismes (passe en Mécanique : 4 moteurs, 2 vérins)"); }
             else saveDialog();
         }
