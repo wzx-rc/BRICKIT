@@ -55,7 +55,8 @@ struct Options {
     bool thumbEditSave = false;
     std::string voxelEdit;      // --voxel-edit <part>: the Voxel Editor open (captures)
     bool veSolid = false;       // --ve-solid: without the X-ray
-    bool crashTest = false;     // --crash-test: a crash at frame 30 (the crash log checked)
+    bool crashTest = false;
+    bool excavator = false;     // --excavator: the demo of the excavator and the gears (captures)     // --crash-test: a crash at frame 30 (the crash log checked)
     std::wstring bacFile;       // --bac-file <file>: the tray there (tests); --bac-test: the tray open with the selection + bricks 590..599
     bool bacTest = false;
     std::wstring thumbDir;      // --thumb-dir <dir>: the overrides there instead of %LOCALAPPDATA% (tests)
@@ -190,7 +191,8 @@ private:
     void setupStage();        // ground, HDRI, materials of the palette
     void buildHouse();        // the GI reference house (--write-house)
     void setLookdev(bool on); // GI look development: every colour the same light grey (live, Réglages › Lumière)
-    void openTestHouse();     // Dossier › Ouvrir la maison test (docs/brickit/tests/maison_gi.v3d.json)
+    void openTestHouse();
+    void buildExcavatorDemo();   // Scène › Démo : pelleteuse et engrenages     // Dossier › Ouvrir la maison test (docs/brickit/tests/maison_gi.v3d.json)
     // Réglages > Lumière (native addition): environment image, its rotation and intensity, colour of the ground grid;
     // the same scene for every renderer (Rapide, HQ, RC, path tracing), saved in brickit_prefs.json ("light")
     void buildHdriList();     // L"" (procedural sky), assets\hdri\*.hdr | *.exr, then the user's HDRI

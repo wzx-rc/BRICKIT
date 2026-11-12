@@ -344,7 +344,7 @@ void BrickApp::uiHeader() {
 void BrickApp::uiRadial() {
     if (!m_pOpts.visible || m_mechOn) return;
     if (m_ipad) { uiToolDock(); return; }
-    if (!m_touchHud) return;
+    if (!m_touchHud || !m_ipad) return;   // (the touch HUD: the iPad only)
     Ui u = ui(m_ui);
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
@@ -3502,6 +3502,8 @@ void BrickApp::uiSettings() {
     };
     if (m_ipad)   // the iPad: no render settings (raster view only, no view transform)
         rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
+    else   // the PC: no touch ring (the iPad HUD, Wzx 12/11/2026)
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 14; }), rows.end());
     const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
     // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
     const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);

@@ -929,6 +929,8 @@ void BrickApp::stFile() {
         its.push_back({"ENVOYER UN RAPPORT (BUG)", "", 5});   // the state, the last actions, the last crash: one file
         for (It& it : its) it.key = "";
     }
+    its.push_back({"MAISON (DÉMO)", "", 6});   // (Wzx 12/11/2026: the scenes of demo, at once)
+    its.push_back({"PELLETEUSE ET ENGRENAGES (DÉMO)", "", 7});
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -951,6 +953,8 @@ void BrickApp::stFile() {
             else if (it.id == 2) saveNow();
             else if (it.id == 4) shareScene();
             else if (it.id == 5) sendReport();
+            else if (it.id == 6) openTestHouse();
+            else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et engrenages"; toast("Démo : pelleteuse et engrenages (Mécanique pour faire tourner les engrenages)"); }
             else saveDialog();
         }
         y += ih;
@@ -2585,7 +2589,7 @@ void BrickApp::stRingAct(int part) {
 
 void BrickApp::stRing() {
     m_ringR = 0;
-    if (!m_touchHud || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi) return;
+    if (!m_ipad || !m_touchHud || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi) return;   // (the iPad only: Wzx 12/11/2026)
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;

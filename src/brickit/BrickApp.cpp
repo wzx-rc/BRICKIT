@@ -167,6 +167,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     bool keepCamera = false;
     if (!opt.openPath.empty()) { openScene(opt.openPath); keepCamera = true; }
     else if (!opt.writeHouse.empty()) buildHouse();
+    else if (opt.excavator) { buildExcavatorDemo(); keepCamera = false; }
     else if (opt.mechDemo) buildMechDemo();
     else if (opt.demo) buildDemo();
     else if (opt.grid) buildPartGrid();
@@ -1440,6 +1441,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         auto next = [&]() -> std::wstring { return i + 1 < argc ? args[++i] : std::wstring(); };
         // (the Studio and HD thumbnail flags apart: the chain below is at the nesting limit of the compiler)
         if (!a.empty() && a[0] != L'-' && opt.openPath.empty()) { opt.openPath = a; continue; }   // a file opened from the system (a .brick double clicked)
+        if (a == L"--excavator") { opt.excavator = true; continue; }
         if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
         if (a == L"--st-paint") { opt.stPaint = true; continue; }
         if (a == L"--st-groups") { opt.stGroups = true; continue; }

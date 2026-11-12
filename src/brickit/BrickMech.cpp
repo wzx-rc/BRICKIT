@@ -186,4 +186,83 @@ void BrickApp::buildMechDemo() {
     m_status = "Démo mécanique : train d'engrenages";
 }
 
+// Scène › Démo : une petite pelleteuse et le train d'engrenages de la démo mécanique (Wzx 12/11/2026). The excavator:
+// chassis on two Technic bricks 1 x 8 (the tracks), a 6 x 8 plate, the yellow body and its cab, a black counterweight,
+// the boom (Technic Beam 15) raised, the arm (Technic Beam 9) and the bucket; the gears beside it turn in Mécanique.
+void BrickApp::buildExcavatorDemo() {
+    m_bricks.clear();
+    buildMechDemo();   // (the gears, around the origin)
+    const float4 q0(0, 0, 0, 1), q90 = qAxisAngle(float3(0, 1, 0), kPi * 0.5f);
+    const float ox = -28 * kPitch, oz = -1 * kPitch;   // (the excavator on the left of the gears, its bucket clear of them)
+    // a part with its box min at (x, y, z) (studs, y in cm), its long side along X (wantX) or Z
+    auto put = [&](const char* name, int ldrawColor, bool wantX, float sx, float y, float sz) {
+        const int pi = m_lib.find(name);
+        if (pi < 0 || !m_lib.get(name)) return;
+        const Box bq = m_build.aabbOf(pi, q0, float3(0));
+        const bool longX = (bq.mx.x - bq.mn.x) >= (bq.mx.z - bq.mn.z);
+        const float4 rot = longX == wantX ? q0 : q90;
+        const Box b0 = m_build.aabbOf(pi, rot, float3(0));
+        Brick b;
+        b.part = pi;
+        b.color = colorIndex(ldrawColor) >= 0 ? colorIndex(ldrawColor) : m_color;
+        b.rot = rot;
+        b.pos = float3(ox + sx * kPitch, y, oz + sz * kPitch) - b0.mn;
+        m_bricks.push_back(b);
+    };
+    // a part turned by `deg` about Z (the side view), its box centre at (x, y, z) (cm)
+    auto putTilted = [&](const char* name, int ldrawColor, float deg, const float3& centre) {
+        const int pi = m_lib.find(name);
+        if (pi < 0 || !m_lib.get(name)) return;
+        const Box bq = m_build.aabbOf(pi, q0, float3(0));
+        const bool longX = (bq.mx.x - bq.mn.x) >= (bq.mx.z - bq.mn.z);
+        float4 rot = qAxisAngle(float3(0, 0, 1), radians(deg));
+        if (!longX) rot = qMul(rot, q90);
+        const Box b0 = m_build.aabbOf(pi, rot, float3(0));
+        Brick b;
+        b.part = pi;
+        b.color = colorIndex(ldrawColor) >= 0 ? colorIndex(ldrawColor) : m_color;
+        b.rot = rot;
+        b.pos = float3(ox, 0, oz) + centre - (b0.mn + b0.mx) * 0.5f;
+        m_bricks.push_back(b);
+    };
+    const float plate = 0.32f, brick = 0.96f;
+    // the tracks: two Technic bricks 1 x 8 (dark grey), the chassis plate 6 x 8
+    put("3702", 72, true, 0, 0, 0);
+    put("3702", 72, true, 0, 0, 5);
+    put("3036", 0, true, 0, brick, 0);
+    // the body: yellow, two layers of 2 x 4 over 4 x 4, the cab 2 x 2 x 2 at the front, a black counterweight behind
+    const float y0 = brick + plate;
+    for (int layer = 0; layer < 2; ++layer) {
+        put("3001", 14, true, 2, y0 + layer * brick, 1);
+        put("3001", 14, true, 2, y0 + layer * brick, 3);
+        put("3003", 14, true, 6, y0 + layer * brick, 3);
+        put("3003", 14, true, 6, y0 + layer * brick, 1);
+    }
+    put("3001", 0, false, 0, y0, 1);   // (the counterweight)
+    put("3003", 1, true, 6, y0 + 2 * brick, 3);   // (the cab: its roof, blue)
+    put("3034", 14, true, 0, y0 + 2 * brick, 1);  // (the roof of the body)
+    // the boom raised 35° from the front of the body, the arm down from its tip, the bucket at its end
+    const float by = y0 + 2 * brick, bz = 2.0f * kPitch;
+    const float L1 = 15 * kPitch, a1 = radians(35.0f);
+    const float3 pivot(8 * kPitch, by, bz + 0.4f * kPitch);
+    const float3 tip = pivot + float3(std::cos(a1), std::sin(a1), 0) * (L1 - kPitch);
+    putTilted("32278", 14, 35.0f, (pivot + tip) * 0.5f);
+    const float L2 = 9 * kPitch, a2 = radians(-62.0f);
+    const float3 end = tip + float3(std::cos(a2), std::sin(a2), 0) * (L2 - kPitch);
+    putTilted("40490", 72, -62.0f, (tip + end) * 0.5f);
+    {   // the bucket under the end of the arm
+        const int pi = m_lib.find("24120");
+        if (pi >= 0 && m_lib.get("24120")) {
+            const Box b0 = m_build.aabbOf(pi, q90, float3(0));
+            Brick b;
+            b.part = pi;
+            b.color = colorIndex(72) >= 0 ? colorIndex(72) : m_color;
+            b.rot = q90;
+            b.pos = float3(ox, 0, oz) + float3(end.x, std::max(0.0f, end.y - (b0.mx.y - b0.mn.y)), end.z) - float3((b0.mn.x + b0.mx.x) * 0.5f, b0.mn.y, (b0.mn.z + b0.mx.z) * 0.5f);
+            m_bricks.push_back(b);
+        }
+    }
+    m_status = "Démo : pelleteuse et engrenages (Mécanique pour les faire tourner)";
+}
+
 } // namespace brickit
