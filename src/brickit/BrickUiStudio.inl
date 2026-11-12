@@ -930,7 +930,7 @@ void BrickApp::stFile() {
         for (It& it : its) it.key = "";
     }
     its.push_back({"MAISON (DÉMO)", "", 6});   // (Wzx 12/11/2026: the scenes of demo, at once)
-    its.push_back({"PELLETEUSE ET ENGRENAGES (DÉMO)", "", 7});
+    its.push_back({"PELLETEUSE ET MÉCANISMES (DÉMO)", "", 7});
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -954,7 +954,7 @@ void BrickApp::stFile() {
             else if (it.id == 4) shareScene();
             else if (it.id == 5) sendReport();
             else if (it.id == 6) openTestHouse();
-            else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et engrenages"; toast("Démo : pelleteuse et engrenages (Mécanique pour faire tourner les engrenages)"); }
+            else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; toast("Démo : pelleteuse et mécanismes (passe en Mécanique : 4 moteurs, 2 vérins)"); }
             else saveDialog();
         }
         y += ih;

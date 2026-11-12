@@ -192,7 +192,8 @@ private:
     void buildHouse();        // the GI reference house (--write-house)
     void setLookdev(bool on); // GI look development: every colour the same light grey (live, Réglages › Lumière)
     void openTestHouse();
-    void buildExcavatorDemo();   // Scène › Démo : pelleteuse et engrenages     // Dossier › Ouvrir la maison test (docs/brickit/tests/maison_gi.v3d.json)
+    void buildExcavatorDemo();   // Scène › Démo : pelleteuse et engrenages
+    void buildMechShowcase(float originX);   // the stations of the mechanical demo (BrickMechTests.cpp)     // Dossier › Ouvrir la maison test (docs/brickit/tests/maison_gi.v3d.json)
     // Réglages > Lumière (native addition): environment image, its rotation and intensity, colour of the ground grid;
     // the same scene for every renderer (Rapide, HQ, RC, path tracing), saved in brickit_prefs.json ("light")
     void buildHdriList();     // L"" (procedural sky), assets\hdri\*.hdr | *.exr, then the user's HDRI

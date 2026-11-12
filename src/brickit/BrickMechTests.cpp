@@ -783,4 +783,138 @@ void BrickApp::runMechTests() {
     fclose(f);
 }
 
+// La démo mécanique, refaite de zéro (Wzx 12/11/2026: « plus clean avec les derniers ajouts »): five stations in a row,
+// each built by aligning the connectors of real Technic parts (the mounts of the tests above, which all pass), each a
+// mechanism of its own in Mécanique (its motor or its actuators in the panel): the excavator arm with two actuators,
+// the reduction 8 / 40 / 24, the worm and its 24, the rack and pinion, the turntable driven by a bevel gear. Each
+// station stands on the ground; the bricks are coloured as a Technic set (beams grey, gears and actuators coloured).
+void BrickApp::buildMechShowcase(float originX) {
+    auto mk = [&]() { Mount m; m.app = this; m.lib = &m_lib; m.mech = &m_mech; return m; };
+    const float3 X(1, 0, 0), Y(0, 1, 0), Z(0, 0, 1);
+    float cursor = originX;
+    // the colour of a part of the demo (LDraw codes): the beams dark grey, the axles light grey, the pins black / blue,
+    // the gears and the actuators in colours
+    auto colourOf = [&](const std::string& name) -> int {
+        if (name == "3647") return 4;                         // 8 rouge
+        if (name == "3649" || name == "3648b") return 14;     // 40, 24 jaunes
+        if (name == "94925") return 1;                        // 16 bleu
+        if (name == "4716") return 15;                        // vis sans fin blanche
+        if (name == "32270") return 4;                        // conique 12
+        if (name == "6630") return 14;                        // crémaillère
+        if (name == "99009" || name == "99010") return 15;    // plateau tournant
+        if (name == "2909") return 0;                         // vérin : corps noir
+        if (name == "2910") return 15;                        //         tige blanche
+        if (name == "3673") return 1;                         // pins
+        if (name == "3706" || name == "3705" || name == "3707") return 71;   // axes gris clair
+        return 72;                                             // poutres, briques Technic : gris foncé
+    };
+    // a station: its parts moved so its box starts at `cursor` on X, stands on the ground, centred on Z = 0
+    auto place = [&](Mount& m, float gap) {
+        if (m.b.empty()) return;
+        float3 mn(1e30f), mx(-1e30f);
+        for (const Brick& k : m.b) {
+            const Box bx = m_build.aabbOf(k.part, k.rot, k.pos);
+            mn = minv(mn, bx.mn);
+            mx = maxv(mx, bx.mx);
+        }
+        const float3 d(cursor - mn.x, -mn.y, -(mn.z + mx.z) * 0.5f);
+        for (Brick k : m.b) {
+            k.pos = k.pos + d;
+            k.color = colorIndex(colourOf(m_lib.parts[k.part].name));
+            if (k.color < 0) k.color = m_color;
+            m_bricks.push_back(k);
+        }
+        cursor += (mx.x - mn.x) + gap;
+    };
+    const float L0 = 0.4f, L1 = 1.2f, L2 = 2.0f;
+    {   // 1. the excavator arm: boom and stick, each lifted by its actuator (the loops stay closed)
+        Mount m = mk();
+        const int ch = m.beamAt("32525", 0, float3(0, 0, L0), Y);
+        if (ch >= 0) {
+            const float3 O = m.holeW(ch, 9);
+            const float La = m.actLen("2909", "2910");
+            int e = 0, k = 4;
+            float3 d(1, 0, 0);
+            Mount::bestReach([&](int a) { return m.holeW(ch, a); }, 0, 7, O, 1, 8, La, X, e, k, d);
+            const float3 E1 = m.holeW(ch, e);
+            const int boom = m.beamAt("32525", 0, float3(O.x, O.y, L1), d);
+            m.pinAt(float3(O.x, O.y, 0.8f));
+            const float3 Bk = m.holeW(boom, k);
+            m.actuator("2909", "2910", float3(E1.x, E1.y, L1), Bk);
+            m.pinAt(float3(E1.x, E1.y, 0.8f));
+            m.pinAt(Bk);
+            const float3 P = m.holeW(boom, 9);
+            int h = 4, sh = 4;
+            float3 ds(0, 1, 0);
+            Mount::bestReach([&](int a) { return m.holeW(boom, a); }, 1, 7, P, 1, 9, La, Y, h, sh, ds);
+            m.beamAt("32525", 0, float3(P.x, P.y, L2), ds);
+            m.pinAt(float3(P.x, P.y, 1.6f));
+            const float3 Bh = m.holeW(boom, h), Ss = m.holeW((int)m.b.size() - 2, sh);
+            m.actuator("2909", "2910", float3(Bh.x, Bh.y, L2), Ss);
+            m.pinAt(float3(Bh.x, Bh.y, 1.6f));
+            m.pinAt(Ss);
+        }
+        place(m, 5.0f);
+    }
+    {   // 2. the reduction 8 / 40 / 24 on a Technic brick 1 x 16
+        Mount m = mk();
+        const int beam = m.hole("3703", 0, float3(0, 0.6f, 0), Z, &X);
+        const char* gs[3] = {"3647", "3649", "3648b"};
+        const int hs[3] = {0, 3, 7};
+        for (int k = 0; beam >= 0 && k < 3; ++k) {
+            const float3 P = m.holeW(beam, hs[k]);
+            m.axle("3706", P + Z * 0.8f, Z);
+            m.gear(gs[k], P + Z * 1.2f, Z);
+        }
+        place(m, 5.0f);
+    }
+    {   // 3. the worm and its 24 (a reduction of 24)
+        Mount m = mk();
+        const float rw = m.gearR("4716");
+        m.hole("6541", 0, float3(0, 0.6f, 0), Z, &X);
+        m.axle("3706", float3(0, 0.6f, 0.8f), Z);
+        m.gear("3648b", float3(0, 0.6f, 1.2f), Z);
+        const float3 cw(0, 0.6f + 1.2f + rw, 1.2f);
+        m.hole("6541", 0, cw + X * 1.2f, X, &Z);
+        m.axle("3706", cw + X * 0.4f, X);
+        m.gear("4716", cw, X);
+        place(m, 5.0f);
+    }
+    {   // 4. the rack and pinion (the rack slides under the 16)
+        Mount m = mk();
+        m.hole("6541", 0, float3(0, 2.0f, 0), Z, &X);
+        m.axle("3706", float3(0, 2.0f, 0.8f), Z);
+        m.gear("94925", float3(0, 2.0f, 1.2f), Z);
+        const int rp = m.partOf("6630");
+        if (rp >= 0) {
+            const MechMeta& rm = m_mech.meta(rp);
+            if (!rm.gears.empty()) {
+                const float4 q = Mount::rotFor(rm.gears[0].axis, X);
+                m.add(rp, q, float3(0, 2.0f - (0.8f + 0.25f), 1.2f) - qRot(q, rm.gears[0].c));
+            }
+        }
+        place(m, 5.0f);
+    }
+    {   // 5. the turntable 28 driven by a 12 tooth bevel at 90 degrees
+        Mount m = mk();
+        const int bot = m.partOf("99009"), top = m.partOf("99010");
+        if (bot >= 0 && top >= 0) {
+            const MechMeta& mb = m_mech.meta(bot);
+            const MechMeta& mtp = m_mech.meta(top);
+            const int B = m.add(bot, float4(0, 0, 0, 1), float3(0) - mb.pairC + float3(0, 0.5f, 0));
+            const float3 cb = qRot(m.b[B].rot, mb.pairC) + m.b[B].pos;
+            const float3 tpos = cb - mtp.pairC + float3(0, mb.pairHi - mtp.pairLo, 0);
+            m.add(top, float4(0, 0, 0, 1), tpos);
+            const float3 ct = mtp.pairC + tpos;
+            const float rt = 28 * 0.05f, rd = m.gearR("32270");
+            const float3 P = ct + Y * rd;
+            m.hole("6541", 0, P + X * (rt + 0.4f), X, &Z);
+            m.axle("3706", P + X * (rt + 0.2f), X);
+            m.gear("32270", P + X * rt, X);
+        }
+        place(m, 0.0f);
+    }
+    m_status = "Démo mécanique : bras de pelleteuse (2 vérins), réduction 8/40/24, vis sans fin, crémaillère, plateau tournant";
+}
+
 } // namespace brickit

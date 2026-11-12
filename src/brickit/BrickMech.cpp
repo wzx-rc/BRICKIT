@@ -191,7 +191,6 @@ void BrickApp::buildMechDemo() {
 // the boom (Technic Beam 15) raised, the arm (Technic Beam 9) and the bucket; the gears beside it turn in Mécanique.
 void BrickApp::buildExcavatorDemo() {
     m_bricks.clear();
-    buildMechDemo();   // (the gears, around the origin)
     const float4 q0(0, 0, 0, 1), q90 = qAxisAngle(float3(0, 1, 0), kPi * 0.5f);
     const float ox = -28 * kPitch, oz = -1 * kPitch;   // (the excavator on the left of the gears, its bucket clear of them)
     // a part with its box min at (x, y, z) (studs, y in cm), its long side along X (wantX) or Z
@@ -262,7 +261,8 @@ void BrickApp::buildExcavatorDemo() {
             m_bricks.push_back(b);
         }
     }
-    m_status = "Démo : pelleteuse et engrenages (Mécanique pour les faire tourner)";
+    buildMechShowcase(6.0f);   // the mechanical demo, new (Wzx 12/11/2026), on the right of the excavator
+    m_status = "Démo : pelleteuse et mécanismes (Mécanique pour les faire bouger)";
 }
 
 } // namespace brickit
