@@ -88,7 +88,11 @@ jobs:
           if [ "${{ steps.engine.outputs.have }}" = "true" ]; then SRC=port; EXTRA="-DMOLTENVK_LIBRARY=$MOLTENVK_LIBRARY"; else SRC=ios; EXTRA="-DBRICKIT_GIT=$(git rev-parse --short HEAD)"; fi
           # -g + dwarf-with-dsym: the symbols of each build in BrickIt.app.dSYM (published next to the .ipa), to read the
           # crash reports of the iPad (Rapports/crash_*.txt, MetricKit, .ips): atos -o <dSYM> -l <adresse de chargement> ...
-          cmake -S $SRC -B build/ios -G Xcode \
+          # the restored build folder may carry the git path of an older runner image (FetchContent then fails with
+          # « Git_VERSION='' »): the sub-builds of the fetched sources find git again, and the current git is given
+          find build/ios -path '*-subbuild/CMakeCache.txt' -delete 2>/dev/null || true
+          find build/ios -path '*-subbuild/CMakeFiles' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+          cmake -S $SRC -B build/ios -G Xcode -DGIT_EXECUTABLE="$(command -v git)" \
             -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -g" -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG -g" \
             -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
