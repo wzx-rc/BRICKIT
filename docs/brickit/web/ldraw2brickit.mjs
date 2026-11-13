@@ -98,7 +98,7 @@ function snapCylinders(snap, M, out, srcName) {
     const W = mul(M, G);
     const centered = a.center === "true";
     const p0 = tp(W, [0, centered ? L / 2 : 0, 0]), p1 = tp(W, [0, centered ? -L / 2 : -L, 0]);   // LDCad cylinders run along -Y from pos
-    out.push({ id: a.id || "", gender: (a.gender || "M").toUpperCase(), shapes, rmax: Math.max(...radii, 0), L, p0, p1, src: srcName });
+    out.push({ id: a.id || "", gender: (a.gender || "M").toUpperCase(), shapes, rmax: Math.max(...radii, 0), radii, group: a.group || "", L, p0, p1, src: srcName });
   }
 }
 function collectInclSnaps(refName, M, out, depth = 0) {
@@ -580,12 +580,18 @@ function buildVoxels(part, mesh, opts) {
       continue;
     }
     if (vertical && !axle && s.rmax <= 4.5 && s.L <= 8) continue;   // small tubes under 1xN: covered by footprint rule
-    if (vertical && !axle && s.gender === "F" && s.L >= 16 && s.rmax <= 8 && Math.abs(s.p0[1] - part.maxY) < 1) {
+    // a Technic pin hole: the collar of a pin (radius 8) at an end of the cylinder (connhole, beamhole: R 8 2 R 6 16 R 8 2)
+    const collar = !axle && s.gender === "F" && s.radii && s.radii.length >= 2 && (Math.abs(s.radii[0] - 8) < 0.5 || Math.abs(s.radii[s.radii.length - 1] - 8) < 0.5);
+    // (a beam lying flat had its holes taken for deep anti-studs: Wzx 13/11/2026)
+    if (vertical && !axle && !collar && s.gender === "F" && s.L >= 16 && s.rmax <= 8 && Math.abs(s.p0[1] - part.maxY) < 1) {
       add(B(s.p0), "antistud"); continue;   // deep anti-stud (round bricks)
     }
+    // a square cylinder of a group (S: the slide of a crane arm, of a mast): not a pin nor a hole (pins all along the beams 32524,
+    // 41239: Wzx 13/11/2026)
+    if (s.group && s.shapes.length && s.shapes.every((sh) => sh === "S")) continue;   // (a group: it only fits its own kind; the square slide of an actuator stays)
     // holes, pins, axles: sample along the axis every half stud
     const type = axle ? (s.gender === "M" ? "axle" : "axlehole") : (s.gender === "M" ? "pin" : "pinhole");
-    if (opts.system && vertical && (type === "pinhole" || type === "pin")) continue;   // pin hole inside the 2x2 tubes: real but confusing in a stud builder
+    if (opts.system && vertical && !collar && (type === "pinhole" || type === "pin")) continue;   // pin hole inside the 2x2 tubes: real but confusing in a stud builder
     const n = Math.max(1, Math.round(len / 10));
     for (let i = 0; i <= n; i++) {
       const t = i / n;
@@ -630,7 +636,10 @@ function buildVoxels(part, mesh, opts) {
       const cx = 0.4 + i * 0.8, cz = 0.4 + k * 0.8;
       const occ = covered(cx, cz);
       const already = vox.some((v, j) => types[j] === "antistud" && Math.abs(v[0] - cx) < 0.05 && Math.abs(v[2] - cz) < 0.05);   // raised anti-stud from LDCad
-      if (occ && !already) add([r4(cx), bottomY, r4(cz)], "antistud");
+      // (the bottom of a vertical Technic hole: a pin goes there, not a stud; a beam lying flat had an anti-stud under
+      // each hole: Wzx 13/11/2026)
+      const hole = vox.some((v, j) => types[j] === "pinhole" && v[1] < 0.05 && Math.abs(v[0] - cx) < 0.05 && Math.abs(v[2] - cz) < 0.05);
+      if (occ && !already && !hole) add([r4(cx), bottomY, r4(cz)], "antistud");
     }
   }
   if (opts.system) {   // System parts: anti-studs only on the stud grid

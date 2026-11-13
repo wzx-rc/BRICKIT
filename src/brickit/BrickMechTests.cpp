@@ -526,6 +526,14 @@ void BrickApp::runMechTests() {
         Mount m = mk();
         const int st = m.beamAt("32525", 0, float3(0, 0, L0), float3(0, 1, 0));
         const float3 A = m.holeW(st, 0), Bp = m.holeW(st, 3);
+        {   // the chassis: a Technic brick 1 x 8 behind the stick, two pins (holes 1 and 2): its studs make it the fixed
+            // part (until 13/11/2026 a stray anti-stud of the beam 11 did it)
+            const float3 P1 = m.holeW(st, 1), P2 = m.holeW(st, 2);
+            const float3 along = normalize(P2 - P1);
+            m.hole("3702", 0, float3(P1.x, P1.y, -0.4f), float3(0, 0, 1), &along);
+            m.pinAt(float3(P1.x, P1.y, 0.0f));
+            m.pinAt(float3(P2.x, P2.y, 0.0f));
+        }
         const float La = m.actLen("2909", "2910");
         int c = 5;
         float3 d(1, 0, 0);

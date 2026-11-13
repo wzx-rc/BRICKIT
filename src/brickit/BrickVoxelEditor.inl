@@ -297,6 +297,17 @@ void BrickApp::veAnalyze() {
                             for (int b = -4; b <= 4 && !cov; ++b) cov = inTri(cx + a * 0.0975f, cz + b * 0.0975f, t);
                         if (cov) break;
                     }
+                    // (a vertical Technic hole through the part at that cell, open at the bottom and at the top: a pin goes
+                    // there, not a stud; a beam lying flat had an anti-stud proposed under each hole, Wzx 13/11/2026)
+                    bool lo = false, hi = false;
+                    for (const VeRing& r : rings) {
+                        if (r.axis != 1 || r.outward || std::fabs(r.r - 0.24f) > 0.025f) continue;
+                        const bool at = (std::fabs(r.u - cz) < 0.03f && std::fabs(r.v - cx) < 0.03f) || (std::fabs(r.u - cx) < 0.03f && std::fabs(r.v - cz) < 0.03f);
+                        if (!at) continue;
+                        lo |= r.at - p.bmin.y < 0.15f;
+                        hi |= p.bmax.y - r.at < 0.15f;
+                    }
+                    if (lo && hi) cov = false;
                     if (cov) { anti.v.push_back(float3(cx, p.bmin.y, cz)); anti.t.push_back(CONN_ANTISTUD); }
                 }
     }
