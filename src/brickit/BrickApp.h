@@ -139,6 +139,8 @@ struct Options {
     bool settings = false;
     bool cornell = false;       // --cornell
     bool noEnv = false;         // --no-env
+    std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
+    int perfFrames = 600, perfOrbit = 0;
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
@@ -786,6 +788,7 @@ private:
     int m_setTab = 0;                 // Réglages: 1 = open on Thème (--settings-tab)
     int m_setSec = 0;                 // Réglages: the active section (Interface, Bibliothèque, Construction, Rendu, Caméra, Lumière, Thème, Fichiers)
     float m_setSecH[8] = {};          // Réglages: the height of each section as drawn last frame
+    LARGE_INTEGER m_perfT0{}, m_perfA{}, m_perfB{}, m_perfD{}, m_perfE{}, m_perfT1{}, m_perfF{};   // (--perf-trace)
     float m_setScroll = 0;            // Réglages: scrolled (a section taller than the screen)
     std::map<std::string, ImTextureID> m_themeTex;
     bool applyTheme();                // true when the theme changed (the 3D stage then follows)

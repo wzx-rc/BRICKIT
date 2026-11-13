@@ -1156,7 +1156,12 @@ void BrickApp::frame() {
         m_selected = sel;
         syncObjects();
     }
+    LARGE_INTEGER pA;
+    QueryPerformanceCounter(&pA);
     if (!m_opt.noUi) drawUi();
+    LARGE_INTEGER pB;
+    QueryPerformanceCounter(&pB);
+    if (m_opt.perfOrbit && m_frame > 30) { m_scene.camera.yaw += 0.01f; m_renderer->resetAccumulation(); m_lastMove = ImGui::GetTime(); }   // (--perf-orbit: the view turns)
     cameraInput();
     if (m_mechOn) mechUpdate((float)ImGui::GetIO().DeltaTime);
     else editInput();
@@ -1326,7 +1331,9 @@ void BrickApp::frame() {
             frs.giBoundsMax = m_softHi;
             frs.giBoundsFade = m_softMargin * 0.5f;
         }
+        QueryPerformanceCounter(&m_perfD);
         m_renderer->renderToTexture(m_scene, frs, m_vp, selObj);
+        QueryPerformanceCounter(&m_perfE);
         ImGui::GetBackgroundDrawList()->AddImage(m_gui->viewportTexture(), ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
         drawVoxels();          // over the 3D view, under the panels
         drawHoldOverlay();
@@ -1339,6 +1346,9 @@ void BrickApp::frame() {
     QueryPerformanceCounter(&t1);
     m_cpuMs = m_cpuMs * 0.9 + 0.1 * (t1.QuadPart - t0.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_gui->render(true);
+    LARGE_INTEGER pF;
+    QueryPerformanceCounter(&pF);
+    m_perfA = pA; m_perfB = pB; m_perfT1 = t1; m_perfF = pF; m_perfT0 = t0;
     ++m_frame;
     crashHeartbeat();
     if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
@@ -1426,6 +1436,16 @@ void BrickApp::frame() {
         }
     }
     m_renderer->present(m_opt.shotPath.empty());
+    if (!m_opt.perfTrace.empty()) {   // --perf-trace: ms of each part of the frame (UI, render submit, ImGui, present / vsync), GPU
+        static FILE* pf = nullptr;
+        if (!pf) { _wfopen_s(&pf, m_opt.perfTrace.c_str(), L"w"); if (pf) fprintf(pf, "frame total pre ui logic render overlays imgui present gpu\n"); }
+        LARGE_INTEGER pG;
+        QueryPerformanceCounter(&pG);
+        auto ms = [&](const LARGE_INTEGER& a, const LARGE_INTEGER& b) { return (b.QuadPart - a.QuadPart) * 1000.0 / m_qpf.QuadPart; };
+        const bool r = m_perfD.QuadPart > m_perfT0.QuadPart;
+        if (pf) fprintf(pf, "%d %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n", m_frame, ms(m_perfT0, pG), ms(m_perfT0, m_perfA), ms(m_perfA, m_perfB), r ? ms(m_perfB, m_perfD) : ms(m_perfB, m_perfT1), r ? ms(m_perfD, m_perfE) : 0.0, r ? ms(m_perfE, m_perfT1) : 0.0, ms(m_perfT1, m_perfF), ms(m_perfF, pG), m_renderer->gpuFrameMs());
+        if (m_frame >= m_opt.perfFrames) { if (pf) fclose(pf); pf = nullptr; m_running = false; }
+    }
     if (!m_opt.ptTrace.empty()) {   // convergence: samples accumulated and the cost of each frame
         static FILE* tf = nullptr;
         if (!tf) _wfopen_s(&tf, m_opt.ptTrace.c_str(), L"w");
@@ -1557,6 +1577,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--opts-right") opt.optsRight = true;
         else if (a == L"--cornell") opt.cornell = true;
         else if (a == L"--mechtests") opt.mechTests = true;   // the Cornell box of WZX Engine (comparison of the renderers)
+        else if (a == L"--perf-trace") { opt.perfTrace = next(); opt.perfFrames = _wtoi(next().c_str()); }
+        else if (a == L"--perf-orbit") opt.perfOrbit = 1;
         else if (a == L"--pt-trace") opt.ptTrace = next();   // per frame: samples, ms (convergence)
         else if (a == L"--settings") opt.settings = true;
         else if (a == L"--quality") opt.quality = _wtoi(next().c_str());   // 0 Rapide, 1 HQ
