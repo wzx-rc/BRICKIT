@@ -176,6 +176,8 @@ public:
     void touchBegan(uint64_t id, float x, float y, bool pen) { m_touchQueue.push_back({0, id, x, y, pen}); }
     void touchMoved(uint64_t id, float x, float y) { m_touchQueue.push_back({1, id, x, y, false}); }
     void touchEnded(uint64_t id, float x, float y, bool cancelled) { m_touchQueue.push_back({cancelled ? 3 : 2, id, x, y, false}); }
+    // a scene handed by the system (iPad: a .brick from Fichiers, AirDrop, Mail; PC: the command line)
+    bool openSceneFile(const std::wstring& path) { return openScene(path); }
 
 private:
     // BrickApp.cpp
