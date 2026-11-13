@@ -3451,188 +3451,237 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
 // UI scale (text and panels, 4K), thumbnail size, real time quality / path tracing, ambient occlusion of the HQ mode,
 // tone mapping, voxels, animations, automatic save. Saved in brickit_prefs.json.
 void BrickApp::uiSettings() {
+    // Réglages, rangés par sections (Wzx 13/11/2026: « revoit tout le panneau des settings, pour mieux organiser et
+    // synthétiser tous les paramètres, fais une UX claire »): the sections on the left, the active one on the right with
+    // its groups (a small title and a line), each setting a row of segmented buttons or a slider.
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float W = 320 * s, pad = 14 * s, rowH = 30 * s, gap = 10 * s;
-    if (m_setTab == 1 && !m_ipad) {   // Réglages › Thème
-        const float W2 = 2 * W, H = std::min(d.y - 8 * s - m_popupAt.y, m_themeTabH > 0 ? m_themeTabH : 480 * s);
-        ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, p0.y + H);
-        u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), m_th.shadow, rr(12 * s));
-        u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(12 * s));
-        u.dl->AddRect(p0, p1, C_LINE, rr(12 * s));
-        m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
-        const bool tabClick = settingsTabs(u, ImVec2(p0.x + pad, p0.y + pad - 3 * s));
-        uiThemeTab(u, p0, p1);
-        if (u.pressed && !tabClick && !u.hover(p0, p1) && u.mouse.y > (m_studioUi ? 46 : 30) * s) m_popup = 0;
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
-        return;
-    }
-    struct Opt { const char* label; bool on; };
-    struct Row { const char* title; std::vector<Opt> opts; int id; };
-    char scaleLab[5][8];
-    static const float kScales[5] = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
-    std::vector<Opt> scales;
-    for (int i = 0; i < 5; ++i) { snprintf(scaleLab[i], sizeof(scaleLab[i]), "%d %%", (int)std::lround(kScales[i] * 100)); scales.push_back({scaleLab[i], std::fabs(m_uiScaleUser - kScales[i]) < 0.01f}); }
-    std::vector<Row> rows = {
-        {"Échelle de l'interface", scales, 0},
-        {"Réglages par défaut", {{"Enregistrer ceux-ci", false}, {"Rétablir", false}}, 13},
-        {"Interface", {{"Studio", m_studioUi}, {"Classique", !m_studioUi}}, 18},
-        {"Icône de l'app", {{"A : viseur", m_appIcon == 0}, {"B : brique seule", m_appIcon == 1}}, 25},
-        {"Cartes de la bibliothèque", {{"Image", m_stCardMode == 0}, {"Fiche", m_stCardMode == 1}}, 19},
-        {"Pièces décorées (stickers, motifs)", {{"Masquées", m_hideDeco}, {"Affichées", !m_hideDeco}}, 20},
-        {"HUD de sélection", {{"Oui", m_selHud}, {"Non", !m_selHud}}, 16},
-        {"Brique en main : couleur de l'aperçu", {{"Jaune", m_ghostCol == 0}, {"Blanc", m_ghostCol == 1}, {"Bleu", m_ghostCol == 2}, {"Vert", m_ghostCol == 3}, {"Rose", m_ghostCol == 4}, {"Brique", m_ghostCol == 5}}, 21},
-        {"Brique en main : opacité", {{"15 %", m_ghostAlphaPref < 0.2f}, {"32 %", m_ghostAlphaPref >= 0.2f && m_ghostAlphaPref < 0.4f}, {"50 %", m_ghostAlphaPref >= 0.4f && m_ghostAlphaPref < 0.6f}, {"75 %", m_ghostAlphaPref >= 0.6f}}, 22},
-        {"Brique en main : intensité", {{"Aucune", m_ghostGlow == 0}, {"Douce", m_ghostGlow == 1}, {"Normale", m_ghostGlow == 2}, {"Forte", m_ghostGlow == 3}}, 23},
-        {"Arêtes arrondies (biseau)", {{"Oui", m_rs.bevel}, {"Non", !m_rs.bevel}}, 24},
-        {"Anneau de la main gauche (tourner, basculer)", {{"Oui", m_touchHud}, {"Non", !m_touchHud}}, 14},
-        {"Taille des miniatures", {{"Petites", m_thumbSize == 0}, {"Moyennes", m_thumbSize == 1}, {"Grandes", m_thumbSize == 2}}, 1},
-        {"Rendu", {{"Rapide", m_rs.raster && m_quality == 0}, {"HQ", m_rs.raster && m_quality == 1}, {"PT", pathTraced()}, {"RC", m_rcMode}}, 2},
-        {"Anti-aliasing (Radiance Cascades)", {{"MSAA 4x", m_rs.aaQuality == 0}, {"MSAA 8x", m_rs.aaQuality == 1}, {"AAA", m_rs.aaQuality == 2}}, 9},
-        {"Ombres (Radiance Cascades)", {{"Basse", m_rs.shadowQuality <= 1}, {"Moyenne", m_rs.shadowQuality == 2}, {"Haute", m_rs.shadowQuality == 3}, {"AAA", m_rs.shadowQuality == 4}}, 10},
-        {"Anti-aliasing au repos (HQ)", {{"Oui", m_stillAA}, {"Non", !m_stillAA}}, 12},
-        {"Échelle de rendu", {{"100 %", m_renderScale > 0.95f}, {"85 %", std::fabs(m_renderScale - 0.85f) < 0.01f}, {"75 %", std::fabs(m_renderScale - 0.75f) < 0.01f}, {"67 %", m_renderScale < 0.7f}}, 11},
-        {"Occlusion HDRI (HQ)", {{"Oui", m_ssaoOn}, {"Non", !m_ssaoOn}}, 3},   // the traced occlusion of the environment (about 1.2 ms)
-        {"Transformation de vue", {{"ACES", m_rs.tonemapper == 0}, {"AgX", m_rs.tonemapper == 1}, {"Std", m_rs.tonemapper == 3}}, 4},
-        {"Voxels", {{"Affichés", m_showVox}, {"Masqués", !m_showVox}}, 6},
-        {"Animations", {{"Oui", m_animOn}, {"Non", !m_animOn}}, 7},
-        {"Sauvegarde automatique", {{"Oui", m_autosaveOn}, {"Non", !m_autosaveOn}}, 8},
+    const float pad = 14 * s, rowH = 30 * s, gap = 10 * s;
+    enum { S_UI, S_LIB, S_BUILD, S_RENDER, S_CAM, S_LIGHT, S_THEME, S_FILES, S_N };
+    struct Sec { const char* name; const char* desc; bool pcOnly; };
+    static const Sec kSec[S_N] = {
+        {"Interface", "Taille, style et aides à l'écran", false},
+        {"Bibliothèque", "Les cartes des pièces et leurs miniatures", false},
+        {"Construction", "La brique en main et la sélection", false},
+        {"Rendu", "Moteur, qualité et image", true},
+        {"Caméra", "Profondeur de champ et mise au point", true},
+        {"Lumière", "HDRI, illumination globale, grille", true},
+        {"Thème", "Couleurs et style de l'application", true},
+        {"Fichiers", "Sauvegarde et réglages par défaut", false},
     };
-    if (m_ipad)   // the iPad: no render settings (raster view only, no view transform)
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 2 || r.id == 3 || r.id == 4 || r.id == 9 || r.id == 10 || r.id == 11 || r.id == 12; }), rows.end());
-    else   // the PC: no touch ring (the iPad HUD, Wzx 12/11/2026)
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [](const Row& r) { return r.id == 14; }), rows.end());
-    const float H = pad + 20 * s + gap + rows.size() * (16 * s + rowH + gap) - gap + pad;
-    // second column: Lumière (HDRI, rotation, intensity, custom HDRI, colour of the grid)
-    const float hdriRowsN = (float)((m_hdriPaths.size() + 1) / 2);
-    const float H2 = (16 * s + rowH + gap) + pad + 20 * s + gap + 16 * s + hdriRowsN * (rowH + 4 * s) + gap + rowH + gap + 2 * (16 * s + rowH + gap) + 16 * s + rowH + gap + 16 * s + rowH + gap + 18 * s + pad;
-    const float W2 = m_ipad ? W : 2 * W;   // (the iPad: no Lumière column)
-    // (the Lumière column as tall as it was drawn last frame: its rows depend on the settings)
-    ImVec2 p0(std::min(m_popupAt.x, d.x - W2 - 10 * s), m_popupAt.y), p1(p0.x + W2, std::min(p0.y + (m_ipad ? H : std::max(H, std::max(H2, m_lumColumnH))), d.y - 8 * s));
+    if (m_setTab == 1) { m_setSec = S_THEME; m_setTab = 0; }   // (--settings-tab 1, the former Thème tab)
+    if (m_setSec < 0 || m_setSec >= S_N || (m_ipad && kSec[m_setSec].pcOnly)) m_setSec = S_UI;
+    const int sec = m_setSec;
+    const float sideW = 156 * s, CW = (sec == S_THEME ? 640 : 380) * s;
+    const float W2 = sideW + CW;
+    // the height: the sections column, or the content of the active one as drawn last frame (scrolled when taller)
+    int nSec = 0;
+    for (int i = 0; i < S_N; ++i) if (!(m_ipad && kSec[i].pcOnly)) ++nSec;
+    const float itemH = 34 * s, sideH = pad + 24 * s + gap + nSec * (itemH + 2 * s) + pad;
+    const float maxH = d.y - 8 * s - m_popupAt.y;
+    const float contentH = m_setSecH[sec] > 0 ? m_setSecH[sec] : 420 * s;
+    const float H = std::min(maxH, std::max(sideH, contentH));
+    ImVec2 p0(std::max(4 * s, std::min(m_popupAt.x, d.x - W2 - 10 * s)), m_popupAt.y), p1(p0.x + W2, p0.y + H);
     u.dl->AddRectFilled(ImVec2(p0.x, p0.y + 10 * s), ImVec2(p1.x, p1.y + 10 * s), m_th.shadow, rr(12 * s));
     u.dl->AddRectFilled(p0, p1, C_PANEL_SOLID, rr(12 * s));
     u.dl->AddRect(p0, p1, C_LINE, rr(12 * s));
     m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
-    float y = p0.y + pad;
-    if (m_ipad) u.text(ImVec2(p0.x + pad, y), 14, C_TEXT, "Réglages", true);
-    else settingsTabs(u, ImVec2(p0.x + pad, y - 3 * s));
+    const bool inPanel = u.hover(p0, p1);
+    // ---- the sections
+    {
+        u.dl->AddRectFilled(p0, ImVec2(p0.x + sideW, p1.y), C_CARD & 0x55ffffff, rr(12 * s), ImDrawFlags_RoundCornersLeft);
+        u.text(ImVec2(p0.x + pad, p0.y + pad), 15, C_TEXT, "Réglages", true);
+        float y = p0.y + pad + 24 * s + gap;
+        for (int i = 0; i < S_N; ++i) {
+            if (m_ipad && kSec[i].pcOnly) continue;
+            const ImVec2 a(p0.x + 8 * s, y), b(p0.x + sideW - 8 * s, y + itemH);
+            const bool on = sec == i, hv = u.hover(a, b);
+            if (on) u.dl->AddRectFilled(a, b, C_CARD_HI, rb(8 * s, itemH));
+            else if (hv) u.dl->AddRectFilled(a, b, C_CARD, rb(8 * s, itemH));
+            if (on) u.dl->AddRectFilled(ImVec2(a.x + 4 * s, a.y + 9 * s), ImVec2(a.x + 7 * s, b.y - 9 * s), C_ACCENT, 2 * s);
+            u.text(ImVec2(a.x + 16 * s, a.y + (itemH - u.fs(12.5f)) * 0.5f), 12.5f, on ? C_TEXT : C_DIM, kSec[i].name, on);
+            if (hv && u.pressed && !on) { m_setSec = i; m_setScroll = 0; m_tabClicked = true; }
+            y += itemH + 2 * s;
+        }
+        u.dl->AddLine(ImVec2(p0.x + sideW, p0.y), ImVec2(p0.x + sideW, p1.y), C_LINE, 1.0f);
+    }
+    const float x0 = p0.x + sideW, x1 = p1.x, IW = CW - 2 * pad;
+    // scrolling (a content taller than the screen)
+    const float scrollMax = std::max(0.0f, contentH - H);
+    if (inPanel && scrollMax > 0 && ImGui::GetIO().MouseWheel != 0) m_setScroll -= ImGui::GetIO().MouseWheel * 60 * s;
+    m_setScroll = std::clamp(m_setScroll, 0.0f, scrollMax);
+    u.dl->PushClipRect(ImVec2(x0, p0.y + 1), ImVec2(x1, p1.y - 1), true);
+    const float top = p0.y - m_setScroll;
+    if (sec == S_THEME) {
+        u.text(ImVec2(x0 + pad, top + pad), 15, C_TEXT, kSec[sec].name, true);
+        uiThemeTab(u, ImVec2(x0, top), ImVec2(x1, p1.y));
+        m_setSecH[sec] = m_themeTabH;
+        u.dl->PopClipRect();
+        if (u.pressed && !inPanel && u.mouse.y > (m_studioUi ? 46 : 30) * s && !m_tabClicked) m_popup = 0;
+        m_tabClicked = false;
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+        return;
+    }
+    float y = top + pad;
+    u.text(ImVec2(x0 + pad, y), 15, C_TEXT, kSec[sec].name, true);
+    {
+        const float tw = u.textW(15, kSec[sec].name, true);
+        u.text(ImVec2(x0 + pad + tw + 10 * s, y + 3 * s), 10.5f, C_DIM, kSec[sec].desc);
+    }
     y += 20 * s + gap;
-    int clickRow = -1, clickOpt = -1;
-    for (const Row& r : rows) {
-        u.text(ImVec2(p0.x + pad, y), 11, C_DIM, r.title);
+    auto hov = [&](ImVec2 a, ImVec2 b) { return inPanel && u.hover(a, b); };
+    // a group: its small title and a line
+    bool firstGroup = true;
+    auto group = [&](const char* name) {
+        if (!firstGroup) y += 6 * s;
+        firstGroup = false;
+        u.text(ImVec2(x0 + pad, y), 10.5f, C_ACCENT_TXT, name, true);
+        const float tw = u.textW(10.5f, name, true);
+        u.dl->AddLine(ImVec2(x0 + pad + tw + 8 * s, y + u.fs(10.5f) * 0.55f), ImVec2(x1 - pad, y + u.fs(10.5f) * 0.55f), C_LINE, 1.0f);
+        y += 20 * s;
+    };
+    // a row of segmented buttons: its index clicked, -1
+    auto seg = [&](const char* title, std::initializer_list<const char*> labs, int on, float fs = 12) -> int {
+        u.text(ImVec2(x0 + pad, y), 11, C_DIM, title);
         y += 16 * s;
-        // segmented buttons (.btn, the active one in accent)
-        float x = p0.x + pad;
-        const float bw = (W - 2 * pad - (r.opts.size() - 1) * 4 * s) / r.opts.size();
-        for (size_t i = 0; i < r.opts.size(); ++i) {
-            ImVec2 a(x, y), b(x + bw, y + rowH);
-            const bool h = u.hover(a, b);
-            u.dl->AddRectFilled(a, b, r.opts[i].on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-            const float tw = u.textW(12, r.opts[i].label, r.opts[i].on);
-            u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, r.opts[i].on ? C_INK : C_TEXT, r.opts[i].label, r.opts[i].on);
-            if (h && u.pressed) { clickRow = r.id; clickOpt = (int)i; }
-            x += bw + 4 * s;
+        const int n = (int)labs.size();
+        const float bw = (IW - (n - 1) * 4 * s) / n;
+        int k = 0, hit = -1;
+        for (const char* lab : labs) {
+            ImVec2 a(x0 + pad + k * (bw + 4 * s), y), b(a.x + bw, y + rowH);
+            const bool o = k == on, h = hov(a, b);
+            u.dl->AddRectFilled(a, b, o ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
+            const float tw = u.textW(fs, lab, o);
+            u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(fs)) * 0.5f), fs, o ? C_INK : C_TEXT, lab, o);
+            if (h && u.pressed) hit = k;
+            ++k;
         }
         y += rowH + gap;
+        return hit;
+    };
+    // the rows of the former panel: their click handled below (clickRow, clickOpt), by their id
+    int clickRow = -1, clickOpt = -1;
+    auto row = [&](const char* title, std::initializer_list<const char*> labs, int on, int id) {
+        const int k = seg(title, labs, on);
+        if (k >= 0 && k != on) { clickRow = id; clickOpt = k; }
+    };
+    auto yesNo = [&](const char* title, bool v, int id) { row(title, {"Oui", "Non"}, v ? 0 : 1, id); };
+    auto slider = [&](int id, const char* label, float& v, float lo, float hi, const char* fmt, float shown) {
+        char vb[32];
+        snprintf(vb, sizeof(vb), fmt, shown);
+        u.text(ImVec2(x0 + pad, y), 11, C_DIM, label);
+        const float vw = u.textW(11, vb, false);
+        u.text(ImVec2(x1 - pad - vw, y), 11, C_TEXT, vb);
+        y += 16 * s;
+        const float sh = 22 * s;   // (a slider: lower than a row of buttons)
+        ImVec2 a(x0 + pad, y), b(x1 - pad, y + sh);
+        const bool h = hov(a, b);
+        if (h && u.pressed) m_setDrag = id;
+        bool changed = false;
+        if (m_setDrag == id) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                const float t = std::clamp((u.mouse.x - a.x) / std::max(1.0f, b.x - a.x), 0.0f, 1.0f);
+                const float nv = lo + t * (hi - lo);
+                if (std::fabs(nv - v) > 1e-5f) { v = nv; changed = true; }
+            } else { m_setDrag = -1; savePrefs(); }
+        }
+        const float t = std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f), cy = y + sh * 0.5f;
+        u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(b.x, cy + 3 * s), C_CARD, 3 * s);
+        u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(a.x + (b.x - a.x) * t, cy + 3 * s), C_PROGRESS, 3 * s);
+        u.dl->AddCircleFilled(ImVec2(a.x + (b.x - a.x) * t, cy), (h || m_setDrag == id ? 9 : 8) * s, C_PROGRESS);
+        y += sh + gap;
+        return changed;
+    };
+    auto note = [&](const char* txt) {   // a short explanation under a row
+        y -= gap - 2 * s;
+        u.text(ImVec2(x0 + pad, y), 10, C_FAINT, txt);
+        y += 14 * s + gap;
+    };
+    bool lookChanged = false;
+    static const float kScales[5] = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+    switch (sec) {
+    case S_UI: {
+        group("Affichage");
+        int sc = 1;
+        for (int i = 0; i < 5; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
+        row("Échelle de l'interface", {"75 %", "100 %", "125 %", "150 %", "200 %"}, sc, 0);
+        row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
+        row("Icône de l'app", {"A : viseur", "B : brique seule"}, m_appIcon, 25);
+        group("Aides");
+        yesNo("HUD de sélection", m_selHud, 16);
+        if (m_ipad) yesNo("Anneau de la main gauche (tourner, basculer)", m_touchHud, 14);
+        yesNo("Animations des briques", m_animOn, 7);
+        break;
     }
-    // ---- Lumière (native addition): the same scene for every renderer
-    if (!m_ipad) {
-        const float x0 = p0.x + W, x1 = p1.x;
-        u.dl->AddLine(ImVec2(x0, p0.y + pad), ImVec2(x0, p1.y - pad), C_LINE, 1.0f);
-        float ly = p0.y + pad;
-        u.text(ImVec2(x0 + pad, ly), 14, C_TEXT, "Lumière", true);
-        ly += 20 * s + gap;
-        bool lookChanged = false;
-        {   // GI douce (HQ): on / off (off = the HQ as before, no probe computed)
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "GI douce (HQ)");
-            ly += 16 * s;
-            const float bw2 = (W - 2 * pad - 4 * s) / 2;
-            for (int k = 0; k < 2; ++k) {
-                const bool on = (k == 0) == m_softGI;
-                ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const char* lab = k == 0 ? "Oui" : "Non";
-                const float tw = u.textW(12, lab, on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                if (h && u.pressed && !on) { m_softGI = k == 0; m_renderer->resetAccumulation(); savePrefs(); }
-            }
-            ly += rowH + gap;
+    case S_LIB:
+        group("Cartes");
+        row("Présentation des cartes", {"Image", "Fiche"}, m_stCardMode, 19);
+        row("Taille des miniatures", {"Petites", "Moyennes", "Grandes"}, m_thumbSize, 1);
+        group("Filtre");
+        row("Pièces décorées (stickers, motifs)", {"Masquées", "Affichées"}, m_hideDeco ? 0 : 1, 20);
+        break;
+    case S_BUILD: {
+        group("Brique en main");
+        note("L'aperçu translucide de l'endroit où la brique va se poser.");
+        row("Couleur de l'aperçu", {"Jaune", "Blanc", "Bleu", "Vert", "Rose", "Brique"}, m_ghostCol, 21);
+        const int ga = m_ghostAlphaPref < 0.2f ? 0 : m_ghostAlphaPref < 0.4f ? 1 : m_ghostAlphaPref < 0.6f ? 2 : 3;
+        row("Opacité de l'aperçu", {"15 %", "32 %", "50 %", "75 %"}, ga, 22);
+        row("Lueur de l'aperçu", {"Aucune", "Douce", "Normale", "Forte"}, m_ghostGlow, 23);
+        if (!m_ipad) {
+            group("Sélection");
+            slider(106, "Contour de sélection", m_selOutline, 0.0f, 1.0f, "%.2f", m_selOutline);
+            slider(107, "Voile de sélection", m_selFill, 0.0f, 0.5f, "%.2f", m_selFill);
         }
-        if (m_softGI) {   // Figer la GI pendant le déplacement: the probes held while a brick is carried (Non: they follow it live)
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Figer la GI pendant le déplacement");
-            ly += 16 * s;
-            const float bw2 = (W - 2 * pad - 4 * s) / 2;
-            for (int k = 0; k < 2; ++k) {
-                const bool on = (k == 0) == m_softGIHold;
-                ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const char* lab = k == 0 ? "Oui" : "Non";
-                const float tw = u.textW(12, lab, on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                if (h && u.pressed && !on) { m_softGIHold = k == 0; savePrefs(); }
-            }
-            ly += rowH + gap;
+        group("Connecteurs");
+        row("Voxels (V)", {"Affichés", "Masqués"}, m_showVox ? 0 : 1, 6);
+        note("Tenons jaunes, pins cyan, axes magenta.");
+        break;
+    }
+    case S_RENDER: {
+        group("Moteur");
+        row("Rendu", {"Rapide", "HQ", "PT", "RC"}, m_rcMode ? 3 : pathTraced() ? 2 : m_quality == 1 ? 1 : 0, 2);
+        note("Rapide : raster simple · HQ : GI, SSS · PT : path tracing · RC : Radiance Cascades");
+        group("Qualité");
+        const int rs = m_renderScale > 0.95f ? 0 : std::fabs(m_renderScale - 0.85f) < 0.01f ? 1 : std::fabs(m_renderScale - 0.75f) < 0.01f ? 2 : 3;
+        row("Échelle de rendu", {"100 %", "85 %", "75 %", "67 %"}, rs, 11);
+        yesNo("Anti-aliasing au repos (HQ)", m_stillAA, 12);
+        yesNo("Occlusion HDRI (HQ)", m_ssaoOn, 3);
+        yesNo("Arêtes arrondies (biseau)", m_rs.bevel, 24);
+        group("Radiance Cascades");
+        row("Anti-aliasing", {"MSAA 4x", "MSAA 8x", "AAA"}, m_rs.aaQuality, 9);
+        row("Ombres", {"Basse", "Moyenne", "Haute", "AAA"}, m_rs.shadowQuality <= 1 ? 0 : m_rs.shadowQuality - 1, 10);
+        group("Image");
+        row("Transformation de vue", {"ACES", "AgX", "Std"}, m_rs.tonemapper == 3 ? 2 : m_rs.tonemapper, 4);
+        slider(109, "Bloom", m_bloom, 0.0f, 1.0f, "%.2f", m_bloom);
+        break;
+    }
+    case S_CAM: {
+        group("Objectif (HQ)");
+        slider(108, "Profondeur de champ", m_dof, 0.0f, 1.0f, "%.2f", m_dof);
+        const int k = seg("Mise au point", {"Auto (viseur)", "Sélection", "Manuel"}, m_focusMode, 11);
+        if (k >= 0 && k != m_focusMode) {
+            m_focusMode = k;
+            if (k == 2) m_focusManual = std::clamp(m_focusCur > 0 ? m_focusCur : m_scene.camera.distance, 2.0f, 400.0f);
+            savePrefs();
         }
-        if (m_softGI) {   // Sondes GI: their number (quality and cost of the soft GI); a change restarts the GI
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Qualité des sondes");
-            ly += 16 * s;
-            // (16384 at most: the probe atlases are 16384 texels wide, lit::placeProbeGrid)
-            static const int kBudgets[3] = {4096, 8192, 16384};
-            static const char* kLabels[3] = {"Basse", "Moyenne", "Haute"};
-            const float bw4 = (W - 2 * pad - 2 * 4 * s) / 3;
-            for (int k = 0; k < 3; ++k) {
-                const bool on = m_softGIProbes == kBudgets[k];
-                ImVec2 a(x0 + pad + k * (bw4 + 4 * s), ly), b(a.x + bw4, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const float tw = u.textW(12, kLabels[k], on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, kLabels[k], on);
-                if (h && u.pressed && !on) { m_softGIProbes = kBudgets[k]; m_renderer->resetAccumulation(); savePrefs(); }
-            }
-            ly += rowH + gap;
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Afficher les sondes");
-            ly += 16 * s;
-            const float bw2 = (W - 2 * pad - 4 * s) / 2;
-            for (int k = 0; k < 2; ++k) {
-                const bool on = (k == 0) == m_showProbes;
-                ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const char* lab = k == 0 ? "Oui" : "Non";
-                const float tw = u.textW(12, lab, on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                if (h && u.pressed && !on) { m_showProbes = k == 0; savePrefs(); }
-            }
-            ly += rowH + gap;
+        if (m_focusMode == 2) slider(110, "Distance de mise au point", m_focusManual, 2.0f, 400.0f, "%.0f cm", m_focusManual);
+        if (m_focusMode == 0) {
+            const int r = seg("Viseur de mise au point", {"Affiché", "Masqué"}, m_focusReticle ? 0 : 1);
+            if (r >= 0 && (r == 0) != m_focusReticle) { m_focusReticle = r == 0; savePrefs(); }
         }
-        {   // Lookdev GI: one light grey for every brick, no reflection (the lighting alone); not saved
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Lookdev GI (gris uni)");
-            ly += 16 * s;
-            const float bw2 = (W - 2 * pad - 4 * s) / 2;
-            for (int k = 0; k < 2; ++k) {
-                const bool on = (k == 0) == m_giLookdev;
-                ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const char* lab = k == 0 ? "Oui" : "Non";
-                const float tw = u.textW(12, lab, on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                if (h && u.pressed && !on) setLookdev(k == 0);
-            }
-            ly += rowH + gap;
-        }
-        // HDRI: the list, two per line
-        u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "HDRI");
-        ly += 16 * s;
-        const float bw = (W - 2 * pad - 4 * s) / 2;
+        break;
+    }
+    case S_LIGHT: {
+        group("Environnement");
+        u.text(ImVec2(x0 + pad, y), 11, C_DIM, "HDRI");
+        y += 16 * s;
+        const float bw = (IW - 4 * s) / 2;
         for (size_t i = 0; i < m_hdriPaths.size(); ++i) {
             const float bx = x0 + pad + (i % 2) * (bw + 4 * s);
-            ImVec2 a(bx, ly), b(bx + bw, ly + rowH);
-            const bool on = m_hdriPaths[i] == m_hdriPath, h = u.hover(a, b);
+            ImVec2 a(bx, y), b(bx + bw, y + rowH);
+            const bool on = m_hdriPaths[i] == m_hdriPath, h = hov(a, b);
             u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
             std::string name = "Ciel procédural";
             if (!m_hdriPaths[i].empty()) {
@@ -3642,109 +3691,67 @@ void BrickApp::uiSettings() {
                 if (dot != std::wstring::npos) f = f.substr(0, dot);
                 for (const wchar_t* cut : {L"_2k", L"_4k", L"_1k", L"_8k"}) { const size_t k = f.find(cut); if (k != std::wstring::npos) f = f.substr(0, k); }
                 for (auto& c : f) if (c == L'_') c = L' ';
-                if (f.size() > 16) f = f.substr(0, 16);
+                if (f.size() > 18) f = f.substr(0, 18);
                 if (ext == L"exr") f += L" (exr)";
                 name.assign(f.begin(), f.end());   // (file names of the HDRI: plain ASCII)
             }
             const float tw = u.textW(11, name.c_str(), on);
             u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(11)) * 0.5f), 11, on ? C_INK : C_TEXT, name.c_str(), on);
             if (h && u.pressed && !on) { setHdri(m_hdriPaths[i]); savePrefs(); }
-            if (i % 2 == 1 || i + 1 == m_hdriPaths.size()) ly += rowH + 4 * s;
+            if (i % 2 == 1 || i + 1 == m_hdriPaths.size()) y += rowH + 4 * s;
         }
-        ly += gap - 4 * s;
+        y += gap - 4 * s;
         {   // load a custom HDRI
-            ImVec2 a(x0 + pad, ly), b(x1 - pad, ly + rowH);
-            const bool h = u.hover(a, b);
+            ImVec2 a(x0 + pad, y), b(x1 - pad, y + rowH);
+            const bool h = hov(a, b);
             u.dl->AddRectFilled(a, b, h ? C_CARD_HI : C_CARD, rb(7 * s, rowH));
             const char* lab = "Charger une HDRI…  (.hdr, .exr)";
             const float tw = u.textW(12, lab, false);
             u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, C_TEXT, lab);
             if (h && u.pressed) loadHdriDialog();
-            ly += rowH + gap;
+            y += rowH + gap;
         }
-        // sliders (live)
-        auto slider = [&](int id, const char* label, float& v, float lo, float hi, const char* fmt, float shown) {
-            char vb[32];
-            snprintf(vb, sizeof(vb), fmt, shown);
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, label);
-            const float vw = u.textW(11, vb, false);
-            u.text(ImVec2(x1 - pad - vw, ly), 11, C_TEXT, vb);
-            ly += 16 * s;
-            ImVec2 a(x0 + pad, ly), b(x1 - pad, ly + rowH);
-            const bool h = u.hover(a, b);
-            if (h && u.pressed) m_setDrag = id;
-            bool changed = false;
-            if (m_setDrag == id) {
-                if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-                    const float t = std::clamp((u.mouse.x - a.x) / std::max(1.0f, b.x - a.x), 0.0f, 1.0f);
-                    const float nv = lo + t * (hi - lo);
-                    if (std::fabs(nv - v) > 1e-5f) { v = nv; changed = true; }
-                } else { m_setDrag = -1; savePrefs(); }
-            }
-            const float t = std::clamp((v - lo) / (hi - lo), 0.0f, 1.0f), cy = ly + rowH * 0.5f;
-            u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(b.x, cy + 3 * s), C_CARD, 3 * s);
-            u.dl->AddRectFilled(ImVec2(a.x, cy - 3 * s), ImVec2(a.x + (b.x - a.x) * t, cy + 3 * s), C_PROGRESS, 3 * s);
-            u.dl->AddCircleFilled(ImVec2(a.x + (b.x - a.x) * t, cy), (h || m_setDrag == id ? 9 : 8) * s, C_PROGRESS);
-            ly += rowH + gap;
-            return changed;
-        };
         if (slider(101, "Rotation de la HDRI", m_hdriRotDeg, 0.0f, 360.0f, "%.0f°", m_hdriRotDeg)) lookChanged = true;
         if (slider(102, "Intensité de la HDRI", m_hdriInt, 0.0f, 3.0f, "%.2f", m_hdriInt)) lookChanged = true;
-        if (m_softGI) slider(104, "Intensité GI (HQ)", m_softGIStrength, 0.0f, 2.0f, "%.2f", m_softGIStrength);   // (live, probes kept)
-        // SSS (HQ): the light under the surface of the plastic (HQ and RC), 0 = off
-        slider(105, "SSS (HQ) · 0 = coupé", m_hqSSSStrength, 0.0f, 2.0f, "%.2f", m_hqSSSStrength);
-        // the highlight of the selection: its thin outline and its white veil (Wzx: tunable)
-        slider(106, "Contour de sélection", m_selOutline, 0.0f, 1.0f, "%.2f", m_selOutline);
-        slider(107, "Voile de sélection", m_selFill, 0.0f, 0.5f, "%.2f", m_selFill);
-        // the lens of the HQ: depth of field on the camera target, and the glow of the bright parts
-        slider(108, "Profondeur de champ (HQ)", m_dof, 0.0f, 1.0f, "%.2f", m_dof);
-        {   // where it focuses: the selection (auto), the centre of the screen, or a distance
-            u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Mise au point");
-            ly += 16 * s;
-            static const char* kFocus[3] = {"Auto (viseur)", "Sélection", "Manuel"};
-            const float bw3 = (W - 2 * pad - 8 * s) / 3;
-            for (int k = 0; k < 3; ++k) {
-                const bool on = m_focusMode == k;
-                ImVec2 a(x0 + pad + k * (bw3 + 4 * s), ly), b(a.x + bw3, ly + rowH);
-                const bool h = u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                const float tw = u.textW(10.5f, kFocus[k], on);
-                u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(10.5f)) * 0.5f), 10.5f, on ? C_INK : C_TEXT, kFocus[k], on);
-                if (h && u.pressed && !on) { m_focusMode = k; if (k == 2) m_focusManual = std::clamp(m_focusCur > 0 ? m_focusCur : m_scene.camera.distance, 2.0f, 400.0f); savePrefs(); }
-            }
-            ly += rowH + gap;
-            if (m_focusMode == 2) slider(110, "Distance de mise au point", m_focusManual, 2.0f, 400.0f, "%.0f cm", m_focusManual);
-            if (m_focusMode == 0) {   // the reticle in the middle of the view, shown or not
-                u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Viseur de mise au point");
-                ly += 16 * s;
-                const float bw2 = (W - 2 * pad - 4 * s) / 2;
-                for (int k = 0; k < 2; ++k) {
-                    const bool on = (k == 0) == m_focusReticle;
-                    ImVec2 a(x0 + pad + k * (bw2 + 4 * s), ly), b(a.x + bw2, ly + rowH);
-                    const bool h = u.hover(a, b);
-                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                    const char* lab = k == 0 ? "Affiché" : "Masqué";
-                    const float tw = u.textW(12, lab, on);
-                    u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, on ? C_INK : C_TEXT, lab, on);
-                    if (h && u.pressed && !on) { m_focusReticle = k == 0; savePrefs(); }
-                }
-                ly += rowH + gap;
-            }
+        {
+            char ib[96];
+            snprintf(ib, sizeof(ib), "Le soleil suit la HDRI · chargée en %.0f ms", m_hdriLoadMs);
+            note(ib);
         }
-        slider(109, "Bloom", m_bloom, 0.0f, 1.0f, "%.2f", m_bloom);
-        // colour of the ground grid: swatches (Défaut = the lines of the web), then its opacity
-        u.text(ImVec2(x0 + pad, ly), 11, C_DIM, "Couleur de la grille");
-        ly += 16 * s;
+        group("Illumination globale (HQ)");
+        {
+            const int k = seg("GI douce", {"Oui", "Non"}, m_softGI ? 0 : 1);
+            if (k >= 0 && (k == 0) != m_softGI) { m_softGI = k == 0; m_renderer->resetAccumulation(); savePrefs(); }
+        }
+        if (m_softGI) {
+            slider(104, "Intensité GI", m_softGIStrength, 0.0f, 2.0f, "%.2f", m_softGIStrength);   // (live, probes kept)
+            static const int kBudgets[3] = {4096, 8192, 16384};   // (16384 at most: lit::placeProbeGrid)
+            const int cur = m_softGIProbes == kBudgets[0] ? 0 : m_softGIProbes == kBudgets[1] ? 1 : m_softGIProbes == kBudgets[2] ? 2 : -1;
+            const int k = seg("Qualité des sondes", {"Basse", "Moyenne", "Haute"}, cur);
+            if (k >= 0 && k != cur) { m_softGIProbes = kBudgets[k]; m_renderer->resetAccumulation(); savePrefs(); }
+            const int f = seg("Figer la GI pendant le déplacement", {"Oui", "Non"}, m_softGIHold ? 0 : 1);
+            if (f >= 0 && (f == 0) != m_softGIHold) { m_softGIHold = f == 0; savePrefs(); }
+            const int sp = seg("Afficher les sondes", {"Oui", "Non"}, m_showProbes ? 0 : 1);
+            if (sp >= 0 && (sp == 0) != m_showProbes) { m_showProbes = sp == 0; savePrefs(); }
+        }
+        {
+            const int k = seg("Lookdev GI (gris uni)", {"Oui", "Non"}, m_giLookdev ? 0 : 1);
+            if (k >= 0 && (k == 0) != m_giLookdev) setLookdev(k == 0);
+        }
+        group("Matière");
+        slider(105, "SSS (lumière sous la surface) · 0 = coupé", m_hqSSSStrength, 0.0f, 2.0f, "%.2f", m_hqSSSStrength);
+        group("Grille du sol");
+        u.text(ImVec2(x0 + pad, y), 11, C_DIM, "Couleur");
+        y += 16 * s;
         {
             static const uint32_t sw[7] = {0x9aa3b8, 0xffffff, 0xf2c230, 0x4fc3f7, 0xe53935, 0x43a047, 0x7e57c2};
-            const float cw = (W - 2 * pad - 7 * 4 * s) / 8;
+            const float cw = (IW - 7 * 4 * s) / 8;
             for (int k = 0; k < 8; ++k) {
                 const float bx = x0 + pad + k * (cw + 4 * s);
-                ImVec2 a(bx, ly), b(bx + cw, ly + rowH);
-                const bool h = u.hover(a, b);
-                bool on;
+                ImVec2 a(bx, y), b(bx + cw, y + rowH);
+                const bool h = hov(a, b);
                 if (k == 0) {
-                    on = m_gridAlpha <= 0;
+                    const bool on = m_gridAlpha <= 0;
                     u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
                     const float tw = u.textW(10, "Défaut", on);
                     u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(10)) * 0.5f), 10, on ? C_INK : C_TEXT, "Défaut", on);
@@ -3752,33 +3759,46 @@ void BrickApp::uiSettings() {
                 } else {
                     const uint32_t c = sw[k - 1];
                     const float3 rgb(((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f);
-                    on = m_gridAlpha > 0 && length(rgb - m_gridRgb) < 0.01f;
+                    const bool on = m_gridAlpha > 0 && length(rgb - m_gridRgb) < 0.01f;
                     u.dl->AddRectFilled(a, b, IM_COL32((c >> 16) & 255, (c >> 8) & 255, c & 255, 255), rb(7 * s, rowH));
                     if (on || h) u.dl->AddRect(a, b, on ? C_ACCENT : C_TEXT, 7 * s, 0, (on ? 3.0f : 1.5f) * s);
                     if (h && u.pressed) { m_gridRgb = rgb; if (m_gridAlpha <= 0) m_gridAlpha = 0.6f; lookChanged = true; savePrefs(); }
                 }
             }
-            ly += rowH + gap;
+            y += rowH + gap;
         }
-        float alphaShown = m_gridAlpha * 100.0f;
-        if (slider(103, "Opacité de la grille", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", alphaShown)) lookChanged = true;
-        {
-            char ib[96];
-            snprintf(ib, sizeof(ib), "HDRI chargée en %.0f ms · le soleil suit la HDRI", m_hdriLoadMs);
-            u.text(ImVec2(x0 + pad, ly), 10, C_DIM, ib);
-            ly += 16 * s;   // à propos: the version (title of the window)
-            const std::wstring vw = versionString();
-            const std::string vs(vw.begin(), vw.end());
-            u.text(ImVec2(x0 + pad, ly), 10, C_DIM, vs.c_str());
-            m_lumColumnH = ly + 14 * s + pad - p0.y;
+        if (slider(103, "Opacité de la grille", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", m_gridAlpha * 100.0f)) lookChanged = true;
+        break;
+    }
+    case S_FILES: {
+        group("Scène");
+        yesNo("Sauvegarde automatique", m_autosaveOn, 8);
+        group("Réglages par défaut");
+        {   // two actions (not a choice): no active button
+            const int k = seg("Tous ces réglages", {"Enregistrer comme défaut", "Rétablir le défaut"}, -1);
+            if (k >= 0) { clickRow = 13; clickOpt = k; }
         }
-        if (lookChanged) {   // live: the environment and the grid of every renderer (accumulations reset)
-            m_scene.env.hdriRotation = radians(m_hdriRotDeg);
-            if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
-            m_scene.env.hdriIntensity = m_hdriInt;
-            m_scene.gridLine = gridLineValue();
-            m_renderer->resetAccumulation();
-        }
+        group("À propos");
+        const std::wstring vw = versionString();
+        const std::string vs(vw.begin(), vw.end());
+        u.text(ImVec2(x0 + pad, y), 11, C_DIM, vs.c_str());
+        y += 18 * s;
+        break;
+    }
+    }
+    m_setSecH[sec] = y + m_setScroll - gap + pad - p0.y;
+    u.dl->PopClipRect();
+    if (scrollMax > 0) {   // the scroll bar
+        const float trackH = H - 2 * pad, barH = std::max(30 * s, trackH * H / contentH);
+        const float by = p0.y + pad + (trackH - barH) * (m_setScroll / scrollMax);
+        u.dl->AddRectFilled(ImVec2(x1 - 6 * s, by), ImVec2(x1 - 3 * s, by + barH), C_FAINT, 2 * s);
+    }
+    if (lookChanged) {   // live: the environment and the grid of every renderer (accumulations reset)
+        m_scene.env.hdriRotation = radians(m_hdriRotDeg);
+        if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
+        m_scene.env.hdriIntensity = m_hdriInt;
+        m_scene.gridLine = gridLineValue();
+        m_renderer->resetAccumulation();
     }
     if (clickRow >= 0) {
         switch (clickRow) {
@@ -3813,7 +3833,7 @@ void BrickApp::uiSettings() {
         m_renderer->resetAccumulation();
         savePrefs();
     }
-    if (u.pressed && clickRow < 0 && !u.hover(p0, p1) && u.mouse.y > (m_studioUi ? 46 : 30) * s && !m_tabClicked) m_popup = 0;
+    if (u.pressed && clickRow < 0 && !inPanel && u.mouse.y > (m_studioUi ? 46 : 30) * s && !m_tabClicked) m_popup = 0;
     m_tabClicked = false;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
 }

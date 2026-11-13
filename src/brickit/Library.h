@@ -47,6 +47,7 @@ struct Part {
     float grab[2] = {0, 0};   // default grab column (x, z)
     std::vector<float3> voxels;
     std::vector<uint8_t> conn;            // Conn per voxel
+    std::vector<uint8_t> vaxis;           // axis of a voxel (0 x, 1 y, 2 z; 255 unknown): a pin hole merged to its middle
     std::vector<std::pair<float, float>> columns;
     // geometry (empty until its pack is loaded)
     vp3d::MeshData mesh;
@@ -86,7 +87,11 @@ public:
         if (it == voxEdits.end()) return;
         p.voxels = it->second.first;
         p.conn = it->second.second;
+        mergePinHoles(p);
     }
+    // a pin hole: one voxel at its middle, not one every half stud along it (Wzx 13/11/2026: « les pins receveurs ne
+    // devraient avoir qu'un voxel au milieu pour faciliter l'encapsulage »); its axis kept in vaxis (mechanics)
+    static void mergePinHoles(Part& p);
 
     std::vector<Part> parts;
     std::vector<Color> palette;

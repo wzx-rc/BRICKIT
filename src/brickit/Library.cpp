@@ -85,10 +85,66 @@ static void readMeta(const Json& j, Part& p) {
         for (const Json& t : j["connectorTypes"].a) p.conn.push_back(connOf(t.str()));
     }
     if (p.conn.size() != p.voxels.size()) p.conn.assign(p.voxels.size(), CONN_STUD);
+    Library::mergePinHoles(p);
     if (j["columns"].type == Json::Array) {
         p.columns.clear();
         for (const Json& c : j["columns"].a) p.columns.push_back({(float)c[0].num(), (float)c[1].num()});
     }
+}
+
+// the pin hole voxels on one line (one axis, 0.5 cm apart at most) become the middles of its holes (one per 0.8 cm, the
+// width of a Technic hole); a lone voxel stays as it is (axis unknown)
+void Library::mergePinHoles(Part& p) {
+    p.vaxis.assign(p.voxels.size(), 255);
+    std::vector<size_t> idx;
+    for (size_t i = 0; i < p.voxels.size(); ++i) if (p.conn[i] == CONN_PINHOLE) idx.push_back(i);
+    if (idx.size() < 2) return;
+    std::vector<bool> used(idx.size(), false);
+    std::vector<float3> outV;
+    std::vector<uint8_t> outA;
+    for (size_t a = 0; a < idx.size(); ++a) {
+        if (used[a]) continue;
+        std::vector<size_t> line{a};
+        used[a] = true;
+        int axis = -1;
+        for (bool grow = true; grow;) {
+            grow = false;
+            for (size_t b = 0; b < idx.size() && !grow; ++b) {
+                if (used[b]) continue;
+                for (size_t c : line) {
+                    const float3 pb = p.voxels[idx[b]], pc = p.voxels[idx[c]];
+                    const float d[3] = {std::fabs(pb.x - pc.x), std::fabs(pb.y - pc.y), std::fabs(pb.z - pc.z)};
+                    int nd = 0, kk = -1;
+                    for (int j = 0; j < 3; ++j) if (d[j] > 0.02f) { ++nd; kk = j; }
+                    if (nd != 1 || d[kk] > 0.5f || (axis >= 0 && kk != axis)) continue;
+                    axis = kk;
+                    line.push_back(b);
+                    used[b] = true;
+                    grow = true;
+                    break;
+                }
+            }
+        }
+        if (axis < 0) { outV.push_back(p.voxels[idx[a]]); outA.push_back(255); continue; }
+        float lo = 1e30f, hi = -1e30f;
+        for (size_t i : line) { const float v = (&p.voxels[idx[i]].x)[axis]; lo = std::min(lo, v); hi = std::max(hi, v); }
+        const float len = hi - lo;
+        const int n = std::max(1, (int)std::lround(len / 0.8f));
+        for (int k = 0; k < n; ++k) {
+            float3 q = p.voxels[idx[line[0]]];
+            (&q.x)[axis] = n == 1 ? (lo + hi) * 0.5f : lo + len / n * (k + 0.5f);
+            outV.push_back(q);
+            outA.push_back((uint8_t)axis);
+        }
+    }
+    std::vector<float3> v;
+    std::vector<uint8_t> c, ax;
+    for (size_t i = 0; i < p.voxels.size(); ++i)
+        if (p.conn[i] != CONN_PINHOLE) { v.push_back(p.voxels[i]); c.push_back(p.conn[i]); ax.push_back(255); }
+    for (size_t i = 0; i < outV.size(); ++i) { v.push_back(outV[i]); c.push_back(CONN_PINHOLE); ax.push_back(outA[i]); }
+    p.voxels.swap(v);
+    p.conn.swap(c);
+    p.vaxis.swap(ax);
 }
 
 static void finishMesh(Part& p) {

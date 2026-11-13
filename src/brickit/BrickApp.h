@@ -783,7 +783,10 @@ private:
     std::map<std::string, ThemeLook> m_themeLooks;
     theme::Tokens m_th;               // the theme resolved for this frame (BrickUi.cpp applyTheme)
     std::string m_thKey;              // what m_th was resolved for (id, mode, tint, accent)
-    int m_setTab = 0;                 // Réglages: 0 Général, 1 Thème
+    int m_setTab = 0;                 // Réglages: 1 = open on Thème (--settings-tab)
+    int m_setSec = 0;                 // Réglages: the active section (Interface, Bibliothèque, Construction, Rendu, Caméra, Lumière, Thème, Fichiers)
+    float m_setSecH[8] = {};          // Réglages: the height of each section as drawn last frame
+    float m_setScroll = 0;            // Réglages: scrolled (a section taller than the screen)
     std::map<std::string, ImTextureID> m_themeTex;
     bool applyTheme();                // true when the theme changed (the 3D stage then follows)
     void loadThemeFonts();

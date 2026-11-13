@@ -84,8 +84,17 @@ const MechMeta& Mech::meta(int part) {
     const Kind kinds[4] = {{CONN_PINHOLE, true, false}, {CONN_AXLEHOLE, true, true}, {CONN_PIN, false, false}, {CONN_AXLE, false, true}};
     for (const Kind& k : kinds) {
         std::vector<float3> pts;
-        for (size_t i = 0; i < p.voxels.size(); ++i)
-            if (p.conn[i] == k.conn) pts.push_back(p.voxels[i]);
+        for (size_t i = 0; i < p.voxels.size(); ++i) {
+            if (p.conn[i] != k.conn) continue;
+            // a pin hole merged to its middle (Library::mergePinHoles): one hole, its axis known
+            if (k.hole && p.vaxis.size() == p.voxels.size() && p.vaxis[i] < 3) {
+                float3 dir(0);
+                (&dir.x)[p.vaxis[i]] = 1;
+                m.holes.push_back({p.voxels[i], dir, 0.4f, k.cross});
+                continue;
+            }
+            pts.push_back(p.voxels[i]);
+        }
         std::vector<bool> used(pts.size(), false);
         if (k.hole) {
             // a hole given by its two ends on opposite faces of the part (beams: one point on each face, 0.8 apart, the

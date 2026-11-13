@@ -130,7 +130,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.manualDock >= 0) { m_manDock = opt.manualDock; m_pManual.floating = false; }
     if (opt.manualW > 0) { m_manW = opt.manualW * m_ui; m_manH = opt.manualH * m_ui; }
     if (opt.settings) { m_popup = 5; m_popupAt = ImVec2(1e6f, 34 * m_ui); }
-    if (opt.settingsTab >= 0) m_setTab = std::clamp(opt.settingsTab, 0, 1);
+    if (opt.settingsTab >= 0) m_setSec = std::clamp(opt.settingsTab, 0, 7);
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (!opt.stFam.empty()) { m_stFam = opt.stFam; m_stSub = -1; }
     if (opt.stSub >= -1) m_stSub = opt.stSub;
