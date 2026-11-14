@@ -56,7 +56,7 @@ BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
             const float3 e1 = axisOf((a + 1) % 3), e2 = axisOf((a + 2) % 3);
             ImVec2 q[4];
             bool ok = true;
-            const float lo = 0.22f * k, hi = 0.48f * k;
+            const float lo = 0.42f * k, hi = 0.68f * k;   // (further from the centre, Wzx 14/11/2026)
             ok &= v.project(piv + e1 * lo + e2 * lo, q[0].x, q[0].y);
             ok &= v.project(piv + e1 * hi + e2 * lo, q[1].x, q[1].y);
             ok &= v.project(piv + e1 * hi + e2 * hi, q[2].x, q[2].y);
@@ -220,7 +220,7 @@ void BrickApp::drawGizmo() {
         // the « équerres » (Wzx 14/11/2026): an L and a light square between two axes, in the colour of the third (its normal)
         for (int a = 0; a < 3; ++a) {
             const float3 e1 = axisOf((a + 1) % 3), e2 = axisOf((a + 2) % 3);
-            const float lo = 0.22f * k, hi = 0.48f * k;
+            const float lo = 0.42f * k, hi = 0.68f * k;   // (further from the centre, Wzx 14/11/2026)
             ImVec2 q[4], c1, c2;
             bool ok = true;
             ok &= v.project(piv + e1 * lo + e2 * lo, q[0].x, q[0].y);
