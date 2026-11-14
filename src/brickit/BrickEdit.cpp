@@ -683,7 +683,7 @@ void BrickApp::editInput() {
             m_pipette = false;
             m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});   // (a ring, a drop to the active colour)
             m_paintSwatchPop = ImGui::GetTime() + 0.58;
-            if (m_paintMode) m_paintTool = true;   // (PEINDRE: back to the Pinceau with the colour taken)
+            m_paintTool = true;   // (back to the Pinceau with the colour taken, Wzx 14/11/2026: also from the toolbar)
             if (!m_paintMode) toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
         }
         return;
