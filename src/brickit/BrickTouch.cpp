@@ -205,7 +205,8 @@ void BrickApp::touchDown(const TouchEvent& e) {
     float3 pt;
     const int hit = pickBrick(e.x, e.y, &pt);
     if (m_mode == 0) {   // Sélection: a brick touched is selected, a drag on empty space draws the rectangle
-        if (hit >= 0) { select(hit); g.type = TG_ORBIT; g.tap = false; }
+        if (hit >= 0 && inSelection(hit)) { g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; g.f0 = m_frame; }   // (a brick of a multiple selection: a drag moves them all)
+        else if (hit >= 0) { select(hit); g.type = TG_ORBIT; g.tap = false; }
         else { g.type = TG_MARQUEE; m_marquee = true; m_marquee0 = m_marquee1 = ImVec2(e.x, e.y); }
         return;
     }
@@ -273,11 +274,12 @@ void BrickApp::touchMove(const TouchEvent& e) {
         if (e.id == g.pid && dist2(e.x, e.y, g.sx, g.sy) * k > 8) {
             const int hit = g.hit;
             const uint64_t pid = g.pid;
-            if (unitOf(hit).size() > 1) {   // a group: the whole group moves as one block
-                fitGroupContext(hit);
-                select(hit);
+            if (dragSetOf(hit).size() > 1) {   // a group, or a selection of several: they all move as one block
+                const std::vector<int> set = dragSetOf(hit);
+                if (!inSelection(hit)) { fitGroupContext(hit); select(hit); }
                 m_pressBrick = hit;
-                beginGroupDrag(unitOf(hit), e.x, e.y);
+                m_pressPoint = g.hitPoint;
+                beginGroupDrag(set, e.x, e.y);
                 g = TouchGesture();
                 g.type = TG_GROUP;
             } else {

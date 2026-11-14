@@ -24,12 +24,30 @@
 
 using namespace Diligent;
 
-@interface BKView : UIView
+// the view takes the keys of the software keyboard (UIKeyInput) while a text field of the UI has the focus (Wzx 14/11/2026:
+// « sur iPad il faut que les champs texte ouvrent le clavier »): the characters and the backspace go to ImGui
+@interface BKView : UIView <UIKeyInput>
+@property(nonatomic) UITextAutocorrectionType autocorrectionType;
+@property(nonatomic) UITextAutocapitalizationType autocapitalizationType;
+@property(nonatomic) UITextSpellCheckingType spellCheckingType;
+@property(nonatomic) UIKeyboardType keyboardType;
 @end
 
 @implementation BKView
 + (Class)layerClass {
     return [CAMetalLayer class];
+}
+- (BOOL)canBecomeFirstResponder { return YES; }
+- (BOOL)hasText { return YES; }
+- (void)insertText:(NSString*)text {
+    ImGuiIO& io = ImGui::GetIO();
+    if ([text isEqualToString:@"\n"]) { io.AddKeyEvent(ImGuiKey_Enter, true); io.AddKeyEvent(ImGuiKey_Enter, false); return; }
+    io.AddInputCharactersUTF8(text.UTF8String);
+}
+- (void)deleteBackward {
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddKeyEvent(ImGuiKey_Backspace, true);
+    io.AddKeyEvent(ImGuiKey_Backspace, false);
 }
 @end
 
@@ -275,6 +293,16 @@ static uint64_t touchId(UITouch* t) { return (uint64_t)(uintptr_t)(__bridge void
 - (void)drawFrame:(CADisplayLink*)link {
     if (!_ready || !_app) return;
     _app->frame();
+    // the keyboard follows the text field of the UI: shown while one has the focus, hidden after
+    const bool want = ImGui::GetIO().WantTextInput;
+    BKView* v = (BKView*)self.view;
+    if (want && !v.isFirstResponder) {
+        v.autocorrectionType = UITextAutocorrectionTypeNo;
+        v.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        v.spellCheckingType = UITextSpellCheckingTypeNo;
+        v.keyboardType = UIKeyboardTypeEmailAddress;
+        [v becomeFirstResponder];
+    } else if (!want && v.isFirstResponder) [v resignFirstResponder];
 }
 
 @end

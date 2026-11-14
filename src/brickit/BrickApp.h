@@ -826,6 +826,8 @@ private:
     void stCloudList();
     // ---- the group selected: its box, its bar; presets (BrickGroups.cpp, Wzx 14/11/2026)
     void stGroupBar();
+    bool inSelection(int brick) const;              // one of a selection of several
+    std::vector<int> dragSetOf(int brick) const;    // what a drag on it moves: the selection, its group, or itself
     void stPresets();
     int barGroup(std::vector<int>& members, bool& open) const;
     bool savePreset(int group, const std::vector<int>& members);

@@ -192,6 +192,14 @@ std::vector<int> BrickApp::selection() const {
     return s;
 }
 
+// a brick of the selection when several are selected: the whole selection (Wzx 14/11/2026: « déplacer l'ensemble comme
+// un groupe même si ça n'a pas été groupé »); else its group (at the level entered), or itself
+bool BrickApp::inSelection(int brick) const {
+    const std::vector<int> s = selection();
+    return s.size() > 1 && std::find(s.begin(), s.end(), brick) != s.end();
+}
+std::vector<int> BrickApp::dragSetOf(int brick) const { return inSelection(brick) ? selection() : unitOf(brick); }
+
 void BrickApp::select(int brick, bool add) {
     // a brick of a group selects the whole group at the level entered (double click enters it)
     if (brick >= 0 && !add) fitGroupContext(brick);
@@ -758,11 +766,11 @@ void BrickApp::editInput() {
         return;
     }
     if (m_pressed && (m_mode == 0 || m_mode == 1) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
-        unitOf(m_pressBrick).size() > 1 && (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
-        m_pressed = false;   // drag a group: the whole group moves as one block
-        fitGroupContext(m_pressBrick);
-        select(m_pressBrick);
-        beginGroupDrag(unitOf(m_pressBrick), mp.x, mp.y);
+        dragSetOf(m_pressBrick).size() > 1 && (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
+        m_pressed = false;   // drag a group, or a brick of a selection of several: they all move as one block
+        const std::vector<int> set = dragSetOf(m_pressBrick);
+        if (!inSelection(m_pressBrick)) { fitGroupContext(m_pressBrick); select(m_pressBrick); }
+        beginGroupDrag(set, mp.x, mp.y);
         return;
     }
     if (m_pressed && m_mode == 1 && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
