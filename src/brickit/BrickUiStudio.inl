@@ -1245,11 +1245,11 @@ void BrickApp::stGroups() {
 
 // the image of a part in place of a line pictogram (Wzx 14/11/2026: the tabs, the categories, the tiles): false while it
 // loads (the pictogram stays)
-bool BrickApp::stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float alpha) {
+bool BrickApp::stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float alpha, float zoom) {
     ImTextureID tex;
     ImVec2 uv0, uv1;
     if (part < 0 || !thumbUv(part, tex, uv0, uv1)) return false;
-    const float z = 1.4f, hs = size * 0.5f;
+    const float z = zoom, hs = size * 0.5f;
     const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
     dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
                  IM_COL32(255, 255, 255, (int)(255 * std::clamp(alpha, 0.0f, 1.0f))));
@@ -1964,12 +1964,13 @@ void BrickApp::stDrawer() {
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
             const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
             {   // the image of its first part (Wzx 14/11/2026), the pictogram while it loads
-                const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + icy - (h && !on ? 1.5f * s : 0));
-                if (!stPartIco(u.dl, stFamFirst(f.key), ic, icz * 1.25f, alpha * (on || h ? 1.0f : 0.8f))) stIco(u.dl, f.ico, ic, icz, pic, 1.0f * s);
+                const float isz = (tb.y - ta.y) - 13 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
+                const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + 1 * s + isz * 0.5f - (h && !on ? 1.5f * s : 0));
+                if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.9f)) stIco(u.dl, f.ico, ImVec2(ic.x, ta.y + icy), icz, pic, 1.0f * s);
             }
             const std::string lab = stUpper(f.label);
-            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
-            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - (m_ipad ? 14 : 17) * s), 8.6f, txt, lab.c_str(), 1.4f * s);
+            const float lw = stTrackW(u, 5.7f, lab.c_str(), 1.0f * s, true);
+            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 10 * s), 5.7f, txt, lab.c_str(), 1.0f * s);
             if (h && u.pressed) {   // back on a family: its last category (Wzx 09/11/2026)
                 m_stFamSub[m_stFam] = m_stSub;
                 m_stFam = f.key;
@@ -1991,17 +1992,17 @@ void BrickApp::stDrawer() {
         for (int i = -1; i < (int)fam->subs.size(); ++i) {
             const char* lab0 = i < 0 ? "Toutes" : fam->subs[i].label;
             const std::string lab = stUpper(lab0);
-            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.2f * s, true), w = 6 * s + 28 * s + 7 * s + lw + 12 * s;
+            const float lw = stTrackW(u, 5.7f, lab.c_str(), 0.9f * s, true), w = 4 * s + (subH - 4 * s) + 5 * s + lw + 12 * s;
             const ImVec2 a(x, y), b(x + w, y + subH);
             const bool on = m_stSub == i, h = live && u.hover(a, b) && u.hover(ra, rb);
             u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), subH * 0.5f);
             u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), subH * 0.5f, 0, 1.0f);
             {   // the image of its first part (Toutes: the pictogram), the pictogram while it loads
-                const ImVec2 ic(a.x + 6 * s + 14 * s, (a.y + b.y) * 0.5f);
+                const ImVec2 ic(a.x + 4 * s + (subH - 4 * s) * 0.5f, (a.y + b.y) * 0.5f);
                 const int fp = i >= 0 && i < (int)m_stSubFirst.size() ? m_stSubFirst[i] : -1;
-                if (!(i >= 0 && stPartIco(u.dl, fp, ic, 28 * s, alpha))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 4 * s, alpha, 1.9f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
             }
-            stTrack(u, ImVec2(a.x + 6 * s + 28 * s + 7 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
+            stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(5.7f) * 0.55f), 5.7f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 0.9f * s);
             if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
             x += w + 6 * s;
             total += w + 6 * s;
@@ -2205,20 +2206,21 @@ void BrickApp::stDrawer() {
                 const int fp = k < (int)m_stSubFirst.size() ? m_stSubFirst[k] : -1;
                 ImTextureID tex;
                 ImVec2 uv0, uv1;
-                const ImVec2 c((a.x + b.x) * 0.5f, a.y + 30 * s + lift);
+                const float hs = std::min((tileH - 30 * s) * 0.5f, (b.x - a.x) * 0.5f - 4 * s);   // (as big as the tile allows, Wzx 14/11/2026)
+                const ImVec2 c((a.x + b.x) * 0.5f, a.y + 4 * s + hs + lift);
                 if (fp >= 0 && thumbUv(fp, tex, uv0, uv1)) {
-                    const float hs = std::min(30 * s, (b.x - a.x) * 0.5f - 6 * s), z = 1.4f;
+                    const float z = 1.9f;
                     const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
-                    u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs + 2 * s), ImVec2(c.x + hs, c.y + hs + 2 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32_WHITE, op));
+                    u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32_WHITE, op));
                 } else stIco(u.dl, q.ico, c, 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
             }
             std::string lab = stUpper(q.label);
-            while (lab.size() > 4 && stTrackW(u, 8, lab.c_str(), 1.2f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
-            const float lw = stTrackW(u, 8, lab.c_str(), 1.2f * s, true);
-            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, a.y + 58 * s + lift), 8, stA(C_TEXT, op), lab.c_str(), 1.2f * s);
+            while (lab.size() > 4 && stTrackW(u, 5.3f, lab.c_str(), 0.9f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, 5.3f, lab.c_str(), 0.9f * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, b.y - 20 * s + lift), 5.3f, stA(C_TEXT, op), lab.c_str(), 0.9f * s);
             const char* cat = "catégorie";
-            const float cw = u.textW(8, cat);
-            u.text(ImVec2((a.x + b.x - cw) * 0.5f, a.y + 71 * s + lift), 8, stA(IM_COL32(117, 120, 126, 255), op), cat);
+            const float cw = u.textW(5.3f, cat);
+            u.text(ImVec2((a.x + b.x - cw) * 0.5f, b.y - 11 * s + lift), 5.3f, stA(IM_COL32(117, 120, 126, 255), op), cat);
             if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; }
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
@@ -2912,7 +2914,13 @@ void BrickApp::stGroupBar() {
     // (Wzx 14/11/2026: half the size, more transparent, at the top right corner of the box)
     const float bw = 16 * s, h = 18 * s, nameW = std::min(80 * s, u.textW(7.5f, name.c_str(), true) * 1.15f) + 16 * s;
     const float W = nameW + 4 * bw + 6 * s;
-    ImVec2 a(right - W, top - h - 4 * s);
+    // over the corner of its top face furthest right on screen (Wzx 14/11/2026, the drawing on the screenshot)
+    ImVec2 anchor(right, top);
+    {
+        float bx = -1e30f;
+        for (int c = 0; c < 8; ++c) if ((c & 2) && p[c].x > bx) { bx = p[c].x; anchor = p[c]; }
+    }
+    ImVec2 a(anchor.x - W * 0.5f, anchor.y - h - 3 * s);
     a.x = std::clamp(a.x, m_stage.x + 8 * s, m_stage.z - W - 8 * s);
     a.y = std::clamp(a.y, m_stage.y + 8 * s, m_stage.w - h - 8 * s);
     const ImVec2 b(a.x + W, a.y + h);

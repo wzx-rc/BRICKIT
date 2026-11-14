@@ -861,7 +861,7 @@ private:
     std::map<std::string, int> m_famFirst;   // the first part of each family (its image on its tab), cached
     int m_famFirstAvail = -1;
     int stFamFirst(const std::string& key);   // (BrickUiStudio.inl)
-    bool stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float alpha);   // the image of a part as an icon    // the first part of each category (its image on the tile, Wzx 14/11/2026)
+    bool stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float alpha, float zoom = 1.4f);   // the image of a part as an icon    // the first part of each category (its image on the tile, Wzx 14/11/2026)
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
     float m_stCardScale = 1.0f;       // the size of the cards of the drawer (its slider, 0.6 to 2)
