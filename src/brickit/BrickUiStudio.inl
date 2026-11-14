@@ -1243,6 +1243,46 @@ void BrickApp::stGroups() {
 
 // ------------------------------------------------------------------ Couleur (right)
 
+// the image of a part in place of a line pictogram (Wzx 14/11/2026: the tabs, the categories, the tiles): false while it
+// loads (the pictogram stays)
+bool BrickApp::stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float alpha) {
+    ImTextureID tex;
+    ImVec2 uv0, uv1;
+    if (part < 0 || !thumbUv(part, tex, uv0, uv1)) return false;
+    const float z = 1.4f, hs = size * 0.5f;
+    const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
+    dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
+                 IM_COL32(255, 255, 255, (int)(255 * std::clamp(alpha, 0.0f, 1.0f))));
+    return true;
+}
+
+// the first part of a family (Récentes, Favoris: the last one used, the first favourite), cached while the library is
+// the same
+int BrickApp::stFamFirst(const std::string& key) {
+    if (key == "recent") return m_recent.empty() ? -1 : m_recent[0];
+    if (key == "fav") return m_fav.empty() ? -1 : m_fav[0];
+    int avail = 0;
+    for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
+    if (avail != m_famFirstAvail) { m_famFirst.clear(); m_famFirstAvail = avail; }
+    auto it = m_famFirst.find(key);
+    if (it != m_famFirst.end()) return it->second;
+    int first = -1;
+    for (const StFam& f : stFams()) {
+        if (key != f.key) continue;
+        for (const StSub& q : f.subs) {   // its first category that has a part: its first part
+            if (q.rest) continue;
+            for (int i = 0; i < (int)m_lib.parts.size() && first < 0; ++i) {
+                const Part& p = m_lib.parts[i];
+                if (!p.available() || (m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
+                if (stInSub(q, partCat(i), p.sub)) first = i;
+            }
+            if (first >= 0) break;
+        }
+    }
+    m_famFirst[key] = first;
+    return first;
+}
+
 void BrickApp::stColors() {
     if (!m_pColors.visible || m_mechOn) return;
     Ui u = ui(m_ui);
@@ -1923,7 +1963,10 @@ void BrickApp::stDrawer() {
             const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
             const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
-            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + icy - (h && !on ? 1.5f * s : 0)), icz, pic, 1.0f * s);
+            {   // the image of its first part (Wzx 14/11/2026), the pictogram while it loads
+                const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + icy - (h && !on ? 1.5f * s : 0));
+                if (!stPartIco(u.dl, stFamFirst(f.key), ic, icz * 1.25f, alpha * (on || h ? 1.0f : 0.8f))) stIco(u.dl, f.ico, ic, icz, pic, 1.0f * s);
+            }
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
             stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - (m_ipad ? 14 : 17) * s), 8.6f, txt, lab.c_str(), 1.4f * s);
@@ -1953,7 +1996,11 @@ void BrickApp::stDrawer() {
             const bool on = m_stSub == i, h = live && u.hover(a, b) && u.hover(ra, rb);
             u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), subH * 0.5f);
             u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), subH * 0.5f, 0, 1.0f);
-            stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ImVec2(a.x + 6 * s + 14 * s, (a.y + b.y) * 0.5f), 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+            {   // the image of its first part (Toutes: the pictogram), the pictogram while it loads
+                const ImVec2 ic(a.x + 6 * s + 14 * s, (a.y + b.y) * 0.5f);
+                const int fp = i >= 0 && i < (int)m_stSubFirst.size() ? m_stSubFirst[i] : -1;
+                if (!(i >= 0 && stPartIco(u.dl, fp, ic, 28 * s, alpha))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+            }
             stTrack(u, ImVec2(a.x + 6 * s + 28 * s + 7 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
             if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
             x += w + 6 * s;
