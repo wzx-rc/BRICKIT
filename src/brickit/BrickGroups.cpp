@@ -3,6 +3,8 @@
 // block, hidden or isolated from the outliner. A brick keeps the path of its groups (outermost first, ids in
 // Builder::groups): the undo snapshots of the bricks keep the groups with them.
 #include "BrickApp.h"
+#include "Platform.h"
+#include <cctype>
 #include <algorithm>
 #include <cstdio>
 
@@ -367,6 +369,137 @@ void BrickApp::groupSnapTest() {
     log += t;
     FILE* f = nullptr;
     if (_wfopen_s(&f, m_opt.groupSnapTest.c_str(), L"wb") == 0 && f) { fwrite(log.data(), 1, log.size(), f); fclose(f); }
+}
+
+
+// ---------------------------------------------------------------- presets (Wzx 14/11/2026: « save as preset, une preset
+// library, un JSON d'un ensemble de briques à pouvoir réutiliser »): a group saved as a .brick (the JSON of the scenes) in
+// <data>/presets, its bricks at the origin (its box on the floor, at the corner of a stud), its sub-groups kept
+
+std::wstring BrickApp::presetsDir() const {
+    const std::wstring d = plat::dataDir() + L"\\presets";
+    plat::makeDir(d);
+    return d;
+}
+
+// the group (members, at the level entered) of the selection, or the group entered (-1: none)
+int BrickApp::barGroup(std::vector<int>& members, bool& open) const {
+    members.clear();
+    open = false;
+    const int g = unitGroup(m_selected);
+    if (g >= 0) { members = unitOf(m_selected); return g; }
+    if (!m_groupCtx.empty()) {
+        open = true;
+        const int e = m_groupCtx.back();
+        members = groupMembers(e);
+        return e;
+    }
+    return -1;
+}
+
+bool BrickApp::savePreset(int group, const std::vector<int>& members) {
+    if (group < 0 || members.empty()) return false;
+    float3 mn(1e30f);
+    for (int i : members) mn = minv(mn, m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos).mn);
+    const float3 shift(-std::floor(mn.x / kPitch) * kPitch, -mn.y, -std::floor(mn.z / kPitch) * kPitch);
+    // its bricks, their groups from that group down (renumbered from 0)
+    std::vector<Brick> sub;
+    std::vector<Group> groups;
+    std::vector<std::pair<int, int>> remap;
+    auto idOf = [&](int g) {
+        for (auto& r : remap) if (r.first == g) return r.second;
+        groups.push_back(m_build.groups[g]);
+        groups.back().hidden = false;
+        remap.push_back({g, (int)groups.size() - 1});
+        return remap.back().second;
+    };
+    for (int i : members) {
+        Brick b = m_bricks[i];
+        b.pos = b.pos + shift;
+        const auto at = std::find(b.path.begin(), b.path.end(), group);
+        std::vector<int> p;
+        if (at != b.path.end()) for (auto it = at; it != b.path.end(); ++it) p.push_back(idOf(*it));
+        b.path = p;
+        sub.push_back(b);
+    }
+    std::swap(m_build.bricks, sub);
+    std::swap(m_build.groups, groups);
+    const std::string json = m_build.toJson(vp3d::Camera());
+    std::swap(m_build.bricks, sub);
+    std::swap(m_build.groups, groups);
+    std::string name = m_build.groups[group].name;
+    std::string file;
+    for (char c : name) file += (std::isalnum((unsigned char)c) || c == ' ' || c == '-' || c == '_' || (unsigned char)c >= 0x80) ? c : '_';
+    if (file.empty()) file = "Preset";
+    std::wstring path = presetsDir() + L"\\" + plat::fromUtf8(file) + L".brick";
+    for (int n = 2; GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES; ++n) path = presetsDir() + L"\\" + plat::fromUtf8(file + " " + std::to_string(n)) + L".brick";
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Preset : impossible d'écrire le fichier"); return false; }
+    fwrite(json.data(), 1, json.size(), f);
+    fclose(f);
+    m_presetsKey.clear();   // (the list read again)
+    toast("Preset enregistré : « " + name + " » (Scène › Presets)");
+    return true;
+}
+
+std::vector<std::pair<std::string, std::wstring>> BrickApp::listPresets() {
+    std::vector<std::pair<std::string, std::wstring>> v;
+    WIN32_FIND_DATAW fd;
+    const std::wstring dir = presetsDir();
+    HANDLE h = FindFirstFileW((dir + L"\\*.brick").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return v;
+    do {
+        std::wstring n = fd.cFileName;
+        if (n.size() > 6) n = n.substr(0, n.size() - 6);
+        v.push_back({plat::toUtf8(n), dir + L"\\" + fd.cFileName});
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(v.begin(), v.end());
+    return v;
+}
+
+// a preset placed in the scene: on the floor at the view target (the stud lattice), one new group, selected
+bool BrickApp::placePreset(const std::wstring& path, const std::string& name) {
+    std::string text;
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("Preset introuvable"); return false; }
+    char buf[65536];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) text.append(buf, n);
+    fclose(f);
+    std::vector<Brick> keep = m_build.bricks;
+    std::vector<Group> keepG = m_build.groups;
+    std::string msg;
+    const bool ok = m_build.fromJson(text, nullptr, &msg);
+    std::vector<Brick> sub = m_build.bricks;
+    std::vector<Group> subG = m_build.groups;
+    m_build.bricks = keep;
+    m_build.groups = keepG;
+    if (!ok || sub.empty()) { toast(ok ? std::string("Preset vide") : msg); return false; }
+    pushUndo();
+    const int top = (int)m_build.groups.size();
+    Group g;
+    g.name = name;
+    m_build.groups.push_back(g);
+    const int base = (int)m_build.groups.size();
+    for (const Group& q : subG) m_build.groups.push_back(q);
+    const float3 t = m_scene.camera.target;
+    const float3 at(std::round(t.x / kPitch) * kPitch, 0.0f, std::round(t.z / kPitch) * kPitch);
+    const size_t first = m_bricks.size();
+    for (Brick b : sub) {
+        b.pos = b.pos + at;
+        std::vector<int> p;
+        for (int x : m_groupCtx) p.push_back(x);
+        p.push_back(top);
+        for (int x : b.path) p.push_back(base + x);
+        b.path = p;
+        m_bricks.push_back(b);
+    }
+    rebuildScene();
+    select((int)first);
+    autosave();
+    toast("Preset « " + name + " » posé (" + std::to_string(sub.size()) + " pièces)");
+    return true;
 }
 
 } // namespace brickit

@@ -965,7 +965,8 @@ void BrickApp::stFile() {
         its.push_back({"ENVOYER UN RAPPORT (BUG)", "", 5});   // the state, the last actions, the last crash: one file
         for (It& it : its) it.key = "";
     }
-    its.insert(its.begin() + 2, It{"SCÈNES DU CLOUD…", "", 8});   // (the scenes of the account, iPad and PC)
+    its.insert(its.begin() + 2, It{"SCÈNES DU CLOUD…", "", 8});
+    its.insert(its.begin() + 3, It{"PRESETS…", "", 9});   // (the groups saved, to place again)   // (the scenes of the account, iPad and PC)
     its.push_back({"MAISON (DÉMO)", "", 6});   // (Wzx 12/11/2026: the scenes of demo, at once)
     its.push_back({"PELLETEUSE ET MÉCANISMES (DÉMO)", "", 7});
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
@@ -991,6 +992,7 @@ void BrickApp::stFile() {
             else if (it.id == 4) shareScene();
             else if (it.id == 5) sendReport();
             else if (it.id == 8) { m_popup = 9; cloudRefreshList(); }
+            else if (it.id == 9) { m_popup = 10; m_presetsKey.clear(); }
             else if (it.id == 6) openOfficialHouse();   // (the building of set 31153 with its minifigs, Wzx 12/11/2026)
             else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; toast("Démo : pelleteuse et mécanismes (passe en Mécanique : 4 moteurs, 2 vérins)"); }
             else saveDialog();
@@ -2329,6 +2331,11 @@ std::vector<int> BrickApp::stArcColors() const {
 }
 
 void BrickApp::stSelHud() {
+    {   // a group selected: its own bar instead (stGroupBar)
+        std::vector<int> gm;
+        bool go = false;
+        if (!m_holding && !m_paintMode && barGroup(gm, go) >= 0) return;
+    }
     const std::vector<int> sel = selection();
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
@@ -2606,6 +2613,8 @@ void BrickApp::drawUiStudio() {
     uiReader();
     stMore();
     stFile();
+    stGroupBar();
+    stPresets();
     uiPopups();
     uiManual();
     uiDevPanel();
@@ -2791,6 +2800,129 @@ void BrickApp::stCloudList() {
         std::string st = !in ? std::string() : m_cloudSending ? "envoi de la scène…" : m_cloudDirty ? "scène modifiée : envoyée dans la minute" : m_cloud.email();
         u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
         u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 9, C_FAINT, st.c_str());
+    }
+    if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+}
+
+// ------------------------------------------------------------------ the group selected (Wzx 14/11/2026, PC and iPad)
+// a thin, light white box around the group, and over it a small bar: Ouvrir / Fermer, Dégrouper, Dupliquer, Preset
+static const char* ST_GOPEN = "M4 4h16v16H4zM9 12h6M12 9v6";
+static const char* ST_GCLOSE = "M4 4h16v16H4zM9 12h6";
+static const char* ST_UNGROUP = "M3 3h8v8H3zM13 13h8v8h-8z";
+static const char* ST_PRESET = "M6 3h12v18l-6-4-6 4z";
+
+void BrickApp::stGroupBar() {
+    if (m_holding || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi || m_groupDrag || m_popup) return;
+    std::vector<int> members;
+    bool open = false;
+    const int g = barGroup(members, open);
+    if (g < 0 || members.empty()) return;
+    float3 mn(1e30f), mx(-1e30f);
+    for (int i : members) {
+        if (brickHidden(i)) continue;
+        const Box b = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
+        mn = minv(mn, b.mn);
+        mx = maxv(mx, b.mx);
+    }
+    if (mn.x > mx.x) return;
+    mn = mn - float3(0.06f);
+    mx = mx + float3(0.06f);
+    const View v = view();
+    ImVec2 p[8];
+    float top = 1e30f, cx = 0;
+    for (int c = 0; c < 8; ++c) {
+        const float3 w((c & 1) ? mx.x : mn.x, (c & 2) ? mx.y : mn.y, (c & 4) ? mx.z : mn.z);
+        float sx, sy;
+        if (!v.project(w, sx, sy)) return;
+        p[c] = ImVec2(sx, sy);
+        top = std::min(top, p[c].y);
+        cx += p[c].x / 8;
+    }
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    ImDrawList* dl = u.dl;
+    static const int kE[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+    const ImU32 lc = open ? IM_COL32(242, 197, 48, 120) : IM_COL32(255, 255, 255, 80);
+    for (auto& e : kE) dl->AddLine(p[e[0]], p[e[1]], lc, 1.0f);
+    // the bar: its name, then the four buttons
+    struct B { const char* ico; const char* tip; int id; };
+    const B bs[4] = {{open ? ST_GCLOSE : ST_GOPEN, open ? "Fermer le groupe" : "Ouvrir le groupe (ses pièces une à une)", 0},
+                     {ST_UNGROUP, "Dégrouper", 1}, {ST_DUP, "Dupliquer le groupe", 2}, {ST_PRESET, "Enregistrer en preset (Scène › Presets)", 3}};
+    const std::string name = m_build.groups[g].name;
+    const float bw = 30 * s, h = 34 * s, nameW = std::min(140 * s, u.textW(10.5f, name.c_str(), true)) + 20 * s;
+    const float W = nameW + 4 * bw + 10 * s;
+    ImVec2 a(cx - W * 0.5f, top - h - 10 * s);
+    a.x = std::clamp(a.x, m_stage.x + 8 * s, m_stage.z - W - 8 * s);
+    a.y = std::clamp(a.y, m_stage.y + 8 * s, m_stage.w - h - 8 * s);
+    const ImVec2 b(a.x + W, a.y + h);
+    stGlass(u.dl, a, b, h * 0.5f, s);
+    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 225), h * 0.5f);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    u.dl->PushClipRect(ImVec2(a.x, a.y), ImVec2(a.x + nameW, b.y), true);
+    u.text(ImVec2(a.x + 14 * s, a.y + (h - u.fs(10.5f)) * 0.5f), 10.5f, open ? C_ACCENT_TXT : C_TEXT, name.c_str(), true);
+    u.dl->PopClipRect();
+    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 8 * s), ImVec2(a.x + nameW, b.y - 8 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+    for (int k = 0; k < 4; ++k) {
+        const ImVec2 ba(a.x + nameW + 4 * s + k * bw, a.y + 2 * s), bb(ba.x + bw, b.y - 2 * s);
+        const bool hv = u.hover(ba, bb);
+        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 22), 8 * s);
+        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 15 * s, hv ? C_TEXT : IM_COL32(205, 208, 214, 255), 1.4f * s);
+        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", bs[k].tip);
+        if (hv && u.pressed) {
+            if (k == 0) { if (open) leaveGroup(); else enterGroup(members[0]); }
+            else if (k == 1) { if (open) { m_selected = members[0]; leaveGroup(); } ungroupSelected(); }
+            else if (k == 2) { pushUndo(); if (duplicateGroup(members)) { autosave(); toast("Groupe dupliqué"); } }
+            else savePreset(g, members);
+        }
+    }
+}
+
+// Scène › Presets: the groups saved, a click places one at the view target
+void BrickApp::stPresets() {
+    if (m_popup != 10) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui, W = 300 * s, ih = 36 * s, pad = 8 * s;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    if (m_presetsKey.empty()) { m_presets = listPresets(); m_presetsKey = "ok"; }
+    const int n = (int)m_presets.size();
+    const int shown = std::min(n, std::max(3, (int)((d.y - m_popupAt.y - 100 * s) / ih)));
+    const ImVec2 a(std::min(m_popupAt.x, d.x - W - 10 * s), m_popupAt.y), b(a.x + W, a.y + 40 * s + std::max(1, shown) * ih + 30 * s);
+    stGlass(u.dl, a, b, 14 * s, s);
+    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 236), 14 * s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    stTrack(u, ImVec2(a.x + 16 * s, a.y + 14 * s), 9, C_TEXT, "PRESETS", 1.6f * s);
+    bool clicked = false;
+    float y = a.y + 40 * s;
+    if (n == 0) u.text(ImVec2(a.x + 18 * s, y + 6 * s), 11, C_DIM, "Aucun preset : sélectionne un groupe, puis son bouton Preset");
+    else {
+        const ImVec2 la(a.x, y), lb(b.x, y + shown * ih);
+        if (u.hover(la, lb) && ImGui::GetIO().MouseWheel != 0) m_presetsScroll -= ImGui::GetIO().MouseWheel * ih;
+        m_presetsScroll = std::clamp(m_presetsScroll, 0.0f, std::max(0.0f, n * ih - shown * ih));
+        u.dl->PushClipRect(la, lb, true);
+        for (int i = 0; i < n; ++i) {
+            const ImVec2 ia(a.x + pad, y + i * ih - m_presetsScroll), ib(b.x - pad, ia.y + ih - 4 * s);
+            if (ib.y < la.y || ia.y > lb.y) continue;
+            const bool h = u.hover(ia, ib) && u.hover(la, lb);
+            if (h) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, 16), 9 * s);
+            stIcon(u.dl, ST_PRESET, ImVec2(ia.x + 16 * s, (ia.y + ib.y) * 0.5f), 13 * s, C_DIM, 1.3f * s);
+            u.text(ImVec2(ia.x + 32 * s, ia.y + (ib.y - ia.y - u.fs(12)) * 0.5f), 12, C_TEXT, m_presets[i].first.c_str());
+            if (h && u.pressed) {
+                clicked = true;
+                m_popup = 0;
+                placePreset(m_presets[i].second, m_presets[i].first);
+            }
+        }
+        u.dl->PopClipRect();
+    }
+    {
+        const std::string dir = "Dossier : " + plat::toUtf8(presetsDir());
+        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.dl->PushClipRect(ImVec2(a.x, b.y - 26 * s), ImVec2(b.x - 10 * s, b.y), true);
+        u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 8.5f, C_FAINT, dir.c_str());
+        u.dl->PopClipRect();
     }
     if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;

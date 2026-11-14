@@ -1399,6 +1399,14 @@ void BrickApp::frame() {
     }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
+    if (m_opt.groupBarTest && m_frame == 8 && m_bricks.size() > 1) {
+        m_selected = 0;
+        m_multi.clear();
+        for (int i = 1; i < (int)m_bricks.size() && i < 6; ++i) m_multi.push_back(i);
+        groupSelected();
+        m_multi.clear();
+        select(0);
+    }
     if (!m_opt.groupSnapTest.empty() && m_frame == 5) groupSnapTest();
     if (!m_opt.importPath.empty() && m_frame == 3) {   // an LDraw model, then the page asked
         const auto t0 = GetTickCount64();
@@ -1540,6 +1548,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--read-step") { opt.readStep = _wtoi(next().c_str()); continue; }
         if (a == L"--import-report") { opt.importReport = next(); continue; }
         if (a == L"--group-test") { opt.groupTest = next(); continue; }
+        if (a == L"--group-bar-test") { opt.groupBarTest = true; continue; }
         if (a == L"--group-snap-test") { opt.groupSnapTest = next(); continue; }
         if (a == L"--still-aa") { opt.stillAA = _wtoi(next().c_str()); continue; }
         if (a == L"--touch-hud") { opt.touchHud = _wtoi(next().c_str()); continue; }

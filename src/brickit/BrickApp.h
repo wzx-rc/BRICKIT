@@ -143,6 +143,7 @@ struct Options {
     bool noEnv = false;         // --no-env
     std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
     int perfFrames = 600, perfOrbit = 0;
+    bool groupBarTest = false;   // --group-bar-test: the bricks of the scene grouped and selected (the box and the bar of the group, captures)
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
@@ -822,7 +823,18 @@ private:
     void cloudOpen(const CloudScene& c, bool fromPoll);
     void cloudRefreshList();
     bool loadSceneText(const std::string& text, const std::string& name, bool camera);
-    void stCloudList();            // Réglages: scrolled (a section taller than the screen)
+    void stCloudList();
+    // ---- the group selected: its box, its bar; presets (BrickGroups.cpp, Wzx 14/11/2026)
+    void stGroupBar();
+    void stPresets();
+    int barGroup(std::vector<int>& members, bool& open) const;
+    bool savePreset(int group, const std::vector<int>& members);
+    bool placePreset(const std::wstring& path, const std::string& name);
+    std::vector<std::pair<std::string, std::wstring>> listPresets();
+    std::wstring presetsDir() const;
+    std::vector<std::pair<std::string, std::wstring>> m_presets;
+    std::string m_presetsKey;
+    float m_presetsScroll = 0;            // Réglages: scrolled (a section taller than the screen)
     std::map<std::string, ImTextureID> m_themeTex;
     bool applyTheme();                // true when the theme changed (the 3D stage then follows)
     void loadThemeFonts();

@@ -1906,7 +1906,7 @@ void BrickApp::uiInfoSheet() {
 }
 
 void BrickApp::uiPopups() {
-    if (!m_popup || m_popup == 7 || m_popup == 8) return;   // (7: « … » of the Studio interface, stMore; 8: its scene menu, stFile)
+    if (!m_popup || m_popup == 7 || m_popup == 8 || m_popup == 10) return;   // (10: Scène › Presets, stPresets)   // (7: « … » of the Studio interface, stMore; 8: its scene menu, stFile)
     if (m_popup == 5) { uiSettings(); return; }
     if (m_popup == 9) { stCloudList(); return; }   // Scène › Scènes du cloud
     Ui u = ui(m_ui);
