@@ -54,7 +54,7 @@ std::vector<int> addPaletteMaterials(Scene& scene, const Library& lib, bool sss)
         m.specular = 0.5f;
         m.coat = 0.35f;
         m.coatRoughness = 0.05f;
-        m.bevelRadius = 0.035f;   // no fingerprint mask (Wzx: none anywhere)
+        m.bevelRadius = 0.0245f;   // no fingerprint mask (Wzx: none anywhere); 30 % tighter (Wzx 14/11/2026, 0.035 before)
         m.flags |= 4u;   // MAT_FLAG_VCOLOR: the prints of the printed parts (their colour per vertex)
         const float lum = 0.2126f * m.baseColor.x + 0.7152f * m.baseColor.y + 0.0722f * m.baseColor.z;
         if (lum > 0.06f && sss) {   // light goes into the ABS: more on the light colours (white, yellow, red),
