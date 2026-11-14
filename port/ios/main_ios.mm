@@ -89,7 +89,7 @@ static BKDiagnostics* g_diagnostics;
     // the copy of the Inbox (AirDrop, Mail) is not needed any more
     if ([url.path rangeOfString:@"/Documents/Inbox/"].location != NSNotFound) [fm removeItemAtURL:url error:nil];
     if (!_ready || !_app) { _pendingOpen = dest; return YES; }
-    _app->openScene(brickit::plat::fromUtf8(dest.UTF8String));
+    _app->openSceneFile(brickit::plat::fromUtf8(dest.UTF8String));
     return YES;
 }
 
@@ -184,7 +184,7 @@ static BKDiagnostics* g_diagnostics;
         return;
     }
     _ready = YES;
-    if (_pendingOpen) { _app->openScene(brickit::plat::fromUtf8(_pendingOpen.UTF8String)); _pendingOpen = nil; }
+    if (_pendingOpen) { _app->openSceneFile(brickit::plat::fromUtf8(_pendingOpen.UTF8String)); _pendingOpen = nil; }
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(drawFrame:)];
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willResignActive:)

@@ -1,5 +1,5 @@
 # BrickIt iPad: builds an unsigned .ipa on a GitHub macOS runner (no Mac needed).
-# Install: download the "BrickIt-iPad-unsigned" artifact of the run, unzip it, open the .ipa in Sideloadly on the PC
+# Install: download the .ipa from the release « ipad » (Releases of the repository), open it in Sideloadly on the PC
 # (free Apple ID, iPad on USB). A free Apple ID signs for 7 days: install again from Sideloadly after that,
 # the data of the app is kept as long as the app is not deleted.
 #
@@ -11,6 +11,10 @@ name: iPad build
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: macOS runner (macos-15-intel when the arm64 runners are saturated)
+        default: macos-latest
   push:
     branches: [main, 'claude/**']
     paths: [ios/**, port/**, src/brickit/**, engine, assets/brickit/**, tools/brickit/library_fetch.py, VERSION, .github/workflows/ios-build.yml]
@@ -18,9 +22,12 @@ on:
 env:
   MOLTENVK_VERSION: v1.4.1
 
+permissions:
+  contents: write   # the release « ipad » that carries the .ipa
+
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +53,10 @@ jobs:
         run: |
           if git ls-remote --exit-code --heads origin bibliotheque >/dev/null; then
             python3 tools/brickit/library_fetch.py assets/brickit/full
+            if [ -f assets/brickit/full/thumbs_hq.pack ]; then   # the HD thumbnails, 512 -> 384 px for the iPad
+              python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+              python3 tools/brickit/thumbs_resize.py assets/brickit/full/thumbs_hq.pack 384
+            fi
             du -sh assets/brickit/full
           else
             echo "::warning::No branch bibliotheque: the iPad gets the base and Technic parts only"
@@ -75,7 +86,15 @@ jobs:
       - name: Configure (Xcode project)
         run: |
           if [ "${{ steps.engine.outputs.have }}" = "true" ]; then SRC=port; EXTRA="-DMOLTENVK_LIBRARY=$MOLTENVK_LIBRARY"; else SRC=ios; EXTRA="-DBRICKIT_GIT=$(git rev-parse --short HEAD)"; fi
-          cmake -S $SRC -B build/ios -G Xcode \
+          # -g + dwarf-with-dsym: the symbols of each build in BrickIt.app.dSYM (published next to the .ipa), to read the
+          # crash reports of the iPad (Rapports/crash_*.txt, MetricKit, .ips): atos -o <dSYM> -l <adresse de chargement> ...
+          # the restored build folder may carry the git path of an older runner image (FetchContent then fails with
+          # « Git_VERSION='' »): the sub-builds of the fetched sources find git again, and the current git is given
+          find build/ios -path '*-subbuild/CMakeCache.txt' -delete 2>/dev/null || true
+          find build/ios -path '*-subbuild/CMakeFiles' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+          cmake -S $SRC -B build/ios -G Xcode -DGIT_EXECUTABLE="$(command -v git)" \
+            -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -g" -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG -g" \
+            -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
             -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DBRICKIT_BUILD="${{ github.run_number }}" $EXTRA
 
@@ -98,9 +117,18 @@ jobs:
           rm -rf build/Payload/BrickIt.app
           cp -R "$APP" build/Payload/
           NAME="BrickIt-iPad-$(cat VERSION | tr -d '[:space:]')-$KIND-$(git rev-parse --short HEAD).ipa"
-          (cd build && rm -f *.ipa && zip -qr "$NAME" Payload)
+          (cd build && rm -f *.ipa *.dSYM.zip && zip -qr "$NAME" Payload)
           echo "IPA=build/$NAME" >> "$GITHUB_ENV"
-          ls -la build/*.ipa
+          # the symbols of this very build (the UUID in a crash report matches: dwarfdump --uuid)
+          DSYM=$(find build/ios -path "*Release-iphoneos/BrickIt.app.dSYM" -maxdepth 3 -type d | head -1)
+          if [ -n "$DSYM" ]; then
+            (cd "$(dirname "$DSYM")" && zip -qr "$GITHUB_WORKSPACE/build/${NAME%.ipa}.dSYM.zip" BrickIt.app.dSYM)
+            echo "DSYM=build/${NAME%.ipa}.dSYM.zip" >> "$GITHUB_ENV"
+            dwarfdump --uuid "$DSYM" || true
+          else
+            echo "::warning::No BrickIt.app.dSYM: the crash reports will not get function names"
+          fi
+          ls -la build/*.ipa build/*.dSYM.zip 2>/dev/null || true
 
       - name: Save the build directory
         if: always() && steps.engine.outputs.have == 'true'
@@ -109,8 +137,22 @@ jobs:
           path: build/ios
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: BrickIt-iPad-unsigned
-          path: ${{ env.IPA }}
-          retention-days: 30
+      # The .ipa (about 700 MB with the full library) goes to the release « ipad » and not to an artifact: release files
+      # do not count in the Actions storage (0.5 GB on the free plan, full with one .ipa). Only the last one is kept.
+      - name: Publish the .ipa (release ipad)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N="$(basename "$IPA")"
+          NOTES="Dernier build iPad : $N (branche ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}). Télécharger le .ipa ci-dessous, l'ouvrir dans Sideloadly."
+          if ! gh release view ipad >/dev/null 2>&1; then
+            gh release create ipad --prerelease --target "$GITHUB_SHA" --title "BrickIt iPad" --notes "$NOTES"
+          fi
+          gh release upload ipad "$IPA" --clobber
+          D=""
+          if [ -n "$DSYM" ] && [ -f "$DSYM" ]; then gh release upload ipad "$DSYM" --clobber; D="$(basename "$DSYM")"; fi
+          gh release view ipad --json assets -q '.assets[].name' | while read -r a; do
+            [ "$a" != "$N" ] && [ "$a" != "$D" ] && gh release delete-asset ipad "$a" -y || true
+          done
+          gh release edit ipad --notes "$NOTES"
+          echo "::notice::.ipa : https://github.com/${GITHUB_REPOSITORY}/releases/tag/ipad"

@@ -85,6 +85,7 @@ struct Options {
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
+    bool ipadCreme = false;   // --ipad-creme: the cream touch kit instead of Studio (implied by --ipad-open)
     bool stMenu = false;   // --st-menu: the Studio marking menu open on the selection (captures)   // --skin-tint N, --skin-accent N, --settings-tab 0 / 1
     bool ipad = false;  // --ipad: the iPad version (set by the iOS shell): touch gestures of the web, simpler interface
     std::string ipadOpen;    // --ipad-open home | lib | palette | new: a panel of the iPad open (captures)
@@ -180,6 +181,8 @@ public:
     void touchBegan(uint64_t id, float x, float y, bool pen) { m_touchQueue.push_back({0, id, x, y, pen}); }
     void touchMoved(uint64_t id, float x, float y) { m_touchQueue.push_back({1, id, x, y, false}); }
     void touchEnded(uint64_t id, float x, float y, bool cancelled) { m_touchQueue.push_back({cancelled ? 3 : 2, id, x, y, false}); }
+    // a scene handed by the system (iPad: a .brick from Fichiers, AirDrop, Mail; PC: the command line)
+    bool openSceneFile(const std::wstring& path) { return openScene(path); }
 
 private:
     // BrickApp.cpp
@@ -221,12 +224,14 @@ private:
     void toast(const std::string& text);
 
     // BrickTouch.cpp: the touch gestures of the web (canvas pointer events), iPad
-    enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM };
+    enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM, TG_MENU };   // TG_MENU: a long press opened the marking menu (Studio)
     struct TouchEvent { int type; uint64_t id; float x, y; bool pen; };   // type 0 began, 1 moved, 2 ended, 3 cancelled
+    static constexpr float kIpadTopStrip = 12;   // iPad: points above the top bar, no touch starts there (the system swipe)
     struct TouchPt { float x, y, sx, sy; double t; bool pen; };
     struct TouchGesture {
         int type = 0;                 // TG_* (BrickTouch.cpp)
         uint64_t pid = 0;             // the finger that leads it
+        int f0 = 0;                   // TG_PRESS: the frame of the press (the marking menu waits a few frames too)
         bool hasPid = false;          // a finger leads it
         bool kept = false;            // a brick kept in hand after the Pencil was cancelled: the next touch carries it
         int hit = -1;                 // press: the brick touched
@@ -362,6 +367,9 @@ private:
     int m_paletteFilter = 0;                // 0 all, 1 in the scene, 2 for this part
     int m_lightPreset = 0;                  // 0 morning, 1 noon, 2 evening
     bool m_pencilOnly = false;              // fingers never build (camera only)
+    int m_ipadUiWas = -1;                   // (the interface of the last frame: the stage follows a change)
+    bool m_stMenuWait = false;   // touch: the marking menu waits until ImGui has seen the finger down (the event lands a frame later)
+    bool m_ipadCreme = false;               // iPad: the cream touch kit 2.0 (Thème › Crème iPad) instead of the Studio interface
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
     struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
     std::map<std::string, ImTextureID> m_kitTex;

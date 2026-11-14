@@ -2311,9 +2311,11 @@ void BrickApp::drawUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-    if (m_ipad) uiTheme(true);
+    const bool creme = m_ipad && m_ipadCreme;   // iPad: the cream touch kit (Thème › Crème iPad), else the Studio interface
+    if (creme) uiTheme(true);
     else if (applyTheme()) applyLook();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
-    if (m_ipad) {
+    if (m_ipad && m_ipadUiWas != (int)creme) { m_ipadUiWas = (int)creme; applyLook(); }
+    if (creme) {
         drawUiIpad();
         uiCtxMenu();
         drawDropzone();
@@ -2326,6 +2328,7 @@ void BrickApp::drawUi() {
             if (mp.x >= r.x && mp.y >= r.y && mp.x < r.z && mp.y < r.w) m_overUi = true;
         return;
     }
+    if (m_ipad) m_studioUi = true;   // iPad: Studio or the cream kit, never the Classique interface of the PC
     if (m_studioUi) drawUiStudio();   // the Studio interface (Maquette 4.0, BrickUiStudio.inl)
     else {
     uiHeader();      // m_uiRects[0]
@@ -3359,9 +3362,24 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
         u.dl->AddText(f, 13 * s * fontKOf(t.font), ImVec2(a.x + 8 * s, pb.y + 6 * s), C_TEXT, d.label);
         textWrap(u, ImVec2(a.x + 8 * s, pb.y + 25 * s), cw - 14 * s, 9.5f, C_DIM, d.desc, 2);
         if (on) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
-        if (hv && u.pressed && !on) { m_themeId = d.id; changed = true; }
+        if (hv && u.pressed && (!on || m_ipadCreme)) { m_themeId = d.id; changed = true; if (m_ipad) { m_ipadCreme = false; savePrefs(); } }
     }
     y += nRows * ch + (nRows - 1) * cg + gap + 4 * s;
+    if (m_ipad) {   // iPad: the cream touch kit 2.0 (galets crème, bulles brunes, Fredoka), kept as a theme of its own
+        const ImVec2 a(p0.x + pad, y - gap + 4 * s), b(p1.x - pad, y - gap + 4 * s + 58 * s);
+        const bool hv = u.hover(a, b);
+        u.dl->AddRectFilled(a, b, hv ? IM_COL32(0xef, 0xe5, 0xd4, 255) : IM_COL32(0xf9, 0xf5, 0xeb, 255), rr(10 * s));
+        for (int k = 0; k < 3; ++k) {   // three pebbles: the look in a glance
+            const ImVec2 c(a.x + 24 * s + k * 26 * s, (a.y + b.y) * 0.5f);
+            u.dl->AddCircleFilled(c, 10 * s, k == 1 ? IM_COL32(64, 46, 32, 140) : IM_COL32(255, 249, 241, 255), 24);
+            u.dl->AddCircle(c, 10 * s, IM_COL32(0xd9, 0xcb, 0xb4, 255), 24, 1.0f);
+        }
+        u.dl->AddText(m_gui->fontBold ? m_gui->fontBold : u.bold, 13 * s * 1.22f, ImVec2(a.x + 100 * s, a.y + 10 * s), IM_COL32(0x57, 0x46, 0x38, 255), "Crème iPad");
+        u.dl->AddText(u.font, 9.5f * s * 1.22f, ImVec2(a.x + 100 * s, a.y + 31 * s), IM_COL32(0x96, 0x86, 0x72, 255), "Le kit tactile crème : galets, bulles autour de la brique, arc de tenons, dock");
+        if (m_ipadCreme) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
+        if (hv && u.pressed) { m_ipadCreme = true; m_popup = 0; savePrefs(); return; }
+        y += 58 * s + gap;
+    }
     const int ti = std::max(0, theme::indexOf(m_themeId));
     const theme::Def& cur = all[ti];
     ThemeLook& look = m_themeLooks[m_themeId];
@@ -3495,7 +3513,7 @@ void BrickApp::uiSettings() {
         {"Rendu", "Moteur, qualité et image", true},
         {"Caméra", "Profondeur de champ et mise au point", true},
         {"Lumière", "HDRI, illumination globale, grille", true},
-        {"Thème", "Couleurs et style de l'application", true},
+        {"Thème", "Couleurs et style de l'application", false},   // (iPad too: the Crème iPad kit is one of its themes)
         {"Fichiers", "Sauvegarde et réglages par défaut", false},
         {"Cloud", "Tes scènes entre l'iPad et le PC", false},
     };

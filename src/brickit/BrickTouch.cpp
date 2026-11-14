@@ -53,6 +53,32 @@ void BrickApp::touchPump() {
         else if (e.type == 1) touchMove(e);
         else touchUp(e);
     }
+    // Studio: a finger held still 0.45 s on a brick opens the marking menu around it; sliding then lifting picks
+    // an action or a colour (stSelHud reads the ImGui mouse, fed here like a pressed button)
+    TouchGesture& g = m_tg;
+    if (g.type == TG_PRESS && m_studioUi && !m_ipadCreme && !m_mechOn && !m_reading && m_touches.count(g.pid) &&
+        ImGui::GetTime() - m_touches[g.pid].t > 0.45 && m_frame - g.f0 > 12) {
+        const TouchPt& p = m_touches[g.pid];
+        select(g.hit);
+        ImGuiIO& io = ImGui::GetIO();
+        const float s = m_ui, R = 190 * s;   // the ring and the arc of colours stay on screen
+        const float cx = std::clamp(p.x, std::min(R, io.DisplaySize.x * 0.5f), std::max(io.DisplaySize.x - R, io.DisplaySize.x * 0.5f));
+        const float cy = std::clamp(p.y, std::min(R, io.DisplaySize.y * 0.5f), std::max(io.DisplaySize.y - 120 * s, io.DisplaySize.y * 0.5f));
+        m_stMenu = true;
+        m_stMenuAt = ImVec2(cx, cy);
+        m_stMenuBtn = 0;
+        m_stMenuSticky = false;
+        m_stMenuWait = true;
+        m_stMenuT0 = ImGui::GetTime();
+        const uint64_t pid = g.pid;
+        g = TouchGesture();
+        g.type = TG_MENU;
+        g.pid = pid;
+        g.hasPid = true;
+        io.AddMouseSourceEvent(p.pen ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+        io.AddMousePosEvent(p.x, p.y);
+        io.AddMouseButtonEvent(0, true);
+    }
 }
 
 // --------------------------------------------------------------------------- pointerdown
@@ -60,6 +86,14 @@ void BrickApp::touchPump() {
 void BrickApp::touchDown(const TouchEvent& e) {
     ImGuiIO& io = ImGui::GetIO();
     const double now = ImGui::GetTime();
+    // the strip above the top bar: a finger coming down from the edge of the screen (iPadOS) presses nothing
+    if (m_studioUi && !m_ipadCreme && m_touches.empty() && m_tg.type == TG_NONE && e.y < kIpadTopStrip * m_ui) return;
+    // the ring of the left hand: a touch on it acts at once, whatever the other fingers or the Pencil do (it is not a
+    // finger of the gestures: its moves and its lift are not followed)
+    if (m_studioUi && !m_ipadCreme && m_popup == 0 && !m_stMenu) {
+        const int part = stRingHit(e.x, e.y);
+        if (part >= 0) { stRingAct(part); return; }
+    }
     m_touches[e.id] = {e.x, e.y, e.x, e.y, now, e.pen};
     TouchGesture& g = m_tg;
 
@@ -107,7 +141,7 @@ void BrickApp::touchDown(const TouchEvent& e) {
         if (!g.second) { g.second = true; g.secondId = e.id; g.ax = e.x; g.ay = e.y; g.rotated = false; }
         return;
     }
-    if (g.type == TG_GIZMO || g.type == TG_GROUP || g.type == TG_AIM) return;   // one finger at a time on those
+    if (g.type == TG_GIZMO || g.type == TG_GROUP || g.type == TG_AIM || g.type == TG_MENU) return;   // one finger at a time on those
 
     if (m_touches.size() >= 2) {   // two fingers (or three): camera, or a tap that undoes
         if (g.type == TG_MARQUEE) m_marquee = false;
@@ -176,7 +210,7 @@ void BrickApp::touchDown(const TouchEvent& e) {
         return;
     }
     if (m_mode == 2 && hit >= 0 && !(m_pencilOnly && !e.pen)) {   // Déplacer (Wzx 10/11/2026): a finger drags the brick in snap, as Construire
-        g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt;
+        g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; g.f0 = m_frame;
         return;
     }
     if (m_mode != 1) {   // Tourner (Déplacer off a brick): a tap selects (Auto Pivot moves the pivot), dragging orbits
@@ -200,7 +234,7 @@ void BrickApp::touchDown(const TouchEvent& e) {
         g.type = TG_ORBIT;
         return;
     }
-    if (hit >= 0) { g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; return; }   // Viseur: tap selects, drag takes
+    if (hit >= 0) { g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; g.f0 = m_frame; return; }   // Viseur: tap selects, drag takes
     g.type = TG_ORBIT;
     g.tap = true;
 }
@@ -232,6 +266,7 @@ void BrickApp::touchMove(const TouchEvent& e) {
     }
     switch (g.type) {
     case TG_MOUSE:
+    case TG_MENU:
         if (e.id == g.pid) ImGui::GetIO().AddMousePosEvent(e.x, e.y);
         break;
     case TG_PRESS:
@@ -322,6 +357,8 @@ void BrickApp::touchUp(const TouchEvent& e) {
     }
     switch (g.type) {
     case TG_MOUSE:
+    case TG_MENU:
+        if (e.id == g.pid && g.type == TG_MENU && cancelled) m_stMenu = false;   // cancelled by iPadOS: no action
         if (e.id == g.pid) {
             io.AddMousePosEvent(e.x, e.y);
             io.AddMouseButtonEvent(0, false);
@@ -437,12 +474,56 @@ void BrickApp::touchTestFrame() {
             deleteSelected();
             line("deleted 1 brick: " + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()));
         }
-        if (t == "pick" || t == "hold2") {
+        if (t == "menu") { a = brickPoint(target); touchBegan(1, a.x, a.y, false); }   // a finger held still: the marking menu
+        if (t == "paint") {   // PEINDRE: a finger taps a brick, it takes the colour
+            a = brickPoint(target);
+            m_color = (m_bricks[target].color + 3) % std::max(1, (int)m_lib.palette.size());
+            count0 = 0;
+            for (const Brick& b : m_bricks) count0 += b.color == m_color;
+            touchBegan(1, a.x, a.y, false);
+        }
+        if (t == "move") { m_mode = 2; m_animOn = false; }   // Déplacer, a finger, no animations (the white dot of the pivot)
+        if (t == "pick" || t == "hold2" || t == "move") {
             a = brickPoint(target);
             pos0 = m_bricks[target].pos;
             rot0 = m_bricks[target].rot;
-            touchBegan(1, a.x, a.y, true);   // (the Pencil)
+            touchBegan(1, a.x, a.y, t != "move");   // (the Pencil; Déplacer: a finger)
         }
+    }
+    static ImVec2 mc;
+    if (t == "menu" && f > 20 && f < 200 && m_tg.type == TG_PRESS) touchMoved(1, a.x + 1, a.y);   // (a finger trembles a little)
+    if (t == "menu" && m_tg.type == TG_MENU && mc.x == 0) {
+        mc = m_stMenuAt;
+        line(std::string("menu: open after a still press ") + (m_stMenu ? "OK" : "FAIL") + " (frame " + std::to_string(f) + ")");
+        const float r = 90 * 0.0174533f, R = 100 * m_ui;   // Dupliquer, straight down
+        touchMoved(1, mc.x + std::cos(r) * R * 0.5f, mc.y + std::sin(r) * R * 0.5f);
+        touchMoved(1, mc.x + std::cos(r) * R, mc.y + std::sin(r) * R);
+    }
+    static int endF = 0;
+    if (t == "menu" && mc.x != 0 && !endF && m_tg.type == TG_MENU) { endF = f + 6; }
+    if (t == "menu" && endF && f == endF) touchEnded(1, mc.x + std::cos(1.5708f) * 100 * m_ui, mc.y + std::sin(1.5708f) * 100 * m_ui, false);
+    if (t == "menu" && endF && f == endF + 6) line(std::string("menu: slide to Dupliquer then lift, bricks ") + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + (m_bricks.size() == count0 + 1 && !m_stMenu ? " OK" : " FAIL"));
+    if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }
+    if (t == "ring" && f == 24 && m_ringR > 0) { touchBegan(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); touchEnded(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); }
+    if (t == "ring" && f == 70) {
+        const float4 r = m_bricks[target].rot;
+        const bool turned = std::fabs(r.x - rot0.x) + std::fabs(r.y - rot0.y) + std::fabs(r.z - rot0.z) + std::fabs(r.w - rot0.w) > 0.1f;
+        line(std::string("ring: a tap on the right wedge turns the selection ") + (turned ? "OK" : "FAIL") + (m_touches.empty() ? ", no finger left" : ", FAIL a finger left"));
+    }
+    if (t == "coldrag" && f == 22) { a = m_colCurAt; touchBegan(1, a.x, a.y, false); }   // a colour dragged out of the panel: a 1x1
+    if (t == "coldrag" && f > 22 && f <= 34) touchMoved(1, a.x + (cx - a.x) * (f - 22) / 12.0f, a.y + (cy - a.y) * (f - 22) / 12.0f);
+    if (t == "coldrag" && f == 30) line(std::string("coldrag: a brick in hand ") + (m_holding ? "OK" : "FAIL"));
+    if (t == "coldrag" && f == 36) touchEnded(1, cx, cy, false);
+    if (t == "coldrag" && f == 110) {
+        const Brick& b = m_bricks.back();
+        line("coldrag: bricks " + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + ", part " + m_lib.parts[b.part].name + ", colour " +
+             (b.color == m_color ? "OK" : "FAIL") + (m_bricks.size() == count0 + 1 && !m_holding ? " OK" : " FAIL"));
+    }
+    if (t == "paint" && f == 24) touchEnded(1, a.x, a.y, false);
+    if (t == "paint" && f == 28) {
+        size_t n = 0;
+        for (const Brick& b : m_bricks) n += b.color == m_color;
+        line("paint: tap with the Pinceau, bricks of the colour " + std::to_string(count0) + " -> " + std::to_string(n) + (n > count0 ? " OK" : " FAIL"));
     }
     if (t == "orbit" && f > 20 && f <= 32) touchMoved(1, a.x + (f - 20) * 15.0f, a.y);
     if (t == "orbit" && f == 33) {

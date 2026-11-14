@@ -323,16 +323,24 @@ void BrickApp::stHeader() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float H = 46 * s;
+    // iPad: a strip of a few points above the bar, where a finger coming down from the top of the screen (iPadOS:
+    // notifications, Control Centre) lands without pressing Exporter (BrickTouch ignores the touches that start there)
+    const float T = m_ipad ? kIpadTopStrip * s : 0;
+    const float H = 46 * s + T;
     u.dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, H), IM_COL32(8, 9, 11, 235), IM_COL32(8, 9, 11, 235), IM_COL32(12, 13, 15, 200), IM_COL32(12, 13, 15, 200));
     u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), IM_COL32(255, 255, 255, 20), 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
-    const float cy = H * 0.5f;
+    const float cy = T + 23 * s;
     // the logo: the app icon (Wzx 11/11/2026: A, the yellow brick in its viewfinder; B, the brick alone); BRICKIT / B U I L D E R
     float x = 14 * s;
     if (ImTextureID lt = kitTex(m_appIcon == 1 ? "logo/brickit_b.png" : "logo/brickit_a.png")) {
         u.dl->AddImageRounded(lt, ImVec2(x - 1 * s, cy - 16 * s), ImVec2(x + 31 * s, cy + 16 * s), ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 7 * s);
-    } else {   // (no image: the red square of before)
+    } else if (m_ipad) {   // iPad (Wzx 10/11/2026): the app icon, a 2x4 brick in thin amber lines on smoked grey
+        const ImVec2 la(x, cy - 15 * s), lb(x + 30 * s, cy + 15 * s);
+        u.dl->AddRectFilled(la, lb, IM_COL32(38, 40, 45, 255), 7 * s);
+        u.dl->AddRect(la, lb, IM_COL32(255, 255, 255, 40), 7 * s, 0, 1.0f);
+        stPicto(u.dl, "brick", 2, 4, ImVec2(x + 15 * s, cy), 24 * s, IM_COL32(226, 191, 79, 255), 1.2f * s);
+    } else {
         u.dl->AddRectFilled(ImVec2(x, cy - 14 * s), ImVec2(x + 28 * s, cy + 14 * s), IM_COL32(0xd0, 0x10, 0x1b, 255), 3 * s);
         stPicto(u.dl, "brick", 2, 2, ImVec2(x + 14 * s, cy), 18 * s, IM_COL32(255, 255, 255, 235), 1.1f * s);
     }
@@ -343,7 +351,7 @@ void BrickApp::stHeader() {
     u.dl->AddLine(ImVec2(x, cy - 11 * s), ImVec2(x, cy + 11 * s), IM_COL32(255, 255, 255, 30), 1.0f);
     x += 12 * s;
     {   // the scene menu: a click on the logo or on the name (Nouvelle scène, Ouvrir, Enregistrer)
-        const ImVec2 fa(0, 0), fb(x + 190 * s, H);
+        const ImVec2 fa(0, T), fb(x + 190 * s, H);
         const bool hf = u.hover(fa, fb) && (m_popup == 0 || m_popup == 8);
         if (hf || m_popup == 8) u.dl->AddRectFilled(ImVec2(x - 6 * s, cy - 17 * s), ImVec2(x + 180 * s, cy + 17 * s), IM_COL32(255, 255, 255, m_popup == 8 ? 22 : 12), 10 * s);
         {   // a small chevron after the name
@@ -415,11 +423,10 @@ void BrickApp::stHeader() {
     };
     if (roundBtn(ST_SET, "Réglages (échelle, rendu, lumière) et Thème", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
     if (roundBtn(ST_MORE, "Plus : grille, auto pivot, sécurité, animations, voxels, fenêtres, DEV, bac", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
-    {   // the render: Rapide / HQ / Ray tracing
+    if (!m_ipad) {   // the render: Rapide / HQ / Ray tracing (iPad: none, Wzx 10/11/2026)
         struct R { const char* label; bool on; int id; const char* tip; };
         std::vector<R> rs = {{"RAPIDE", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Temps réel rapide"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "Temps réel haute qualité : ombres, GI douce"},
                              {"RAY TRACING", pathTraced(), 2, "Rendu progressif réaliste (path tracing)"}};
-        if (m_ipad) rs.resize(2);
         float w = 6 * s;
         for (const R& r : rs) w += stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s + 2 * s;
         const ImVec2 ra(rx - w, cy - 14 * s), rb(rx, cy + 14 * s);
@@ -444,7 +451,7 @@ void BrickApp::stHeader() {
         }
         rx -= w + 10 * s;
     }
-    {   // HD: the parts in high definition (Wzx 10/11/2026: « un switcher HighPoly »)
+    if (!m_ipad) {   // HD: the parts in high definition (Wzx 10/11/2026: « un switcher HighPoly »; not on the iPad: too heavy)
         const char* t = "HD";
         const float bw = stTrackW(u, 9.5f, t, 1.3f * s, true) + 26 * s;
         const ImVec2 ba(rx - bw, cy - 14 * s), bb(rx, cy + 14 * s);
@@ -498,7 +505,7 @@ void BrickApp::stTools() {
             u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.8f), 13 * s, 0, 1.0f);
         } else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 13 * s);
         stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 19 * s, t.on ? C_ACCENT_TXT : C_TEXT, 1.2f * s);
-        if (t.key[0]) u.text(ImVec2(bb.x - 9 * s, bb.y - 13 * s), 7.5f, t.on ? C_ACCENT_TXT : C_FAINT, t.key, true);
+        if (t.key[0] && !m_ipad) u.text(ImVec2(bb.x - 9 * s, bb.y - 13 * s), 7.5f, t.on ? C_ACCENT_TXT : C_FAINT, t.key, true);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
         if (h && u.pressed) stTool(t.id);
         y += bh + 2 * s;
@@ -551,9 +558,11 @@ void BrickApp::stMore() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     struct It { const char* label; bool on; int id; };
-    const std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
+    std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
                                  {"Animations des briques (A)", m_animOn, 3}, {"Voxels (V)", m_showVox, 4}, {"Groupes", m_pGroups.visible, 5},
                                  {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
+    if (m_ipad)   // iPad (Wzx 10/11/2026): no voxels, no developer mode, no view transform
+        its.erase(std::remove_if(its.begin(), its.end(), [](const It& t) { return t.id == 4 || t.id == 7 || t.id == 8; }), its.end());
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -605,7 +614,8 @@ static ImU32 stSrgb(const Color& c, int alpha) {
 void BrickApp::stPaintPanel() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
-    const float s = m_ui;
+    const bool small = m_ipad;   // iPad (Wzx 10/11/2026): twice smaller, the icons without their labels
+    const float s = m_ui * (small ? 0.5f : 1.0f);
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 16 * s;
     const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s, cw = 96 * s;
@@ -625,9 +635,11 @@ void BrickApp::stPaintPanel() {
         const ImU32 cc = stSrgb(c, c.group == "transparent" ? 170 : 255);
         if (g_studTex) u.dl->AddImage(g_studTex, p0, p1, ImVec2(0, 0), ImVec2(1, 1), cc);
         else u.dl->AddRectFilled(p0, p1, cc, 6 * s);
+        if (!small) {
         const std::string nm = stFit(u, 7.5f, stUpper(colorFr(c.name)), cw - 4 * s, true);
         const float lw = stTrackW(u, 7.5f, nm.c_str(), 1.2f * s, true);
         stTrack(u, ImVec2(cx - lw * 0.5f, b.y - pad - 15 * s), 7.5f, C_TEXT, nm.c_str(), 1.2f * s);
+        }
         if (u.hover(ImVec2(x, a.y), ImVec2(x + cw, b.y)) && m_popup == 0) ImGui::SetTooltip("Couleur active : %s · %d", colorFr(c.name), c.id);
         x += cw + 7 * s;
         u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
@@ -642,9 +654,11 @@ void BrickApp::stPaintPanel() {
         if (t.on) { u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 14 * s); u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.85f), 14 * s, 0, 1.0f); }
         else { u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, h ? 18 : 8), 14 * s); u.dl->AddRect(ba, bb, IM_COL32(255, 255, 255, h ? 60 : 26), 14 * s, 0, 1.0f); }
         const ImU32 col = t.on ? C_ACCENT_TXT : C_TEXT;
-        stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, ba.y + 30 * s), 32 * s, col, 1.5f * s);
-        const float lw = stTrackW(u, 8, t.label, 1.6f * s, true);
-        stTrack(u, ImVec2((ba.x + bb.x - lw) * 0.5f, bb.y - 19 * s), 8, col, t.label, 1.6f * s);
+        stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, small ? (ba.y + bb.y) * 0.5f : ba.y + 30 * s), (small ? 44 : 32) * s, col, (small ? 2.2f : 1.5f) * s);
+        if (!small) {
+            const float lw = stTrackW(u, 8, t.label, 1.6f * s, true);
+            stTrack(u, ImVec2((ba.x + bb.x - lw) * 0.5f, bb.y - 19 * s), 8, col, t.label, 1.6f * s);
+        }
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
         if (h && u.pressed) { if (t.id == 2) { m_paintTool = true; m_pipette = false; } else { m_pipette = true; m_paintTool = false; } }
         x += bw + 6 * s;
@@ -654,13 +668,15 @@ void BrickApp::stPaintPanel() {
     x += 8 * s;
     {   // Groupe entier: a switch
         const float cy = a.y + pad + 20 * s;
-        stTrack(u, ImVec2(x + 4 * s, cy - u.fs(7.5f) * 0.52f), 7.5f, C_DIM, "GROUPE ENTIER", 1.4f * s);
-        const ImVec2 sa(x + 4 * s, cy + 14 * s), sb(sa.x + 34 * s, sa.y + 18 * s);
+        if (!small) stTrack(u, ImVec2(x + 4 * s, cy - u.fs(7.5f) * 0.52f), 7.5f, C_DIM, "GROUPE ENTIER", 1.4f * s);
+        else stTrack(u, ImVec2(x + 4 * s, a.y + pad - 1 * m_ui), 6.5f, C_DIM, "GROUPE", 1.0f * m_ui);
+        const ImVec2 sa(x + 4 * s, small ? b.y - pad - 14 * m_ui : cy + 14 * s), sb(sa.x + (small ? 30 * m_ui : 34 * s), sa.y + (small ? 15 * m_ui : 18 * s));
         const ImVec2 ha(x, a.y), hb(b.x, b.y);
         const bool h = u.hover(ha, hb) && m_popup == 0;
-        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), 9 * s);
-        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - 9 * s : sa.x + 9 * s, (sa.y + sb.y) * 0.5f), 7 * s, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
-        u.text(ImVec2(sb.x + 8 * s, (sa.y + sb.y) * 0.5f - u.fs(8.5f) * 0.55f), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, m_paintGroup ? "tout le groupe" : "la brique seule");
+        const float kr = (sb.y - sa.y) * 0.5f;
+        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), kr);
+        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - kr : sa.x + kr, (sa.y + sb.y) * 0.5f), kr - 2 * m_ui, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
+        if (!small) u.text(ImVec2(sb.x + 8 * s, (sa.y + sb.y) * 0.5f - u.fs(8.5f) * 0.55f), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, m_paintGroup ? "tout le groupe" : "la brique seule");
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Activé : un clic peint tout le groupe de la brique. Désactivé : la brique seule, même dans un groupe");
         if (h && u.pressed) { m_paintGroup = !m_paintGroup; savePrefs(); }
     }
@@ -694,12 +710,32 @@ void BrickApp::stPaintColors() {
     for (int i : order) (i < 0 ? nGap : nCol)++;
     const float gapW = 0.9f;   // a group gap, in steps
     const float step = L / std::max(1.0f, (float)(nCol - 1) + nGap * gapW);
-    const float sw = std::clamp(step - 4 * s, 12 * s, 26 * s);
     struct P { int i; ImVec2 p; float e; };
     std::vector<P> ps;
     std::vector<float> gaps;   // the angles of the gaps between two groups (a small line: Wzx 09/11/2026)
     float t = 0;
-    for (int k = 0; k < (int)order.size(); ++k) {
+    float sw = std::clamp(step - 4 * s, 12 * s, 26 * s);
+    float pitchX = step;   // (the width of the hit box of a colour)
+    if (m_ipad) {   // iPad (Wzx 10/11/2026): colours three times bigger, on two or three rings under one another
+        sw = 34 * s;
+        const float pitch = sw + 8 * s, ringGap = sw + 12 * s;
+        pitchX = pitch;
+        int k = 0, ring = 0, rank = 0;
+        while (k < (int)order.size() && ring < 6) {
+            const float Rr = R + ring * ringGap, Lr = 2 * th * Rr;
+            const int cap = std::max(1, (int)(Lr / pitch) + 1);
+            const int n = std::min(cap, (int)order.size() - k);
+            const float st = Lr / std::max(1, cap - 1), t0 = (Lr - (n - 1) * st) * 0.5f;   // (a last ring not full: centred)
+            for (int j = 0; j < n; ++j, ++k) {
+                if (order[k] < 0) continue;   // (a group gap: an empty place)
+                const float ang = -th + (t0 + j * st) / Rr;
+                const ImVec2 p(cxm + std::sin(ang) * Rr, cy + std::cos(ang) * Rr);
+                ps.push_back({order[k], p, std::clamp((tIn - 0.012f * rank++) / 0.28f, 0.0f, 1.0f)});
+            }
+            ++ring;
+        }
+    }
+    for (int k = 0; k < (int)order.size() && !m_ipad; ++k) {
         if (order[k] < 0) { gaps.push_back(-th + (t + step * (gapW - 1) * 0.5f) / R); t += step * gapW; continue; }
         const float ang = -th + t / R;   // 0 = straight down
         const ImVec2 p(cxm + std::sin(ang) * R, cy + std::cos(ang) * R);
@@ -713,12 +749,12 @@ void BrickApp::stPaintColors() {
     if (m_popup == 0 && !(m_grip.id >= 0 && m_grip.moved))
         for (const P& q : ps) {
             const float dx = u.mouse.x - q.p.x, dy = u.mouse.y - q.p.y, dd = dx * dx + dy * dy;
-            if (std::fabs(dx) < step * 0.5f + 1 && std::fabs(dy) < sw * 0.8f && dd < best) { best = dd; hot = q.i; }
+            if (std::fabs(dx) < pitchX * 0.5f + 1 && std::fabs(dy) < sw * 0.8f && dd < best) { best = dd; hot = q.i; }
         }
     for (const P& q : ps) {
         float& hv = m_paintHov[q.i];
         hv += ((q.i == hot ? 1.0f : 0.0f) - hv) * std::min(1.0f, dt * 16);
-        m_uiRects.push_back(ImVec4(q.p.x - step * 0.5f, q.p.y - sw * 0.6f, q.p.x + step * 0.5f, q.p.y + sw * 0.6f));
+        m_uiRects.push_back(ImVec4(q.p.x - pitchX * 0.5f, q.p.y - sw * 0.6f, q.p.x + pitchX * 0.5f, q.p.y + sw * 0.6f));
     }
     auto draw = [&](const P& q) {
         if (q.e <= 0) return;
@@ -1390,8 +1426,9 @@ void BrickApp::stLibGrip(Ui& u, ImVec2 a, ImVec2 b, bool live) {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const bool bottom = m_libDock == 0;
     const ImVec2 hc = bottom ? ImVec2((a.x + b.x) * 0.5f, a.y + 6.5f * s) : ImVec2(m_libDock == 1 ? b.x - 6 * s : a.x + 6 * s, (a.y + b.y) * 0.5f);
-    const ImVec2 za = bottom ? ImVec2(hc.x - 70 * s, a.y) : ImVec2(hc.x - 8 * s, hc.y - 70 * s);
-    const ImVec2 zb = bottom ? ImVec2(hc.x + 70 * s, a.y + 13 * s) : ImVec2(hc.x + 8 * s, hc.y + 70 * s);
+    const float gz = m_ipad ? 2.0f : 1.0f;   // iPad: a grip for a finger
+    const ImVec2 za = bottom ? ImVec2(hc.x - 70 * s, a.y - (gz - 1) * 6 * s) : ImVec2(hc.x - 8 * gz * s, hc.y - 70 * s);
+    const ImVec2 zb = bottom ? ImVec2(hc.x + 70 * s, a.y + 13 * gz * s) : ImVec2(hc.x + 8 * gz * s, hc.y + 70 * s);
     const bool hv = live && u.hover(za, zb);
     const ImU32 hcol = m_libGrip || hv ? stA(C_ACCENT, 0.9f) : IM_COL32(255, 255, 255, 46);
     if (bottom) u.dl->AddRectFilled(ImVec2(hc.x - 22 * s, hc.y - 1.5f * s), ImVec2(hc.x + 22 * s, hc.y + 1.5f * s), hcol, 2 * s);
@@ -1818,10 +1855,16 @@ void BrickApp::stDrawer() {
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
     // the cards at the size of the slider of the drawer (Wzx 09/11/2026); the drawer keeps its height: as many rows as fit
     const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
-    const float famH = 58 * s, subH = 36 * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
+    const float famH = (m_ipad ? 46 : 58) * s, subH = (m_ipad ? 32 : 36) * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
     // the height of the drawer: its grip (m_libH), never less than two rows of tiles
     const float chrome = 12 * s + famH + 8 * s + subH + 10 * s + 12 * s;
-    const float bodyH = m_libH > 0 ? std::clamp(m_libH - chrome, 2 * tileH + gap, std::max(2 * tileH + gap, d.y * 0.62f - chrome)) : 2 * tileH + gap;
+    // iPad (Wzx 10/11/2026: « elle prend la moitié de l'écran »): one row by default, no empty band under it
+    // (iPad: as high as the left column of the page needs: the tiles of Toutes 96, cards 124 with their slider, 150 with
+    // the size in studs of Briques / Plaques / Tuiles)
+    const bool tilesP = !m_searchOpen && m_stSub < 0 && m_stFam != "recent" && m_stFam != "fav";
+    const bool sizableP = !m_searchOpen && m_stFam == "basique" && m_stSub >= 0 && m_stSub <= 2;
+    const float minBody = m_ipad ? std::max((tilesP ? 96 : sizableP ? 150 : 124) * s, tilesP ? tileH : cardH) : 2 * tileH + gap;
+    const float bodyH = m_libH > 0 ? std::clamp(m_libH - chrome, minBody, std::max(minBody, d.y * 0.62f - chrome)) : minBody;
     const int nRows = std::max(1, (int)((bodyH + gap) / (cardH + gap)));
     const float rowsY = (bodyH - (nRows * (cardH + gap) - gap)) * 0.5f;
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + bodyH + 12 * s;
@@ -1867,10 +1910,11 @@ void BrickApp::stDrawer() {
             } else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 9), 12 * s);
             const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
-            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + 4 * s + 14 * s - (h && !on ? 1.5f * s : 0)), 27 * s, pic, 1.0f * s);
+            const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
+            stIco(u.dl, f.ico, ImVec2((ta.x + tb.x) * 0.5f, ta.y + icy - (h && !on ? 1.5f * s : 0)), icz, pic, 1.0f * s);
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
-            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 17 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
+            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - (m_ipad ? 14 : 17) * s), 8.6f, txt, lab.c_str(), 1.4f * s);
             if (h && u.pressed) {   // back on a family: its last category (Wzx 09/11/2026)
                 m_stFamSub[m_stFam] = m_stSub;
                 m_stFam = f.key;
@@ -1984,7 +2028,7 @@ void BrickApp::stDrawer() {
         stTrack(u, ImVec2(ka.x + 12 * s, ka.y + 28 * s), 9, C_TEXT, path.c_str(), 1.2f * s);
     }
     if (!tiles) {   // the display of the cards: IMAGE / FICHE (also in Réglages)
-        const float ty = y + bodyH - 24 * s;
+        const float ty = y + bodyH - (m_ipad ? 0 : 24) * s;   // (iPad: no IMAGE / FICHE here, it is in Réglages)
         {   // the size of the cards: a slider (small brick, big brick), released: the thumbnails made again at that size
             const float sy = ty - 22 * s, x0 = padX + 2 * s, tx0 = x0 + 22 * s, tx1 = padX + colW - 22 * s;
             stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
@@ -2006,6 +2050,7 @@ void BrickApp::stDrawer() {
             u.dl->AddCircleFilled(ImVec2(kx, sy), (hs || m_stCardDrag ? 7 : 6) * s, IM_COL32(0xf4, 0xf4, 0xf6, 255), 20);
             if (hs && !m_stCardDrag && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Taille des vignettes");
         }
+        if (!m_ipad) {
         stTrack(u, ImVec2(padX + 2 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, C_DIM, "AFFICHAGE", 1.6f * s);
         static const char* kModes[2] = {"IMAGE", "FICHE"};
         float bx = padX + colW;
@@ -2018,6 +2063,7 @@ void BrickApp::stDrawer() {
             stTrack(u, ImVec2(ba.x + 9 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, on ? C_ACCENT_TXT : C_DIM, kModes[k], 1.2f * s);
             if (h && u.pressed && !on) { m_stCardMode = k; m_cardsScroll = 0; savePrefs(); }
             bx -= bw + 4 * s;
+        }
         }
     }
     // ---- the parts of the category, and how many each category has (cached: the full library has 22 000 parts)
@@ -2064,7 +2110,7 @@ void BrickApp::stDrawer() {
     const float itemW = tiles ? tileW : cardW;
     const float viewW = cb.x - ca.x;
     // the tiles read row by row, as in the maquette (in one row when they fit); the cards go column by column
-    const int perRow = tiles ? std::min(nItems, std::max((nItems + 1) / 2, (int)((viewW + gap) / (tileW + gap)))) : 0;
+    const int perRow = tiles ? (m_ipad ? nItems : std::min(nItems, std::max((nItems + 1) / 2, (int)((viewW + gap) / (tileW + gap))))) : 0;   // (iPad: one row)
     const int cols = tiles ? perRow : (nItems + nRows - 1) / nRows;
     const float contentW = cols * (itemW + gap) - gap;
     if (live && u.hover(ca, cb) && ImGui::GetIO().MouseWheel != 0) m_cardsScroll -= ImGui::GetIO().MouseWheel * itemW;
@@ -2088,7 +2134,7 @@ void BrickApp::stDrawer() {
     if (tiles)   // Toutes: one tile per category, its pictogram big (Maquette 4.1); a click opens it
         for (int k = 0; k < nItems; ++k) {
             const int c = k % std::max(1, perRow), r = k / std::max(1, perRow);
-            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + r * (tileH + gap)), b(a.x + tileW, a.y + tileH);
+            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + (m_ipad ? (bodyH - tileH) * 0.5f : 0) + r * (tileH + gap)), b(a.x + tileW, a.y + tileH);
             if (b.x < ca.x || a.x > cb.x) continue;
             const StSub& q = fam->subs[k];
             const int n = k < (int)m_stSubCount.size() ? m_stSubCount[k] : 0;
@@ -2244,7 +2290,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
         const std::string meta = id + "  ·  " + catFr(P.category);
         u.text(ImVec2(a.x + pad, y), 9.5f, stA(C_DIM, ease), meta.c_str());
         y += 18 * s;
-        u.text(ImVec2(a.x + pad, y), 9, stA(C_FAINT, ease), "clic : en main  ·  glisse-la dans la vue");
+        u.text(ImVec2(a.x + pad, y), 9, stA(C_FAINT, ease), m_ipad ? "touche : en main  ·  glisse-la dans la vue" : "clic : en main  ·  glisse-la dans la vue");
     }
 }
 
@@ -2406,6 +2452,10 @@ void BrickApp::stSelHud() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_stMenu = false; return; }
         if (m_opt.stMenu) return;   // (captures: stays open)
+        if (m_stMenuWait) {   // opened by a finger: its press reaches ImGui a frame later
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) return;
+            m_stMenuWait = false;
+        }
         const bool act = m_stMenuSticky ? (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                                         : !ImGui::IsMouseDown(m_stMenuBtn == 1 ? ImGuiMouseButton_Right : ImGuiMouseButton_Left);
         if (act) {   // released (or, opened by a quick right click, the next click): the action
@@ -2470,7 +2520,7 @@ void BrickApp::stSelHud() {
     if (nm.size() > 48) { nm = nm.substr(nm.size() - 44); nm = "…" + nm.substr(nm.find(' ') == std::string::npos ? 0 : nm.find(' ')); }
     char gl[32];
     snprintf(gl, sizeof(gl), "GROUPE · %d", (int)sel.size());
-    const char* hint = "maintenir le clic : menu";
+    const char* hint = m_ipad ? "appui long : menu" : "maintenir le clic : menu";
     const float wg = isGroup ? stTrackW(u, 8, gl, 1.4f * s, true) + 30 * s : 0;
     const float w1 = stTrackW(u, 9, nm.c_str(), 1.4f * s, true), w2 = u.textW(9, hint);
     const float W = 10 * s + wg + 8 * s + w1 + 10 * s + w2 + 10 * s, H = 24 * s;
@@ -2501,7 +2551,7 @@ void BrickApp::stHeld() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     const Part& P = m_lib.parts[m_libSel];
-    const std::string t = partFr(P.label) + " · clic pour poser · R pour tourner · clic droit pour lâcher";
+    const std::string t = partFr(P.label) + (m_ipad ? " · lève le doigt pour poser · 2e doigt pour tourner" : " · clic pour poser · R pour tourner · clic droit pour lâcher");
     const float tw = u.textW(10.5f, t.c_str()), lw = stTrackW(u, 9, "EN MAIN", 1.6f * s, true);
     const float W = 8 * s + 30 * s + 8 * s + lw + 10 * s + tw + 14 * s, H = 34 * s;
     const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
