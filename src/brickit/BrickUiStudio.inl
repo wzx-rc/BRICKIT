@@ -2075,6 +2075,7 @@ void BrickApp::stDrawer() {
         m_stKey = key;
         m_stParts.clear();
         m_stSubCount.assign(fam->subs.size(), 0);
+        m_stSubFirst.assign(fam->subs.size(), -1);
         if (m_searchOpen) m_stParts = visibleParts();
         else if (m_stFam == "recent") m_stParts = m_recent;
         else if (m_stFam == "fav") m_stParts = m_fav;
@@ -2085,7 +2086,7 @@ void BrickApp::stDrawer() {
                 if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;   // (Réglages: the stickers and printed patterns hidden; no Duplo)
                 const std::string& c = partCat(i);
                 for (size_t q = 0; q < fam->subs.size(); ++q)
-                    if (stInSub(fam->subs[q], c, p.sub)) ++m_stSubCount[q];
+                    if (stInSub(fam->subs[q], c, p.sub)) { ++m_stSubCount[q]; if (m_stSubFirst[q] < 0) m_stSubFirst[q] = i; }
                 bool in = sub && stInSub(*sub, c, p.sub);
                 if (in && m_stW > 0) {
                     int tw = 0, tl = 0;   // the size in studs, from the title
@@ -2141,7 +2142,17 @@ void BrickApp::stDrawer() {
             const bool h = live && u.hover(a, b) && u.hover(ca, cb);
             const float lift = h ? -1 * s : 0, op = alpha * (n > 0 ? 1.0f : 0.4f);
             cardBg(ImVec2(a.x, a.y + lift), ImVec2(b.x, b.y + lift), h, false);
-            stIco(u.dl, q.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 30 * s + lift), 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
+            {   // the image of its first part (Wzx 14/11/2026: rather than the line pictogram), the pictogram while it loads
+                const int fp = k < (int)m_stSubFirst.size() ? m_stSubFirst[k] : -1;
+                ImTextureID tex;
+                ImVec2 uv0, uv1;
+                const ImVec2 c((a.x + b.x) * 0.5f, a.y + 30 * s + lift);
+                if (fp >= 0 && thumbUv(fp, tex, uv0, uv1)) {
+                    const float hs = std::min(30 * s, (b.x - a.x) * 0.5f - 6 * s), z = 1.4f;
+                    const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
+                    u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs + 2 * s), ImVec2(c.x + hs, c.y + hs + 2 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32_WHITE, op));
+                } else stIco(u.dl, q.ico, c, 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
+            }
             std::string lab = stUpper(q.label);
             while (lab.size() > 4 && stTrackW(u, 8, lab.c_str(), 1.2f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
             const float lw = stTrackW(u, 8, lab.c_str(), 1.2f * s, true);

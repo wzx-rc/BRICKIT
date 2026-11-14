@@ -307,6 +307,7 @@ void BrickApp::touchMove(const TouchEvent& e) {
         break;
     case TG_ORBIT:
         if (e.id != g.pid) break;
+        if (!g.centred) { g.centred = true; orbitOnSelection(); }   // (the view turns around the selected brick)
         g.moved += (std::fabs(dx) + std::fabs(dy)) * k;
         cam.yaw -= dx * k * 0.0065f;
         cam.pitch = clampf(cam.pitch + dy * k * 0.0065f, radians(-5.0f), radians(89.0f));
@@ -319,6 +320,16 @@ void BrickApp::touchMove(const TouchEvent& e) {
         auto b = std::next(a);
         const float d = dist2(a->second.x, a->second.y, b->second.x, b->second.y);
         const float mx = (a->second.x + b->second.x) * 0.5f, my = (a->second.y + b->second.y) * 0.5f;
+        const float ang = std::atan2(b->second.y - a->second.y, b->second.x - a->second.x);
+        if (g.d > 1 && d > 1) {   // a twist of the two fingers turns the view (iPad apps), past 4 degrees so a pinch stays a pinch
+            float da = ang - g.ang;
+            if (da > 3.14159265f) da -= 6.2831853f;
+            if (da < -3.14159265f) da += 6.2831853f;
+            g.twist += da;
+            if (!g.twisting && std::fabs(g.twist) > radians(4.0f)) { g.twisting = true; g.still = false; if (!g.centred) { g.centred = true; orbitOnSelection(); } da = g.twist; }
+            if (g.twisting) cam.yaw += da;
+        }
+        g.ang = ang;
         if (g.d > 1 && d > 1) {
             cam.distance = clampf(cam.distance * (g.d / d), 1.0f, 1000.0f);
             float3 r, u, f;

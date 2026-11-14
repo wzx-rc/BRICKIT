@@ -243,6 +243,8 @@ private:
         uint64_t secondId = 0;
         float ax = 0, ay = 0;
         float d = 0, mx = 0, my = 0;  // two fingers: last distance and middle
+        float ang = 0, twist = 0;     // two fingers: last angle, the turn accumulated (a twist turns the view past 4 degrees)
+        bool twisting = false, centred = false;
         double t0 = 0;
         int fingers = 0;              // most fingers down at once (tap of 2 = undo, 3 = redo)
         bool still = true;            // no finger moved since the second came
@@ -615,6 +617,7 @@ private:
     void uiCtxMenu();
     void frameSelection();   // F: the view on the selection (a glide)
     void frameAnimate();
+    void orbitOnSelection();   // touch: the view glides to turn around the selection (Wzx 14/11/2026)
     bool m_frameAnim = false;
     double m_frameT0 = 0;
     float3 m_frameFromT, m_frameToT;
@@ -838,6 +841,7 @@ private:
     std::unordered_map<std::string, float> m_stScrollMem;   // the scroll of the cards, kept per family and category
     std::string m_stScrollKey;          // the row of the categories, scrolled sideways
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
+    std::vector<int> m_stSubFirst;    // the first part of each category (its image on the tile, Wzx 14/11/2026)
     std::vector<int> m_stSubCount;    // the parts of each category of the family (cached with m_stKey)
     int m_stW = 0, m_stL = 0;         // the size filter in studs (0: every size)
     float m_stCardScale = 1.0f;       // the size of the cards of the drawer (its slider, 0.6 to 2)

@@ -941,6 +941,27 @@ void BrickApp::frameSelection() {
     m_frameT0 = ImGui::GetTime();
     m_frameAnim = true;
 }
+// touch: the target glides onto the selection (the distance kept), so the view turns around it
+void BrickApp::orbitOnSelection() {
+    const std::vector<int> sel = selection();
+    if (sel.empty()) return;
+    float3 mn(1e30f), mx(-1e30f);
+    for (int i : sel) {
+        if (i < 0 || i >= (int)m_bricks.size() || !m_lib.parts[m_bricks[i].part].loaded) continue;
+        const Box b = m_build.aabbOf(m_bricks[i].part, m_bricks[i].rot, m_bricks[i].pos);
+        mn = minv(mn, b.mn);
+        mx = maxv(mx, b.mx);
+    }
+    if (mn.x > mx.x) return;
+    Camera& cam = m_scene.camera;
+    const float3 c = (mn + mx) * 0.5f;
+    if (length(c - cam.target) < 0.05f) return;
+    m_frameFromT = cam.target;
+    m_frameFromD = m_frameToD = cam.distance;
+    m_frameToT = c;
+    m_frameT0 = ImGui::GetTime();
+    m_frameAnim = true;
+}
 // the glide of F, each frame
 void BrickApp::frameAnimate() {
     if (!m_frameAnim) return;
