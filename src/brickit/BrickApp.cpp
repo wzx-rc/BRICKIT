@@ -45,7 +45,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_ipad = opt.ipad;
     QueryPerformanceFrequency(&m_qpf);
     std::string err;
-    m_ui = m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi;   // fonts and layout at the UI scale (100 % / 150 % tests)
+    m_ui = uiBase();   // fonts and layout at the UI scale (100 % / 150 % tests)
     th::loadThemes(m_exeDir + L"\\assets\\themes");
     th::loadSettings(m_exeDir + L"\\brickit_settings.ini");
     th::apply(m_ui);
@@ -123,7 +123,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     buildNav();
     if (opt.shotPath.empty()) loadPrefs();   // captures stay reproducible
     if (opt.ipadCreme || !opt.ipadOpen.empty()) m_ipadCreme = true;
-    if (m_ipad) { m_dev = false; m_showVox = false; }   // iPad: no developer mode, no voxels (Wzx 10/11/2026)
+    if (m_ipad) m_showVox = false;   // iPad: the voxels hidden at the start (the developer mode is back, Wzx 14/11/2026)
     else if (opt.useDefaults) { std::string dt; if (readDefaultPrefs(dt)) applyPrefs(dt); }   // (--use-defaults: a capture with the default settings)
     if (m_uiScaleUser != 1.0f) { m_ui *= m_uiScaleUser; th::apply(m_ui); }   // settings: UI scale over the screen scale
     if (opt.dev) m_dev = true;
@@ -213,7 +213,6 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (m_ipad) {   // the iPad version: no DOF reticle, no tray of bricks, no DEV mode (Maya), the raster view as it is
         m_focusReticle = false;
         m_bacOpen = false;
-        m_dev = false;
         setRC(false);
         m_rs.raster = true;
     }

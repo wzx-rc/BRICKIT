@@ -561,8 +561,9 @@ void BrickApp::stMore() {
     std::vector<It> its = {{"Grille (G)", m_build.gridSnap, 0}, {"Auto pivot", m_autoPivot, 1}, {"Sécurité (refus > 50 %)", m_build.safety, 2},
                                  {"Animations des briques (A)", m_animOn, 3}, {"Voxels (V)", m_showVox, 4}, {"Groupes", m_pGroups.visible, 5},
                                  {"Mode développeur (DEV)", m_dev, 7}, {"Transformation de vue : AgX", m_rs.tonemapper == 1, 8}};
-    if (m_ipad)   // iPad (Wzx 10/11/2026): no voxels, no developer mode, no view transform
-        its.erase(std::remove_if(its.begin(), its.end(), [](const It& t) { return t.id == 4 || t.id == 7 || t.id == 8; }), its.end());
+    if (m_ipad)   // iPad: no view transform (the voxels and the developer mode are back, Wzx 14/11/2026)
+        its.erase(std::remove_if(its.begin(), its.end(), [](const It& t) { return t.id == 8; }), its.end());
+    if (m_dev && focusBrick() >= 0) its.push_back({"Voxel Editor (pièce sélectionnée)", false, 9});   // (no right click on the iPad)
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
@@ -591,6 +592,7 @@ void BrickApp::stMore() {
             case 5: m_pGroups.visible = !m_pGroups.visible; break;
             case 6: m_bacOpen = !m_bacOpen; break;
             case 7: devSetOn(!m_dev); break;
+            case 9: { const int fb = focusBrick(); if (fb >= 0) openVoxelEditor(m_bricks[fb].part); break; }
             case 8: m_rs.tonemapper = m_rs.tonemapper == 1 ? 0 : 1; m_renderer->resetAccumulation(); break;
             }
             savePrefs();

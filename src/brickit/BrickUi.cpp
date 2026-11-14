@@ -3918,7 +3918,7 @@ void BrickApp::uiSettings() {
     }
     if (clickRow >= 0) {
         switch (clickRow) {
-        case 0: m_uiScaleUser = kScales[clickOpt]; m_ui = (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * m_uiScaleUser; app::th::apply(m_ui); break;
+        case 0: m_uiScaleUser = kScales[clickOpt]; m_ui = uiBase() * m_uiScaleUser; app::th::apply(m_ui); break;
         case 1: m_thumbSize = clickOpt; break;
         case 2:
             if (clickOpt == 3) { setRC(true); applyLook(); }

@@ -225,7 +225,7 @@ private:
     void toast(const std::string& text);
 
     // BrickTouch.cpp: the touch gestures of the web (canvas pointer events), iPad
-    enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM, TG_MENU };   // TG_MENU: a long press opened the marking menu (Studio)
+    enum { TG_NONE, TG_MOUSE, TG_ORBIT, TG_TWO, TG_PRESS, TG_HOLD, TG_GIZMO, TG_MARQUEE, TG_GROUP, TG_AIM, TG_MENU, TG_VENAV };   // TG_VENAV: two fingers turn / zoom the view of the Voxel Editor   // TG_MENU: a long press opened the marking menu (Studio)
     struct TouchEvent { int type; uint64_t id; float x, y; bool pen; };   // type 0 began, 1 moved, 2 ended, 3 cancelled
     static constexpr float kIpadTopStrip = 12;   // iPad: points above the top bar, no touch starts there (the system swipe)
     struct TouchPt { float x, y, sx, sy; double t; bool pen; };
@@ -826,6 +826,8 @@ private:
     void stCloudList();
     // ---- the group selected: its box, its bar; presets (BrickGroups.cpp, Wzx 14/11/2026)
     void stGroupBar();
+    // the scale of the UI at 100 %: the screen's, x 1.5 on the iPad (its 100 % is the 150 % of before, Wzx 14/11/2026)
+    float uiBase() const { return (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * (m_ipad ? 1.5f : 1.0f); }
     bool inSelection(int brick) const;              // one of a selection of several
     std::vector<int> dragSetOf(int brick) const;    // what a drag on it moves: the selection, its group, or itself
     void stPresets();

@@ -96,6 +96,24 @@ void BrickApp::touchDown(const TouchEvent& e) {
     }
     m_touches[e.id] = {e.x, e.y, e.x, e.y, now, e.pen};
     TouchGesture& g = m_tg;
+    // the Voxel Editor (its own full screen): one finger is its mouse (tools, placing), two fingers turn and zoom its view
+    if (m_vePart >= 0) {
+        if (m_touches.size() >= 2) {
+            if (g.type == TG_MOUSE) { io.AddMouseButtonEvent(0, false); io.AddMousePosEvent(-FLT_MAX, -FLT_MAX); }
+            g = TouchGesture();
+            g.type = TG_VENAV;
+            g.d = 0;
+            return;
+        }
+        g = TouchGesture();
+        g.type = TG_MOUSE;
+        g.pid = e.id;
+        g.hasPid = true;
+        io.AddMouseSourceEvent(e.pen ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+        io.AddMousePosEvent(e.x, e.y);
+        io.AddMouseButtonEvent(0, true);
+        return;
+    }
 
     // a finger on a panel: the mouse of the PC. A second finger while that finger carries a brick from the library
     // turns it (the web: libDrag + another finger)
@@ -252,6 +270,22 @@ void BrickApp::touchMove(const TouchEvent& e) {
     TouchGesture& g = m_tg;
     const float k = 1.0f / std::max(0.5f, m_dpi);   // pixels -> points
     Camera& cam = m_scene.camera;
+    if (g.type == TG_VENAV) {   // the Voxel Editor: the middle of the two fingers turns its view, their distance zooms
+        if (m_touches.size() < 2) return;
+        auto a = m_touches.begin();
+        auto b = std::next(a);
+        const float d = dist2(a->second.x, a->second.y, b->second.x, b->second.y);
+        const float mx = (a->second.x + b->second.x) * 0.5f, my = (a->second.y + b->second.y) * 0.5f;
+        if (g.d > 1 && d > 1) {
+            m_veView.yaw -= (mx - g.mx) * 0.01f;
+            m_veView.pitch = std::clamp(m_veView.pitch + (my - g.my) * 0.01f, radians(-89.0f), radians(89.0f));
+            m_veView.zoom = std::clamp(m_veView.zoom * (d / g.d), 0.3f, 8.0f);
+        }
+        g.d = d;
+        g.mx = mx;
+        g.my = my;
+        return;
+    }
 
     // second finger while a brick is held: swipe right / left turns it, up / down tilts it (every 60 points)
     if (g.second && e.id == g.secondId) {
@@ -360,6 +394,7 @@ void BrickApp::touchUp(const TouchEvent& e) {
     ImGuiIO& io = ImGui::GetIO();
     const bool cancelled = e.type == 3;
     const double now = ImGui::GetTime();
+    if (g.type == TG_VENAV) { if (m_touches.empty()) g = TouchGesture(); return; }
 
     // the second finger of a brick in hand: a tap without a swipe turns it 90 degrees
     if (g.second && e.id == g.secondId) {
