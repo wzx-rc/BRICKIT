@@ -589,6 +589,10 @@ function buildVoxels(part, mesh, opts) {
     // a square cylinder of a group (S: the slide of a crane arm, of a mast): not a pin nor a hole (pins all along the beams 32524,
     // 41239: Wzx 13/11/2026)
     if (s.group && s.shapes.length && s.shapes.every((sh) => sh === "S")) continue;   // (a group: it only fits its own kind; the square slide of an actuator stays)
+    // a stud or an anti-stud on a side (brackets, bricks with studs on the side, SNOT): a stud, not a pin (Wzx 14/11/2026:
+    // « les équerres sont mal interprétées, pas de voxel bleu mais un jaune »); one voxel at its base
+    if (!vertical && !axle && !collar && s.L <= 8 && s.rmax >= 5.5 && s.rmax <= 6.5) { add(B(s.p0), s.gender === "M" ? "stud" : "antistud"); continue; }
+    if (!vertical && !axle && s.gender === "F" && s.rmax <= 4.5) continue;   // a hole of radius 4 on a side (the inside of a hollow stud): a bar holder, not a pin hole (pins: radius 6)
     // holes, pins, axles: sample along the axis every half stud
     const type = axle ? (s.gender === "M" ? "axle" : "axlehole") : (s.gender === "M" ? "pin" : "pinhole");
     if (opts.system && vertical && !collar && (type === "pinhole" || type === "pin")) continue;   // pin hole inside the 2x2 tubes: real but confusing in a stud builder

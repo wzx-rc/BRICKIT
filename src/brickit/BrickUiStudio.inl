@@ -264,6 +264,20 @@ static void stIco(ImDrawList* dl, const char* key, ImVec2 c, float size, ImU32 s
 }
 
 struct StSub { const char* label; const char* ico; std::vector<const char*> cats; const char* tsub; bool rest; };
+// the categories of the family Personnages, hidden from the whole library while it is left out of the builds
+static bool stHiddenCat(const std::string& cat) {
+#if !BRICKIT_PERSONNAGES
+    if (cat.rfind("Minifig", 0) == 0 || cat.rfind("Figure", 0) == 0) return true;
+#endif
+#if !BRICKIT_NATURE
+    if (cat == "Animal" || cat == "Plant" || cat == "Rock") return true;   // (Nature hidden for now)
+#endif
+#if !BRICKIT_AUTRES
+    static const char* kAutres[] = {"Scala", "Belville", "Clikits", "Homemaker", "Freestyle", "Sticker", "Sheet Cardboard", "Sheet Fabric", "Sheet Plastic", "Obsolete", "Pov-RAY"};
+    for (const char* k : kAutres) if (cat == k) return true;   // (Autres gammes hidden for now)
+#endif
+    return false;
+}
 struct StFam { const char* key; const char* label; const char* ico; std::vector<StSub> subs; };
 static const std::vector<StFam>& stFams() {
     auto T = [](const char* l, const char* ico, const char* sub) { return StSub{l, ico, {"Technic"}, sub, false}; };
@@ -293,18 +307,26 @@ static const std::vector<StFam>& stFams() {
                                             C("Échelles", "ladder", {"Ladder"}), C("Escaliers", "stairs", {"Staircase"}), C("Supports", "support", {"Support"}),
                                             C("Plateformes", "platform", {"Platform"}), C("Garages", "garage", {"Garage"}), C("Conteneurs", "container", {"Container"}),
                                             C("Panneaux routiers", "roadsign", {"Roadsign"}), C("Drapeaux", "flag", {"Flag"}), C("Antennes", "antenna", {"Antenna"})}},
+#if BRICKIT_PERSONNAGES   // (Wzx 14/11/2026: the family Personnages hidden for now, kept here to be taken up later)
         {"personnages", "Personnages", "fig", {C("Minifigs", "fig", {"Minifig"}), C("Accessoires", "sword", {"Minifig Accessory"}), C("Chaussures", "footwear", {"Minifig Footwear"}),
                                                C("Coiffes", "headwear", {"Minifig Headwear"}), C("Bas", "hipwear", {"Minifig Hipwear"}), C("Cols et capes", "neckwear", {"Minifig Neckwear"}),
                                                C("Figurines", "figure", {"Figure"}), C("Acc. figurines", "handbag", {"Figure Accessory"}), C("Bras", "arm", {"Arm"})}},
+#endif
+#if BRICKIT_NATURE   // (Wzx 14/11/2026: the family Nature, animals included, hidden for now, kept here)
         {"nature", "Nature", "tree", {C("Animaux", "animal", {"Animal"}), C("Plantes", "leaves", {"Plant"}), C("Rochers", "rock", {"Rock"})}},
+#endif
+#if BRICKIT_AUTRES   // (Wzx 14/11/2026: the family Autres gammes hidden for now, kept here)
         {"autres", "Autres gammes", "dots", {C("Scala", "figure", {"Scala"}), C("Belville", "flower", {"Belville"}), C("Clikits", "heart", {"Clikits"}),
                                               C("Homemaker", "homemaker", {"Homemaker"}), C("Freestyle", "dots", {"Freestyle"}), C("Autocollants", "sticker", {"Sticker"}),
                                               C("Carton", "cardboard", {"Sheet Cardboard"}), C("Tissu", "fabric", {"Sheet Fabric"}), C("Plastique", "sheet", {"Sheet Plastic"}),
-                                              C("Obsolètes", "obsolete", {"Obsolete"}), C("POV-Ray", "povray", {"Pov-RAY"}), StSub{"Divers", "dots", {}, nullptr, true}}}};
+                                              C("Obsolètes", "obsolete", {"Obsolete"}), C("POV-Ray", "povray", {"Pov-RAY"}), StSub{"Divers", "dots", {}, nullptr, true}}},
+#endif
+    };
     return f;
 }
 // does a part (its LDraw category, its Technic sub-family) belong to this category of the drawer
 static bool stInSub(const StSub& q, const std::string& cat, const std::string& sub) {
+    if (stHiddenCat(cat)) return false;   // (the minifigs: Personnages hidden for now)
     if (q.rest) {
         for (const StFam& f : stFams())
             for (const StSub& o : f.subs)
@@ -1258,9 +1280,55 @@ bool BrickApp::stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float a
 
 // the first part of a family (Récentes, Favoris: the last one used, the first favourite), cached while the library is
 // the same
+// DEV › Mettre en couverture (Wzx 14/11/2026): the image of a category chosen by hand, kept in <data>/covers.json
+void BrickApp::loadCovers() {
+    m_coversLoaded = true;
+    std::string t;
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, (plat::dataDir() + L"\\covers.json").c_str(), L"rb") != 0 || !f) return;
+    char buf[8192];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) t.append(buf, n);
+    fclose(f);
+    app::Json j;
+    if (app::Json::parse(t, j)) for (auto& kv : j.o) m_covers[kv.first] = kv.second.str();
+}
+
+int BrickApp::coverOf(const std::string& key) {
+    if (!m_coversLoaded) loadCovers();
+    auto it = m_covers.find(key);
+    return it == m_covers.end() ? -1 : m_lib.find(it->second);
+}
+
+void BrickApp::setCover(int part) {
+    if (part < 0) return;
+    if (!m_coversLoaded) loadCovers();
+    const Part& p = m_lib.parts[part];
+    const std::string& cat = partCat(part);
+    std::string key;
+    for (const StFam& f : stFams()) {   // its category in the family shown (else the first family that has it)
+        for (const StSub& q : f.subs)
+            if (stInSub(q, cat, p.sub)) { if (key.empty() || f.key == m_stFam) key = std::string(f.key) + "|" + q.label; break; }
+        if (!key.empty() && f.key == m_stFam) break;
+    }
+    if (key.empty()) { toast("Couverture : aucune catégorie pour cette pièce"); return; }
+    m_covers[key] = p.name;
+    std::string j = "{";
+    bool first = true;
+    for (auto& kv : m_covers) { j += (first ? "\n  \"" : ",\n  \"") + app::jsonEscape(kv.first) + "\": \"" + app::jsonEscape(kv.second) + "\""; first = false; }
+    j += "\n}\n";
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, (plat::dataDir() + L"\\covers.json").c_str(), L"wb") == 0 && f) { fwrite(j.data(), 1, j.size(), f); fclose(f); }
+    m_stKey.clear();       // (the images of the categories read again)
+    m_famFirst.clear();
+    toast("Couverture de « " + key.substr(key.find('|') + 1) + " » : " + p.name);
+}
+
 int BrickApp::stFamFirst(const std::string& key) {
     if (key == "recent") return m_recent.empty() ? -1 : m_recent[0];
     if (key == "fav") return m_fav.empty() ? -1 : m_fav[0];
+    for (const StFam& f : stFams())   // the cover of its first category, when one was chosen
+        if (key == f.key && !f.subs.empty()) { const int c = coverOf(key + "|" + f.subs[0].label); if (c >= 0) return c; }
     int avail = 0;
     for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
     if (avail != m_famFirstAvail) { m_famFirst.clear(); m_famFirstAvail = avail; }
@@ -1964,9 +2032,9 @@ void BrickApp::stDrawer() {
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
             const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
             {   // the image of its first part (Wzx 14/11/2026), the pictogram while it loads
-                const float isz = (tb.y - ta.y) - 13 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
+                const float isz = (tb.y - ta.y) - 19 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
                 const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + 1 * s + isz * 0.5f - (h && !on ? 1.5f * s : 0));
-                if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.9f)) stIco(u.dl, f.ico, ImVec2(ic.x, ta.y + icy), icz, pic, 1.0f * s);
+                if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.6f)) stIco(u.dl, f.ico, ImVec2(ic.x, ta.y + icy), icz, pic, 1.0f * s);
             }
             const std::string lab = stUpper(f.label);
             const float lw = stTrackW(u, 5.7f, lab.c_str(), 1.0f * s, true);
@@ -2000,7 +2068,7 @@ void BrickApp::stDrawer() {
             {   // the image of its first part (Toutes: the pictogram), the pictogram while it loads
                 const ImVec2 ic(a.x + 4 * s + (subH - 4 * s) * 0.5f, (a.y + b.y) * 0.5f);
                 const int fp = i >= 0 && i < (int)m_stSubFirst.size() ? m_stSubFirst[i] : -1;
-                if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 4 * s, alpha, 1.9f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 8 * s, alpha, 1.6f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
             }
             stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(5.7f) * 0.55f), 5.7f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 0.9f * s);
             if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
@@ -2136,6 +2204,7 @@ void BrickApp::stDrawer() {
         m_stParts.clear();
         m_stSubCount.assign(fam->subs.size(), 0);
         m_stSubFirst.assign(fam->subs.size(), -1);
+        for (size_t q = 0; q < fam->subs.size(); ++q) { const int c = coverOf(std::string(fam->key) + "|" + fam->subs[q].label); if (c >= 0) m_stSubFirst[q] = c; }   // (DEV › Mettre en couverture)
         if (m_searchOpen) m_stParts = visibleParts();
         else if (m_stFam == "recent") m_stParts = m_recent;
         else if (m_stFam == "fav") m_stParts = m_fav;
@@ -2206,10 +2275,10 @@ void BrickApp::stDrawer() {
                 const int fp = k < (int)m_stSubFirst.size() ? m_stSubFirst[k] : -1;
                 ImTextureID tex;
                 ImVec2 uv0, uv1;
-                const float hs = std::min((tileH - 30 * s) * 0.5f, (b.x - a.x) * 0.5f - 4 * s);   // (as big as the tile allows, Wzx 14/11/2026)
-                const ImVec2 c((a.x + b.x) * 0.5f, a.y + 4 * s + hs + lift);
+                const float hs = std::min((tileH - 40 * s) * 0.5f, (b.x - a.x) * 0.5f - 4 * s);   // (as big as the tile allows, Wzx 14/11/2026)
+                const ImVec2 c((a.x + b.x) * 0.5f, a.y + 6 * s + hs + lift);
                 if (fp >= 0 && thumbUv(fp, tex, uv0, uv1)) {
-                    const float z = 1.9f;
+                    const float z = 1.6f;
                     const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
                     u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32_WHITE, op));
                 } else stIco(u.dl, q.ico, c, 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);

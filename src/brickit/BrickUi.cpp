@@ -152,6 +152,7 @@ std::vector<int> BrickApp::visibleParts() const {
             const Part& p = m_lib.parts[i];
             if (!p.available()) continue;
             if ((m_hideDeco && partDeco(p)) || partDuplo(p)) continue;
+            { const std::string& c = partCat(i); if ((!BRICKIT_PERSONNAGES && (c.rfind("Minifig", 0) == 0 || c.rfind("Figure", 0) == 0)) || (!BRICKIT_NATURE && (c == "Animal" || c == "Plant" || c == "Rock")) || (!BRICKIT_AUTRES && (c == "Scala" || c == "Belville" || c == "Clikits" || c == "Homemaker" || c == "Freestyle" || c == "Sticker" || c.rfind("Sheet", 0) == 0 || c == "Obsolete" || c == "Pov-RAY"))) continue; }   // (Personnages, Nature hidden for now, Wzx 14/11/2026)
             const std::string& c = partCat(i);
             if (lower(p.name).find(q) != std::string::npos || lower(p.label).find(q) != std::string::npos || lower(catFr(c)).find(q) != std::string::npos ||
                 lower(c).find(q) != std::string::npos)
@@ -3966,7 +3967,7 @@ void BrickApp::uiCtxMenu() {
     static const int kConn[4] = {4, 1, 2, 3};
     const int nConn = m_studioUi ? 4 : 0;
     const float w = std::max(u.textW(12, item), u.textW(11, "Échec, aucun connecteur") + 30 * s) + 28 * s, h = 30 * s, rh = 24 * s;
-    const float veH = m_studioUi ? h : 0;   // « Éditer les voxels » (Voxel Editor)
+    const float veH = m_studioUi ? 2 * h : 0;   // « Éditer les voxels » (Voxel Editor), « Mettre en couverture »
     ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + veH + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     if (b.x > d.x) { a.x -= b.x - d.x; b.x = d.x; }
@@ -3981,12 +3982,16 @@ void BrickApp::uiCtxMenu() {
     const bool hov = u.hover(ia, ib);
     if (hov) u.dl->AddRectFilled(ia, ib, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
     u.text(ImVec2(ia.x + 10 * s, ia.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), item);
-    bool veHov = false;
+    bool veHov = false, coverHov = false;
     if (veH > 0) {
         const ImVec2 ea(ia.x, ib.y + 2 * s), eb(ib.x, ib.y + 2 * s + h - 4 * s);
         veHov = u.hover(ea, eb);
         if (veHov) u.dl->AddRectFilled(ea, eb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
         u.text(ImVec2(ea.x + 10 * s, ea.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), "Éditer les voxels");
+        const ImVec2 ca(ia.x, eb.y + 2 * s), cb(ib.x, eb.y + 2 * s + h - 4 * s);
+        coverHov = u.hover(ca, cb);
+        if (coverHov) u.dl->AddRectFilled(ca, cb, IM_COL32(0x2e, 0x30, 0x36, 255), 6 * s);
+        u.text(ImVec2(ca.x + 10 * s, ca.y + 5 * s), 12, IM_COL32(0xec, 0xec, 0xee, 255), "Mettre en couverture");
     }
     int connHit = -1;
     if (nConn) {
@@ -4010,6 +4015,7 @@ void BrickApp::uiCtxMenu() {
     if (u.pressed) {
         if (hov) openThumbEditor(m_ctxPart);
         if (veHov) openVoxelEditor(m_ctxPart);
+        if (coverHov) setCover(m_ctxPart);   // (the image of its category, Wzx 14/11/2026)
         if (connHit >= 0) {
             Part& P = m_lib.parts[m_ctxPart];
             P.connSrc = (uint8_t)(P.connSrc == connHit && connHit == 4 ? P.connAuto : connHit);   // (Validé again: back to the conversion)

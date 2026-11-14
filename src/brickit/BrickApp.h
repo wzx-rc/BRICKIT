@@ -12,6 +12,16 @@
 #include "Svg.h"
 #include "BrickTheme.h"
 #include "Cloud.h"
+// the family Personnages of the library (the minifigs): 0 = left out of the builds for now, its code kept (Wzx 14/11/2026)
+#ifndef BRICKIT_PERSONNAGES
+#define BRICKIT_PERSONNAGES 0
+#endif
+#ifndef BRICKIT_NATURE
+#define BRICKIT_NATURE 0   // (the family Nature, animals included: likewise)
+#endif
+#ifndef BRICKIT_AUTRES
+#define BRICKIT_AUTRES 0   // (the family Autres gammes: likewise)
+#endif
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
@@ -858,6 +868,11 @@ private:
     std::string m_stScrollKey;          // the row of the categories, scrolled sideways
     bool m_stSizeDrag = false;        // the size picker held: the size follows the cursor until release
     std::vector<int> m_stSubFirst;
+    std::map<std::string, std::string> m_covers;   // DEV › Mettre en couverture: "<family>|<category>" -> the part shown (<data>/covers.json)
+    bool m_coversLoaded = false;
+    void loadCovers();
+    void setCover(int part);                        // the part becomes the image of its category (the family shown)
+    int coverOf(const std::string& key);            // the part of a cover, -1
     std::map<std::string, int> m_famFirst;   // the first part of each family (its image on its tab), cached
     int m_famFirstAvail = -1;
     int stFamFirst(const std::string& key);   // (BrickUiStudio.inl)
