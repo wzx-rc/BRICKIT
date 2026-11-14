@@ -1368,18 +1368,21 @@ void BrickApp::stColors() {
         const ImVec2 ca(d.x - 14 * s - m_dockR - bs - 2 * pad, top), cb(d.x - 14 * s - m_dockR, top + bs + 2 * pad);
         stGlass(u.dl, ca, cb, 16 * s, s);
         m_uiRects.push_back(ImVec4(ca.x, ca.y, cb.x, cb.y));
+        m_colPanelX = ca.x;
         const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
         const ImVec2 p0(ca.x + pad, ca.y + pad);
         if (g_studTex) u.dl->AddImage(g_studTex, p0, ImVec2(p0.x + bs, p0.y + bs), ImVec2(0, 0), ImVec2(1, 1), colOf0(c, c.group == "transparent" ? 165 : 255));
         else u.dl->AddRectFilled(p0, ImVec2(p0.x + bs, p0.y + bs), colOf0(c), 3 * s);
         const bool h = u.hover(ca, cb);
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s : clic pour déplier les couleurs", colorFr(c.name));
-        if (h && u.pressed) { m_pColors.collapsed = false; savePrefs(); }
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s : clic pour déplier les couleurs · glisser sur une brique : la peindre", colorFr(c.name));
+        if (h && u.pressed) { m_colPress = m_color; m_colPressBig = true; m_colPressPos = u.mouse; }
+        colorDrag(u, ca, cb, false, -1);
         return;
     }
     const ImVec2 a(d.x - 14 * s - m_dockR - W, top), b(d.x - 14 * s - m_dockR, bottom);
     stGlass(u.dl, a, b, 16 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    m_colPanelX = a.x;
     // vertical ribs, as in the trans-clear brick (very faint)
     for (float x = a.x + 48 * s; x < b.x - 8 * s; x += 48 * s) u.dl->AddLine(ImVec2(x, a.y + 8 * s), ImVec2(x, b.y - 8 * s), IM_COL32(255, 255, 255, 6), 1.0f);
     const Color& cur = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
@@ -1405,8 +1408,8 @@ void BrickApp::stColors() {
         {   // a click on it folds the panel down to it (Wzx 14/11/2026)
             const bool h = u.hover(ImVec2(a.x + pad, y), ImVec2(a.x + pad + bs, y + bs));
             if (h) u.dl->AddRect(ImVec2(a.x + pad - 2 * s, y - 2 * s), ImVec2(a.x + pad + bs + 2 * s, y + bs + 2 * s), IM_COL32(255, 255, 255, 120), 5 * s, 0, 1.2f * s);
-            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Clic : réduire le panneau à cette couleur");
-            if (h && u.pressed) { m_pColors.collapsed = true; savePrefs(); return; }
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Clic : réduire le panneau à cette couleur · glisser sur une brique : la peindre");
+            if (h && u.pressed) { m_colPress = m_color; m_colPressBig = true; m_colPressPos = u.mouse; }
         }
         u.text(ImVec2(a.x + pad + bs + 10 * s, y + 6 * s), 13, C_TEXT, colorFr(cur.name), true);
         char hx[16];
@@ -1458,14 +1461,20 @@ void BrickApp::stColors() {
     group("TRANSPARENTES", "transparent");
     group("MÉTALLISÉES", "metallic");
     u.dl->PopClipRect();
-    // a swatch pressed: released in place it applies the colour (to the selection); dragged out of the panel, a brick
-    // 1x1 of that colour comes into the hand with a little burst (Wzx 10/11/2026)
+    colorDrag(u, a, b, filter, fpart);
+}
+
+// a swatch pressed (Wzx 10/11 and 14/11/2026): released in place it applies the colour (the big one: folds / unfolds the
+// panel); dragged out of the panel and dropped on a brick, it paints it
+void BrickApp::colorDrag(Ui& u, ImVec2 a, ImVec2 b, bool filter, int fpart) {
+    const float s = m_ui;
     if (m_colPress >= 0 && m_colPress < (int)m_lib.palette.size()) {
         const ImVec2 dm(u.mouse.x - m_colPressPos.x, u.mouse.y - m_colPressPos.y);
         const bool moved = dm.x * dm.x + dm.y * dm.y > 64 * s * s;
         const bool inside = u.mouse.x >= a.x && u.mouse.x <= b.x && u.mouse.y >= a.y && u.mouse.y <= b.y;
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            if (!moved && (!filter || m_lib.colorExists(fpart, m_colPress))) applyColor(m_colPress);
+            if (!moved && m_colPressBig) { m_pColors.collapsed = !m_pColors.collapsed; savePrefs(); }   // (the big swatch: a click folds / unfolds the panel)
+            else if (!moved && (!filter || m_lib.colorExists(fpart, m_colPress))) applyColor(m_colPress);
             else if (moved && !inside) {   // dropped on a brick of the view: that brick takes the colour (Wzx 14/11/2026)
                 float3 hp;
                 const int hit = pickBrick(u.mouse.x, u.mouse.y, &hp);
@@ -1478,16 +1487,20 @@ void BrickApp::stColors() {
                 }
             }
             m_colPress = -1;
+            m_colPressBig = false;
         } else if (moved) {   // the swatch follows the finger, a little bigger, wobbling (out of the panel too: dropped on a brick, it paints it)
             ImDrawList* fg = ImGui::GetForegroundDrawList();
             const float t = (float)ImGui::GetTime();
             const float z = 34 * s * (1 + 0.06f * std::sin(t * 18));
             const ImVec2 c(u.mouse.x, u.mouse.y - 30 * s);
             fg->AddCircleFilled(ImVec2(c.x + 2 * s, c.y + 4 * s), z * 0.62f, IM_COL32(0, 0, 0, 70), 24);
-            ImDrawList* keep = u.dl;
-            u.dl = fg;
-            swatch(ImVec2(c.x - z * 0.5f, c.y - z * 0.5f), z, m_lib.palette[m_colPress]);
-            u.dl = keep;
+            {
+                const Color& cc = m_lib.palette[m_colPress];
+                const ImU32 col = IM_COL32((int)(std::clamp(cc.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(cc.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(cc.srgb.z, 0.0f, 1.0f) * 255), cc.group == "transparent" ? 165 : 255);
+                const ImVec2 p0(c.x - z * 0.5f, c.y - z * 0.5f), p1(c.x + z * 0.5f, c.y + z * 0.5f);
+                if (g_studTex) fg->AddImage(g_studTex, p0, p1, ImVec2(0, 0), ImVec2(1, 1), col);
+                else fg->AddRectFilled(p0, p1, col, 3 * s);
+            }
             fg->AddRect(ImVec2(c.x - z * 0.5f - 2 * s, c.y - z * 0.5f - 2 * s), ImVec2(c.x + z * 0.5f + 2 * s, c.y + z * 0.5f + 2 * s), IM_COL32(255, 255, 255, 200), 5 * s, 0, 1.5f * s);
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         }
@@ -2467,7 +2480,7 @@ void BrickApp::stSelHud() {
     {   // a group selected: its own bar instead (stGroupBar)
         std::vector<int> gm;
         bool go = false;
-        if (!m_holding && !m_paintMode && barGroup(gm, go) >= 0) return;
+        if (!m_holding && !m_paintMode && (barGroup(gm, go) >= 0 || selection().size() > 1)) return;
     }
     const std::vector<int> sel = selection();
     Ui u = ui(m_ui);
@@ -2738,6 +2751,7 @@ void BrickApp::drawUiStudio() {
     stGroups();      // (before the badge: it goes right of it)
     stBadge();
     stColors();
+    stNavHud();
     stSelHud();
     stRing();
     stPaintFx();
@@ -2943,14 +2957,18 @@ void BrickApp::stCloudList() {
 static const char* ST_GOPEN = "M4 4h16v16H4zM9 12h6M12 9v6";
 static const char* ST_GCLOSE = "M4 4h16v16H4zM9 12h6";
 static const char* ST_UNGROUP = "M3 3h8v8H3zM13 13h8v8h-8z";
+static const char* ST_GROUP = "M4 4h16v16H4zM8 8h3v3H8zM13 13h3v3h-3z";   // (a frame around two bricks: Grouper)
 static const char* ST_PRESET = "M6 3h12v18l-6-4-6 4z";
 
 void BrickApp::stGroupBar() {
     if (m_holding || m_mechOn || m_reading || m_paintMode || m_vePart >= 0 || m_opt.noUi || m_groupDrag || m_popup) return;
     std::vector<int> members;
     bool open = false;
-    const int g = barGroup(members, open);
-    if (g < 0 || members.empty()) return;
+    int g = barGroup(members, open);
+    // several bricks selected, not a group (Wzx 14/11/2026): the same box, a bar with Grouper alone
+    const bool loose = g < 0 && selection().size() > 1;
+    if (loose) { members = selection(); open = false; }
+    if ((g < 0 && !loose) || members.empty()) return;
     float3 mn(1e30f), mx(-1e30f);
     for (int i : members) {
         if (brickHidden(i)) continue;
@@ -2984,10 +3002,11 @@ void BrickApp::stGroupBar() {
     struct B { const char* ico; const char* tip; int id; };
     const B bs[4] = {{open ? ST_GCLOSE : ST_GOPEN, open ? "Fermer le groupe" : "Ouvrir le groupe (ses pièces une à une)", 0},
                      {ST_UNGROUP, "Dégrouper", 1}, {ST_DUP, "Dupliquer le groupe", 2}, {ST_PRESET, "Enregistrer en preset (Scène › Presets)", 3}};
-    const std::string name = m_build.groups[g].name;
+    const std::string name = loose ? std::to_string(members.size()) + " pièces" : m_build.groups[g].name;
+    const int nb = loose ? 1 : 4;
     // (Wzx 14/11/2026: half the size, more transparent, at the top right corner of the box)
     const float bw = 16 * s, h = 18 * s, nameW = std::min(80 * s, u.textW(7.5f, name.c_str(), true) * 1.15f) + 16 * s;
-    const float W = nameW + 4 * bw + 6 * s;
+    const float W = nameW + nb * bw + 6 * s;
     // over the corner of its top face furthest right on screen (Wzx 14/11/2026, the drawing on the screenshot)
     ImVec2 anchor(right, top);
     {
@@ -3006,14 +3025,15 @@ void BrickApp::stGroupBar() {
     u.text(ImVec2(a.x + 8 * s, a.y + (h - u.fs(7.5f)) * 0.5f), 7.5f, open ? C_ACCENT_TXT : IM_COL32(255, 255, 255, 240), name.c_str(), true);
     u.dl->PopClipRect();
     u.dl->AddLine(ImVec2(a.x + nameW, a.y + 4 * s), ImVec2(a.x + nameW, b.y - 4 * s), IM_COL32(255, 255, 255, 50), 1.0f);
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < nb; ++k) {
         const ImVec2 ba(a.x + nameW + 2 * s + k * bw, a.y + 1 * s), bb(ba.x + bw, b.y - 1 * s);
         const bool hv = u.hover(ba, bb);
         if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 30), 4 * s);
-        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 8 * s, hv ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 215), 1.0f * s);
-        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", bs[k].tip);
+        stIcon(u.dl, loose ? ST_GROUP : bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 8 * s, hv ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 215), 1.0f * s);
+        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", loose ? "Grouper ces pièces (Ctrl+G)" : bs[k].tip);
         if (hv && u.pressed) {
-            if (k == 0) { if (open) leaveGroup(); else enterGroup(members[0]); }
+            if (loose) { groupSelected(); autosave(); }
+            else if (k == 0) { if (open) leaveGroup(); else enterGroup(members[0]); }
             else if (k == 1) { if (open) { m_selected = members[0]; leaveGroup(); } ungroupSelected(); }
             else if (k == 2) { pushUndo(); if (duplicateGroup(members)) { autosave(); toast("Groupe dupliqué"); } }
             else savePreset(g, members);
@@ -3068,4 +3088,150 @@ void BrickApp::stPresets() {
     }
     if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
+}
+
+// ------------------------------------------------------------------ navigation (Wzx 14/11/2026): a vertical HUD on the
+// right, left of the colours: Tourner, Déplacer, Zoomer (press and drag on the button: the stylus of the iPad), Cadrer,
+// the auto-centring on the selection on / off; above it, the view « cube », here a translucent white 2 x 4 brick: a
+// click on a face turns the view to it (avant, arrière, gauche, droite, dessus, dessous)
+static const char* ST_ZOOM = "M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM15 15l5 5M8 10.5h5M10.5 8v5";
+static const char* ST_FRAME = "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5M9 9h6v6H9z";
+static const char* ST_AUTOC = "M12 4v3M12 17v3M4 12h3M17 12h3M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z";
+
+void BrickApp::viewTurnTo(const float3& n) {
+    Camera& cam = m_scene.camera;
+    m_viewFromYaw = cam.yaw;
+    m_viewFromPitch = cam.pitch;
+    m_viewToPitch = std::clamp(std::asin(std::clamp(n.y, -1.0f, 1.0f)), radians(-89.0f), radians(89.0f));
+    float ty = std::fabs(n.y) > 0.99f ? cam.yaw : std::atan2(n.x, n.z);
+    while (ty - cam.yaw > kPi) ty -= 2 * kPi;   // (the shortest way round)
+    while (ty - cam.yaw < -kPi) ty += 2 * kPi;
+    m_viewToYaw = ty;
+    m_viewT0 = ImGui::GetTime();
+    m_viewAnim = true;
+}
+
+void BrickApp::stNavHud() {
+    if (m_opt.noUi || m_vePart >= 0 || m_teditPart >= 0 || m_reading) return;
+    Ui u = ui(m_ui);
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    Camera& cam = m_scene.camera;
+    if (m_viewAnim) {   // the turn to a face of the brick, eased
+        const float t = std::clamp((float)(ImGui::GetTime() - m_viewT0) / 0.45f, 0.0f, 1.0f), e = 1 - (1 - t) * (1 - t) * (1 - t);
+        cam.yaw = m_viewFromYaw + (m_viewToYaw - m_viewFromYaw) * e;
+        cam.pitch = m_viewFromPitch + (m_viewToPitch - m_viewFromPitch) * e;
+        m_renderer->resetAccumulation();
+        if (t >= 1) m_viewAnim = false;
+    }
+    const float right = (m_pColors.visible && !m_mechOn ? m_colPanelX : d.x - m_dockR) - 12 * s;
+    const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
+    // ---- the brick of the views
+    const float cs = 84 * s;
+    const ImVec2 cc(right - cs * 0.5f, top + cs * 0.5f);
+    {
+        float3 R, U, F;
+        cam.basis(R, U, F);
+        const float W = 2, H = 1.2f, D = 4, k = cs * 0.17f;   // (a 2 x 4 brick, its height, the scale on screen)
+        auto P = [&](const float3& p) { const float3 q = p - float3(W * 0.5f, H * 0.5f, D * 0.5f); return ImVec2(cc.x + dot(q, R) * k, cc.y - dot(q, U) * k); };
+        struct Face { float3 n; const char* name; float3 c[4]; };
+        const Face faces[6] = {
+            {float3(0, 0, 1), "Avant", {float3(0, 0, D), float3(W, 0, D), float3(W, H, D), float3(0, H, D)}},
+            {float3(0, 0, -1), "Arrière", {float3(W, 0, 0), float3(0, 0, 0), float3(0, H, 0), float3(W, H, 0)}},
+            {float3(1, 0, 0), "Droite", {float3(W, 0, D), float3(W, 0, 0), float3(W, H, 0), float3(W, H, D)}},
+            {float3(-1, 0, 0), "Gauche", {float3(0, 0, 0), float3(0, 0, D), float3(0, H, D), float3(0, H, 0)}},
+            {float3(0, 1, 0), "Dessus", {float3(0, H, D), float3(W, H, D), float3(W, H, 0), float3(0, H, 0)}},
+            {float3(0, -1, 0), "Dessous", {float3(0, 0, 0), float3(W, 0, 0), float3(W, 0, D), float3(0, 0, D)}}};
+        // the faces turned to the camera, the farthest first
+        int order[6] = {0, 1, 2, 3, 4, 5};
+        std::sort(order, order + 6, [&](int a, int b) { return dot(faces[a].n, F) > dot(faces[b].n, F); });
+        int hot = -1;
+        for (int i = 5; i >= 0 && hot < 0; --i) {   // (the nearest face under the mouse)
+            const Face& f = faces[order[i]];
+            if (dot(f.n, F) >= -0.05f) continue;
+            ImVec2 q[4];
+            for (int c = 0; c < 4; ++c) q[c] = P(f.c[c]);
+            auto cr = [](ImVec2 a0, ImVec2 b0, ImVec2 p) { return (b0.x - a0.x) * (p.y - a0.y) - (b0.y - a0.y) * (p.x - a0.x); };
+            const float c0 = cr(q[0], q[1], u.mouse), c1 = cr(q[1], q[2], u.mouse), c2 = cr(q[2], q[3], u.mouse), c3 = cr(q[3], q[0], u.mouse);
+            if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) hot = order[i];
+        }
+        u.dl->AddCircleFilled(cc, cs * 0.5f, IM_COL32(12, 13, 15, 70), 40);
+        for (int i = 0; i < 6; ++i) {
+            const Face& f = faces[order[i]];
+            const bool vis = dot(f.n, F) < -0.05f;
+            ImVec2 q[4];
+            for (int c = 0; c < 4; ++c) q[c] = P(f.c[c]);
+            if (vis) u.dl->AddQuadFilled(q[0], q[1], q[2], q[3], order[i] == hot ? IM_COL32(255, 255, 255, 140) : IM_COL32(255, 255, 255, 42));
+            u.dl->AddQuad(q[0], q[1], q[2], q[3], IM_COL32(255, 255, 255, vis ? 175 : 40), 1.0f * s);
+            if (order[i] == 4 && vis)   // the 8 studs on the top face
+                for (int sx = 0; sx < 2; ++sx)
+                    for (int sz = 0; sz < 4; ++sz) {
+                        ImVec2 ring[12];
+                        for (int j = 0; j < 12; ++j) {
+                            const float a = j * 6.2831853f / 12;
+                            ring[j] = P(float3(0.5f + sx + std::cos(a) * 0.3f, H + 0.18f, 0.5f + sz + std::sin(a) * 0.3f));
+                        }
+                        u.dl->AddConvexPolyFilled(ring, 12, IM_COL32(255, 255, 255, 60));
+                        u.dl->AddPolyline(ring, 12, IM_COL32(255, 255, 255, 170), ImDrawFlags_Closed, 1.0f * s);
+                    }
+        }
+        const ImVec2 ca(cc.x - cs * 0.5f, cc.y - cs * 0.5f), cb(cc.x + cs * 0.5f, cc.y + cs * 0.5f);
+        m_uiRects.push_back(ImVec4(ca.x, ca.y, cb.x, cb.y));
+        if (hot >= 0) {
+            ImGui::SetTooltip("%s", faces[hot].name);
+            if (u.pressed) viewTurnTo(faces[hot].n);
+        }
+    }
+    // ---- the buttons
+    struct B { const char* ico; const char* tip; int id; bool on; };
+    const B bs[5] = {{ST_ROT, "Tourner : appuie et glisse (stylet, souris)", 0, m_navDrag == 0},
+                     {ST_MOVE, "Déplacer la vue : appuie et glisse", 1, m_navDrag == 1},
+                     {ST_ZOOM, "Zoomer : appuie et glisse vers le haut ou le bas", 2, m_navDrag == 2},
+                     {ST_FRAME, "Cadrer la sélection (F)", 3, false},
+                     {ST_AUTOC, "Centrage auto : la vue tourne autour de la brique sélectionnée", 4, m_orbitAuto}};
+    const float bw = 38 * s, pad = 5 * s;
+    const ImVec2 a(right - bw - 2 * pad, top + cs + 10 * s), b(right, a.y + 5 * bw + 2 * pad + 8 * s);
+    stGlass(u.dl, a, b, 14 * s, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    float y = a.y + pad;
+    for (const B& t : bs) {
+        if (t.id == 3) {   // a line between the gestures and the actions
+            u.dl->AddLine(ImVec2(a.x + 9 * s, y + 4 * s), ImVec2(b.x - 9 * s, y + 4 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+            y += 8 * s;
+        }
+        const ImVec2 ba(a.x + pad, y), bb(ba.x + bw, y + bw);
+        const bool h = u.hover(ba, bb);
+        if (t.on) u.dl->AddRectFilled(ba, bb, t.id == 4 ? stA(C_ACCENT, 0.28f) : IM_COL32(255, 255, 255, 34), 10 * s);
+        else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 10 * s);
+        stIcon(u.dl, t.ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 18 * s, t.on && t.id == 4 ? C_ACCENT_TXT : C_TEXT, 1.4f * s);
+        if (h && m_navDrag < 0 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
+        if (h && u.pressed) {
+            if (t.id <= 2) { m_navDrag = t.id; if (t.id == 0 && m_orbitAuto) orbitOnSelection(); }
+            else if (t.id == 3) frameSelection();
+            else { m_orbitAuto = !m_orbitAuto; savePrefs(); toast(m_orbitAuto ? "Centrage auto : la vue tourne autour de la brique sélectionnée" : "Centrage auto : non"); }
+        }
+        y += bw;
+    }
+    // the drag of a gesture button: the camera follows the pointer (anywhere on the screen until it is released)
+    if (m_navDrag >= 0) {
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_navDrag = -1;
+        else {
+            const ImVec2 md = ImGui::GetIO().MouseDelta;
+            if (md.x != 0 || md.y != 0) {
+                if (m_navDrag == 0) {
+                    cam.yaw -= md.x * 0.008f;
+                    cam.pitch = std::clamp(cam.pitch + md.y * 0.008f, radians(-5.0f), radians(89.0f));
+                } else if (m_navDrag == 1) {
+                    float3 R, U, F;
+                    cam.basis(R, U, F);
+                    const float kp = cam.distance * std::tan(cam.fovY * 0.5f) * 2.0f / std::max(1.0f, m_stage.w - m_stage.y);
+                    cam.target = cam.target - R * (md.x * kp) + U * (md.y * kp);
+                } else cam.distance = std::clamp(cam.distance * std::exp(md.y * 0.006f), 1.0f, 1000.0f);
+                cam.focusDistance = cam.distance;
+                m_viewAnim = false;
+                m_renderer->resetAccumulation();
+            }
+            ImGui::SetMouseCursor(m_navDrag == 1 ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_Hand);
+        }
+    }
 }

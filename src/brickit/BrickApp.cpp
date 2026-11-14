@@ -942,6 +942,7 @@ void BrickApp::frameSelection() {
 }
 // touch: the target glides onto the selection (the distance kept), so the view turns around it
 void BrickApp::orbitOnSelection() {
+    if (!m_orbitAuto) return;   // (the HUD of the navigation: Centrage auto off)
     const std::vector<int> sel = selection();
     if (sel.empty()) return;
     float3 mn(1e30f), mx(-1e30f);
@@ -1059,6 +1060,7 @@ void BrickApp::cameraInput() {
     // Alt + right: dolly; the wheel zooms. Without Alt the mouse never moves the camera.
     const bool alt = io.KeyAlt;
     const bool orbit = alt && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    if (!orbit) m_orbitCentred = false;
     const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
     const bool dolly = alt && ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (dolly && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
@@ -1071,6 +1073,7 @@ void BrickApp::cameraInput() {
         cam.target = cam.target - r * (io.MouseDelta.x * k) + u * (io.MouseDelta.y * k);
         changed = true;
     } else if (orbit && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+        if (!m_orbitCentred) { m_orbitCentred = true; orbitOnSelection(); }   // (Centrage auto: the view turns around the selection)
         cam.yaw -= io.MouseDelta.x * 0.006f;
         cam.pitch = clampf(cam.pitch + io.MouseDelta.y * 0.006f, radians(-5.0f), radians(89.0f));
         changed = true;

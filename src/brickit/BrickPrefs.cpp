@@ -107,8 +107,9 @@ std::string BrickApp::prefsJson() {
     j += std::string("\"dev\": {\"on\": ") + (m_dev ? "true" : "false") + ", \"showVox\": " + (m_devShowVox ? "true" : "false") + ", \"showEdges\": " + (m_devShowEdges ? "true" : "false") + ", \"useOverrides\": " + (m_devUseOverrides ? "true" : "false") + "},";
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"dock\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_manDock, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     // the scene of the cloud (BrickCloud.cpp): its id, the version last sent or read, the automatic sync
+    j += std::string("\"orbitAuto\": ") + (m_orbitAuto ? "true" : "false") + ",";
     j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + ", \"pending\": " + (m_cloudDirty ? "true" : "false") + "},";   // (pending: changes not sent yet, sent at the next start)
-    { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale15\": true},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false"); j += sb; }
+    { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale05\": true},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false"); j += sb; }
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
         j += "\"theme\": {\"id\": " + jstr(m_themeId) + ", \"looks\": {";
         bool first = true;
@@ -243,18 +244,13 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (st["lightPreset"].type == app::Json::Number) m_lightPreset = (int)st["lightPreset"].n;
         if (st["pencilOnly"].type == app::Json::Bool) m_pencilOnly = st["pencilOnly"].b;
         if (st["ipadCreme"].type == app::Json::Bool) m_ipadCreme = st["ipadCreme"].b;
-        if (m_ipad && st["ipadScale15"].type != app::Json::Bool) {   // (saved before the 100 % of the iPad became x 1.5)
-            static const float kS[5] = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
-            const float want = m_uiScaleUser / 1.5f;
-            float best = 1.0f;
-            for (float c : kS) if (std::fabs(c - want) < std::fabs(best - want)) best = c;
-            m_uiScaleUser = best;
-        }
+        if (m_ipad && st["ipadScale05"].type != app::Json::Bool) m_uiScaleUser = 1.0f;   // (the scale of the iPad changed, 14/11/2026: back to 100 %)
         if (st["renderScale"].type == app::Json::Number) m_renderScale = std::clamp((float)st["renderScale"].n, 0.5f, 1.0f);
         if (st["shadows"].type == app::Json::Number) m_rs.shadowQuality = std::clamp((int)st["shadows"].n, 0, 4);
         if (st["rc"].type == app::Json::Bool && st["rc"].b) setRC(true);
     }
     {   // vp3d-manual-w / vp3d-manual-h / vp3d-manual-pdf-page
+        if (p["orbitAuto"].type == app::Json::Bool) m_orbitAuto = p["orbitAuto"].b;
         const app::Json& cl = p["cloud"];
         if (cl.type == app::Json::Object) {
             m_cloudId = cl["id"].str();

@@ -48,9 +48,24 @@ BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
     v.project(piv + r * k, ex, ey);
     const float px = std::max(1.0f, std::fabs(ex - cx));   // pixels per gizmo unit
     const ImVec2 m(sx, sy);
-    if (m_mode == 2 && std::hypot(sx - cx, sy - cy) < 0.3f * px) return GizmoHandle{2, 0};
+    // (no centre sphere any more, Wzx 14/11/2026: the plane handles, two axes at once, instead)
     float best = 1e30f;
     GizmoHandle bh;
+    if (m_mode == 2)
+        for (int a = 0; a < 3; ++a) {   // the square of the plane normal to a, between the two other axes
+            const float3 e1 = axisOf((a + 1) % 3), e2 = axisOf((a + 2) % 3);
+            ImVec2 q[4];
+            bool ok = true;
+            const float lo = 0.22f * k, hi = 0.48f * k;
+            ok &= v.project(piv + e1 * lo + e2 * lo, q[0].x, q[0].y);
+            ok &= v.project(piv + e1 * hi + e2 * lo, q[1].x, q[1].y);
+            ok &= v.project(piv + e1 * hi + e2 * hi, q[2].x, q[2].y);
+            ok &= v.project(piv + e1 * lo + e2 * hi, q[3].x, q[3].y);
+            if (!ok) continue;
+            auto cr = [](ImVec2 a0, ImVec2 b0, ImVec2 p) { return (b0.x - a0.x) * (p.y - a0.y) - (b0.y - a0.y) * (p.x - a0.x); };
+            const float c0 = cr(q[0], q[1], m), c1 = cr(q[1], q[2], m), c2 = cr(q[2], q[3], m), c3 = cr(q[3], q[0], m);
+            if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) return GizmoHandle{3, a};
+        }
     for (int a = 0; a < 3; ++a) {
         if (m_mode == 2) {
             ImVec2 p0, p1;
@@ -109,7 +124,11 @@ void BrickApp::gizmoStart(const GizmoHandle& h, float sx, float sy) {
     view().ray(sx, sy, ro, rd);
     const float3 a = axisOf(h.axis);
     if (h.kind == 0) g.t0 = axisParam(ro, rd, g.pivot, a);
-    else {
+    else if (h.kind == 3) {
+        float3 p;
+        g.hasV0 = rayPlane(ro, rd, a, g.pivot, p);
+        g.v0 = p;
+    } else {
         float3 p;
         g.hasV0 = rayPlane(ro, rd, a, g.pivot, p);
         g.v0 = p - g.pivot;
@@ -130,6 +149,17 @@ void BrickApp::gizmoDragTo(float sx, float sy) {
         b.pos = g.startPos + a * d;
         const float floorMin = m_build.aabbOf(b.part, b.rot, float3(0)).mn.y;
         if (g.h.axis == 1 && b.pos.y + floorMin < 0) b.pos.y = -floorMin;
+        const float3 delta = b.pos - g.startPos;
+        for (size_t i = 0; i < g.others.size(); ++i) m_bricks[g.others[i]].pos = g.othersStart[i].pos + delta;
+    } else if (g.h.kind == 3) {   // two axes at once, in the plane of the « équerre »: by studs (and plates upwards)
+        float3 p;
+        if (!g.hasV0 || !rayPlane(ro, rd, a, g.pivot, p)) return;
+        float3 d = p - g.v0;
+        (&d.x)[g.h.axis] = 0;
+        if (m_build.gridSnap) { d.x = std::round(d.x / kPitch) * kPitch; d.z = std::round(d.z / kPitch) * kPitch; d.y = std::round(d.y / kPlate) * kPlate; }
+        b.pos = g.startPos + d;
+        const float floorMin = m_build.aabbOf(b.part, b.rot, float3(0)).mn.y;
+        if (b.pos.y + floorMin < 0) b.pos.y = -floorMin;
         const float3 delta = b.pos - g.startPos;
         for (size_t i = 0; i < g.others.size(); ++i) m_bricks[g.others[i]].pos = g.othersStart[i].pos + delta;
     } else {
@@ -187,9 +217,37 @@ void BrickApp::drawGizmo() {
             v.project(piv + d * (1.03f * k) - side, b1.x, b1.y);
             dl->AddTriangleFilled(b0, b1, tip, col);
         }
-        // white centre sphere (0.17), larger under the mouse
-        const float rad = 0.17f * px * (hov.kind == 2 ? 1.35f : 1.0f);
-        dl->AddCircleFilled(ImVec2(cx, cy), rad, IM_COL32(255, 255, 255, 245), 32);
+        // the « équerres » (Wzx 14/11/2026): an L and a light square between two axes, in the colour of the third (its normal)
+        for (int a = 0; a < 3; ++a) {
+            const float3 e1 = axisOf((a + 1) % 3), e2 = axisOf((a + 2) % 3);
+            const float lo = 0.22f * k, hi = 0.48f * k;
+            ImVec2 q[4], c1, c2;
+            bool ok = true;
+            ok &= v.project(piv + e1 * lo + e2 * lo, q[0].x, q[0].y);
+            ok &= v.project(piv + e1 * hi + e2 * lo, q[1].x, q[1].y);
+            ok &= v.project(piv + e1 * hi + e2 * hi, q[2].x, q[2].y);
+            ok &= v.project(piv + e1 * lo + e2 * hi, q[3].x, q[3].y);
+            ok &= v.project(piv + e1 * hi + e2 * hi, c1.x, c1.y);
+            if (!ok) continue;
+            const bool on = hov.kind == 3 && hov.axis == a;
+            const ImU32 base = kGz[a] & 0x00ffffffu;
+            dl->AddQuadFilled(q[0], q[1], q[2], q[3], on ? IM_COL32(255, 255, 255, 90) : (base | (60u << 24)));
+            // the L: along the far edges of the square, from one axis to the other
+            const ImVec2 L[3] = {q[1], q[2], q[3]};
+            dl->AddPolyline(L, 3, on ? white : (base | (230u << 24)), 0, std::max(1.5f, 0.03f * px));
+            (void)c2;
+        }
+        dl->AddCircleFilled(ImVec2(cx, cy), std::max(2.5f, 0.05f * px), IM_COL32(255, 255, 255, 220), 16);   // (the pivot, a small dot)
+        if (m_gizmoDragging && (m_gz.h.kind == 0 || m_gz.h.kind == 3) && m_gz.brick >= 0 && m_gz.brick < (int)m_bricks.size()) {
+            // how far it moved: in studs on the floor, in plates upwards
+            const float3 dd = m_bricks[m_gz.brick].pos - m_gz.startPos;
+            char t[96];
+            snprintf(t, sizeof(t), "%+d · %+d tenons · %+d plaques", (int)std::lround(dd.x / kPitch), (int)std::lround(dd.z / kPitch), (int)std::lround(dd.y / kPlate));
+            const ImVec2 tp(cx + 0.6f * px, cy - 0.9f * px);
+            const ImVec2 ts = ImGui::CalcTextSize(t);
+            dl->AddRectFilled(ImVec2(tp.x - 6, tp.y - 3), ImVec2(tp.x + ts.x + 6, tp.y + ts.y + 3), IM_COL32(16, 17, 19, 200), 6);
+            dl->AddText(tp, IM_COL32(255, 255, 255, 235), t);
+        }
     } else {
         for (int a = 0; a < 3; ++a) {
             const ImU32 col = (hov.kind == 1 && hov.axis == a) ? IM_COL32(255, 255, 255, 179) : ((kGz[a] & 0x00ffffffu) | (179u << 24));   // opacity .7
@@ -202,6 +260,11 @@ void BrickApp::drawGizmo() {
                 if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) pts.push_back(q);
             }
             if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, std::max(1.2f, 0.024f * px));
+            for (int i = 0; i < 4; ++i) {   // a tick every 90 degrees: the steps of the turn
+                const float t = i * 1.5707963f;
+                ImVec2 q;
+                if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) dl->AddCircleFilled(q, std::max(2.0f, 0.035f * px), col, 12);
+            }
         }
     }
 }

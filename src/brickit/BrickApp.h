@@ -465,7 +465,7 @@ private:
 
     // BrickGizmo.cpp: move / rotate manipulators of the web (arrows by studs / plates, rings by 90 degrees, centre
     // sphere = free move in hand)
-    struct GizmoHandle { int kind = -1; int axis = 0; };   // kind 0 move, 1 rotate, 2 free
+    struct GizmoHandle { int kind = -1; int axis = 0; };   // kind 0 move along an axis, 1 rotate, 3 move in the plane normal to axis (the « équerres »)
     struct GizmoDrag {
         GizmoHandle h;
         int brick = -1, steps = 0;
@@ -628,7 +628,17 @@ private:
     void uiCtxMenu();
     void frameSelection();   // F: the view on the selection (a glide)
     void frameAnimate();
-    void orbitOnSelection();   // touch: the view glides to turn around the selection (Wzx 14/11/2026)
+    void orbitOnSelection();
+    // the HUD of the navigation and the brick of the views (BrickUiStudio.inl, Wzx 14/11/2026)
+    void stNavHud();
+    void viewTurnTo(const float3& n);
+    bool m_orbitAuto = true;          // the view centres on the selection when it turns (touch, the Tourner button, Alt + drag)
+    bool m_orbitCentred = false;     // (an Alt + drag that turns: centred once per drag)
+    int m_navDrag = -1;               // the gesture button held: 0 turn, 1 move, 2 zoom
+    float m_colPanelX = 0;            // the left of the colours panel (the HUD of the navigation goes left of it)
+    bool m_viewAnim = false;
+    double m_viewT0 = 0;
+    float m_viewFromYaw = 0, m_viewFromPitch = 0, m_viewToYaw = 0, m_viewToPitch = 0;   // touch: the view glides to turn around the selection (Wzx 14/11/2026)
     bool m_frameAnim = false;
     double m_frameT0 = 0;
     float3 m_frameFromT, m_frameToT;
@@ -836,8 +846,9 @@ private:
     void stCloudList();
     // ---- the group selected: its box, its bar; presets (BrickGroups.cpp, Wzx 14/11/2026)
     void stGroupBar();
-    // the scale of the UI at 100 %: the screen's, x 1.5 on the iPad (its 100 % is the 150 % of before, Wzx 14/11/2026)
-    float uiBase() const { return (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * (m_ipad ? 1.5f : 1.0f); }
+    // the scale of the UI at 100 %: the screen's, x 0.5 on the iPad (Wzx 14/11/2026: everything was too big there; at
+    // 75 % three times smaller than the 75 % of before)
+    float uiBase() const { return (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * (m_ipad ? 0.5f : 1.0f); }
     bool inSelection(int brick) const;              // one of a selection of several
     std::vector<int> dragSetOf(int brick) const;    // what a drag on it moves: the selection, its group, or itself
     void stPresets();
@@ -902,6 +913,8 @@ private:
     struct PaintFx { ImVec2 p; int color; double t0; int kind; };   // 0 Pipette (a drop to the active colour), 1 / 2 a splash
     std::vector<PaintFx> m_paintFx;
     void stPaintFx();
+    bool m_colPressBig = false;       // (the big swatch of the current colour pressed: a click folds / unfolds the panel, a drag paints)
+    void colorDrag(Ui& u, ImVec2 a, ImVec2 b, bool filter, int fpart);   // (a swatch pressed: its click, its drag onto a brick)
     int m_colPress = -1;              // the colours on the right: the swatch pressed (a drag out of the panel takes a 1x1 of that colour, Wzx 10/11/2026)
     ImVec2 m_colPressPos, m_colCurAt = ImVec2(-1, -1);   // (the swatch of the current colour, for the touch test)
     bool paintHit(int brick, ImVec2 at, bool fx);
