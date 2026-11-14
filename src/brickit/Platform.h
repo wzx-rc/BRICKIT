@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace brickit::plat {
 
@@ -38,6 +39,17 @@ void shareFile(const std::wstring& path);
 // the icon of the app: 0 = A (with the viewfinder), 1 = B (without). iPad: the home screen icon (iOS confirms it with
 // a message); PC: the icon of the window and the taskbar (the .exe keeps A in Explorer)
 void setAppIcon(int which);
+
+// ---- network (the cloud: Supabase, Wzx 14/11/2026). A blocking HTTPS request: call it from a worker thread, never
+// from the frame. headers: "Name: value". status 0 = no answer (offline, DNS, TLS): error says why.
+struct HttpReply { int status = 0; std::string body, error; };
+HttpReply http(const char* method, const std::string& url, const std::vector<std::string>& headers, const std::string& body);
+// a secret kept on disk (the session of the cloud): Windows DPAPI (only this Windows account can read it back), base64;
+// elsewhere unchanged (the iPad keeps it in the app's own container)
+std::string protectSecret(const std::string& s);
+std::string unprotectSecret(const std::string& s);
+// "PC" or "iPad": the device shown next to a scene of the cloud
+std::string deviceName();
 
 } // namespace brickit::plat
 

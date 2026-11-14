@@ -220,6 +220,7 @@ bool BrickApp::importLDraw(const std::wstring& path) {
     m_multi.clear();
     m_groupCtx.clear();
     m_scenePath.clear();
+    cloudForget();
     rebuildScene();
     frameAll();
     char t[200];

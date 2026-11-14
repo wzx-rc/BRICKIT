@@ -130,7 +130,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.manualDock >= 0) { m_manDock = opt.manualDock; m_pManual.floating = false; }
     if (opt.manualW > 0) { m_manW = opt.manualW * m_ui; m_manH = opt.manualH * m_ui; }
     if (opt.settings) { m_popup = 5; m_popupAt = ImVec2(1e6f, 34 * m_ui); }
-    if (opt.settingsTab >= 0) m_setSec = std::clamp(opt.settingsTab, 0, 7);
+    if (opt.settingsTab >= 0) m_setSec = std::clamp(opt.settingsTab, 0, 8);
     if (opt.libCards >= 0) m_stCardMode = std::clamp(opt.libCards, 0, 1);
     if (!opt.stFam.empty()) { m_stFam = opt.stFam; m_stSub = -1; }
     if (opt.stSub >= -1) m_stSub = opt.stSub;
@@ -176,6 +176,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     else { sampleScene(); keepCamera = true; }
     rebuildScene();
     writeStartLog();
+    cloudInit();   // (the session of the cloud; nothing sent by the tests and captures: userSession)
     if (opt.cornell) {   // the very scene of WZX Engine (app::buildCornellBox, its main view, the settings of App::loadScene)
         m_scene = Scene();
         app::buildCornellBox(m_scene);
@@ -1089,6 +1090,15 @@ void BrickApp::frame() {
         else if (GetFileAttributesW((m_exeDir + L"\\manual_pdf\\current.pdf").c_str()) != INVALID_FILE_ATTRIBUTES && m_opt.shotPath.empty()) pdfOpen(m_exeDir + L"\\manual_pdf\\current.pdf", m_pdfName, false);
     }
     pdfPump();
+    cloudTick();
+    if (!m_opt.cloudSelfTest.empty() && m_frame == 5) {   // the network and the errors of Supabase, no account touched
+        const std::wstring out = m_opt.cloudSelfTest;
+        m_cloud.signIn("selftest@invalid.example", "pas-le-bon-mot-de-passe", [this, out](bool ok, const std::string& msg) {
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, out.c_str(), L"wb") == 0 && f) { fprintf(f, "ok=%d msg=%s\n", ok ? 1 : 0, msg.c_str()); fclose(f); }
+            m_running = false;
+        });
+    }
     if (m_prefsDirty && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { m_prefsDirty = false; savePrefs(); }
     mouseTestFrame();
     touchTestFrame();
@@ -1579,6 +1589,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--mechtests") opt.mechTests = true;   // the Cornell box of WZX Engine (comparison of the renderers)
         else if (a == L"--perf-trace") { opt.perfTrace = next(); opt.perfFrames = _wtoi(next().c_str()); }
         else if (a == L"--perf-orbit") opt.perfOrbit = 1;
+        else if (a == L"--cloud-selftest") opt.cloudSelfTest = next();
         else if (a == L"--pt-trace") opt.ptTrace = next();   // per frame: samples, ms (convergence)
         else if (a == L"--settings") opt.settings = true;
         else if (a == L"--quality") opt.quality = _wtoi(next().c_str());   // 0 Rapide, 1 HQ

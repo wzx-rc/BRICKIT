@@ -1908,6 +1908,7 @@ void BrickApp::uiInfoSheet() {
 void BrickApp::uiPopups() {
     if (!m_popup || m_popup == 7 || m_popup == 8) return;   // (7: « … » of the Studio interface, stMore; 8: its scene menu, stFile)
     if (m_popup == 5) { uiSettings(); return; }
+    if (m_popup == 9) { stCloudList(); return; }   // Scène › Scènes du cloud
     Ui u = ui(m_ui);
     const float s = m_ui;
     struct Item { const char* label; bool on; int id; };
@@ -1922,7 +1923,7 @@ void BrickApp::uiPopups() {
                  {"Ouvrir la maison officielle (31153)", false, 5}};
         if (hasSteps()) items.push_back({m_reading ? "Fermer la notice" : "Lire la notice (étapes du modèle)", false, 4});
     } else {
-        items = {{"Nouvelle scène", false, 0}, {"Ouvrir… (.v3d.json, .ldr, .mpd)", false, 1}, {"Enregistrer… (.v3d.json)", false, 2}, {"Ouvrir la maison test (GI)", false, 3},
+        items = {{"Nouvelle scène", false, 0}, {"Ouvrir… (.v3d.json, .ldr, .mpd)", false, 1}, {"Enregistrer… (.v3d.json)", false, 2}, {"Scènes du cloud…", false, 8}, {"Ouvrir la maison test (GI)", false, 3},
                  {"Ouvrir la maison officielle (31153)", false, 5}};
         if (hasSteps()) items.push_back({m_reading ? "Fermer la notice" : "Lire la notice (étapes du modèle)", false, 4});
     }
@@ -1967,7 +1968,8 @@ void BrickApp::uiPopups() {
                 else if (it.id == 6) m_pGroups.visible = !m_pGroups.visible;
                 else { m_pTray = m_pOpts = m_pColors = PanelState(); m_pHud = m_pManual = PanelState{false, false}; m_optsRight = false; toast("Disposition réinitialisée"); }
             } else {
-                if (it.id == 0) { pushUndo(); m_bricks.clear(); m_selected = -1; m_multi.clear(); rebuildScene(); toast("Nouvelle scène"); }
+                if (it.id == 0) { pushUndo(); m_bricks.clear(); m_selected = -1; m_multi.clear(); cloudForget(); rebuildScene(); toast("Nouvelle scène"); }
+                else if (it.id == 8) { clickedItem = false; m_popup = 9; cloudRefreshList(); }
                 else if (it.id == 1) openDialog();
                 else if (it.id == 3) openTestHouse();
                 else if (it.id == 4) { if (m_reading) stopReading(); else startReading(1); }
@@ -1979,7 +1981,7 @@ void BrickApp::uiPopups() {
         y += 32 * s;
     }
     if (u.pressed && !clickedItem && !u.hover(p0, p1) && u.mouse.y > 30 * s) m_popup = 0;
-    if (clickedItem && m_popup != 3) m_popup = 0;
+    if (clickedItem && m_popup != 3 && m_popup != 9) m_popup = 0;
 }
 
 // « Scène partagée PC · Mac · iPad » (#sheet): the .v3d.json text, copy, load, open, exports, new scene.
@@ -3450,6 +3452,30 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
 // --------------------------------------------------------------------------- settings (native addition, gear button)
 // UI scale (text and panels, 4K), thumbnail size, real time quality / path tracing, ambient occlusion of the HQ mode,
 // tone mapping, voxels, animations, automatic save. Saved in brickit_prefs.json.
+
+// a text field of the cloud panel (an ImGui input on a card of the theme)
+static bool cloudField(Ui& u, const char* id, ImVec2 a, ImVec2 b, char* buf, size_t n, const char* hint, bool password, float s, ImU32 card, ImU32 text, ImU32 faint) {
+    u.dl->AddRectFilled(a, b, card, 7 * s);
+    ImGui::SetNextWindowPos(ImVec2(a.x + 10 * s, a.y + 2 * s));
+    ImGui::SetNextWindowSize(ImVec2(b.x - a.x - 20 * s, b.y - a.y - 4 * s));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2 * s, 5 * s));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(text));
+    ImGui::PushStyleColor(ImGuiCol_TextDisabled, ImGui::ColorConvertU32ToFloat4(faint));
+    ImGui::Begin(id, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground);
+    ImGui::SetNextItemWidth(-1);
+    const bool enter = ImGui::InputTextWithHint("##f", hint, buf, n, ImGuiInputTextFlags_EnterReturnsTrue | (password ? ImGuiInputTextFlags_Password : 0));
+    ImGui::End();
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(3);
+    return enter;
+}
+
+
 void BrickApp::uiSettings() {
     // Réglages, rangés par sections (Wzx 13/11/2026: « revoit tout le panneau des settings, pour mieux organiser et
     // synthétiser tous les paramètres, fais une UX claire »): the sections on the left, the active one on the right with
@@ -3459,7 +3485,8 @@ void BrickApp::uiSettings() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float pad = 14 * s, rowH = 30 * s, gap = 10 * s;
-    enum { S_UI, S_LIB, S_BUILD, S_RENDER, S_CAM, S_LIGHT, S_THEME, S_FILES, S_N };
+    enum { S_UI, S_LIB, S_BUILD, S_RENDER, S_CAM, S_LIGHT, S_THEME, S_FILES, S_CLOUD, S_N };
+    static_assert(S_CLOUD == kSetCloud, "Réglages › Cloud");
     struct Sec { const char* name; const char* desc; bool pcOnly; };
     static const Sec kSec[S_N] = {
         {"Interface", "Taille, style et aides à l'écran", false},
@@ -3470,6 +3497,7 @@ void BrickApp::uiSettings() {
         {"Lumière", "HDRI, illumination globale, grille", true},
         {"Thème", "Couleurs et style de l'application", true},
         {"Fichiers", "Sauvegarde et réglages par défaut", false},
+        {"Cloud", "Tes scènes entre l'iPad et le PC", false},
     };
     if (m_setTab == 1) { m_setSec = S_THEME; m_setTab = 0; }   // (--settings-tab 1, the former Thème tab)
     if (m_setSec < 0 || m_setSec >= S_N || (m_ipad && kSec[m_setSec].pcOnly)) m_setSec = S_UI;
@@ -3768,6 +3796,76 @@ void BrickApp::uiSettings() {
             y += rowH + gap;
         }
         if (slider(103, "Opacité de la grille", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", m_gridAlpha * 100.0f)) lookChanged = true;
+        break;
+    }
+    case S_CLOUD: {   // the account of the cloud and the sync of the scenes (BrickCloud.cpp)
+        if (!m_cloud.signedIn()) {
+            group("Compte");
+            note("Le même compte sur l'iPad et le PC : tes scènes passent de l'un à l'autre.");
+            u.text(ImVec2(x0 + pad, y), 11, C_DIM, "E-mail");
+            y += 16 * s;
+            bool go = cloudField(u, "##cloudmail", ImVec2(x0 + pad, y), ImVec2(x1 - pad, y + rowH), m_cloudEmail, sizeof(m_cloudEmail), "toi@exemple.fr", false, s, C_CARD, C_TEXT, C_FAINT);
+            y += rowH + gap;
+            u.text(ImVec2(x0 + pad, y), 11, C_DIM, "Mot de passe");
+            y += 16 * s;
+            go |= cloudField(u, "##cloudpw", ImVec2(x0 + pad, y), ImVec2(x1 - pad, y + rowH), m_cloudPw, sizeof(m_cloudPw), "6 caractères au moins", true, s, C_CARD, C_TEXT, C_FAINT);
+            y += rowH + gap;
+            int k = seg(m_cloud.pending() ? "Connexion…" : "", {"Se connecter", "Créer un compte"}, -1);
+            if (go) k = 0;
+            if (k >= 0 && !m_cloud.pending()) {
+                const std::string em = m_cloudEmail, pw = m_cloudPw;
+                if (em.find('@') == std::string::npos || pw.size() < 6) m_cloudAuthMsg = "un e-mail et un mot de passe de 6 caractères au moins";
+                else {
+                    m_cloudAuthMsg = k == 0 ? "connexion…" : "création du compte…";
+                    auto done = [this](bool ok, const std::string& msg) {
+                        m_cloudAuthMsg = msg;
+                        if (!ok) return;
+                        memset(m_cloudPw, 0, sizeof(m_cloudPw));
+                        m_cloudPollAt = 0;
+                        if (m_cloudId.empty() && !m_bricks.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; }   // (this scene sent at once)
+                        toast("Cloud : connecté (" + m_cloud.email() + ")");
+                    };
+                    if (k == 0) m_cloud.signIn(em, pw, done);
+                    else m_cloud.signUp(em, pw, done);
+                }
+            }
+            if (!m_cloudAuthMsg.empty()) note(m_cloudAuthMsg.c_str());
+        } else {
+            group("Compte");
+            {
+                const std::string who = "Connecté : " + m_cloud.email();
+                u.text(ImVec2(x0 + pad, y), 12, C_TEXT, who.c_str());
+                y += 22 * s;
+            }
+            if (seg("", {"Se déconnecter"}, -1) == 0) {
+                m_cloud.signOut();
+                m_cloudAuthMsg = "déconnecté";
+                m_cloudDirty = false;
+                m_cloudList.clear();
+            }
+            group("Synchro");
+            {
+                const int k = seg("Synchro automatique (à chaque modification)", {"Oui", "Non"}, m_cloudAuto ? 0 : 1);
+                if (k >= 0 && (k == 0) != m_cloudAuto) { m_cloudAuto = k == 0; savePrefs(); }
+            }
+            {
+                const int k = seg("", {"Synchroniser maintenant", "Scènes du cloud…"}, -1);
+                if (k == 0) {
+                    if (m_cloudDirty || m_cloudId.empty() || m_cloudSentKey.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; m_cloudSentKey.clear(); }
+                    else m_cloudPollAt = 0;   // (nothing to send: its version in the cloud read now)
+                }
+                if (k == 1) { m_popup = 9; cloudRefreshList(); }
+            }
+            {   // the state of this scene
+                std::string st = "Cette scène : ";
+                if (m_cloudSending) st += "envoi…";
+                else if (m_cloudDirty) st += "modifiée, envoi dans un instant";
+                else if (m_cloudId.empty()) st += "pas encore dans le cloud";
+                else st += m_cloudMsg.empty() ? std::string("à jour") : m_cloudMsg;
+                if (!m_cloudId.empty() && m_cloudVer > 0) st += " · version " + std::to_string(m_cloudVer);
+                note(st.c_str());
+            }
+        }
         break;
     }
     case S_FILES: {

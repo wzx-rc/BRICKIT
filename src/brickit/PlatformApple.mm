@@ -105,6 +105,36 @@ void setAppIcon(int which) {
     [app setAlternateIconName:want completionHandler:nil];
 }
 
+// ---- network: NSURLSession, waited for (the cloud calls it from its worker thread)
+HttpReply http(const char* method, const std::string& url, const std::vector<std::string>& headers, const std::string& body) {
+    __block HttpReply r;
+    NSURL* u = [NSURL URLWithString:[NSString stringWithUTF8String:url.c_str()]];
+    if (!u) { r.error = "adresse invalide"; return r; }
+    NSMutableURLRequest* q = [NSMutableURLRequest requestWithURL:u cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:30];
+    q.HTTPMethod = [NSString stringWithUTF8String:method];
+    for (const std::string& h : headers) {
+        const size_t c = h.find(':');
+        if (c == std::string::npos) continue;
+        std::string v = h.substr(c + 1);
+        while (!v.empty() && v[0] == ' ') v.erase(0, 1);
+        [q setValue:[NSString stringWithUTF8String:v.c_str()] forHTTPHeaderField:[NSString stringWithUTF8String:h.substr(0, c).c_str()]];
+    }
+    if (!body.empty()) q.HTTPBody = [NSData dataWithBytes:body.data() length:body.size()];
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    NSURLSessionDataTask* t = [[NSURLSession sharedSession] dataTaskWithRequest:q completionHandler:^(NSData* data, NSURLResponse* resp, NSError* err) {
+        if (err) r.error = err.localizedDescription.UTF8String ? err.localizedDescription.UTF8String : "erreur réseau";
+        if ([resp isKindOfClass:[NSHTTPURLResponse class]]) r.status = (int)((NSHTTPURLResponse*)resp).statusCode;
+        if (data) r.body.assign((const char*)data.bytes, data.length);
+        dispatch_semaphore_signal(done);
+    }];
+    [t resume];
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+    return r;
+}
+std::string protectSecret(const std::string& s) { return s; }
+std::string unprotectSecret(const std::string& s) { return s; }
+std::string deviceName() { return "iPad"; }
+
 // the share sheet (a popover on the iPad: anchored at the top right, under the header)
 void shareFile(const std::wstring& path) {
     NSURL* url = [NSURL fileURLWithPath:ns(path)];

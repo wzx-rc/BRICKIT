@@ -929,6 +929,7 @@ void BrickApp::stFile() {
         its.push_back({"ENVOYER UN RAPPORT (BUG)", "", 5});   // the state, the last actions, the last crash: one file
         for (It& it : its) it.key = "";
     }
+    its.insert(its.begin() + 2, It{"SCÈNES DU CLOUD…", "", 8});   // (the scenes of the account, iPad and PC)
     its.push_back({"MAISON (DÉMO)", "", 6});   // (Wzx 12/11/2026: the scenes of demo, at once)
     its.push_back({"PELLETEUSE ET MÉCANISMES (DÉMO)", "", 7});
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
@@ -953,6 +954,7 @@ void BrickApp::stFile() {
             else if (it.id == 2) saveNow();
             else if (it.id == 4) shareScene();
             else if (it.id == 5) sendReport();
+            else if (it.id == 8) { m_popup = 9; cloudRefreshList(); }
             else if (it.id == 6) openOfficialHouse();   // (the building of set 31153 with its minifigs, Wzx 12/11/2026)
             else if (it.id == 7) { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; toast("Démo : pelleteuse et mécanismes (passe en Mécanique : 4 moteurs, 2 vérins)"); }
             else saveDialog();
@@ -976,6 +978,7 @@ void BrickApp::newScene() {
     m_multi.clear();
     m_scenePath.clear();
     m_modelName.clear();
+    cloudForget();
     rebuildScene();
     toast("Nouvelle scène");
 }
@@ -2635,4 +2638,99 @@ void BrickApp::stRing() {
     stTrack(u, ImVec2(c.x - lw * 0.5f, m_holding ? c.y - u.fs(8.5f) * 0.52f : c.y + 8 * s), m_holding ? 8.5f : 6.5f, m_holding ? C_INK : stA(C_DIM, al), lab, 1.0f * s);
     if (hov == 4 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_holding ? "Poser la brique" : "Dupliquer la sélection");
     if (!m_ipad && hov >= 0 && u.pressed) stRingAct(hov);   // (iPad: the touches, BrickTouch.cpp)
+}
+
+// ------------------------------------------------------------------ Scène › Scènes du cloud (BrickCloud.cpp)
+// the scenes of the account, the last changed first: a click opens one (the current one sent before), × deletes one
+void BrickApp::stCloudList() {
+    if (m_popup != 9) return;
+    Ui u = ui(m_ui);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui, W = 340 * s, ih = 46 * s, pad = 8 * s;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const bool in = m_cloud.signedIn();
+    const int n = in ? (int)m_cloudList.size() : 0;
+    const int shown = std::min(n, std::max(3, (int)((d.y - m_popupAt.y - 120 * s) / ih)));
+    const float listH = std::max(1, shown) * ih;
+    const ImVec2 a(std::min(m_popupAt.x, d.x - W - 10 * s), m_popupAt.y), b(a.x + W, a.y + 40 * s + listH + 30 * s);
+    stGlass(u.dl, a, b, 14 * s, s);
+    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 236), 14 * s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    stTrack(u, ImVec2(a.x + 16 * s, a.y + 14 * s), 9, C_TEXT, "SCÈNES DU CLOUD", 1.6f * s);
+    bool clicked = false;
+    if (in) {   // refresh
+        const ImVec2 ra(b.x - 34 * s, a.y + 8 * s), rb2(b.x - 10 * s, a.y + 32 * s);
+        const bool h = u.hover(ra, rb2);
+        if (h) u.dl->AddRectFilled(ra, rb2, IM_COL32(255, 255, 255, 16), 6 * s);
+        const ImVec2 c((ra.x + rb2.x) * 0.5f, (ra.y + rb2.y) * 0.5f);
+        u.dl->PathArcTo(c, 6 * s, 0.6f, 5.6f, 16);
+        u.dl->PathStroke(m_cloudListBusy ? C_ACCENT : C_DIM, 0, 1.6f * s);
+        if (h && u.pressed) { clicked = true; cloudRefreshList(); }
+    }
+    float y = a.y + 40 * s;
+    auto line = [&](const char* t, ImU32 c) { u.text(ImVec2(a.x + 18 * s, y + 6 * s), 11, c, t); y += 24 * s; };
+    if (!in) {
+        line("Connecte-toi pour retrouver tes scènes", C_TEXT);
+        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + 30 * s);
+        const bool h = u.hover(ba, bb);
+        u.dl->AddRectFilled(ba, bb, h ? C_CARD_HI : C_CARD, 8 * s);
+        const char* lab = "Réglages › Cloud";
+        u.text(ImVec2((ba.x + bb.x - u.textW(12, lab)) * 0.5f, ba.y + 7 * s), 12, C_TEXT, lab);
+        if (h && u.pressed) { clicked = true; m_popup = 5; m_setSec = kSetCloud; m_setScroll = 0; m_popupAt = ImVec2(d.x - 560 * s, m_popupAt.y); }
+    } else if (!m_cloudListErr.empty()) line(m_cloudListErr.c_str(), C_DIM);
+    else if (n == 0) line(m_cloudListBusy ? "Chargement…" : "Aucune scène pour l'instant : la tienne y sera après ta prochaine modification", C_DIM);
+    else {
+        const ImVec2 la(a.x, y), lb(b.x, y + listH);
+        if (u.hover(la, lb) && ImGui::GetIO().MouseWheel != 0) m_cloudScroll -= ImGui::GetIO().MouseWheel * ih;
+        m_cloudScroll = std::clamp(m_cloudScroll, 0.0f, std::max(0.0f, n * ih - listH));
+        u.dl->PushClipRect(la, lb, true);
+        for (int i = 0; i < n; ++i) {
+            const CloudScene& c = m_cloudList[i];
+            const ImVec2 ia(a.x + pad, y + i * ih - m_cloudScroll), ib(b.x - pad, ia.y + ih - 4 * s);
+            if (ib.y < la.y || ia.y > lb.y) continue;
+            const bool cur = c.id == m_cloudId, h = u.hover(ia, ib) && u.hover(la, lb);
+            if (h || cur) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, cur ? 22 : 14), 9 * s);
+            if (cur) u.dl->AddCircleFilled(ImVec2(ia.x + 9 * s, ia.y + 14 * s), 3.5f * s, C_ACCENT);
+            u.text(ImVec2(ia.x + 18 * s, ia.y + 6 * s), 12.5f, C_TEXT, c.name.empty() ? "Ma scène" : c.name.c_str(), true);
+            const std::string sub = (c.device.empty() ? std::string() : c.device + " · ") + Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces";
+            u.text(ImVec2(ia.x + 18 * s, ia.y + 24 * s), 10, C_DIM, sub.c_str());
+            bool del = false;
+            if (h) {   // × : delete (asked first)
+                const ImVec2 xa(ib.x - 30 * s, ia.y + 8 * s), xb(ib.x - 6 * s, ia.y + 32 * s);
+                const bool hx = u.hover(xa, xb);
+                if (hx) u.dl->AddRectFilled(xa, xb, IM_COL32(229, 57, 53, 60), 6 * s);
+                const ImVec2 xc((xa.x + xb.x) * 0.5f, (xa.y + xb.y) * 0.5f);
+                const float r = 4.5f * s;
+                u.dl->AddLine(ImVec2(xc.x - r, xc.y - r), ImVec2(xc.x + r, xc.y + r), hx ? C_TEXT : C_DIM, 1.5f * s);
+                u.dl->AddLine(ImVec2(xc.x - r, xc.y + r), ImVec2(xc.x + r, xc.y - r), hx ? C_TEXT : C_DIM, 1.5f * s);
+                if (hx && u.pressed) {
+                    del = clicked = true;
+                    const CloudScene cs = c;
+                    plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Supprimer « " + (cs.name.empty() ? std::string("Ma scène") : cs.name) + " » du cloud ? (Sur cet appareil, la scène ouverte reste.)"),
+                                  [this, cs] {
+                                      m_cloud.remove(cs.id, [this, cs](bool ok, const std::string& err) {
+                                          if (!ok) { toast("Cloud : " + err); return; }
+                                          if (cs.id == m_cloudId) cloudForget();
+                                          toast("Cloud : « " + cs.name + " » supprimée");
+                                          cloudRefreshList();
+                                      });
+                                  });
+                }
+            }
+            if (h && u.pressed && !del) {
+                clicked = true;
+                m_popup = 0;
+                if (!cur || m_cloudDirty == false) cloudOpen(c, false);
+            }
+        }
+        u.dl->PopClipRect();
+        y += listH;
+    }
+    {   // the state of the sync
+        std::string st = !in ? std::string() : m_cloudSending ? "envoi de la scène…" : m_cloudDirty ? "scène modifiée : envoi dans un instant" : m_cloud.email();
+        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 9, C_FAINT, st.c_str());
+    }
+    if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) m_popup = 0;
 }

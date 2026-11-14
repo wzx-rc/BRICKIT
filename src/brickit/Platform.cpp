@@ -4,6 +4,10 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <winhttp.h>
+#include <wincrypt.h>
+#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "crypt32.lib")
 #else
 #include <cstdlib>
 #include <cerrno>
@@ -140,8 +144,90 @@ void setAppIcon(int which) {   // the resources 1 (A) and 2 (B) of brickit.rc, o
     if (big) SendMessageW(g_window, WM_SETICON, ICON_BIG, (LPARAM)big);
     if (smallIco) SendMessageW(g_window, WM_SETICON, ICON_SMALL, (LPARAM)smallIco);   // (« small » is a macro of the Windows headers)
 }
+
+// ---- network: WinHTTP (the system's TLS and proxy), one session for the app
+HttpReply http(const char* method, const std::string& url, const std::vector<std::string>& headers, const std::string& body) {
+    HttpReply r;
+    static HINTERNET session = WinHttpOpen(L"BrickIt/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session) { r.error = "WinHTTP indisponible"; return r; }
+    const std::wstring wurl = fromUtf8(url);
+    URL_COMPONENTS uc = {};
+    uc.dwStructSize = sizeof(uc);
+    static thread_local wchar_t host[256], path[4096], extra[4096];
+    host[0] = path[0] = extra[0] = 0;
+    uc.lpszHostName = host;
+    uc.dwHostNameLength = 256;
+    uc.lpszUrlPath = path;
+    uc.dwUrlPathLength = 4096;
+    uc.lpszExtraInfo = extra;
+    uc.dwExtraInfoLength = 4096;
+    if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) { r.error = "adresse invalide"; return r; }
+    HINTERNET con = WinHttpConnect(session, host, uc.nPort, 0);
+    if (!con) { r.error = "connexion impossible"; return r; }
+    const std::wstring target = std::wstring(path) + extra;
+    HINTERNET req = WinHttpOpenRequest(con, fromUtf8(method).c_str(), target.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                       uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+    if (!req) { WinHttpCloseHandle(con); r.error = "requête impossible"; return r; }
+    WinHttpSetTimeouts(req, 10000, 10000, 20000, 30000);
+    std::wstring hs;
+    for (const std::string& hd : headers) hs += fromUtf8(hd) + L"\r\n";
+    BOOL ok = WinHttpSendRequest(req, hs.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : hs.c_str(), (DWORD)-1L,
+                                 body.empty() ? WINHTTP_NO_REQUEST_DATA : (LPVOID)body.data(), (DWORD)body.size(), (DWORD)body.size(), 0);
+    if (ok) ok = WinHttpReceiveResponse(req, nullptr);
+    if (!ok) {
+        char b[64];
+        snprintf(b, sizeof(b), "pas de réponse (erreur %lu)", GetLastError());
+        r.error = b;
+    } else {
+        DWORD st = 0, sz = sizeof(st);
+        WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &st, &sz, WINHTTP_NO_HEADER_INDEX);
+        r.status = (int)st;
+        for (;;) {
+            DWORD avail = 0;
+            if (!WinHttpQueryDataAvailable(req, &avail) || avail == 0) break;
+            const size_t at = r.body.size();
+            r.body.resize(at + avail);
+            DWORD got = 0;
+            if (!WinHttpReadData(req, &r.body[at], avail, &got)) { r.body.resize(at); break; }
+            r.body.resize(at + got);
+        }
+    }
+    WinHttpCloseHandle(req);
+    WinHttpCloseHandle(con);
+    return r;
+}
+
+std::string protectSecret(const std::string& s) {
+    DATA_BLOB in = {(DWORD)s.size(), (BYTE*)s.data()}, out = {};
+    if (!CryptProtectData(&in, L"BrickIt", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) return std::string();
+    DWORD n = 0;
+    CryptBinaryToStringA(out.pbData, out.cbData, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &n);
+    std::string b64(n, '\0');
+    CryptBinaryToStringA(out.pbData, out.cbData, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &b64[0], &n);
+    b64.resize(n);
+    LocalFree(out.pbData);
+    return b64;
+}
+
+std::string unprotectSecret(const std::string& b64) {
+    DWORD n = 0;
+    if (b64.empty() || !CryptStringToBinaryA(b64.c_str(), (DWORD)b64.size(), CRYPT_STRING_BASE64, nullptr, &n, nullptr, nullptr)) return std::string();
+    std::vector<BYTE> raw(n);
+    CryptStringToBinaryA(b64.c_str(), (DWORD)b64.size(), CRYPT_STRING_BASE64, raw.data(), &n, nullptr, nullptr);
+    DATA_BLOB in = {n, raw.data()}, out = {};
+    if (!CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out)) return std::string();
+    std::string s((const char*)out.pbData, out.cbData);
+    LocalFree(out.pbData);
+    return s;
+}
+
+std::string deviceName() { return "PC"; }
 #elif !defined(__APPLE__)
 // Linux test build: no dialogs (scripted runs give the paths on the command line).
+HttpReply http(const char*, const std::string&, const std::vector<std::string>&, const std::string&) { HttpReply r; r.error = "network not available"; return r; }
+std::string protectSecret(const std::string& s) { return s; }
+std::string unprotectSecret(const std::string& s) { return s; }
+std::string deviceName() { return "Linux"; }
 void setWindow(void*) {}
 void errorBox(const std::string& title, const std::string& text) { fprintf(stderr, "%s: %s\n", title.c_str(), text.c_str()); }
 void confirm(const std::wstring&, const std::wstring&, std::function<void()> onOk) { if (onOk) onOk(); }

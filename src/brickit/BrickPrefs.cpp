@@ -107,6 +107,8 @@ std::string BrickApp::prefsJson() {
     j += std::string("\"dev\": {\"on\": ") + (m_dev ? "true" : "false") + ", \"showVox\": " + (m_devShowVox ? "true" : "false") + ", \"showEdges\": " + (m_devShowEdges ? "true" : "false") + ", \"useOverrides\": " + (m_devUseOverrides ? "true" : "false") + "},";
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"dock\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_manDock, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false"); j += sb; }
+    // the scene of the cloud (BrickCloud.cpp): its id, the version last sent or read, the automatic sync
+    j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + "},";
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
         j += "\"theme\": {\"id\": " + jstr(m_themeId) + ", \"looks\": {";
         bool first = true;
@@ -245,6 +247,12 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (st["rc"].type == app::Json::Bool && st["rc"].b) setRC(true);
     }
     {   // vp3d-manual-w / vp3d-manual-h / vp3d-manual-pdf-page
+        const app::Json& cl = p["cloud"];
+        if (cl.type == app::Json::Object) {
+            m_cloudId = cl["id"].str();
+            m_cloudVer = (int)cl["ver"].num();
+            if (cl["auto"].type == app::Json::Bool) m_cloudAuto = cl["auto"].b;
+        }
         const app::Json& mn = p["manual"];
         if (mn["w"].num() >= 260) m_manW = (float)mn["w"].num();
         if (mn["h"].num() >= 160) m_manH = (float)mn["h"].num();
@@ -265,6 +273,7 @@ void BrickApp::applyPrefs(const std::string& t) {
 void BrickApp::autosave() {
     if (m_cornell) return;
     manualDirty();   // the steps change with the scene
+    cloudNoteChange();   // (sent to the cloud a few seconds later)
     if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", m_build.toJson(m_scene.camera));
 }
 

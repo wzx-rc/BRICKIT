@@ -443,6 +443,7 @@ bool BrickApp::openScene(const std::wstring& path) {
     m_selected = -1;
     m_multi.clear();
     m_scenePath = path;
+    cloudForget();   // (a scene of a file: a new scene of the cloud)
     rebuildScene();
     toast(msg);
     return true;

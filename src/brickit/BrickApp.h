@@ -11,6 +11,7 @@
 #include "Gfx.h"
 #include "Svg.h"
 #include "BrickTheme.h"
+#include "Cloud.h"
 #include <windows.h>   // (iPad / Linux: compat/windows.h, the portable subset)
 #include <string>
 #include <map>
@@ -141,6 +142,7 @@ struct Options {
     bool noEnv = false;         // --no-env
     std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
     int perfFrames = 600, perfOrbit = 0;
+    std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
@@ -787,9 +789,29 @@ private:
     std::string m_thKey;              // what m_th was resolved for (id, mode, tint, accent)
     int m_setTab = 0;                 // Réglages: 1 = open on Thème (--settings-tab)
     int m_setSec = 0;                 // Réglages: the active section (Interface, Bibliothèque, Construction, Rendu, Caméra, Lumière, Thème, Fichiers)
-    float m_setSecH[8] = {};          // Réglages: the height of each section as drawn last frame
+    float m_setSecH[12] = {};          // Réglages: the height of each section as drawn last frame
     LARGE_INTEGER m_perfT0{}, m_perfA{}, m_perfB{}, m_perfD{}, m_perfE{}, m_perfT1{}, m_perfF{};   // (--perf-trace)
-    float m_setScroll = 0;            // Réglages: scrolled (a section taller than the screen)
+    float m_setScroll = 0;
+    // ---- the cloud (BrickCloud.cpp, Cloud.h; Wzx 14/11/2026: the scenes between the iPad and the PC)
+    static constexpr int kSetCloud = 8;   // Réglages › Cloud (its section)
+    Cloud m_cloud;
+    std::string m_cloudId, m_cloudSentKey, m_cloudMsg, m_cloudAuthMsg, m_cloudListErr;
+    int m_cloudVer = 0, m_cloudChanges = 0;
+    bool m_cloudAuto = true, m_cloudDirty = false, m_cloudSending = false, m_cloudChecking = false, m_cloudLoading = false, m_cloudListBusy = false;
+    double m_cloudDirtyAt = 0, m_cloudPollAt = 0, m_cloudOkAt = -1;
+    std::vector<CloudScene> m_cloudList;
+    float m_cloudScroll = 0;
+    char m_cloudEmail[160] = {}, m_cloudPw[160] = {};
+    void cloudInit();
+    void cloudTick();
+    void cloudNoteChange();
+    void cloudForget();
+    void cloudSend();
+    void cloudCheck();
+    void cloudOpen(const CloudScene& c, bool fromPoll);
+    void cloudRefreshList();
+    bool loadSceneText(const std::string& text, const std::string& name, bool camera);
+    void stCloudList();            // Réglages: scrolled (a section taller than the screen)
     std::map<std::string, ImTextureID> m_themeTex;
     bool applyTheme();                // true when the theme changed (the 3D stage then follows)
     void loadThemeFonts();
