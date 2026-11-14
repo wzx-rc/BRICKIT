@@ -108,7 +108,7 @@ std::string BrickApp::prefsJson() {
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"dock\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_manDock, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false"); j += sb; }
     // the scene of the cloud (BrickCloud.cpp): its id, the version last sent or read, the automatic sync
-    j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + "},";
+    j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + ", \"pending\": " + (m_cloudDirty ? "true" : "false") + "},";   // (pending: changes not sent yet, sent at the next start)
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
         j += "\"theme\": {\"id\": " + jstr(m_themeId) + ", \"looks\": {";
         bool first = true;
@@ -252,6 +252,7 @@ void BrickApp::applyPrefs(const std::string& t) {
             m_cloudId = cl["id"].str();
             m_cloudVer = (int)cl["ver"].num();
             if (cl["auto"].type == app::Json::Bool) m_cloudAuto = cl["auto"].b;
+            if (cl["pending"].type == app::Json::Bool && cl["pending"].b) { m_cloudDirty = true; m_cloudDirtyAt = 0; m_cloudSendAt = 0; }
         }
         const app::Json& mn = p["manual"];
         if (mn["w"].num() >= 260) m_manW = (float)mn["w"].num();

@@ -3822,7 +3822,7 @@ void BrickApp::uiSettings() {
                         if (!ok) return;
                         memset(m_cloudPw, 0, sizeof(m_cloudPw));
                         m_cloudPollAt = 0;
-                        if (m_cloudId.empty() && !m_bricks.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; }   // (this scene sent at once)
+                        if (m_cloudId.empty() && !m_bricks.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; m_cloudSendAt = 0; }   // (this scene sent at once)
                         toast("Cloud : connecté (" + m_cloud.email() + ")");
                     };
                     if (k == 0) m_cloud.signIn(em, pw, done);
@@ -3851,7 +3851,7 @@ void BrickApp::uiSettings() {
             {
                 const int k = seg("", {"Synchroniser maintenant", "Scènes du cloud…"}, -1);
                 if (k == 0) {
-                    if (m_cloudDirty || m_cloudId.empty() || m_cloudSentKey.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; m_cloudSentKey.clear(); }
+                    if (m_cloudDirty || m_cloudId.empty() || m_cloudSentKey.empty()) { m_cloudDirty = true; m_cloudDirtyAt = 0; m_cloudSendAt = 0; m_cloudSentKey.clear(); }
                     else m_cloudPollAt = 0;   // (nothing to send: its version in the cloud read now)
                 }
                 if (k == 1) { m_popup = 9; cloudRefreshList(); }
@@ -3859,7 +3859,7 @@ void BrickApp::uiSettings() {
             {   // the state of this scene
                 std::string st = "Cette scène : ";
                 if (m_cloudSending) st += "envoi…";
-                else if (m_cloudDirty) st += "modifiée, envoi dans un instant";
+                else if (m_cloudDirty) { const int w = (int)std::ceil(std::max(2.5 - (ImGui::GetTime() - m_cloudDirtyAt), m_cloudSendAt - ImGui::GetTime())); st += w > 1 ? "modifiée, envoi dans " + std::to_string(w) + " s" : std::string("modifiée, envoi dans un instant"); }
                 else if (m_cloudId.empty()) st += "pas encore dans le cloud";
                 else st += m_cloudMsg.empty() ? std::string("à jour") : m_cloudMsg;
                 if (!m_cloudId.empty() && m_cloudVer > 0) st += " · version " + std::to_string(m_cloudVer);

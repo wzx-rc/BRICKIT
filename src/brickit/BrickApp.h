@@ -798,7 +798,7 @@ private:
     std::string m_cloudId, m_cloudSentKey, m_cloudMsg, m_cloudAuthMsg, m_cloudListErr;
     int m_cloudVer = 0, m_cloudChanges = 0;
     bool m_cloudAuto = true, m_cloudDirty = false, m_cloudSending = false, m_cloudChecking = false, m_cloudLoading = false, m_cloudListBusy = false;
-    double m_cloudDirtyAt = 0, m_cloudPollAt = 0, m_cloudOkAt = -1;
+    double m_cloudDirtyAt = 0, m_cloudPollAt = 0, m_cloudOkAt = -1, m_cloudSendAt = 0;   // (m_cloudSendAt: the next send, one per minute at most)
     std::vector<CloudScene> m_cloudList;
     float m_cloudScroll = 0;
     char m_cloudEmail[160] = {}, m_cloudPw[160] = {};

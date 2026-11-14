@@ -2727,7 +2727,7 @@ void BrickApp::stCloudList() {
         y += listH;
     }
     {   // the state of the sync
-        std::string st = !in ? std::string() : m_cloudSending ? "envoi de la scène…" : m_cloudDirty ? "scène modifiée : envoi dans un instant" : m_cloud.email();
+        std::string st = !in ? std::string() : m_cloudSending ? "envoi de la scène…" : m_cloudDirty ? "scène modifiée : envoyée dans la minute" : m_cloud.email();
         u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
         u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 9, C_FAINT, st.c_str());
     }

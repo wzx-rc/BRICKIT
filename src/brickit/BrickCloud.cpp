@@ -32,7 +32,7 @@ void BrickApp::cloudTick() {
     m_cloud.pump();
     if (!userSession() || !m_cloud.signedIn()) return;
     const double t = ImGui::GetTime();
-    if (m_cloudDirty && !m_cloudSending && !m_cloudChecking && !m_holding && t - m_cloudDirtyAt > 2.5) cloudSend();
+    if (m_cloudDirty && !m_cloudSending && !m_cloudChecking && !m_holding && t - m_cloudDirtyAt > 2.5 && t >= m_cloudSendAt) cloudSend();   // (one send per minute at most, Wzx 14/11/2026)
     else if (m_cloudAuto && !m_cloudDirty && !m_cloudSending && !m_cloudChecking && !m_cloudId.empty() && t > m_cloudPollAt) {
         m_cloudPollAt = t + 20;
         cloudCheck();
@@ -60,6 +60,7 @@ void BrickApp::cloudSend() {
             m_cloudSentKey = key;
             if (m_cloudChanges == changes) m_cloudDirty = false;
             m_cloudOkAt = ImGui::GetTime();
+            m_cloudSendAt = m_cloudOkAt + 60;
             m_cloudMsg = "à jour";
             savePrefs();
         } else if (res == 1) {   // changed on the other device too: this one goes on as a copy, sent at once
@@ -69,6 +70,7 @@ void BrickApp::cloudSend() {
             m_modelName = meta.name + " (copie " + plat::deviceName() + ")";
             m_cloudDirty = true;
             m_cloudDirtyAt = 0;
+            m_cloudSendAt = 0;
             toast("Cloud : cette scène a aussi changé sur l'autre appareil. Ta version continue en copie : « " + m_modelName + " »");
         } else {
             m_cloudMsg = "envoi impossible : " + err;
