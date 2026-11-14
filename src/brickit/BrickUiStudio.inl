@@ -1250,6 +1250,21 @@ void BrickApp::stColors() {
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s, bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : d.y) - 12 * s;
     const float W = 214 * s, pad = 12 * s, cols = 6, gap = 5 * s;
     const float sw = std::floor((W - 2 * pad - (cols - 1) * gap) / cols);
+    auto colOf0 = [](const Color& c, int alpha = 255) { return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), alpha); };
+    if (m_pColors.collapsed) {   // reduced (Wzx 14/11/2026): the big swatch of the current colour alone; a click unfolds it
+        const float bs = 44 * s;
+        const ImVec2 ca(d.x - 14 * s - m_dockR - bs - 2 * pad, top), cb(d.x - 14 * s - m_dockR, top + bs + 2 * pad);
+        stGlass(u.dl, ca, cb, 16 * s, s);
+        m_uiRects.push_back(ImVec4(ca.x, ca.y, cb.x, cb.y));
+        const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
+        const ImVec2 p0(ca.x + pad, ca.y + pad);
+        if (g_studTex) u.dl->AddImage(g_studTex, p0, ImVec2(p0.x + bs, p0.y + bs), ImVec2(0, 0), ImVec2(1, 1), colOf0(c, c.group == "transparent" ? 165 : 255));
+        else u.dl->AddRectFilled(p0, ImVec2(p0.x + bs, p0.y + bs), colOf0(c), 3 * s);
+        const bool h = u.hover(ca, cb);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s : clic pour déplier les couleurs", colorFr(c.name));
+        if (h && u.pressed) { m_pColors.collapsed = false; savePrefs(); }
+        return;
+    }
     const ImVec2 a(d.x - 14 * s - m_dockR - W, top), b(d.x - 14 * s - m_dockR, bottom);
     stGlass(u.dl, a, b, 16 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -1275,6 +1290,12 @@ void BrickApp::stColors() {
     {   // the current colour: a big brick, its name and hex
         const float bs = 44 * s;
         swatch(ImVec2(a.x + pad, y), bs, cur);
+        {   // a click on it folds the panel down to it (Wzx 14/11/2026)
+            const bool h = u.hover(ImVec2(a.x + pad, y), ImVec2(a.x + pad + bs, y + bs));
+            if (h) u.dl->AddRect(ImVec2(a.x + pad - 2 * s, y - 2 * s), ImVec2(a.x + pad + bs + 2 * s, y + bs + 2 * s), IM_COL32(255, 255, 255, 120), 5 * s, 0, 1.2f * s);
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Clic : réduire le panneau à cette couleur");
+            if (h && u.pressed) { m_pColors.collapsed = true; savePrefs(); return; }
+        }
         u.text(ImVec2(a.x + pad + bs + 10 * s, y + 6 * s), 13, C_TEXT, colorFr(cur.name), true);
         char hx[16];
         snprintf(hx, sizeof(hx), "#%02X%02X%02X", (int)(cur.srgb.x * 255), (int)(cur.srgb.y * 255), (int)(cur.srgb.z * 255));
@@ -1333,8 +1354,19 @@ void BrickApp::stColors() {
         const bool inside = u.mouse.x >= a.x && u.mouse.x <= b.x && u.mouse.y >= a.y && u.mouse.y <= b.y;
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             if (!moved && (!filter || m_lib.colorExists(fpart, m_colPress))) applyColor(m_colPress);
+            else if (moved && !inside) {   // dropped on a brick of the view: that brick takes the colour (Wzx 14/11/2026)
+                float3 hp;
+                const int hit = pickBrick(u.mouse.x, u.mouse.y, &hp);
+                if (hit >= 0) {
+                    m_color = m_colPress;
+                    paintOne(hit);
+                    const double now = ImGui::GetTime();
+                    m_paintFx.push_back({u.mouse, m_color, now, 1});
+                    m_paintFx.push_back({ImVec2(u.mouse.x + 10 * s, u.mouse.y - 8 * s), m_color, now + 0.08, 2});
+                }
+            }
             m_colPress = -1;
-        } else if (moved && inside) {   // the swatch follows the finger, a little bigger, wobbling
+        } else if (moved) {   // the swatch follows the finger, a little bigger, wobbling (out of the panel too: dropped on a brick, it paints it)
             ImDrawList* fg = ImGui::GetForegroundDrawList();
             const float t = (float)ImGui::GetTime();
             const float z = 34 * s * (1 + 0.06f * std::sin(t * 18));
@@ -1346,30 +1378,6 @@ void BrickApp::stColors() {
             u.dl = keep;
             fg->AddRect(ImVec2(c.x - z * 0.5f - 2 * s, c.y - z * 0.5f - 2 * s), ImVec2(c.x + z * 0.5f + 2 * s, c.y + z * 0.5f + 2 * s), IM_COL32(255, 255, 255, 200), 5 * s, 0, 1.5f * s);
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        } else if (moved && !inside) {
-            int part = m_lib.find("3005");
-            if (part < 0) part = m_lib.find("3005.dat");
-            const int col = m_colPress;
-            m_colPress = -1;
-            if (part >= 0) {
-                m_color = col;
-                m_recentColors.erase(std::remove(m_recentColors.begin(), m_recentColors.end(), col), m_recentColors.end());
-                m_recentColors.insert(m_recentColors.begin(), col);
-                if (m_recentColors.size() > 12) m_recentColors.resize(12);
-                spawn(part, u.mouse.x, u.mouse.y);
-                m_dragStarted = true;
-                m_pressed = false;
-                if (m_holding) {   // the burst: it springs from higher, squashed, with a spin
-                    m_held.vpos = m_held.target + float3(0, 2.4f, 0);
-                    m_held.squash = 0.35f;
-                    m_held.vrot = qMul(qAxisAngle(float3(0, 1, 0), 1.6f), m_held.rot);
-                }
-                const double now = ImGui::GetTime();
-                m_paintFx.push_back({u.mouse, col, now, 1});
-                m_paintFx.push_back({ImVec2(u.mouse.x + 10 * s, u.mouse.y - 8 * s), col, now + 0.08, 2});
-                m_paintFx.push_back({ImVec2(u.mouse.x - 9 * s, u.mouse.y + 6 * s), col, now + 0.15, 2});
-                toast("Brique 1x1 en main : pose-la, puis tourne-la avec l'anneau");
-            }
         }
     }
 }
