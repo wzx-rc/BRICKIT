@@ -17,11 +17,14 @@ if (process.argv[2] === "--worker") {
   process.env.SHADOW = process.argv[4];
   const { convertPart } = await import(pathToFileURL(CONVERTER).href);
   console.warn = () => {};
+  // the old BrickIt (Maya): its locators for the parts the LDCad shadow library does not know (OLD_INDEX)
+  const OLD = process.env.OLD_INDEX && fs.existsSync(process.env.OLD_INDEX) ? JSON.parse(fs.readFileSync(process.env.OLD_INDEX, "utf8")) : {};
+  const nameKey = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\b0+(\d)/g, "$1").replace(/ /g, "");
   process.on("message", (ids) => {
     const res = [];
-    for (const [id, sys] of ids) {
+    for (const [id, sys, title] of ids) {
       try {
-        const r = convertPart(id, { system: sys });
+        const r = convertPart(id, { system: sys, old: OLD[nameKey(title || "")] });
         res.push({ id, sys, src: r.meta.connSource, voxels: r.meta.voxels, types: r.meta.connectorTypes, grab: r.meta.grab, grabPoints: r.meta.grabPoints, size: [0, 1, 2].map((k) => r.mesh.mx[k] - r.mesh.mn[k]) });
       } catch (e) { res.push({ id, sys, err: String(e) }); }
     }
@@ -35,21 +38,24 @@ if (process.argv[2] === "--worker") {
   const pos = args.filter((a, i) => !a.startsWith("--") && !(bi >= 0 && i === bi + 1));
   const [ldraw, shadow, report, ...dirs] = pos;
   // the parts: name -> system (a System part: not Technic)
-  const want = new Map();
+  const want = new Map(), titles = new Map();
   const isSys = (cat) => cat !== "Technic";
   const libs = [];   // {dir, kind: "technic" | "full"}
   for (const d of dirs) {
     const ix = JSON.parse(fs.readFileSync(path.join(d, "index.json"), "utf8"));
     const technic = ix.set !== "ldraw-full";
     libs.push({ dir: d, technic, ix });
-    for (const p of ix.parts) if (!want.has(p.name)) want.set(p.name, technic ? false : isSys((p.info && p.info.category) || ""));
+    for (const p of ix.parts) {
+      if (!want.has(p.name)) want.set(p.name, technic ? false : isSys((p.info && p.info.category) || ""));
+      if (!titles.has(p.name)) titles.set(p.name, p.label || "");
+    }
   }
   let baseJ = null;
   if (base) {
     baseJ = JSON.parse(fs.readFileSync(base, "utf8"));
     for (const p of baseJ.parts) if (!want.has(p.name)) want.set(p.name, isSys((p.info && p.info.category) || p.label.split(/\s+/)[0]));
   }
-  const list = [...want.entries()].filter(([id]) => fs.existsSync(path.join(ldraw, "parts", id + ".dat")));
+  const list = [...want.entries()].filter(([id]) => fs.existsSync(path.join(ldraw, "parts", id + ".dat"))).map(([id, sys]) => [id, sys, titles.get(id) || ""]);
   console.log("parts", list.length);
   const fresh = new Map();
   const t0 = Date.now();
@@ -82,9 +88,12 @@ if (process.argv[2] === "--worker") {
   const skipped = [];
   const apply = (m, where) => {
     const f = fresh.get(m.name);
-    if (!f || f.err || f.src !== "shadow" || !m.voxels) return false;
-    // only the parts whose pins or pin holes changed (the rest: the same connectors, or a change of another rule)
-    if (pinCount(m.connectorTypes) === pinCount(f.types)) return false;
+    if (!f || f.err || !m.voxels) return false;
+    // LDCad: only the parts whose pins or pin holes changed (the rest: the same connectors, or a change of another rule);
+    // the old BrickIt (Maya) and the rules: every part whose connectors changed (the locators are read right since 14/11)
+    if (f.src === "shadow" && pinCount(m.connectorTypes) === pinCount(f.types)) return false;
+    if (f.src === "fail") return false;
+    if (f.src !== "shadow" && JSON.stringify(m.connectorTypes) === JSON.stringify(f.types) && m.voxels.length === f.voxels.length) { m.connSource = f.src; return false; }
     // the new voxels in the frame of the mesh of the pack (its min corner): the two meshes centred on each other, when
     // they have the same size (the LDraw file may have changed since the pack was built)
     let shift = [0, 0, 0];
@@ -98,6 +107,7 @@ if (process.argv[2] === "--worker") {
     changed.add(m.name);
     m.voxels = vox;
     m.connectorTypes = f.types;
+    m.connSource = f.src;
     if (!m.hasStuds && f.grab) { m.grab = [f.grab[0] + shift[0], f.grab[1] + shift[2]]; m.grabPoints = f.grabPoints.map((g) => [g[0] + shift[0], g[1] + shift[2]]); }
     return true;
   };
@@ -124,6 +134,15 @@ if (process.argv[2] === "--worker") {
       const ixf = path.join(L.dir, "index.json");
       if (!fs.existsSync(ixf + ".prev")) fs.copyFileSync(ixf, ixf + ".prev");
       fs.writeFileSync(ixf, JSON.stringify(L.ix));
+    }
+    const stf = path.join(L.dir, "conn_status.json");
+    if (!L.technic && fs.existsSync(stf) && !dry) {   // where the connectors of each part come from (the colours of the mode DEV)
+      const st = JSON.parse(fs.readFileSync(stf, "utf8"));
+      let n = 0;
+      for (const [id, x] of fresh) if (x && !x.err && st[id] !== undefined && st[id] !== x.src) { st[id] = x.src; ++n; }
+      if (!fs.existsSync(stf + ".prev")) fs.copyFileSync(stf, stf + ".prev");
+      fs.writeFileSync(stf, JSON.stringify(st));
+      console.log(stf, "sources changed", n);
     }
     console.log(L.dir, "parts changed", voxN.size, "packs rewritten", nPacks);
   }

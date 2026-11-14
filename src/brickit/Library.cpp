@@ -364,7 +364,7 @@ bool Library::load(const std::wstring& dir, std::string* error) {
                 if (i < 0) continue;
                 const std::string t = v.str();
                 Part& p = parts[i];
-                p.connAuto = t == "shadow" ? 1 : t == "auto" || t == "old" ? 2 : t == "fail" ? 3 : 0;
+                p.connAuto = t == "shadow" ? 1 : t == "auto" ? 2 : t == "old" ? 5 : t == "fail" ? 3 : 0;   // (5: the locators of the old BrickIt, Maya)
                 p.connOld = t == "old";
                 p.connSrc = p.connAuto;
             }

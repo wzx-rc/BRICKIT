@@ -2610,6 +2610,14 @@ void BrickApp::uiDevSheet() {
             u.text(ImVec2(cx + 8 * s + tw + 4 * s, ry + 3 * s), 12, C_TEXT, lab.c_str());
             cx += w + 6 * s;
         }
+        {   // where its connectors come from (Wzx 14/11/2026: « marque bien d'où viennent les locators »)
+            ry += 28 * s;
+            const ImU32 col = stConnCol(p.connSrc);
+            u.dl->AddRect(ImVec2(rx, ry + 3 * s), ImVec2(rx + 16 * s, ry + 17 * s), col, 4 * s, 0, 2.0f * s);
+            std::string src = std::string("Connecteurs : ") + stConnName(p.connSrc);
+            if (p.connSrc == 4 && p.connAuto) src += std::string(" (conversion : ") + stConnName(p.connAuto) + ")";
+            u.text(ImVec2(rx + 24 * s, ry + 2 * s), 12, col, src.c_str());
+        }
     }
     y += headH + gap;
     for (size_t i = 0; i < rows.size(); ++i) {
@@ -3964,8 +3972,8 @@ void BrickApp::uiCtxMenu() {
     const float s = m_ui;
     const char* item = "Modifier la miniature";
     // + the source of its connectors, to set by hand (mode DEV, Wzx 10/11/2026)
-    static const int kConn[4] = {4, 1, 2, 3};
-    const int nConn = m_studioUi ? 4 : 0;
+    static const int kConn[5] = {4, 1, 5, 2, 3};
+    const int nConn = m_studioUi ? 5 : 0;
     const float w = std::max(u.textW(12, item), u.textW(11, "Échec, aucun connecteur") + 30 * s) + 28 * s, h = 30 * s, rh = 24 * s;
     const float veH = m_studioUi ? 2 * h : 0;   // « Éditer les voxels » (Voxel Editor), « Mettre en couverture »
     ImVec2 a(m_ctxPos.x, m_ctxPos.y), b(a.x + w, a.y + h + veH + 22 * s + (nConn ? 18 * s + nConn * rh + 4 * s : 0));

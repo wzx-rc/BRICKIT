@@ -911,6 +911,7 @@ ImU32 stConnCol(int src) {
     case 2: return IM_COL32(0xff, 0x95, 0x00, 255);
     case 3: return IM_COL32(0xff, 0x3b, 0x30, 255);
     case 4: return IM_COL32(0x8e, 0xe0, 0x00, 255);
+    case 5: return IM_COL32(0xb3, 0x88, 0xff, 255);   // (violet: the locators of the old BrickIt, Maya)
     default: return IM_COL32(0x80, 0x80, 0x80, 255);
     }
 }
@@ -920,6 +921,7 @@ const char* stConnName(int src) {
     case 2: return "Auto (sans Shadow Library)";
     case 3: return "Échec, aucun connecteur";
     case 4: return "Validé à la main";
+    case 5: return "Legacy BrickIt (locators Maya)";
     default: return "Inconnu";
     }
 }
@@ -932,7 +934,7 @@ void BrickApp::stConnLegend() {
             std::string t = p.label;
             for (char& c : t) c = (char)std::tolower((unsigned char)c);
             if (t.find("pattern") != std::string::npos || t.find("sticker") != std::string::npos) continue;   // (no stickers)
-            ++m_connCounts[std::clamp((int)p.connSrc, 0, 4)];
+            ++m_connCounts[std::clamp((int)p.connSrc, 0, 5)];
         }
         m_connCountsDirty = false;
     }
@@ -940,8 +942,8 @@ void BrickApp::stConnLegend() {
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
     const float W = 236 * s, rowH = 19 * s, pad = 12 * s;
-    const int order[4] = {1, 4, 2, 3};
-    const float H = pad + 16 * s + 4 * rowH + 18 * s + pad;
+    const int order[5] = {1, 5, 4, 2, 3};
+    const float H = pad + 16 * s + 5 * rowH + 18 * s + pad;
     const float bottom = (m_uiRects.size() > 1 ? m_uiRects[1].y : ImGui::GetIO().DisplaySize.y) - 12 * s;
     float x0 = 14 * s + m_dockL;   // (right of the panel of the mode DEV when it is open there)
     for (size_t k = 2; k < m_uiRects.size(); ++k) if (m_uiRects[k].x < 40 * s && m_uiRects[k].w > bottom - H) x0 = std::max(x0, m_uiRects[k].z + 12 * s);
@@ -2025,20 +2027,20 @@ void BrickApp::stDrawer() {
             const bool on = &f == fam && !m_searchOpen;
             const bool h = live && u.hover(ta, tb);
             if (on) {   // the amber glow from below, the underline
-                u.dl->AddRectFilledMultiColor(ImVec2(ta.x, (ta.y + tb.y) * 0.5f), tb, IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 22), IM_COL32(246, 196, 0, 22));
-                u.dl->AddLine(ImVec2(ta.x + 10 * s, tb.y - 1 * s), ImVec2(tb.x - 10 * s, tb.y - 1 * s), IM_COL32(246, 196, 0, 255), 2.0f * s);
+                u.dl->AddRectFilledMultiColor(ImVec2(ta.x, tb.y - (tb.y - ta.y) * 0.22f), tb, IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 18), IM_COL32(246, 196, 0, 18));   // (a thinner line, a lower glow: Wzx 14/11/2026)
+                u.dl->AddLine(ImVec2(ta.x + 10 * s, tb.y - 0.5f * s), ImVec2(tb.x - 10 * s, tb.y - 0.5f * s), IM_COL32(246, 196, 0, 255), 1.0f * s);
             } else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 9), 12 * s);
             const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
             const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
             {   // the image of its first part (Wzx 14/11/2026), the pictogram while it loads
-                const float isz = (tb.y - ta.y) - 19 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
+                const float isz = (tb.y - ta.y) - 22 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
                 const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + 1 * s + isz * 0.5f - (h && !on ? 1.5f * s : 0));
                 if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.6f)) stIco(u.dl, f.ico, ImVec2(ic.x, ta.y + icy), icz, pic, 1.0f * s);
             }
             const std::string lab = stUpper(f.label);
-            const float lw = stTrackW(u, 5.7f, lab.c_str(), 1.0f * s, true);
-            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 10 * s), 5.7f, txt, lab.c_str(), 1.0f * s);
+            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
+            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 14 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
             if (h && u.pressed) {   // back on a family: its last category (Wzx 09/11/2026)
                 m_stFamSub[m_stFam] = m_stSub;
                 m_stFam = f.key;
@@ -2060,7 +2062,7 @@ void BrickApp::stDrawer() {
         for (int i = -1; i < (int)fam->subs.size(); ++i) {
             const char* lab0 = i < 0 ? "Toutes" : fam->subs[i].label;
             const std::string lab = stUpper(lab0);
-            const float lw = stTrackW(u, 5.7f, lab.c_str(), 0.9f * s, true), w = 4 * s + (subH - 4 * s) + 5 * s + lw + 12 * s;
+            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.2f * s, true), w = 4 * s + (subH - 4 * s) + 5 * s + lw + 12 * s;
             const ImVec2 a(x, y), b(x + w, y + subH);
             const bool on = m_stSub == i, h = live && u.hover(a, b) && u.hover(ra, rb);
             u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), subH * 0.5f);
@@ -2070,7 +2072,7 @@ void BrickApp::stDrawer() {
                 const int fp = i >= 0 && i < (int)m_stSubFirst.size() ? m_stSubFirst[i] : -1;
                 if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 8 * s, alpha, 1.6f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
             }
-            stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(5.7f) * 0.55f), 5.7f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 0.9f * s);
+            stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
             if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
             x += w + 6 * s;
             total += w + 6 * s;
@@ -2261,10 +2263,13 @@ void BrickApp::stDrawer() {
     const double now = ImGui::GetTime();
     const int taken = m_libPress >= 0 ? m_libPress : (m_holding ? m_libSel : -1);
     bool hovered = false;
+    // (the tiles fill the height of the drawer, no empty band under them: Wzx 14/11/2026)
+    const int tRows = tiles ? (nItems + std::max(1, perRow) - 1) / std::max(1, perRow) : 1;
+    const float tH = m_ipad ? tileH : std::clamp((bodyH - gap * (tRows - 1)) / std::max(1, tRows), tileH, 190 * s);
     if (tiles)   // Toutes: one tile per category, its pictogram big (Maquette 4.1); a click opens it
         for (int k = 0; k < nItems; ++k) {
             const int c = k % std::max(1, perRow), r = k / std::max(1, perRow);
-            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + (m_ipad ? (bodyH - tileH) * 0.5f : 0) + r * (tileH + gap)), b(a.x + tileW, a.y + tileH);
+            const ImVec2 a(ca.x + c * (tileW + gap) - m_cardsScroll, ca.y + (m_ipad ? (bodyH - tH) * 0.5f : 0) + r * (tH + gap)), b(a.x + tileW, a.y + tH);
             if (b.x < ca.x || a.x > cb.x) continue;
             const StSub& q = fam->subs[k];
             const int n = k < (int)m_stSubCount.size() ? m_stSubCount[k] : 0;
@@ -2275,7 +2280,7 @@ void BrickApp::stDrawer() {
                 const int fp = k < (int)m_stSubFirst.size() ? m_stSubFirst[k] : -1;
                 ImTextureID tex;
                 ImVec2 uv0, uv1;
-                const float hs = std::min((tileH - 40 * s) * 0.5f, (b.x - a.x) * 0.5f - 4 * s);   // (as big as the tile allows, Wzx 14/11/2026)
+                const float hs = std::min((tH - 46 * s) * 0.5f, (b.x - a.x) * 0.5f - 6 * s);   // (as big as the tile allows, Wzx 14/11/2026)
                 const ImVec2 c((a.x + b.x) * 0.5f, a.y + 6 * s + hs + lift);
                 if (fp >= 0 && thumbUv(fp, tex, uv0, uv1)) {
                     const float z = 1.6f;
@@ -2284,12 +2289,12 @@ void BrickApp::stDrawer() {
                 } else stIco(u.dl, q.ico, c, 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
             }
             std::string lab = stUpper(q.label);
-            while (lab.size() > 4 && stTrackW(u, 5.3f, lab.c_str(), 0.9f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
-            const float lw = stTrackW(u, 5.3f, lab.c_str(), 0.9f * s, true);
-            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, b.y - 20 * s + lift), 5.3f, stA(C_TEXT, op), lab.c_str(), 0.9f * s);
+            while (lab.size() > 4 && stTrackW(u, 8, lab.c_str(), 1.2f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, 8, lab.c_str(), 1.2f * s, true);
+            stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, b.y - 27 * s + lift), 8, stA(C_TEXT, op), lab.c_str(), 1.2f * s);
             const char* cat = "catégorie";
-            const float cw = u.textW(5.3f, cat);
-            u.text(ImVec2((a.x + b.x - cw) * 0.5f, b.y - 11 * s + lift), 5.3f, stA(IM_COL32(117, 120, 126, 255), op), cat);
+            const float cw = u.textW(8, cat);
+            u.text(ImVec2((a.x + b.x - cw) * 0.5f, b.y - 15 * s + lift), 8, stA(IM_COL32(117, 120, 126, 255), op), cat);
             if (h && u.pressed) { m_stSub = k; m_stW = m_stL = 0; }
         }
     else for (int k = 0; k < (int)parts.size(); ++k) {
