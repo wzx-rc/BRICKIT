@@ -8,6 +8,7 @@
 namespace brickit {
 
 static const ImU32 kGz[3] = {IM_COL32(0xc9, 0x1a, 0x09, 242), IM_COL32(0xf2, 0xcd, 0x37, 242), IM_COL32(0x00, 0x55, 0xbf, 242)};
+static float4 qNorm(const float4& q) { const float l = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w); return l > 0 ? float4(q.x / l, q.y / l, q.z / l, q.w / l) : float4(0, 0, 0, 1); }
 static float3 axisOf(int a) { return float3(a == 0 ? 1.0f : 0.0f, a == 1 ? 1.0f : 0.0f, a == 2 ? 1.0f : 0.0f); }
 // two unit vectors spanning the plane of a ring around axis a
 static void ringBasis(int a, float3& u, float3& v) {
@@ -83,7 +84,7 @@ BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
                 bool ok = v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y);
                 if (ok && hasPrev) {
                     float d = segDist(m, prev, q);
-                    if (d < 0.07f * px + 4 && d < best) { best = d; bh = GizmoHandle{1, a}; }
+                    if (d < 0.07f * px + 6 && d < best) { best = d; bh = GizmoHandle{1, a}; }
                 }
                 prev = q;
                 hasPrev = ok;
@@ -167,15 +168,23 @@ void BrickApp::gizmoDragTo(float sx, float sy) {
         if (!g.hasV0 || !rayPlane(ro, rd, a, g.pivot, p)) return;
         const float3 v = p - g.pivot;
         const float ang = std::atan2(dot(a, cross(g.v0, v)), dot(g.v0, v));
-        const int steps = (int)std::lround(ang / (kPi * 0.5f));
-        if (steps == g.steps) return;
-        g.steps = steps;
-        const float4 dq = qAxisAngle(a, steps * kPi * 0.5f);
-        b.rot = snapQuat(qMul(dq, g.startRot));
+        // the step of Tourner (Wzx 14/11/2026: 15° by default, 45°, 90°, free); the quarter turns stay exact
+        const float step = m_rotStep > 0 ? radians((float)m_rotStep) : 0.0f;
+        float turn = ang;
+        if (step > 0) {
+            const int steps = (int)std::lround(ang / step);
+            if (steps == g.steps) return;
+            g.steps = steps;
+            turn = steps * step;
+        }
+        g.angle = turn;
+        const bool quarter = std::fabs(std::remainder(turn, kPi * 0.5f)) < 1e-4f;
+        const float4 dq = qAxisAngle(a, turn);
+        b.rot = quarter ? snapQuat(qMul(dq, g.startRot)) : qNorm(qMul(dq, g.startRot));
         b.pos = g.pivot + qRot(dq, g.startPos - g.pivot);
         for (size_t i = 0; i < g.others.size(); ++i) {
             Brick& o = m_bricks[g.others[i]];
-            o.rot = snapQuat(qMul(dq, g.othersStart[i].rot));
+            o.rot = quarter ? snapQuat(qMul(dq, g.othersStart[i].rot)) : qNorm(qMul(dq, g.othersStart[i].rot));
             o.pos = g.pivot + qRot(dq, g.othersStart[i].pos - g.pivot);
         }
         // (no settle bounce on release: Wzx 14/11/2026)
@@ -184,6 +193,16 @@ void BrickApp::gizmoDragTo(float sx, float sy) {
 }
 
 void BrickApp::drawGizmo() {
+    if (gizmoVisible() && m_gizmoDragging && m_gz.h.kind == 1) {   // the angle while it turns
+        float cx0, cy0;
+        if (view().project(gizmoPivot(m_selected), cx0, cy0)) {
+            char t[32];
+            snprintf(t, sizeof(t), "%+.0f°", m_gz.angle * 57.29578f);
+            const ImVec2 ts = ImGui::CalcTextSize(t), tp(cx0 + 14, cy0 - 34);
+            ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(tp.x - 6, tp.y - 3), ImVec2(tp.x + ts.x + 6, tp.y + ts.y + 3), IM_COL32(16, 17, 19, 200), 6);
+            ImGui::GetForegroundDrawList()->AddText(tp, IM_COL32(255, 255, 255, 235), t);
+        }
+    }
     if (!gizmoVisible()) return;
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     View v = view();
@@ -250,7 +269,8 @@ void BrickApp::drawGizmo() {
         }
     } else {
         for (int a = 0; a < 3; ++a) {
-            const ImU32 col = (hov.kind == 1 && hov.axis == a) ? IM_COL32(255, 255, 255, 179) : ((kGz[a] & 0x00ffffffu) | (179u << 24));   // opacity .7
+            const bool hot = hov.kind == 1 && hov.axis == a;
+            const ImU32 col = hot ? IM_COL32(255, 255, 255, 170) : ((kGz[a] & 0x00ffffffu) | (115u << 24));   // (semi-opaque bands)
             float3 ru, rv;
             ringBasis(a, ru, rv);
             std::vector<ImVec2> pts;
@@ -259,11 +279,14 @@ void BrickApp::drawGizmo() {
                 ImVec2 q;
                 if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) pts.push_back(q);
             }
-            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, std::max(1.2f, 0.024f * px));
-            for (int i = 0; i < 4; ++i) {   // a tick every 90 degrees: the steps of the turn
-                const float t = i * 1.5707963f;
+            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, std::max(5.0f, 0.10f * px));
+            const int nt = m_rotStep > 0 ? 360 / m_rotStep : 0;   // a tick at each step of the turn
+            for (int i = 0; i < nt; ++i) {
+                const float t = i * 6.2831853f / nt;
                 ImVec2 q;
-                if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) dl->AddCircleFilled(q, std::max(2.0f, 0.035f * px), col, 12);
+                const bool major = (i * m_rotStep) % 90 == 0;
+                if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y))
+                    dl->AddCircleFilled(q, std::max(major ? 2.6f : 1.5f, (major ? 0.04f : 0.022f) * px), IM_COL32(255, 255, 255, major ? 230 : 150), 12);
             }
         }
     }

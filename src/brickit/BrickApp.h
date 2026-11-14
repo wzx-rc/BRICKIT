@@ -471,7 +471,7 @@ private:
         int brick = -1, steps = 0;
         float3 startPos, pivot, v0;
         float4 startRot{0, 0, 0, 1};
-        float t0 = 0;
+        float t0 = 0, angle = 0;
         bool hasV0 = false;
         std::vector<int> others;
         std::vector<Brick> othersStart;
@@ -488,6 +488,7 @@ private:
     void aimPivot(float sx, float sy);
     void drawPivots();
     GizmoHandle m_gizmoHover;
+    int m_rotStep = 15;               // Tourner: the step of the rings in degrees (15, 45, 90; 0 = free), Wzx 14/11/2026
     bool m_gizmoDragging = false, m_leftOrbit = false;
     GizmoDrag m_gz;
 
@@ -969,6 +970,7 @@ private:
     void stRingAct(int part);
     ImVec2 m_ringC = ImVec2(-1, -1);  // the ring of this frame (its centre, its radius; -1 hidden)
     float m_ringR = 0;
+    ImVec4 m_ringBtn[5];              // (the buttons of the bar of the left hand, this frame: 0 tilt up, 1 turn right, 2 tilt down, 3 turn left, 4 Dupliquer)
     double m_ringFlashT = -10;        // a part touched: it lights up a moment
     int m_ringFlash = -1;
     void stHeld();

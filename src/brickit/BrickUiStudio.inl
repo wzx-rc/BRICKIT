@@ -503,10 +503,10 @@ void BrickApp::stTools() {
     std::vector<T> ts = {
         {ST_SEL, "Sélection : clic sur une brique, rectangle pour plusieurs (1)", "1", m_mode == 0 && !m_paintTool && !m_pipette, 0},
         {ST_BUILD, "Construire : glisse une brique pour la déplacer (2)", "2", m_mode == 1 && !m_paintTool && !m_pipette, 1},
-        {ST_PICK, "Pipette : clic sur une brique pour prendre sa couleur (4)", "4", m_pipette, 3},
-        {ST_PAINT, "Pinceau : clic sur une brique pour la peindre (3)", "3", m_paintTool, 2},
         {ST_MOVE, "Déplacer : flèches sur la sélection (5)", "5", m_mode == 2 && !m_paintTool && !m_pipette, 4},
         {ST_ROT, "Tourner : anneaux sur la sélection (6)", "6", m_mode == 3 && !m_paintTool && !m_pipette, 5},
+        {ST_PICK, "Pipette : clic sur une brique pour prendre sa couleur (4)", "4", m_pipette, 3},
+        {ST_PAINT, "Pinceau : clic sur une brique pour la peindre (3)", "3", m_paintTool, 2},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
     // iPad (Wzx 10/11/2026): a row at the top centre (the left hand keeps the ring of the side); PC: the column on the left
@@ -571,6 +571,30 @@ void BrickApp::stBadge() {
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Grille : snap sur la grille du sol (G)");
     if (h && u.pressed) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grille : oui" : "Grille : non"); }
+    if (m_mode == 3 && !m_paintTool && !m_pipette) {   // Tourner: its step (Wzx 14/11/2026: 15° by default, 45°, 90°, libre)
+        static const int kSteps[4] = {15, 45, 90, 0};
+        static const char* kLab[4] = {"15°", "45°", "90°", "LIBRE"};
+        float x = b.x + 8 * s;
+        const float lw0 = stTrackW(u, 8, "ANGLE", 1.2f * s, true) + 14 * s;
+        float tot = lw0;
+        for (int k = 0; k < 4; ++k) tot += stTrackW(u, 9, kLab[k], 1.0f * s, true) + 16 * s;
+        const ImVec2 oa(x, a.y), ob(x + tot + 4 * s, b.y);
+        u.dl->AddRectFilled(oa, ob, IM_COL32(10, 11, 13, 150), 11 * s);
+        u.dl->AddRect(oa, ob, IM_COL32(255, 255, 255, 50), 11 * s, 0, 1.0f);
+        stTrack(u, ImVec2(x + 8 * s, (a.y + b.y) * 0.5f - u.fs(8) * 0.52f), 8, C_DIM, "ANGLE", 1.2f * s);
+        x += lw0;
+        for (int k = 0; k < 4; ++k) {
+            const float w = stTrackW(u, 9, kLab[k], 1.0f * s, true) + 16 * s;
+            const ImVec2 ka(x, a.y + 2 * s), kb(x + w, b.y - 2 * s);
+            const bool on = m_rotStep == kSteps[k], hv = u.hover(ka, kb) && m_popup == 0;
+            if (on) u.dl->AddRectFilled(ka, kb, C_ACCENT, 9 * s);
+            else if (hv) u.dl->AddRectFilled(ka, kb, IM_COL32(255, 255, 255, 18), 9 * s);
+            stTrack(u, ImVec2(ka.x + 8 * s, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, on ? C_INK : C_TEXT, kLab[k], 1.0f * s);
+            if (hv && u.pressed) { m_rotStep = kSteps[k]; savePrefs(); }
+            x += w;
+        }
+        m_uiRects.push_back(ImVec4(oa.x, oa.y, ob.x, ob.y));
+    }
 }
 
 // « … »: the toggles of the old top bar
@@ -2775,22 +2799,18 @@ void BrickApp::drawUiStudio() {
     drawDropzone();
 }
 
-// ------------------------------------------------------------------ the ring of the left hand (Wzx 10/11/2026)
-// Studio: on the left of the view, the ring of the web: tilt up / down, turn left / right, in the middle Dupliquer
-// (Poser while a brick is in hand). On the iPad a finger of the left hand presses it while the Pencil holds the brick:
+// ------------------------------------------------------------------ the bar of the left hand (Wzx 10/11, 14/11/2026)
+// Studio, iPad: on the left of the view, a vertical bar (the ring of the web before): Dupliquer (Poser while a brick is
+// in hand), turn left / right, tilt up / down. A finger of the left hand presses it while the Pencil holds the brick:
 // those touches are caught before the gestures (BrickTouch.cpp, stRingHit)
 
 int BrickApp::stRingHit(float x, float y) const {
     if (m_ringR <= 0) return -1;
-    const float dx = x - m_ringC.x, dy = y - m_ringC.y, d = std::sqrt(dx * dx + dy * dy);
-    const float rin = m_ringR * 0.42f;
-    if (d > m_ringR * 1.06f) return -1;
-    if (d <= rin) return 4;
-    const float a = std::atan2(dy, dx) * 57.29578f;   // 0 right, 90 down
-    if (a >= -45 && a < 45) return 1;
-    if (a >= 45 && a < 135) return 2;
-    if (a >= -135 && a < -45) return 0;
-    return 3;
+    for (int i = 0; i < 5; ++i) {
+        const ImVec4& r = m_ringBtn[i];
+        if (x >= r.x && x <= r.z && y >= r.y && y <= r.w) return i;
+    }
+    return -1;
 }
 
 void BrickApp::stRingAct(int part) {
@@ -2813,48 +2833,55 @@ void BrickApp::stRing() {
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
-    const float R = 72 * s, rin = R * 0.42f;
-    const ImVec2 c(m_dockL + 22 * s + R, std::floor((m_stage.y + m_stage.w) * 0.5f + 10 * s));
-    m_ringC = c;
-    m_ringR = R;
+    const float W = 58 * s, bh = 50 * s, gap = 4 * s, pad = 5 * s;
+    // the order from the top: Dupliquer / Poser (bigger), turn left, turn right, tilt up, tilt down
+    static const int kOrder[5] = {4, 3, 1, 0, 2};
+    const float H = pad * 2 + bh * 1.3f + 4 * bh + 4 * gap + 8 * s;
+    const ImVec2 a(m_dockL + 22 * s, std::floor((m_stage.y + m_stage.w) * 0.5f - H * 0.5f + 10 * s)), b(a.x + W, a.y + H);
+    m_ringC = ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+    m_ringR = H * 0.5f;
     const bool active = m_holding || m_selected >= 0 || !m_multi.empty();
     const float al = active ? 1.0f : 0.4f;
     const double now = ImGui::GetTime();
-    const int hov = (!m_ipad && u.hover(ImVec2(c.x - R, c.y - R), ImVec2(c.x + R, c.y + R))) ? stRingHit(u.mouse.x, u.mouse.y) : -1;
     ImDrawList* dl = u.dl;
-    // the glass disc, then the four wedges with their gaps
-    stGlass(dl, ImVec2(c.x - R - 4 * s, c.y - R - 4 * s), ImVec2(c.x + R + 4 * s, c.y + R + 4 * s), R + 4 * s, s);
-    m_uiRects.push_back(ImVec4(c.x - R - 4 * s, c.y - R - 4 * s, c.x + R + 4 * s, c.y + R + 4 * s));
+    stGlass(dl, a, b, 16 * s, s);
+    m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     static const char* kIco[4] = {"M7 14l5-5 5 5", ST_ROT, "M7 10l5 5 5-5", ST_ROTL};
+    static const char* kLab[4] = {"BASCULER", "DROITE", "BASCULER", "GAUCHE"};
     static const char* kTip[4] = {"Basculer vers le haut", "Tourner à droite 90°", "Basculer vers le bas", "Tourner à gauche 90°"};
-    for (int i = 0; i < 4; ++i) {
-        const float a = (i - 1) * 1.5707963f;   // 0 up (-90°), 1 right, 2 down, 3 left
-        const float half = 0.70f;
+    float y = a.y + pad;
+    for (int k = 0; k < 5; ++k) {
+        const int i = kOrder[k];
+        const float h = i == 4 ? bh * 1.3f : bh;
+        if (k == 1 || k == 3) {   // a line between Dupliquer, the turns and the tilts
+            dl->AddLine(ImVec2(a.x + 10 * s, y + 2 * s), ImVec2(b.x - 10 * s, y + 2 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+            y += 4 * s;
+        }
+        const ImVec2 ba(a.x + pad, y), bb(b.x - pad, y + h);
+        m_ringBtn[i] = ImVec4(ba.x, ba.y, bb.x, bb.y);
+        const bool hv = !m_ipad && u.hover(ba, bb);
         const float flash = m_ringFlash == i ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
-        const bool on = active && (hov == i || flash > 0);
-        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
-        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
-        dl->PathFillConvex(on ? stA(C_ACCENT, 0.25f + 0.45f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.06f * al));
-        dl->PathArcTo(c, R - 3 * s, a - half, a + half, 18);
-        dl->PathArcTo(c, rin + 5 * s, a + half, a - half, 10);
-        dl->PathStroke(on ? stA(C_ACCENT, 0.9f) : stA(C_LINE, al), ImDrawFlags_Closed, 1.0f);
-        const float rm = (R - 3 * s + rin + 5 * s) * 0.5f;
-        const ImVec2 ic(c.x + std::cos(a) * rm, c.y + std::sin(a) * rm);
-        stIcon(dl, kIco[i], ic, 20 * s, stA(on ? C_ACCENT_TXT : C_TEXT, al), 1.3f * s);
-        if (hov == i && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", kTip[i]);
+        const bool on = active && (hv || flash > 0);
+        const ImVec2 c((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f);
+        if (i == 4) {   // Dupliquer, or Poser with a brick in hand (the accent)
+            if (m_holding) dl->AddRectFilled(ba, bb, C_ACCENT, 12 * s);
+            else dl->AddRectFilled(ba, bb, on ? stA(C_ACCENT, 0.3f + 0.4f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.08f * al), 12 * s);
+            dl->AddRect(ba, bb, stA(C_ACCENT, 0.8f * al), 12 * s, 0, 1.2f * s);
+            const char* lab = m_holding ? "POSER" : "DUPLIQUER";
+            if (!m_holding) stIcon(dl, ST_DUP, ImVec2(c.x, c.y - 7 * s), 18 * s, stA(on ? C_ACCENT_TXT : C_TEXT, al), 1.3f * s);
+            const float lw = stTrackW(u, 6.2f, lab, 0.8f * s, true);
+            stTrack(u, ImVec2(c.x - lw * 0.5f, m_holding ? c.y - u.fs(6.2f) * 0.52f : c.y + 10 * s), 6.2f, m_holding ? C_INK : stA(C_DIM, al), lab, 0.8f * s);
+            if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_holding ? "Poser la brique" : "Dupliquer la sélection");
+        } else {
+            dl->AddRectFilled(ba, bb, on ? stA(C_ACCENT, 0.25f + 0.45f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.05f * al), 10 * s);
+            stIcon(dl, kIco[i], ImVec2(c.x, c.y - 6 * s), 18 * s, stA(on ? C_ACCENT_TXT : C_TEXT, al), 1.3f * s);
+            const float lw = stTrackW(u, 5.6f, kLab[i], 0.6f * s, true);
+            stTrack(u, ImVec2(c.x - lw * 0.5f, c.y + 10 * s), 5.6f, stA(C_DIM, al), kLab[i], 0.6f * s);
+            if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", kTip[i]);
+        }
+        if (hv && u.pressed) stRingAct(i);   // (iPad: the touches, BrickTouch.cpp)
+        y += h + gap;
     }
-    // the middle: Dupliquer, or Poser with a brick in hand (the accent)
-    const float flash = m_ringFlash == 4 ? std::max(0.0f, 1.0f - (float)(now - m_ringFlashT) / 0.35f) : 0.0f;
-    const bool onC = active && (hov == 4 || flash > 0);
-    if (m_holding) dl->AddCircleFilled(c, rin, C_ACCENT, 40);
-    else dl->AddCircleFilled(c, rin, onC ? stA(C_ACCENT, 0.3f + 0.4f * flash) : stA(IM_COL32(255, 255, 255, 255), 0.08f * al), 40);
-    dl->AddCircle(c, rin, stA(C_ACCENT, 0.8f * al), 40, 1.2f * s);
-    const char* lab = m_holding ? "POSER" : "DUPLIQUER";
-    if (!m_holding) stIcon(dl, ST_DUP, ImVec2(c.x, c.y - 5 * s), 16 * s, stA(onC ? C_ACCENT_TXT : C_TEXT, al), 1.2f * s);
-    const float lw = stTrackW(u, m_holding ? 8.5f : 6.5f, lab, 1.0f * s, true);
-    stTrack(u, ImVec2(c.x - lw * 0.5f, m_holding ? c.y - u.fs(8.5f) * 0.52f : c.y + 8 * s), m_holding ? 8.5f : 6.5f, m_holding ? C_INK : stA(C_DIM, al), lab, 1.0f * s);
-    if (hov == 4 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_holding ? "Poser la brique" : "Dupliquer la sélection");
-    if (!m_ipad && hov >= 0 && u.pressed) stRingAct(hov);   // (iPad: the touches, BrickTouch.cpp)
 }
 
 // ------------------------------------------------------------------ Scène › Scènes du cloud (BrickCloud.cpp)
@@ -3156,6 +3183,31 @@ void BrickApp::stNavHud() {
             if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) hot = order[i];
         }
         u.dl->AddCircleFilled(cc, cs * 0.5f, IM_COL32(12, 13, 15, 70), 40);
+        // the name of a face laid flat on it, like a sticker (Wzx 14/11/2026): the text drawn, then its vertices carried onto
+        // the plane of the face (the view of the brick is orthographic: an affine map), fading as the face turns away
+        auto sticker = [&](int fi) {
+            const Face& f = faces[fi];
+            const float facing = -dot(f.n, F);
+            if (facing < 0.2f) return;
+            static const float3 kRight[6] = {float3(1, 0, 0), float3(-1, 0, 0), float3(0, 0, -1), float3(0, 0, 1), float3(1, 0, 0), float3(1, 0, 0)};
+            static const float3 kDown[6] = {float3(0, -1, 0), float3(0, -1, 0), float3(0, -1, 0), float3(0, -1, 0), float3(0, 0, 1), float3(0, 0, -1)};
+            const float3 e1 = kRight[fi], e2 = kDown[fi];
+            float3 ctr(0);
+            for (int c = 0; c < 4; ++c) ctr = ctr + f.c[c] * 0.25f;
+            const float fw = std::fabs(dot(f.c[1] - f.c[0], e1)) + std::fabs(dot(f.c[3] - f.c[0], e1));
+            const float fh = std::fabs(dot(f.c[1] - f.c[0], e2)) + std::fabs(dot(f.c[3] - f.c[0], e2));
+            std::string lab = f.name;
+            for (char& ch : lab) ch = (char)std::toupper((unsigned char)ch);
+            const float px = 9.0f, tw = stTrackW(u, px, lab.c_str(), 1.4f * s, true), th = u.fs(px);
+            const float sc = std::min(0.62f * fw / std::max(1.0f, tw), 0.42f * fh / std::max(1.0f, th));
+            const int al = (int)(std::clamp((facing - 0.2f) / 0.5f, 0.0f, 1.0f) * 210);
+            const int v0 = u.dl->VtxBuffer.Size;
+            stTrack(u, ImVec2(0, 0), px, IM_COL32(255, 255, 255, al), lab.c_str(), 1.4f * s);
+            for (int vi = v0; vi < u.dl->VtxBuffer.Size; ++vi) {
+                ImDrawVert& vt = u.dl->VtxBuffer[vi];
+                vt.pos = P(ctr + e1 * ((vt.pos.x - tw * 0.5f) * sc) + e2 * ((vt.pos.y - th * 0.5f) * sc) + f.n * 0.01f);
+            }
+        };
         for (int i = 0; i < 6; ++i) {
             const Face& f = faces[order[i]];
             const bool vis = dot(f.n, F) < -0.05f;
@@ -3163,16 +3215,7 @@ void BrickApp::stNavHud() {
             for (int c = 0; c < 4; ++c) q[c] = P(f.c[c]);
             if (vis) u.dl->AddQuadFilled(q[0], q[1], q[2], q[3], order[i] == hot ? IM_COL32(255, 255, 255, 140) : IM_COL32(255, 255, 255, 42));
             u.dl->AddQuad(q[0], q[1], q[2], q[3], IM_COL32(255, 255, 255, vis ? 175 : 40), 1.0f * s);
-            if (vis && dot(f.n, F) < -0.35f) {   // its name, subtle, in the middle of the face (Wzx 14/11/2026), fading as it turns away
-                ImVec2 m(0, 0);
-                for (int c = 0; c < 4; ++c) m = ImVec2(m.x + q[c].x * 0.25f, m.y + q[c].y * 0.25f);
-                std::string lab = f.name;
-                for (char& ch : lab) ch = (char)std::toupper((unsigned char)ch);
-                const int al = (int)(std::clamp((-dot(f.n, F) - 0.35f) / 0.4f, 0.0f, 1.0f) * 200);
-                const float tw = stTrackW(u, 6.5f, lab.c_str(), 0.8f * s, true);
-                if (order[i] != 4) stTrack(u, ImVec2(m.x - tw * 0.5f, m.y - u.fs(6.5f) * 0.55f), 6.5f, IM_COL32(255, 255, 255, al), lab.c_str(), 0.8f * s);
-                else stTrack(u, ImVec2(m.x - tw * 0.5f, m.y - u.fs(6.5f) * 0.55f), 6.5f, IM_COL32(255, 255, 255, al / 2 + 30), lab.c_str(), 0.8f * s);
-            }
+            if (vis && order[i] != 4) sticker(order[i]);
             if (order[i] == 4 && vis)   // the 8 studs on the top face
                 for (int sx = 0; sx < 2; ++sx)
                     for (int sz = 0; sz < 4; ++sz) {
@@ -3184,6 +3227,7 @@ void BrickApp::stNavHud() {
                         u.dl->AddConvexPolyFilled(ring, 12, IM_COL32(255, 255, 255, 60));
                         u.dl->AddPolyline(ring, 12, IM_COL32(255, 255, 255, 170), ImDrawFlags_Closed, 1.0f * s);
                     }
+            if (vis && order[i] == 4) sticker(4);   // (over the studs)
         }
         const ImVec2 ca(cc.x - cs * 0.5f, cc.y - cs * 0.5f), cb(cc.x + cs * 0.5f, cc.y + cs * 0.5f);
         m_uiRects.push_back(ImVec4(ca.x, ca.y, cb.x, cb.y));

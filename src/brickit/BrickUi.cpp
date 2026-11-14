@@ -2955,19 +2955,19 @@ void BrickApp::uiManual() {
     int clicked = -1;
     for (int i = (int)btns.size() - 1; i >= 0; --i) {
         const Btn& bt = btns[i];
-        const float bw = bt.icon == 0 ? u.textW(11, bt.label, true) + 16 * s : 28 * s;
+        const float bw = bt.icon == 0 ? u.textW(9.5f, bt.label, true) + 12 * s : 22 * s;   // (smaller, Wzx 14/11/2026)
         bx -= bw;
-        ImVec2 a(bx, y), b(bx + bw, y + 28 * s);
+        ImVec2 a(bx, y + 3 * s), b(bx + bw, y + 25 * s);
         const bool h = u.hover(a, b);
-        u.dl->AddRectFilled(a, b, h ? C_LYEL : C_CARD, 8 * s);
+        u.dl->AddRectFilled(a, b, h ? C_LYEL : C_CARD, 6 * s);
         const ImU32 fg = h ? IM_COL32(0x1b, 0x15, 0x00, 255) : C_TEXT;
         const ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
         if (bt.icon == 0) {
-            const float lw = u.textW(11, bt.label, true);
-            u.text(ImVec2(c.x - lw * 0.5f, a.y + (28 * s - u.fs(11)) * 0.5f), 11, fg, bt.label, true);
-        } else if (bt.icon == 1) u.dl->AddLine(ImVec2(c.x - 6 * s, c.y), ImVec2(c.x + 6 * s, c.y), fg, 1.6f * s);
+            const float lw = u.textW(9.5f, bt.label, true);
+            u.text(ImVec2(c.x - lw * 0.5f, a.y + (22 * s - u.fs(9.5f)) * 0.5f), 9.5f, fg, bt.label, true);
+        } else if (bt.icon == 1) u.dl->AddLine(ImVec2(c.x - 5 * s, c.y), ImVec2(c.x + 5 * s, c.y), fg, 1.4f * s);
         else {   // enlarge: two corners going out
-            const float k = 6 * s, t = 3.5f * s;
+            const float k = 4.5f * s, t = 3.0f * s;
             u.dl->AddLine(ImVec2(c.x - k, c.y + k), ImVec2(c.x + k, c.y - k), fg, 1.4f * s);
             u.dl->AddLine(ImVec2(c.x + k - t, c.y - k), ImVec2(c.x + k, c.y - k), fg, 1.4f * s);
             u.dl->AddLine(ImVec2(c.x + k, c.y - k), ImVec2(c.x + k, c.y - k + t), fg, 1.4f * s);
@@ -2976,7 +2976,7 @@ void BrickApp::uiManual() {
         }
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", bt.tip);
         if (h && u.pressed) clicked = bt.id;
-        bx -= 4 * s;
+        bx -= 3 * s;
     }
     if (clicked == 0) { m_pdfOn = !m_pdfOn; if (m_pdfOn) m_pdfScrollTo = m_pdfPage, m_pdfScrollSmooth = false; }
     if (clicked == 1) pdfDialog();
@@ -3012,15 +3012,15 @@ void BrickApp::uiManual() {
         if (over) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);   // cursor: zoom-in
         if (over && u.released && ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).x == 0 && ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y == 0 && !m_manResizing) { m_manBig = true; m_bigScroll = 0; }
     }
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < 2; ++k) {   // (faint until the pointer is on them, Wzx 14/11/2026)
         const ImVec2 c = k == 0 ? aL : aR;
         const bool on = k == 0 ? hasPrev : hasNext;
         const bool h = on && inArrow(c);
-        u.dl->AddCircleFilled(ImVec2(c.x, c.y + 2 * s), ar, IM_COL32(0, 0, 0, 60), 32);
-        u.dl->AddCircleFilled(c, ar, h ? C_LYEL : alphaOf(C_PANEL_SOLID, on ? 0.92f : 0.5f), 32);
-        u.dl->AddCircle(c, ar, alphaOf(C_LINE, on ? 1.0f : 0.5f), 32, 1.0f);
+        if (h) u.dl->AddCircleFilled(ImVec2(c.x, c.y + 2 * s), ar, IM_COL32(0, 0, 0, 60), 32);
+        u.dl->AddCircleFilled(c, ar, h ? C_LYEL : alphaOf(C_PANEL_SOLID, on ? 0.35f : 0.15f), 32);
+        u.dl->AddCircle(c, ar, alphaOf(C_LINE, on ? (h ? 1.0f : 0.4f) : 0.2f), 32, 1.0f);
         const float d = k == 0 ? -1.0f : 1.0f, q = 5.5f * s;
-        const ImU32 fg = h ? IM_COL32(0x1b, 0x15, 0x00, 255) : alphaOf(C_TEXT, on ? 1.0f : 0.3f);
+        const ImU32 fg = h ? IM_COL32(0x1b, 0x15, 0x00, 255) : alphaOf(C_TEXT, on ? 0.45f : 0.15f);
         u.dl->AddLine(ImVec2(c.x - d * q * 0.5f, c.y - q), ImVec2(c.x + d * q * 0.5f, c.y), fg, 2.2f * s);
         u.dl->AddLine(ImVec2(c.x + d * q * 0.5f, c.y), ImVec2(c.x - d * q * 0.5f, c.y + q), fg, 2.2f * s);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", k == 0 ? "Pages précédentes" : "Pages suivantes");
@@ -3044,11 +3044,24 @@ void BrickApp::uiManual() {
             if (!docked) m_manH = std::round(std::clamp(m_manH0 + (u.mouse.y - m_manResize0.y), 160 * s, m_stage.w - y0 - 8 * s));
         } else { m_manResizing = false; savePrefs(); }
     }
-    u.dl->AddRectFilled(ra, rb, (rh || m_manResizing) ? C_LYEL : IM_COL32(0, 0, 0, 89), 8 * s);
-    if (rh || m_manResizing) ImGui::SetMouseCursor(handleRight ? ImGuiMouseCursor_ResizeNWSE : ImGuiMouseCursor_ResizeNESW);
-    const ImU32 hc = (rh || m_manResizing) ? IM_COL32(0x1b, 0x15, 0x00, 255) : C_DIM;
-    if (handleRight) svg::path(u.dl, "M14 14 L8 8 M14 14 L14 9 M14 14 L9 14 M2 2 L8 8", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.8f * s);
-    else svg::path(u.dl, "M2 14 L8 8 M2 14 L2 9 M2 14 L7 14 M14 2 L8 8", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.8f * s);
+    // (Wzx 14/11/2026: clearer): at rest the grip of a corner, three short diagonal strokes; under the pointer a disc
+    // in the accent with the double arrow of the resize
+    const bool rOn = rh || m_manResizing;
+    if (rOn) {
+        u.dl->AddRectFilled(ra, rb, C_LYEL, 12 * s);
+        const ImU32 hc = IM_COL32(0x1b, 0x15, 0x00, 255);
+        if (handleRight) svg::path(u.dl, "M3 3 L13 13 M3 3 L3 8 M3 3 L8 3 M13 13 L13 8 M13 13 L8 13", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.6f * s);
+        else svg::path(u.dl, "M13 3 L3 13 M13 3 L8 3 M13 3 L13 8 M3 13 L8 13 M3 13 L3 8", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.6f * s);
+        ImGui::SetMouseCursor(handleRight ? ImGuiMouseCursor_ResizeNWSE : ImGuiMouseCursor_ResizeNESW);
+    } else {
+        const ImU32 gc = alphaOf(C_TEXT, 0.45f);
+        for (int k = 1; k <= 3; ++k) {   // the grip, in the corner of the panel
+            const float o = k * 5.5f * s;
+            if (handleRight) u.dl->AddLine(ImVec2(rb.x - 3 * s - o, rb.y - 3 * s), ImVec2(rb.x - 3 * s, rb.y - 3 * s - o), gc, 1.3f * s);
+            else u.dl->AddLine(ImVec2(ra.x + 3 * s + o, rb.y - 3 * s), ImVec2(ra.x + 3 * s, rb.y - 3 * s - o), gc, 1.3f * s);
+        }
+    }
+    if (rh && !m_manResizing && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Redimensionner");
 }
 
 // #mbig (scene pages, vertical book) and #pdfbig (the PDF, large)
