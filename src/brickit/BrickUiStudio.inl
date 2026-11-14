@@ -2887,13 +2887,14 @@ void BrickApp::stGroupBar() {
     mx = mx + float3(0.06f);
     const View v = view();
     ImVec2 p[8];
-    float top = 1e30f, cx = 0;
+    float top = 1e30f, cx = 0, right = -1e30f;
     for (int c = 0; c < 8; ++c) {
         const float3 w((c & 1) ? mx.x : mn.x, (c & 2) ? mx.y : mn.y, (c & 4) ? mx.z : mn.z);
         float sx, sy;
         if (!v.project(w, sx, sy)) return;
         p[c] = ImVec2(sx, sy);
         top = std::min(top, p[c].y);
+        right = std::max(right, p[c].x);
         cx += p[c].x / 8;
     }
     Ui u = ui(m_ui);
@@ -2908,25 +2909,26 @@ void BrickApp::stGroupBar() {
     const B bs[4] = {{open ? ST_GCLOSE : ST_GOPEN, open ? "Fermer le groupe" : "Ouvrir le groupe (ses pièces une à une)", 0},
                      {ST_UNGROUP, "Dégrouper", 1}, {ST_DUP, "Dupliquer le groupe", 2}, {ST_PRESET, "Enregistrer en preset (Scène › Presets)", 3}};
     const std::string name = m_build.groups[g].name;
-    const float bw = 30 * s, h = 34 * s, nameW = std::min(140 * s, u.textW(10.5f, name.c_str(), true)) + 20 * s;
-    const float W = nameW + 4 * bw + 10 * s;
-    ImVec2 a(cx - W * 0.5f, top - h - 10 * s);
+    // (Wzx 14/11/2026: half the size, more transparent, at the top right corner of the box)
+    const float bw = 16 * s, h = 18 * s, nameW = std::min(80 * s, u.textW(7.5f, name.c_str(), true) * 1.15f) + 16 * s;
+    const float W = nameW + 4 * bw + 6 * s;
+    ImVec2 a(right - W, top - h - 4 * s);
     a.x = std::clamp(a.x, m_stage.x + 8 * s, m_stage.z - W - 8 * s);
     a.y = std::clamp(a.y, m_stage.y + 8 * s, m_stage.w - h - 8 * s);
     const ImVec2 b(a.x + W, a.y + h);
-    u.dl->AddRectFilled(ImVec2(a.x, a.y + 3 * s), ImVec2(b.x, b.y + 3 * s), IM_COL32(0, 0, 0, 40), h * 0.5f);   // (white, semi-transparent, Wzx 14/11/2026)
-    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 205), h * 0.5f);
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 235), h * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(ImVec2(a.x, a.y + 3 * s), ImVec2(b.x, b.y + 3 * s), IM_COL32(0, 0, 0, 22), h * 0.5f);   // (white, semi-transparent, Wzx 14/11/2026)
+    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 130), h * 0.5f);
+    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 170), h * 0.5f, 0, 1.0f);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     u.dl->PushClipRect(ImVec2(a.x, a.y), ImVec2(a.x + nameW, b.y), true);
-    u.text(ImVec2(a.x + 14 * s, a.y + (h - u.fs(10.5f)) * 0.5f), 10.5f, open ? IM_COL32(150, 110, 10, 255) : IM_COL32(38, 40, 46, 255), name.c_str(), true);
+    u.text(ImVec2(a.x + 8 * s, a.y + (h - u.fs(7.5f)) * 0.5f), 7.5f, open ? IM_COL32(150, 110, 10, 255) : IM_COL32(38, 40, 46, 255), name.c_str(), true);
     u.dl->PopClipRect();
-    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 8 * s), ImVec2(a.x + nameW, b.y - 8 * s), IM_COL32(0, 0, 0, 40), 1.0f);
+    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 4 * s), ImVec2(a.x + nameW, b.y - 4 * s), IM_COL32(0, 0, 0, 40), 1.0f);
     for (int k = 0; k < 4; ++k) {
-        const ImVec2 ba(a.x + nameW + 4 * s + k * bw, a.y + 2 * s), bb(ba.x + bw, b.y - 2 * s);
+        const ImVec2 ba(a.x + nameW + 2 * s + k * bw, a.y + 1 * s), bb(ba.x + bw, b.y - 1 * s);
         const bool hv = u.hover(ba, bb);
-        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(0, 0, 0, 22), 8 * s);
-        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 15 * s, hv ? IM_COL32(20, 21, 24, 255) : IM_COL32(58, 61, 68, 255), 1.4f * s);
+        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(0, 0, 0, 22), 4 * s);
+        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 8 * s, hv ? IM_COL32(20, 21, 24, 255) : IM_COL32(58, 61, 68, 255), 1.0f * s);
         if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", bs[k].tip);
         if (hv && u.pressed) {
             if (k == 0) { if (open) leaveGroup(); else enterGroup(members[0]); }
