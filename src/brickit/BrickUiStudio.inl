@@ -3127,21 +3127,21 @@ void BrickApp::stNavHud() {
     const float right = (m_pColors.visible && !m_mechOn ? m_colPanelX : d.x - m_dockR) - 12 * s;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     // ---- the brick of the views
-    const float cs = 84 * s;
+    const float cs = 104 * s;
     const ImVec2 cc(right - cs * 0.5f, top + cs * 0.5f);
     {
         float3 R, U, F;
         cam.basis(R, U, F);
-        const float W = 2, H = 1.2f, D = 4, k = cs * 0.17f;   // (a 2 x 4 brick, its height, the scale on screen)
+        const float W = 2, H = 1.2f, D = 4, k = cs * 0.19f;   // (a 2 x 4 brick, its height, the scale on screen)
         auto P = [&](const float3& p) { const float3 q = p - float3(W * 0.5f, H * 0.5f, D * 0.5f); return ImVec2(cc.x + dot(q, R) * k, cc.y - dot(q, U) * k); };
         struct Face { float3 n; const char* name; float3 c[4]; };
         const Face faces[6] = {
-            {float3(0, 0, 1), "Avant", {float3(0, 0, D), float3(W, 0, D), float3(W, H, D), float3(0, H, D)}},
-            {float3(0, 0, -1), "Arrière", {float3(W, 0, 0), float3(0, 0, 0), float3(0, H, 0), float3(W, H, 0)}},
-            {float3(1, 0, 0), "Droite", {float3(W, 0, D), float3(W, 0, 0), float3(W, H, 0), float3(W, H, D)}},
-            {float3(-1, 0, 0), "Gauche", {float3(0, 0, 0), float3(0, 0, D), float3(0, H, D), float3(0, H, 0)}},
-            {float3(0, 1, 0), "Dessus", {float3(0, H, D), float3(W, H, D), float3(W, H, 0), float3(0, H, 0)}},
-            {float3(0, -1, 0), "Dessous", {float3(0, 0, 0), float3(W, 0, 0), float3(W, 0, D), float3(0, 0, D)}}};
+            {float3(0, 0, 1), "Front", {float3(0, 0, D), float3(W, 0, D), float3(W, H, D), float3(0, H, D)}},
+            {float3(0, 0, -1), "Back", {float3(W, 0, 0), float3(0, 0, 0), float3(0, H, 0), float3(W, H, 0)}},
+            {float3(1, 0, 0), "Right", {float3(W, 0, D), float3(W, 0, 0), float3(W, H, 0), float3(W, H, D)}},
+            {float3(-1, 0, 0), "Left", {float3(0, 0, 0), float3(0, 0, D), float3(0, H, D), float3(0, H, 0)}},
+            {float3(0, 1, 0), "Top", {float3(0, H, D), float3(W, H, D), float3(W, H, 0), float3(0, H, 0)}},
+            {float3(0, -1, 0), "Bottom", {float3(0, 0, 0), float3(W, 0, 0), float3(W, 0, D), float3(0, 0, D)}}};
         // the faces turned to the camera, the farthest first
         int order[6] = {0, 1, 2, 3, 4, 5};
         std::sort(order, order + 6, [&](int a, int b) { return dot(faces[a].n, F) > dot(faces[b].n, F); });
@@ -3163,6 +3163,16 @@ void BrickApp::stNavHud() {
             for (int c = 0; c < 4; ++c) q[c] = P(f.c[c]);
             if (vis) u.dl->AddQuadFilled(q[0], q[1], q[2], q[3], order[i] == hot ? IM_COL32(255, 255, 255, 140) : IM_COL32(255, 255, 255, 42));
             u.dl->AddQuad(q[0], q[1], q[2], q[3], IM_COL32(255, 255, 255, vis ? 175 : 40), 1.0f * s);
+            if (vis && dot(f.n, F) < -0.35f) {   // its name, subtle, in the middle of the face (Wzx 14/11/2026), fading as it turns away
+                ImVec2 m(0, 0);
+                for (int c = 0; c < 4; ++c) m = ImVec2(m.x + q[c].x * 0.25f, m.y + q[c].y * 0.25f);
+                std::string lab = f.name;
+                for (char& ch : lab) ch = (char)std::toupper((unsigned char)ch);
+                const int al = (int)(std::clamp((-dot(f.n, F) - 0.35f) / 0.4f, 0.0f, 1.0f) * 200);
+                const float tw = stTrackW(u, 6.5f, lab.c_str(), 0.8f * s, true);
+                if (order[i] != 4) stTrack(u, ImVec2(m.x - tw * 0.5f, m.y - u.fs(6.5f) * 0.55f), 6.5f, IM_COL32(255, 255, 255, al), lab.c_str(), 0.8f * s);
+                else stTrack(u, ImVec2(m.x - tw * 0.5f, m.y - u.fs(6.5f) * 0.55f), 6.5f, IM_COL32(255, 255, 255, al / 2 + 30), lab.c_str(), 0.8f * s);
+            }
             if (order[i] == 4 && vis)   // the 8 studs on the top face
                 for (int sx = 0; sx < 2; ++sx)
                     for (int sz = 0; sz < 4; ++sz) {
