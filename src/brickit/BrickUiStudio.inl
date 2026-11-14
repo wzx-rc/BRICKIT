@@ -2924,19 +2924,19 @@ void BrickApp::stGroupBar() {
     a.x = std::clamp(a.x, m_stage.x + 8 * s, m_stage.z - W - 8 * s);
     a.y = std::clamp(a.y, m_stage.y + 8 * s, m_stage.w - h - 8 * s);
     const ImVec2 b(a.x + W, a.y + h);
-    u.dl->AddRectFilled(ImVec2(a.x, a.y + 3 * s), ImVec2(b.x, b.y + 3 * s), IM_COL32(0, 0, 0, 22), h * 0.5f);   // (white, semi-transparent, Wzx 14/11/2026)
-    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 130), h * 0.5f);
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 170), h * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(ImVec2(a.x, a.y + 3 * s), ImVec2(b.x, b.y + 3 * s), IM_COL32(0, 0, 0, 8), h * 0.5f);   // (white, semi-transparent, Wzx 14/11/2026)
+    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 43), h * 0.5f);   // (3 times more transparent, white text and icons: Wzx 14/11/2026)
+    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 60), h * 0.5f, 0, 1.0f);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     u.dl->PushClipRect(ImVec2(a.x, a.y), ImVec2(a.x + nameW, b.y), true);
-    u.text(ImVec2(a.x + 8 * s, a.y + (h - u.fs(7.5f)) * 0.5f), 7.5f, open ? IM_COL32(150, 110, 10, 255) : IM_COL32(38, 40, 46, 255), name.c_str(), true);
+    u.text(ImVec2(a.x + 8 * s, a.y + (h - u.fs(7.5f)) * 0.5f), 7.5f, open ? C_ACCENT_TXT : IM_COL32(255, 255, 255, 240), name.c_str(), true);
     u.dl->PopClipRect();
-    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 4 * s), ImVec2(a.x + nameW, b.y - 4 * s), IM_COL32(0, 0, 0, 40), 1.0f);
+    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 4 * s), ImVec2(a.x + nameW, b.y - 4 * s), IM_COL32(255, 255, 255, 50), 1.0f);
     for (int k = 0; k < 4; ++k) {
         const ImVec2 ba(a.x + nameW + 2 * s + k * bw, a.y + 1 * s), bb(ba.x + bw, b.y - 1 * s);
         const bool hv = u.hover(ba, bb);
-        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(0, 0, 0, 22), 4 * s);
-        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 8 * s, hv ? IM_COL32(20, 21, 24, 255) : IM_COL32(58, 61, 68, 255), 1.0f * s);
+        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 30), 4 * s);
+        stIcon(u.dl, bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 8 * s, hv ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 215), 1.0f * s);
         if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", bs[k].tip);
         if (hv && u.pressed) {
             if (k == 0) { if (open) leaveGroup(); else enterGroup(members[0]); }
