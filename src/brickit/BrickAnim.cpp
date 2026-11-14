@@ -31,7 +31,7 @@ void BrickApp::finishDrop() {
     m_held.cacheValid = false;
     m_held.dropping = false;
     placeAnimated(b, m_bricks[b].pos, m_bricks[b].rot, 1, 0, 0);
-    if (m_animOn) m_settles.push_back({b, 0.86f, 0, 0});
+    // (no settle bounce when the brick is released: Wzx 14/11/2026, « enlève l'animation de rebond de la pièce quand on la lâche »)
     m_selected = b;
     if (keep) {   // Ctrl+click: a copy stays in the hand
         Brick c = m_bricks[b];

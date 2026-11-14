@@ -148,7 +148,7 @@ void BrickApp::gizmoDragTo(float sx, float sy) {
             o.rot = snapQuat(qMul(dq, g.othersStart[i].rot));
             o.pos = g.pivot + qRot(dq, g.othersStart[i].pos - g.pivot);
         }
-        if (m_animOn) m_settles.push_back({g.brick, 0.92f, 0, 0});
+        // (no settle bounce on release: Wzx 14/11/2026)
     }
     syncObjects();
 }
