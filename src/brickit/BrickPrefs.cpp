@@ -107,7 +107,7 @@ std::string BrickApp::prefsJson() {
     j += std::string("\"dev\": {\"on\": ") + (m_dev ? "true" : "false") + ", \"showVox\": " + (m_devShowVox ? "true" : "false") + ", \"showEdges\": " + (m_devShowEdges ? "true" : "false") + ", \"useOverrides\": " + (m_devUseOverrides ? "true" : "false") + "},";
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"dock\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_manDock, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     // the scene of the cloud (BrickCloud.cpp): its id, the version last sent or read, the automatic sync
-    j += std::string("\"orbitAuto\": ") + (m_orbitAuto ? "true" : "false") + ", \"rotStep\": " + std::to_string(m_rotStep) + ",";
+    j += std::string("\"orbitAuto\": ") + (m_orbitAuto ? "true" : "false") + ", \"rotStep\": " + std::to_string(m_rotStep) + ", \"navClassic\": " + (m_navClassic ? "true" : "false") + ", \"permRotate\": " + (m_permRotate ? "true" : "false") + ", \"manPageScale\": " + std::to_string(m_manPageScale) + ",";
     j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + ", \"pending\": " + (m_cloudDirty ? "true" : "false") + "},";   // (pending: changes not sent yet, sent at the next start)
     { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale05\": true},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false"); j += sb; }
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
@@ -251,6 +251,9 @@ void BrickApp::applyPrefs(const std::string& t) {
     }
     {   // vp3d-manual-w / vp3d-manual-h / vp3d-manual-pdf-page
         if (p["orbitAuto"].type == app::Json::Bool) m_orbitAuto = p["orbitAuto"].b;
+        if (p["navClassic"].type == app::Json::Bool) m_navClassic = p["navClassic"].b;
+        if (p["permRotate"].type == app::Json::Bool) m_permRotate = p["permRotate"].b;
+        if (p["manPageScale"].type == app::Json::Number) m_manPageScale = std::clamp((float)p["manPageScale"].n, 0.4f, 1.0f);
         if (p["rotStep"].type == app::Json::Number) { const int r = (int)p["rotStep"].n; if (r == 0 || r == 15 || r == 45 || r == 90) m_rotStep = r; }
         const app::Json& cl = p["cloud"];
         if (cl.type == app::Json::Object) {

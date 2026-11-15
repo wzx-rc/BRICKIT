@@ -200,6 +200,30 @@ bool BrickApp::inSelection(int brick) const {
 }
 std::vector<int> BrickApp::dragSetOf(int brick) const { return inSelection(brick) ? selection() : unitOf(brick); }
 
+// Tourner › Reset (Wzx 15/11/2026): the selection aligned again on whole quarter turns (lost in Libre), around its pivot
+void BrickApp::resetRotation() {
+    const std::vector<int> sel = selection();
+    if (sel.empty() || m_selected < 0) return;
+    const float4 q0 = m_bricks[m_selected].rot, q1 = snapQuat(q0);
+    const float4 inv(-q0.x, -q0.y, -q0.z, q0.w);
+    const float4 dq = qMul(q1, inv);
+    const float3 piv = m_build.worldVoxel(m_bricks[m_selected], m_build.grabOf(m_bricks[m_selected]));
+    pushUndo();
+    for (int i : sel) {
+        Brick& b = m_bricks[i];
+        b.rot = snapQuat(qMul(dq, b.rot));
+        b.pos = piv + qRot(dq, b.pos - piv);
+        if (m_build.gridSnap) {   // (back on the studs)
+            b.pos.x = std::round(b.pos.x / (kPitch * 0.5f)) * (kPitch * 0.5f);
+            b.pos.z = std::round(b.pos.z / (kPitch * 0.5f)) * (kPitch * 0.5f);
+            b.pos.y = std::round(b.pos.y / kPlate) * kPlate;
+        }
+    }
+    syncObjects();
+    autosave();
+    toast("Rotation remise droite (90°)");
+}
+
 void BrickApp::select(int brick, bool add) {
     // a brick of a group selects the whole group at the level entered (double click enters it)
     if (brick >= 0 && !add) fitGroupContext(brick);
@@ -547,8 +571,13 @@ void BrickApp::editInput() {
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_O)) openDialog();
         // keys of the web: R or E = turn +90, Q = -90, C = pivot voxel, V = voxels, P = pivot edit, A = animations,
         // F = focus mode, Space = take the selected brick in hand
-        if (!ctrl && (ImGui::IsKeyPressed(ImGuiKey_R) || ImGui::IsKeyPressed(ImGuiKey_E))) rotateSelected(1);
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_Q)) rotateSelected(-1);
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_R)) rotateSelected(1);
+        // Q, W, E: Sélection, Déplacer, Tourner, as Maya (Wzx 15/11/2026; Q and E turned the brick before)
+        if (m_studioUi && !ctrl && !m_holding) {
+            if (ImGui::IsKeyPressed(ImGuiKey_Q)) stTool(0);
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) stTool(4);
+            if (ImGui::IsKeyPressed(ImGuiKey_E)) stTool(5);
+        }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) rotateSelected(1);   // (Q / S: Wzx 09/11/2026)
         if (!m_reading && !m_holding) {   // the arrows: the selection moves by a stud, along the view; Page up / down: a plate
             int ax = 0, az = 0, ay = 0;

@@ -362,7 +362,7 @@ void BrickApp::touchMove(const TouchEvent& e) {
             if (da > 3.14159265f) da -= 6.2831853f;
             if (da < -3.14159265f) da += 6.2831853f;
             g.twist += da;
-            if (!g.twisting && std::fabs(g.twist) > radians(4.0f)) { g.twisting = true; g.still = false; if (!g.centred) { g.centred = true; orbitOnSelection(); } da = g.twist; }
+            if (!g.twisting && !m_navClassic && std::fabs(g.twist) > radians(4.0f)) { g.twisting = true; g.still = false; if (!g.centred) { g.centred = true; orbitOnSelection(); } da = g.twist; }
             if (g.twisting) cam.yaw += da;
         }
         g.ang = ang;

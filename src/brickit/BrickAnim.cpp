@@ -111,6 +111,35 @@ void BrickApp::updateAnim(float dt) {
             applyGhostLook();   // (unchanged: nothing; « Brique »: the colour of the brick in hand may change while held)
         }
     }
+    {   // « hey, j'attends » (Wzx 15/11/2026): a selected brick left alone 5 s does a small hop and wiggle, every 6 s
+        const int sb = (!m_holding && m_animOn && !m_mechOn && m_multi.empty() && m_selected >= 0 && m_selected < (int)m_bricks.size()) ? m_selected : -1;
+        const auto same = [&](int i) { const Brick& b = m_bricks[i]; const float3 d = b.pos - m_idlePos; const float4 r = b.rot;
+            return std::abs(d.x) + std::abs(d.y) + std::abs(d.z) < 1e-4f && std::abs(r.x - m_idleRot.x) + std::abs(r.y - m_idleRot.y) + std::abs(r.z - m_idleRot.z) + std::abs(r.w - m_idleRot.w) < 1e-4f; };
+        if (sb != m_idleBrick || (sb >= 0 && !same(sb))) {
+            if (m_idleAnim && m_idleBrick >= 0 && m_idleBrick < (int)m_bricks.size()) { placeAnimated(m_idleBrick, m_bricks[m_idleBrick].pos, m_bricks[m_idleBrick].rot, 1, 0, 0); changed = true; }
+            m_idleAnim = false;
+            m_idleBrick = sb;
+            m_idleT = 0;
+            if (sb >= 0) { m_idlePos = m_bricks[sb].pos; m_idleRot = m_bricks[sb].rot; }
+        } else if (sb >= 0) {
+            m_idleT += dt;
+            const float t = m_idleT > 5 ? std::fmod(m_idleT - 5, 6.0f) : -1;
+            const float D = 0.9f;
+            if (t >= 0 && t < D) {
+                const float u = t / D, pi = 3.14159265f;
+                const float hop = u < 0.15f ? 0 : std::sin((u - 0.15f) / 0.6f * pi) * (u < 0.75f ? 1 : 0);   // crouch, hop, land
+                const float squash = u < 0.15f ? 1 - 0.12f * std::sin(u / 0.15f * pi) : (u > 0.75f ? 1 - 0.08f * std::sin((u - 0.75f) / 0.25f * pi) : 1 + 0.05f * hop);
+                const float wig = 0.10f * std::sin(u * 4 * pi) * (1 - u);
+                placeAnimated(sb, m_bricks[sb].pos + float3(0, 0.45f * hop, 0), m_bricks[sb].rot, squash, 0, wig);
+                m_idleAnim = true;
+                changed = true;
+            } else if (m_idleAnim) {
+                placeAnimated(sb, m_bricks[sb].pos, m_bricks[sb].rot, 1, 0, 0);
+                m_idleAnim = false;
+                changed = true;
+            }
+        }
+    }
     if (changed) {
         ++m_scene.objectsVersion;
         m_renderer->resetAccumulation();

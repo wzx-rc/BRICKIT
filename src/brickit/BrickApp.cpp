@@ -620,6 +620,13 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
+    if (m_ipad && !m_ipadCreme && !m_th.stage.light) {   // iPad, dark stage (Wzx 15/11/2026: « le ciel au loin est tout noir »): a
+        // gradient behind, in the blue grey of the grid lines, lighter at the horizon where the grid fades into it
+        m_scene.env.top = lin(0x14161b);
+        m_scene.env.horizon = lin(0x2b303b);
+        m_scene.env.bottom = lin(0x121317);
+        m_scene.env.visibleToCamera = false;   // (the HDRI still lights and reflects)
+    }
     if (!(m_ipad && m_ipadCreme) && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
         const theme::Stage& st = m_th.stage;   // (Crème · Ciel: #cfe3f5 / #f2f6fa / #dfe5ec, floor #b9c3cf, lines #8a96a8 at 25 %)
         m_scene.env.top = lin((int)st.top);

@@ -24,7 +24,9 @@ static float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
 }
 
 bool BrickApp::gizmoVisible() const {
-    return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && (m_mode == 2 || m_mode == 3);
+    // (+ Réglages › Gizmo de rotation permanent: the rings, light, on any selected brick in Sélection and Construire)
+    return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette &&
+           (m_mode == 2 || m_mode == 3 || (m_permRotate && (m_mode == 0 || m_mode == 1)));
 }
 float3 BrickApp::gizmoPivot(int b) const { return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b])); }
 float BrickApp::gizmoScale(const float3& piv) const {
@@ -269,8 +271,9 @@ void BrickApp::drawGizmo() {
         }
     } else {
         for (int a = 0; a < 3; ++a) {
-            const bool hot = hov.kind == 1 && hov.axis == a;
-            const ImU32 col = hot ? IM_COL32(255, 255, 255, 170) : ((kGz[a] & 0x00ffffffu) | (115u << 24));   // (semi-opaque bands)
+            // (Wzx 15/11/2026: in the style of the arrows of Déplacer, no ticks; the permanent rings: white, light)
+            const bool hot = hov.kind == 1 && hov.axis == a, light = m_mode != 3;
+            const ImU32 col = hot ? white : light ? IM_COL32(255, 255, 255, 75) : kGz[a];
             float3 ru, rv;
             ringBasis(a, ru, rv);
             std::vector<ImVec2> pts;
@@ -279,15 +282,7 @@ void BrickApp::drawGizmo() {
                 ImVec2 q;
                 if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) pts.push_back(q);
             }
-            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, std::max(5.0f, 0.10f * px));
-            const int nt = m_rotStep > 0 ? 360 / m_rotStep : 0;   // a tick at each step of the turn
-            for (int i = 0; i < nt; ++i) {
-                const float t = i * 6.2831853f / nt;
-                ImVec2 q;
-                const bool major = (i * m_rotStep) % 90 == 0;
-                if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y))
-                    dl->AddCircleFilled(q, std::max(major ? 2.6f : 1.5f, (major ? 0.04f : 0.022f) * px), IM_COL32(255, 255, 255, major ? 230 : 150), 12);
-            }
+            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, light && !hot ? std::max(1.5f, 0.03f * px) : std::max(2.0f, 0.045f * px));
         }
     }
 }

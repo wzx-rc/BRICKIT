@@ -457,6 +457,11 @@ private:
     void finishDrop();
     void drawHoldOverlay();
     void placeAnimated(int brick, const float3& pos, const float4& rot, float squash, float tiltX, float tiltZ);
+    int m_idleBrick = -1;             // « hey, j'attends » (Wzx 15/11/2026): a selected brick not moved for 5 s hops
+    float m_idleT = 0;
+    bool m_idleAnim = false;
+    float3 m_idlePos{0, 0, 0};
+    float4 m_idleRot{0, 0, 0, 1};
     struct Settle { int brick; float s, v, t; };
     std::vector<Settle> m_settles;
     int m_ghostObject = -1;            // translucent copy of the brick in hand at its landing spot
@@ -488,6 +493,10 @@ private:
     void aimPivot(float sx, float sy);
     void drawPivots();
     GizmoHandle m_gizmoHover;
+    bool m_navClassic = false;        // Réglages (iPad): the classic navigation, no turn of two fingers (Wzx 15/11/2026)
+    bool m_permRotate = true;         // Réglages: the rotate gizmo shown, light, on any selected brick (Wzx 15/11/2026)
+    void resetRotation();
+    void stToolOptions(Ui& u, ImVec2 at, bool row, float colW);
     int m_rotStep = 15;               // Tourner: the step of the rings in degrees (15, 45, 90; 0 = free), Wzx 14/11/2026
     bool m_gizmoDragging = false, m_leftOrbit = false;
     GizmoDrag m_gz;
@@ -567,7 +576,10 @@ private:
     void manualReserveDock();         // drawUiStudio, after the library: the docked Notice takes its band (m_dockL / m_dockR)
     bool m_manBig = false, m_pdfBig = false, m_manResizing = false;
     ImVec2 m_manResize0;
-    float m_manW0 = 0, m_manH0 = 0;
+    float m_manW0 = 0, m_manH0 = 0, m_manX0 = 0;
+    int m_manResizeSide = 1;          // (the corner held: 0 bottom left, 1 bottom right)
+    bool m_manPageDrag = false;
+    float m_manPageScale = 1.0f;      // the size of the pages in the Notice (its slider, 0.5 to 1)
     std::unique_ptr<PdfReader> m_pdf;
     bool m_pdfOn = false, m_pdfOpening = false, m_pdfScrollSmooth = false, m_prefsDirty = false;
     std::string m_pdfName, m_pdfMsg;
@@ -637,7 +649,9 @@ private:
     bool m_orbitCentred = false;     // (an Alt + drag that turns: centred once per drag)
     int m_navDrag = -1;               // the gesture button held: 0 turn, 1 move, 2 zoom
     float m_colPanelX = 0;            // the left of the colours panel (the HUD of the navigation goes left of it)
-    bool m_viewAnim = false;
+    bool m_viewAnim = false, m_cubeDrag = false, m_cubeMoved = false;   // (the brick of the views: pressed, dragged)
+    int m_cubeFace = -1;
+    ImVec2 m_cubeP0;
     double m_viewT0 = 0;
     float m_viewFromYaw = 0, m_viewFromPitch = 0, m_viewToYaw = 0, m_viewToPitch = 0;   // touch: the view glides to turn around the selection (Wzx 14/11/2026)
     bool m_frameAnim = false;
@@ -849,7 +863,7 @@ private:
     void stGroupBar();
     // the scale of the UI at 100 %: the screen's, x 0.5 on the iPad (Wzx 14/11/2026: everything was too big there; at
     // 75 % three times smaller than the 75 % of before)
-    float uiBase() const { return (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * (m_ipad ? 0.5f : 1.0f); }
+    float uiBase() const { return (m_opt.uiScale > 0 ? m_opt.uiScale : m_dpi) * (m_ipad ? 0.6f : 1.0f); }   // (iPad: 20 % bigger than the 0.5 of the 14/11, Wzx 15/11/2026)
     bool inSelection(int brick) const;              // one of a selection of several
     std::vector<int> dragSetOf(int brick) const;    // what a drag on it moves: the selection, its group, or itself
     void stPresets();

@@ -2637,6 +2637,8 @@ void BrickApp::uiDevSheet() {
         u.dl->AddRectFilled(ImVec2(x, y + 5 * s), ImVec2(x + tw, y + 23 * s), C_DEV, 6 * s);
         u.text(ImVec2(x + 6 * s, y + 7 * s), 11, C_DEVINK, "DEV", true);
         float bx = x + tw + 8 * s, w;
+        if (webButton(u, ImVec2(bx, y), "Voxel Editor", w)) { m_infoPart = -1; openVoxelEditor(part); return; }   // (the iPad has no right click: Wzx 15/11/2026)
+        bx += w + 8 * s;
         if (webButton(u, ImVec2(bx, y), "Exporter pour Maya", w)) devExport(part);
         bx += w + 8 * s;
         if (webButton(u, ImVec2(bx, y), "Importer le maillage modifié", w)) { m_infoPart = -1; devImport(part); return; }
@@ -2797,7 +2799,8 @@ void BrickApp::dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id) {
 // Vertical PDF view (.pdfview): white pages one under the other, gap 10, rendered when they come near the view.
 void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     const float s = u.s;
-    const float w = b.x - a.x - 4 * s;
+    const float wFull = b.x - a.x - 4 * s, w = main ? wFull * std::clamp(m_manPageScale, 0.4f, 1.0f) : wFull;   // (the slider of the Notice)
+    const float ox = (wFull - w) * 0.5f;
     if (m_pdfSizes.empty()) {
         const char* msg = m_pdfMsg.empty() ? "Ouverture du PDF…" : m_pdfMsg.c_str();
         u.text(ImVec2((a.x + b.x) * 0.5f - u.textW(12, msg) * 0.5f, a.y + 16 * s), 12, C_DIM, msg);
@@ -2838,7 +2841,7 @@ void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     const int want = (int)std::round(w);
     for (size_t i = 0; i < m_pdfSizes.size(); ++i) {
         const float h = w * m_pdfSizes[i].second / std::max(1.0f, m_pdfSizes[i].first);
-        ImVec2 pa(a.x + 2 * s, a.y + 2 * s + top[i] - scroll), pb(pa.x + w, pa.y + h);
+        ImVec2 pa(a.x + 2 * s + ox, a.y + 2 * s + top[i] - scroll), pb(pa.x + w, pa.y + h);
         const bool inRange = pb.y > a.y - 600 * s && pa.y < b.y + 600 * s;   // rootMargin: 600px
         PdfTex& t = m_pdfTex[i];
         if (inRange && (!t.tex || std::abs(t.w - want) > 2) && !t.asked && m_pdf) { m_pdf->request((int)i, want); t.asked = true; }
@@ -2978,6 +2981,24 @@ void BrickApp::uiManual() {
         if (h && u.pressed) clicked = bt.id;
         bx -= 3 * s;
     }
+    if (!folded) {   // the size of the pages: a small slider left of the buttons (Wzx 15/11/2026)
+        const float sw = 64 * s, sx1 = bx - 6 * s, sx0 = sx1 - sw, sy = y + headH * 0.5f;
+        if (sx0 > x + 110 * s) {
+            const ImVec2 sa(sx0 - 4 * s, sy - 10 * s), sb(sx1 + 4 * s, sy + 10 * s);
+            const bool hv = u.hover(sa, sb);
+            if (hv && u.pressed) m_manPageDrag = true;
+            if (m_manPageDrag) {
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_manPageScale = std::clamp(0.4f + 0.6f * (u.mouse.x - sx0) / sw, 0.4f, 1.0f);
+                else { m_manPageDrag = false; savePrefs(); }
+            }
+            const float t = (m_manPageScale - 0.4f) / 0.6f;
+            u.dl->AddRectFilled(ImVec2(sx0, sy - 1.5f * s), ImVec2(sx1, sy + 1.5f * s), alphaOf(C_TEXT, 0.18f), 2 * s);
+            u.dl->AddRectFilled(ImVec2(sx0, sy - 1.5f * s), ImVec2(sx0 + sw * t, sy + 1.5f * s), alphaOf(C_TEXT, 0.5f), 2 * s);
+            u.dl->AddCircleFilled(ImVec2(sx0 + sw * t, sy), (hv || m_manPageDrag ? 6.0f : 5.0f) * s, C_TEXT, 16);
+            svg::path(u.dl, "M3 5h6v8H3z", ImVec2(sx0 - 16 * s, sy - 8 * s), s * 0.9f, alphaOf(C_TEXT, 0.5f), 1.2f * s);   // (a small page)
+            if (hv && !m_manPageDrag && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Taille des pages");
+        }
+    }
     if (clicked == 0) { m_pdfOn = !m_pdfOn; if (m_pdfOn) m_pdfScrollTo = m_pdfPage, m_pdfScrollSmooth = false; }
     if (clicked == 1) pdfDialog();
     if (clicked == 4) { m_pManual.collapsed = !m_pManual.collapsed; savePrefs(); }
@@ -3000,13 +3021,15 @@ void BrickApp::uiManual() {
         m_manScroll = std::clamp(m_manScroll, 0.0f, std::max(0.0f, pagesH - bodyH));
         u.dl->PushClipRect(ba, bb, true);
         float py = ba.y - m_manScroll;
+        const float ps = std::clamp(m_manPageScale, 0.4f, 1.0f);   // (the slider of the Notice, Wzx 15/11/2026)
         if (side) {
-            const float pw = (innerW - pgap) * 0.5f;
-            manualPage(u, ImVec2(ba.x, py), pw, l, 0, false, true);
-            manualPage(u, ImVec2(ba.x + pw + pgap, py), pw, r, 1, false, true);
+            const float pw = (innerW - pgap) * 0.5f * ps, ox = (innerW - (2 * pw + pgap)) * 0.5f;
+            manualPage(u, ImVec2(ba.x + ox, py), pw, l, 0, false, true);
+            manualPage(u, ImVec2(ba.x + ox + pw + pgap, py), pw, r, 1, false, true);
         } else {
-            py += manualPage(u, ImVec2(ba.x, py), innerW, l, 0, false, true) + pgap;
-            manualPage(u, ImVec2(ba.x, py), innerW, r, 1, false, true);
+            const float pw = innerW * ps, ox = (innerW - pw) * 0.5f;
+            py += manualPage(u, ImVec2(ba.x + ox, py), pw, l, 0, false, true) + pgap;
+            manualPage(u, ImVec2(ba.x + ox, py), pw, r, 1, false, true);
         }
         u.dl->PopClipRect();
         if (over) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);   // cursor: zoom-in
@@ -3030,38 +3053,54 @@ void BrickApp::uiManual() {
             else { m_manRight += dd; m_manScroll = 0; }
         }
     }
-    // the resize handle in the inner bottom corner: free, the width and the height (anchored at the top, at the outer
-    // side); docked, the width alone. Wider than tall, the pages go side by side.
-    const bool handleRight = m_manDock == 1 && docked;
-    ImVec2 ra = handleRight ? ImVec2(p1.x - 27 * s, p1.y - 27 * s) : ImVec2(p0.x + 3 * s, p1.y - 27 * s), rb(ra.x + 24 * s, ra.y + 24 * s);
-    const bool rh = u.hover(ra, rb);
-    if (rh && u.pressed) { m_manResizing = true; m_manResize0 = u.mouse; m_manW0 = W; m_manH0 = H; }
+    // the resize (Wzx 15/11/2026: « par le coin en bas à gauche ou en bas à droite, naturellement selon le coin pris »):
+    // floating, both bottom corners, the corner held follows the pointer (the left one moves the left edge); docked, the
+    // inner corner, the width alone. Wider than tall, the pages go side by side.
+    const float hs = 26 * s;
+    for (int side = 0; side < 2; ++side) {
+        if (docked && side != (m_manDock == 1 ? 1 : 0)) continue;
+        const ImVec2 ra = side == 1 ? ImVec2(p1.x - hs - 2 * s, p1.y - hs - 2 * s) : ImVec2(p0.x + 2 * s, p1.y - hs - 2 * s), rb(ra.x + hs, ra.y + hs);
+        const bool rh = u.hover(ra, rb);
+        if (rh && u.pressed && !m_manResizing) {
+            m_manResizing = true;
+            m_manResizeSide = side;
+            m_manResize0 = u.mouse;
+            m_manW0 = W;
+            m_manH0 = H;
+            m_manX0 = p0.x;
+            if (!docked && !m_pManual.floating) { m_pManual.floating = true; m_pManual.x = p0.x; m_pManual.y = p0.y; }   // (from now on it keeps its place)
+        }
+        const bool held = m_manResizing && m_manResizeSide == side;
+        const bool on = rh || held;
+        if (on) {
+            u.dl->AddRectFilled(ra, rb, C_LYEL, 12 * s);
+            const ImU32 hc = IM_COL32(0x1b, 0x15, 0x00, 255);
+            if (side == 1) svg::path(u.dl, "M3 3 L13 13 M3 3 L3 8 M3 3 L8 3 M13 13 L13 8 M13 13 L8 13", ImVec2(ra.x + 5 * s, ra.y + 5 * s), s, hc, 1.6f * s);
+            else svg::path(u.dl, "M13 3 L3 13 M13 3 L8 3 M13 3 L13 8 M3 13 L8 13 M3 13 L3 8", ImVec2(ra.x + 5 * s, ra.y + 5 * s), s, hc, 1.6f * s);
+            ImGui::SetMouseCursor(side == 1 ? ImGuiMouseCursor_ResizeNWSE : ImGuiMouseCursor_ResizeNESW);
+        } else {
+            const ImU32 gc = alphaOf(C_TEXT, 0.4f);
+            for (int k = 1; k <= 3; ++k) {   // the grip of the corner
+                const float o = k * 5.5f * s;
+                if (side == 1) u.dl->AddLine(ImVec2(rb.x - 4 * s - o, rb.y - 4 * s), ImVec2(rb.x - 4 * s, rb.y - 4 * s - o), gc, 1.3f * s);
+                else u.dl->AddLine(ImVec2(ra.x + 4 * s + o, rb.y - 4 * s), ImVec2(ra.x + 4 * s, rb.y - 4 * s - o), gc, 1.3f * s);
+            }
+        }
+        if (rh && !m_manResizing && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Redimensionner");
+    }
     if (m_manResizing) {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            const float dx = u.mouse.x - m_manResize0.x, dy = u.mouse.y - m_manResize0.y;
             const float maxW = docked ? ds.x * 0.5f : std::max(300 * s, stageW - 40 * s);
-            const float dx = handleRight ? u.mouse.x - m_manResize0.x : m_manResize0.x - u.mouse.x;
-            m_manW = std::clamp(m_manW0 + dx, 260 * s, std::min(docked ? ds.x * 0.5f : 1400 * s, maxW));
-            if (!docked) m_manH = std::round(std::clamp(m_manH0 + (u.mouse.y - m_manResize0.y), 160 * s, m_stage.w - y0 - 8 * s));
+            const float w = std::clamp(m_manW0 + (m_manResizeSide == 1 ? dx : -dx), 260 * s, std::min(docked ? ds.x * 0.5f : 1400 * s, maxW));
+            if (docked) m_manW = w;
+            else {
+                m_manW = w;
+                if (m_manResizeSide == 0) m_pManual.x = m_manX0 + (m_manW0 - w);   // (the right edge stays)
+                m_manH = std::round(std::clamp(m_manH0 + dy, 160 * s, m_stage.w - y0 - 8 * s));
+            }
         } else { m_manResizing = false; savePrefs(); }
     }
-    // (Wzx 14/11/2026: clearer): at rest the grip of a corner, three short diagonal strokes; under the pointer a disc
-    // in the accent with the double arrow of the resize
-    const bool rOn = rh || m_manResizing;
-    if (rOn) {
-        u.dl->AddRectFilled(ra, rb, C_LYEL, 12 * s);
-        const ImU32 hc = IM_COL32(0x1b, 0x15, 0x00, 255);
-        if (handleRight) svg::path(u.dl, "M3 3 L13 13 M3 3 L3 8 M3 3 L8 3 M13 13 L13 8 M13 13 L8 13", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.6f * s);
-        else svg::path(u.dl, "M13 3 L3 13 M13 3 L8 3 M13 3 L13 8 M3 13 L8 13 M3 13 L3 8", ImVec2(ra.x + 4 * s, ra.y + 4 * s), s, hc, 1.6f * s);
-        ImGui::SetMouseCursor(handleRight ? ImGuiMouseCursor_ResizeNWSE : ImGuiMouseCursor_ResizeNESW);
-    } else {
-        const ImU32 gc = alphaOf(C_TEXT, 0.45f);
-        for (int k = 1; k <= 3; ++k) {   // the grip, in the corner of the panel
-            const float o = k * 5.5f * s;
-            if (handleRight) u.dl->AddLine(ImVec2(rb.x - 3 * s - o, rb.y - 3 * s), ImVec2(rb.x - 3 * s, rb.y - 3 * s - o), gc, 1.3f * s);
-            else u.dl->AddLine(ImVec2(ra.x + 3 * s + o, rb.y - 3 * s), ImVec2(ra.x + 3 * s, rb.y - 3 * s - o), gc, 1.3f * s);
-        }
-    }
-    if (rh && !m_manResizing && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Redimensionner");
 }
 
 // #mbig (scene pages, vertical book) and #pdfbig (the PDF, large)
@@ -3668,19 +3707,24 @@ void BrickApp::uiSettings() {
         y += 14 * s + gap;
     };
     bool lookChanged = false;
-    static const float kScales[5] = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+    static const float kScales[6] = {0.75f, 0.85f, 1.0f, 1.1f, 1.25f, 1.5f};   // (Wzx 15/11/2026)
     switch (sec) {
     case S_UI: {
         group("Affichage");
-        int sc = 1;
-        for (int i = 0; i < 5; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
-        row("Échelle de l'interface", {"75 %", "100 %", "125 %", "150 %", "200 %"}, sc, 0);
+        int sc = 2;
+        for (int i = 0; i < 6; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
+        row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
         row("Icône de l'app", {"A : viseur", "B : brique seule"}, m_appIcon, 25);
         group("Aides");
         yesNo("HUD de sélection", m_selHud, 16);
         if (m_ipad) yesNo("Anneau de la main gauche (tourner, basculer)", m_touchHud, 14);
         yesNo("Animations des briques", m_animOn, 7);
+        if (m_ipad) {   // (Wzx 15/11/2026): Classique = no turn of two fingers (one finger turns, two move and zoom)
+            const int k = seg("Navigation au doigt", {"Moderne", "Classique"}, m_navClassic ? 1 : 0);
+            if (k >= 0 && (k == 1) != m_navClassic) { m_navClassic = k == 1; savePrefs(); }
+            note(m_navClassic ? "Un doigt tourne, deux doigts déplacent et zooment." : "Deux doigts qui tournent font aussi pivoter la vue.");
+        }
         break;
     }
     case S_LIB:
@@ -3701,6 +3745,10 @@ void BrickApp::uiSettings() {
             group("Sélection");
             slider(106, "Contour de sélection", m_selOutline, 0.0f, 1.0f, "%.2f", m_selOutline);
             slider(107, "Voile de sélection", m_selFill, 0.0f, 0.5f, "%.2f", m_selFill);
+        }
+        {   // (Wzx 15/11/2026): the rings of Tourner, light, on any selected brick
+            const int k = seg("Gizmo de rotation permanent", {"Oui", "Non"}, m_permRotate ? 0 : 1);
+            if (k >= 0 && (k == 0) != m_permRotate) { m_permRotate = k == 0; savePrefs(); }
         }
         group("Connecteurs");
         row("Voxels (V)", {"Affichés", "Masqués"}, m_showVox ? 0 : 1, 6);
