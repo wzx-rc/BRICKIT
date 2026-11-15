@@ -510,7 +510,7 @@ void BrickApp::stTools() {
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
     const float W = 50 * s, bh = 44 * s, pad = 4 * s;
     // iPad (Wzx 10/11/2026): a row at the top centre (the left hand keeps the ring of the side); PC: the column on the left
-    const bool row = m_ipad;
+    const bool row = true;   // (PC too, Wzx 15/11/2026: « la toolbox sur PC en haut aussi »)
     const float bw = row ? 46 * s : W - pad * 2;
     const float rowW = pad * 2 + ts.size() * (bw + 2 * s) - 2 * s;
     const ImVec2 a = row ? ImVec2(std::floor(ImGui::GetIO().DisplaySize.x * 0.5f - rowW * 0.5f), top) : ImVec2(14 * s + m_dockL, top);
@@ -2073,7 +2073,7 @@ void BrickApp::stDrawer() {
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
     // the cards at the size of the slider of the drawer (Wzx 09/11/2026); the drawer keeps its height: as many rows as fit
     const float cs = std::clamp(m_stCardScale, 0.6f, 2.0f);
-    const float famH = (m_ipad ? 46 : 58) * s, subH = (m_ipad ? 32 : 36) * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
+    const float famH = (m_ipad ? 44 : 50) * s, subH = (m_ipad ? 32 : 36) * s, cardW = (sheet ? 116 : 88) * s * cs, cardH = 88 * s * cs, tileW = 140 * s, tileH = 88 * s, gap = 8 * s, padX = 14 * s;
     // the height of the drawer: its grip (m_libH), never less than two rows of tiles
     const float chrome = 12 * s + famH + 8 * s + subH + 10 * s + 12 * s;
     // iPad (Wzx 10/11/2026: « elle prend la moitié de l'écran »): one row by default, no empty band under it
@@ -2122,21 +2122,30 @@ void BrickApp::stDrawer() {
             const ImVec2 ta(fa.x + 4 * s + i * tw + 1 * s, fa.y + 4 * s), tb(ta.x + tw - 2 * s, fb.y - 4 * s);
             const bool on = &f == fam && !m_searchOpen;
             const bool h = live && u.hover(ta, tb);
-            if (on) {   // the amber glow from below, the underline
-                u.dl->AddRectFilledMultiColor(ImVec2(ta.x, tb.y - (tb.y - ta.y) * 0.22f), tb, IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 18), IM_COL32(246, 196, 0, 18));   // (a thinner line, a lower glow: Wzx 14/11/2026)
-                u.dl->AddLine(ImVec2(ta.x + 10 * s, tb.y - 0.5f * s), ImVec2(tb.x - 10 * s, tb.y - 0.5f * s), IM_COL32(246, 196, 0, 255), 1.0f * s);
-            } else if (h) u.dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 9), 12 * s);
+            // (Wzx 15/11/2026: « l'icône à gauche, le titre à droite »): a pill per family, its picture then its name,
+            // centred in the tab; chosen, an amber pill with a fine rim
+            const ImVec2 pa(ta.x + 3 * s, ta.y + 2 * s), pb(tb.x - 3 * s, tb.y - 2 * s);
+            const float pr = (pb.y - pa.y) * 0.5f;
+            if (on) {
+                u.dl->AddRectFilled(pa, pb, IM_COL32(246, 196, 0, 26), pr);
+                u.dl->AddRect(pa, pb, IM_COL32(246, 196, 0, 150), pr, 0, 1.0f);
+            } else if (h) u.dl->AddRectFilled(pa, pb, IM_COL32(255, 255, 255, 12), pr);
             const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
             const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
-            const float icy = m_ipad ? 12 * s : 18 * s, icz = m_ipad ? 20 * s : 27 * s;   // (iPad: a lower strip)
+            const float isz = (pb.y - pa.y) - 6 * s, fpx = m_ipad ? 9.0f : 10.0f, gapI = 8 * s;
+            std::string lab = stUpper(f.label);
+            const float room = (pb.x - pa.x) - isz - gapI - 16 * s;
+            while (lab.size() > 3 && stTrackW(u, fpx, lab.c_str(), 1.3f * s, true) > room) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
+            const float lw = stTrackW(u, fpx, lab.c_str(), 1.3f * s, true);
+            const bool fits = room > 20 * s;
+            const float cwid = isz + (fits ? gapI + lw : 0);
+            const float cx0 = (pa.x + pb.x - cwid) * 0.5f, cy = (pa.y + pb.y) * 0.5f;
             {   // the image of its first part (Wzx 14/11/2026), the pictogram while it loads
-                const float isz = (tb.y - ta.y) - 22 * s;   // (as big as the tab allows above its small label, Wzx 14/11/2026)
-                const ImVec2 ic((ta.x + tb.x) * 0.5f, ta.y + 1 * s + isz * 0.5f - (h && !on ? 1.5f * s : 0));
-                if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.6f)) stIco(u.dl, f.ico, ImVec2(ic.x, ta.y + icy), icz, pic, 1.0f * s);
+                const ImVec2 ic(cx0 + isz * 0.5f, cy - (h && !on ? 1.0f * s : 0));
+                if (!stPartIco(u.dl, stFamFirst(f.key), ic, isz, alpha * (on || h ? 1.0f : 0.8f), 1.6f)) stIco(u.dl, f.ico, ic, isz * 0.8f, pic, 1.0f * s);
             }
-            const std::string lab = stUpper(f.label);
-            const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.4f * s, true);
-            stTrack(u, ImVec2((ta.x + tb.x - lw) * 0.5f, tb.y - 14 * s), 8.6f, txt, lab.c_str(), 1.4f * s);
+            if (fits) stTrack(u, ImVec2(cx0 + isz + gapI, cy - u.fs(fpx) * 0.52f), fpx, txt, lab.c_str(), 1.3f * s);
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", f.label);
             if (h && u.pressed) {   // back on a family: its last category (Wzx 09/11/2026)
                 m_stFamSub[m_stFam] = m_stSub;
                 m_stFam = f.key;
