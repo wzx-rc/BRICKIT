@@ -229,8 +229,9 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
         t.hudStyle = HUD_FLAT;
         t.hudBtn = IM_COL32(0x32, 0x38, 0x44, 235);
         t.hudBtnWhiteIcon = true;
-        t.brickSwatch = false;
-        t.stage = {};   // (the dark stage of the PC, its HDRI and its grid)
+        t.brickSwatch = true;   // (the swatches as small bricks, Wzx 15/11/2026)
+        // the stage: a slate studio, lighter than the dark PC one (Wzx 15/11/2026: « le fond est trop sombre pour ce thème »)
+        t.stage = {true, 0x6b7384u, 0x535b6au, 0x2f3540u, 0x3a414du, 0x444b58u, 0xaab3c2u, 0.15f};
         return t;
     }
 

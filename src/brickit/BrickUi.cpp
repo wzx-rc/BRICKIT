@@ -545,7 +545,7 @@ bool BrickApp::applyTheme() {
         changed = true;
     }
     m_darkUi = m_th.dark;
-    g_studTex = m_th.brickSwatch ? themeTex("glass/stud1x1.png") : 0;
+    g_studTex = m_th.brickSwatch ? themeTex(m_th.brique ? "brique/swatch.png" : "glass/stud1x1.png") : 0;   // (Brique: a 2x2 brick, Wzx 15/11/2026)
     setTheme(m_th);
     return changed;
 }

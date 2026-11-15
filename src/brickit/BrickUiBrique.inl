@@ -64,6 +64,19 @@ void BrickApp::bqReg(const char* id, const char* label, ImVec4 def, ImVec4 now, 
     if (m_editUi) m_editIds.push_back(id);
 }
 
+// one element (a button, an icon) moved on its own: its offset from its place (x, y: fractions of the screen; w = 1: set)
+ImVec2 BrickApp::bqEl(const std::string& id, const char* label, ImVec4 r) {
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const std::string key = "el:" + id;
+    UiBox& b = m_boxes[key];
+    const ImVec2 off = b.w > 0 ? ImVec2(b.x * d.x, b.y * d.y) : ImVec2(0, 0);
+    b.def = r;
+    b.last = ImVec4(r.x + off.x, r.y + off.y, r.z + off.x, r.w + off.y);
+    b.label = label;
+    if (m_editUi) m_editEls.push_back(key);
+    return off;
+}
+
 // ------------------------------------------------------------------ the header
 
 void BrickApp::stHeaderBrique() {
@@ -103,13 +116,15 @@ void BrickApp::stHeaderBrique() {
     const float ph = 44 * s;
     for (const P& p : ps) {
         const float lw = u.textW(14, p.label, true), w = 22 * s + 22 * s + 8 * s + lw;
-        const ImVec2 a(x, cy - ph * 0.5f), b(x + w, cy + ph * 0.5f);
+        const ImVec2 o = bqEl(std::string("hdr") + std::to_string(p.id), p.label, ImVec4(x, cy - ph * 0.5f, x + w, cy + ph * 0.5f));
+        const ImVec2 a(x + o.x, cy - ph * 0.5f + o.y), b(a.x + w, a.y + ph);
+        const float pcy = (a.y + b.y) * 0.5f;
         const bool h = u.hover(a, b);
         if (p.on) bqYellow(dl, a, b, 13 * s, s, h);
         else if (h) dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 14), 13 * s);
         const ImU32 fg = p.on ? C_INK : C_TEXT;
-        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, cy), 21 * s, p.on ? C_INK : IM_COL32(0xc9, 0xcd, 0xd6, 255), 2.0f * s);
-        u.text(ImVec2(a.x + 22 * s + 19 * s, cy - u.fs(14) * 0.56f), 14, fg, p.label, true);
+        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, pcy), 21 * s, p.on ? C_INK : IM_COL32(0xc9, 0xcd, 0xd6, 255), 2.0f * s);
+        u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
         if (h && u.pressed) {
             switch (p.id) {
             case 0: m_popup = hubOn ? 0 : 8; m_hubStale = true; if (m_popup == 8) cloudRefreshList(); break;
@@ -125,7 +140,8 @@ void BrickApp::stHeaderBrique() {
     float rx = d.x - 14 * s;
     {   // the account: a yellow coin with the initial (Réglages › Cloud)
         const float r = 21 * s;
-        const ImVec2 c(rx - r, cy);
+        const ImVec2 o = bqEl("hdrAccount", "Compte", ImVec4(rx - 2 * r, cy - r, rx, cy + r));
+        const ImVec2 c(rx - r + o.x, cy + o.y);
         const bool h = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r;
         dl->AddCircleFilled(ImVec2(c.x, c.y + 2 * s), r + 2 * s, IM_COL32(0, 0, 0, 60), 32);
         dl->AddCircleFilled(c, r + 2.5f * s, IM_COL32(0x2d, 0x32, 0x3d, 255), 32);
@@ -138,13 +154,15 @@ void BrickApp::stHeaderBrique() {
         if (h && u.pressed) { m_popup = 5; m_setSec = kSetCloud; m_setScroll = 0; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
         rx -= 2 * r + 12 * s;
     }
+    int rbi = 0;
     auto roundBtn = [&](const char* icon, const char* tip, bool on, bool enabled) {
         const float w = 42 * s;
-        const ImVec2 a(rx - w, cy - w * 0.5f), b(rx, cy + w * 0.5f);
+        const ImVec2 o = bqEl("hdrBtn" + std::to_string(rbi++), tip, ImVec4(rx - w, cy - w * 0.5f, rx, cy + w * 0.5f));
+        const ImVec2 a(rx - w + o.x, cy - w * 0.5f + o.y), b(a.x + w, a.y + w);
         const bool h = enabled && u.hover(a, b);
         if (on) bqYellow(dl, a, b, 13 * s, s, h);
         else bqRaise(dl, a, b, 13 * s, s, h ? IM_COL32(0x38, 0x3e, 0x4a, 255) : IM_COL32(0x2d, 0x32, 0x3d, 255), 50);
-        stIcon(dl, icon, ImVec2((a.x + b.x) * 0.5f, cy), 20 * s, on ? C_INK : enabled ? C_TEXT : stA(C_TEXT, 0.3f), 2.0f * s);
+        stIcon(dl, icon, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), 20 * s, on ? C_INK : enabled ? C_TEXT : stA(C_TEXT, 0.3f), 2.0f * s);
         if (h && tip && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
         rx -= w + 10 * s;
         return h && u.pressed;
@@ -264,7 +282,8 @@ void BrickApp::stBriqueCorners() {
         float xx = a.x + 5 * s;
         for (const R& r : rs) {
             const float bw = u.textW(12, r.label, true) + 24 * s;
-            const ImVec2 ba(xx, a.y + 5 * s), bb(xx + bw, b.y - 5 * s);
+            const ImVec2 eo = bqEl(std::string("render") + std::to_string(r.id), r.label, ImVec4(xx, a.y + 5 * s, xx + bw, b.y - 5 * s));
+            const ImVec2 ba(xx + eo.x, a.y + 5 * s + eo.y), bb(ba.x + bw, b.y - 5 * s + eo.y);
             const bool h = u.hover(ba, bb);
             if (r.id == 3) u.dl->AddLine(ImVec2(ba.x - 2 * s, ba.y + 6 * s), ImVec2(ba.x - 2 * s, bb.y - 6 * s), IM_COL32(255, 255, 255, 30), 1.0f);
             if (r.on) bqYellow(u.dl, ba, bb, 10 * s, s, h);
@@ -324,7 +343,8 @@ void BrickApp::stEditUi() {
         UiBox& b = m_boxes[m_editDrag];
         const ImVec2 dm(u.mouse.x - m_editP0.x, u.mouse.y - m_editP0.y);
         if (down) {
-            if (m_editMode == 0) {
+            if (m_editMode == 2) {
+            } else if (m_editMode == 0) {
                 const float w = b.last.z - b.last.x, h = b.last.w - b.last.y;
                 b.x = std::clamp(m_editB0.last.x + dm.x, -w * 0.5f, d.x - w * 0.5f) / d.x;
                 b.y = std::clamp(m_editB0.last.y + dm.y, 0.0f, d.y - 20 * s) / d.y;
@@ -383,15 +403,59 @@ void BrickApp::stEditUi() {
         if (u.pressed && m_editDrag.empty()) {
             if (he) { b.hidden = !b.hidden; clicked = true; }
             else if (hr) { m_editDrag = id; m_editMode = 1; m_editP0 = u.mouse; m_editB0 = b; clicked = true; }
-            else if (h) { m_editDrag = id; m_editMode = 0; m_editP0 = u.mouse; m_editB0 = b; clicked = true; }
+            else if (h) { m_editPend = true; m_editT0 = ImGui::GetTime(); m_editP0 = u.mouse; m_editPendBlock = id; clicked = true; }   // (a drag: the block; a long press: the element under it)
         }
         if (hr) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNWSE);
         else if (h) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
     }
+    // the elements: a long press on one takes it alone (a button, an icon), a drag then moves it
+    {
+        std::string under;
+        for (auto it = m_editEls.rbegin(); it != m_editEls.rend() && under.empty(); ++it) {
+            const UiBox& e = m_boxes[*it];
+            if (u.hover(ImVec2(e.last.x, e.last.y), ImVec2(e.last.z, e.last.w))) under = *it;
+        }
+        if (u.pressed && m_editDrag.empty() && !under.empty()) {
+            if (!m_editPend) { m_editPend = true; m_editT0 = ImGui::GetTime(); m_editP0 = u.mouse; m_editPendBlock.clear(); }
+            m_editPendEl = under;
+        } else if (u.pressed && !m_editPend) m_editPendEl.clear();
+        if (m_editPend) {
+            const float moved = std::fabs(u.mouse.x - m_editP0.x) + std::fabs(u.mouse.y - m_editP0.y);
+            const double held = ImGui::GetTime() - m_editT0;
+            if (!down) { m_editPend = false; m_editPendEl.clear(); }
+            else if (!m_editPendEl.empty() && held > 0.35 && moved < 8 * s) {   // the element alone
+                m_editDrag = m_editPendEl; m_editMode = 2; m_editB0 = m_boxes[m_editPendEl]; m_editPend = false;
+            } else if (moved >= 8 * s) {   // a drag: the block (or the element when it is in no block)
+                if (!m_editPendBlock.empty()) { m_editDrag = m_editPendBlock; m_editMode = 0; m_editB0 = m_boxes[m_editPendBlock]; }
+                else if (!m_editPendEl.empty()) { m_editDrag = m_editPendEl; m_editMode = 2; m_editB0 = m_boxes[m_editPendEl]; }
+                m_editPend = false;
+            } else if (!m_editPendEl.empty()) {   // the ring that fills while the press is held
+                const float t = (float)std::clamp(held / 0.35, 0.0, 1.0);
+                dl->PathArcTo(u.mouse, 22 * s, -1.5708f, -1.5708f + t * 6.2832f, 32);
+                dl->PathStroke(IM_COL32(255, 201, 60, 255), 0, 4 * s);
+            }
+        }
+        for (const std::string& k : m_editEls) {   // the elements moved, and the one under the pointer: a fine frame
+            const UiBox& e = m_boxes[k];
+            const bool hot = k == under || k == m_editDrag;
+            if (!hot && e.w <= 0) continue;
+            dl->AddRect(ImVec2(e.last.x - 2 * s, e.last.y - 2 * s), ImVec2(e.last.z + 2 * s, e.last.w + 2 * s), IM_COL32(120, 200, 255, hot ? 255 : 120), 8 * s, 0, (hot ? 2.0f : 1.2f) * s);
+        }
+        if (!m_editDrag.empty() && m_editMode == 2) {
+            UiBox& e = m_boxes[m_editDrag];
+            if (down) {
+                const ImVec2 dm(u.mouse.x - m_editP0.x, u.mouse.y - m_editP0.y);
+                const float ox = m_editB0.w > 0 ? m_editB0.x * d.x : 0, oy = m_editB0.w > 0 ? m_editB0.y * d.y : 0;
+                e.x = (ox + dm.x) / d.x; e.y = (oy + dm.y) / d.y; e.w = 1;
+                u.text(ImVec2(e.last.x, e.last.w + 6 * s), 11, IM_COL32(120, 200, 255, 255), e.label.c_str(), true);
+            } else m_editDrag.clear();
+        }
+    }
+    m_editEls.clear();
     // the banner: what it is, Réinitialiser, Terminer
     {
         const char* t1 = "Édition de l'interface";
-        const char* t2 = "Glisse un bloc pour le déplacer, son coin pour le redimensionner, l'œil pour le masquer.";
+        const char* t2 = "Glisse un bloc pour le déplacer, son coin pour le redimensionner, l'œil pour le masquer. Appui long : un seul bouton.";
         const float W = std::max(u.textW(16, t1, true), u.textW(11.5f, t2)) + 300 * s, Hh = 64 * s;
         const float hT = m_ipad ? kIpadTopStrip * s : 0;
         const ImVec2 a((d.x - W) * 0.5f, hT + 4 * s), b(a.x + W, a.y + Hh);   // (over the header: it does not move)

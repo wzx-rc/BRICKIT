@@ -555,7 +555,8 @@ void BrickApp::stTools() {
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     float y = a.y + pad, x = a.x + pad;
     for (const T& t : ts) {
-        const ImVec2 ba = row ? ImVec2(x, a.y + pad) : ImVec2(a.x + pad, y), bb = row ? ImVec2(x + bw, b.y - pad) : ImVec2(b.x - pad, y + bh);
+        ImVec2 ba = row ? ImVec2(x, a.y + pad) : ImVec2(a.x + pad, y), bb = row ? ImVec2(x + bw, b.y - pad) : ImVec2(b.x - pad, y + bh);
+        if (g_brique) { const ImVec2 o = bqEl("tool" + std::to_string(t.id), t.tip, ImVec4(ba.x, ba.y, bb.x, bb.y)); ba = ImVec2(ba.x + o.x, ba.y + o.y); bb = ImVec2(bb.x + o.x, bb.y + o.y); }
         x += bw + 2 * s;
         const bool h = u.hover(ba, bb) && m_popup == 0;
         if (t.on && g_brique) bqYellow(u.dl, ba, bb, 13 * s, s, h);
@@ -3401,7 +3402,8 @@ void BrickApp::stNavHud() {
             u.dl->AddLine(ImVec2(a.x + 9 * s, y + 4 * s), ImVec2(b.x - 9 * s, y + 4 * s), IM_COL32(255, 255, 255, 30), 1.0f);
             y += 8 * s;
         }
-        const ImVec2 ba(a.x + pad, y), bb(ba.x + bw, y + bw);
+        ImVec2 ba(a.x + pad, y), bb(ba.x + bw, y + bw);
+        if (g_brique) { const ImVec2 o = bqEl("nav" + std::to_string(t.id), t.tip, ImVec4(ba.x, ba.y, bb.x, bb.y)); ba = ImVec2(ba.x + o.x, ba.y + o.y); bb = ImVec2(bb.x + o.x, bb.y + o.y); }
         const bool h = u.hover(ba, bb);
         if (t.on && g_brique) bqYellow(u.dl, ba, bb, 12 * s, s, h);
         else if (t.on) u.dl->AddRectFilled(ba, bb, t.id == 4 ? stA(C_ACCENT, 0.28f) : IM_COL32(255, 255, 255, 34), 10 * s);

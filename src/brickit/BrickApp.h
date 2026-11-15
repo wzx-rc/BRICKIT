@@ -922,6 +922,12 @@ private:
     bool bqHidden(const char* id);
     void bqReg(const char* id, const char* label, ImVec4 def, ImVec4 now, bool sized);
     int bqEditField(Ui& u, ImVec2 ea, ImVec2 eb, float px);
+    // one button, icon or element moved on its own (a long press on it in the UI editor): its offset, « el:<id> » in m_boxes
+    ImVec2 bqEl(const std::string& id, const char* label, ImVec4 r);
+    std::vector<std::string> m_editEls;
+    bool m_editPend = false;
+    double m_editT0 = 0;
+    std::string m_editPendEl, m_editPendBlock;
     std::vector<std::pair<std::string, std::wstring>> m_presets;
     std::string m_presetsKey;
     float m_presetsScroll = 0;            // Réglages: scrolled (a section taller than the screen)
