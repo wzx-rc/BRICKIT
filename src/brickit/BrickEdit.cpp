@@ -452,6 +452,16 @@ bool BrickApp::saveScene(const std::wstring& path) {
     fwrite(text.data(), 1, text.size(), f);
     fclose(f);
     m_scenePath = path;
+    {   // in Mes scènes: its thumbnail, the 3D view of the next frame (the hub of the scenes)
+        const std::wstring dir = scenesDir();
+        if (path.size() > dir.size() && path.compare(0, dir.size(), dir) == 0) {
+            m_thumbReq = path;
+            std::wstring n = path.substr(dir.size() + 1);   // (its name: the one of its file)
+            if (n.size() > 6) n = n.substr(0, n.size() - 6);
+            m_modelName = plat::toUtf8(n);
+        }
+        m_hubStale = true;
+    }
     toast("Scène enregistrée");
     return true;
 }
@@ -550,7 +560,7 @@ void BrickApp::finishMarquee(bool add) {
 
 void BrickApp::editInput() {
     ImGuiIO& io = ImGui::GetIO();
-    const bool keys = !io.WantTextInput;
+    const bool keys = !io.WantTextInput && m_popup != 8;   // (not under the hub of the scenes)
     if (m_vePart >= 0) { m_veKeysFrame = m_frame; return; }   // (the Voxel Editor has the keyboard and the mouse)
     // the frame the editor closes (V: Valider) and the next: its keys are not the Builder's (V toggled the voxels, which
     // shows the selected brick at 30 %: « la brique sélectionnée est translucide », Wzx 12/11/2026)

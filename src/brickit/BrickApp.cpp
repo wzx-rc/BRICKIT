@@ -1374,7 +1374,8 @@ void BrickApp::frame() {
             frs.giBoundsFade = m_softMargin * 0.5f;
         }
         QueryPerformanceCounter(&m_perfD);
-        m_renderer->renderToTexture(m_scene, frs, m_vp, selObj);
+        m_renderer->renderToTexture(m_scene, frs, m_vp, m_thumbReq.empty() ? selObj : -1);
+        hubTakeThumb();   // (a save into Mes scènes: its thumbnail, this view without the interface)
         QueryPerformanceCounter(&m_perfE);
         ImGui::GetBackgroundDrawList()->AddImage(m_gui->viewportTexture(), ImVec2(m_stage.x, m_stage.y), ImVec2(m_stage.z, m_stage.w));
         drawVoxels();          // over the 3D view, under the panels
@@ -1408,6 +1409,8 @@ void BrickApp::frame() {
     }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
+    if (m_opt.hubTest && m_frame == 12 && !m_opt.savePath.empty()) saveScene(m_opt.savePath);   // (its thumbnail at the next frame)
+    if (m_opt.hubTest && m_frame == 16) { m_popup = 8; m_hubStale = true; }
     if (m_opt.groupBarTest && m_frame == 8 && m_bricks.size() > 1) {
         m_selected = 0;
         m_multi.clear();
@@ -1558,6 +1561,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--import-report") { opt.importReport = next(); continue; }
         if (a == L"--group-test") { opt.groupTest = next(); continue; }
         if (a == L"--group-bar-test") { opt.groupBarTest = true; continue; }
+        if (a == L"--hub") { opt.hubTest = true; continue; }
         if (a == L"--group-snap-test") { opt.groupSnapTest = next(); continue; }
         if (a == L"--still-aa") { opt.stillAA = _wtoi(next().c_str()); continue; }
         if (a == L"--touch-hud") { opt.touchHud = _wtoi(next().c_str()); continue; }

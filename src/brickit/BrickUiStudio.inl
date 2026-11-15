@@ -381,7 +381,7 @@ void BrickApp::stHeader() {
             u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 3.5f * s, c.y - 1.8f * s), ImVec2(c.x, c.y + 1.8f * s), ImVec2(c.x + 3.5f * s, c.y - 1.8f * s)}.data(), 3, C_DIM, 0, 1.3f * s);
         }
         if (hf && ImGui::GetIO().MouseDownDuration[0] < 0 && m_popup == 0) ImGui::SetTooltip("Scène : nouvelle, ouvrir, enregistrer");
-        if (hf && u.pressed) { m_popup = m_popup == 8 ? 0 : 8; m_popupAt = ImVec2(10 * s, H + 6 * s); }
+        if (hf && u.pressed) { m_popup = m_popup == 8 ? 0 : 8; m_popupAt = ImVec2(10 * s, H + 6 * s); m_hubStale = true; if (m_popup == 8) cloudRefreshList(); }
     }
     {   // the scene: its name, the count of pieces
         const std::string nm = stUpper(m_modelName.empty() ? std::string("Ma scène") : m_modelName);
@@ -1119,7 +1119,8 @@ void BrickApp::newScene() {
 
 // Enregistrer: into its file when it has one, else the dialog
 void BrickApp::saveNow() {
-    if (m_scenePath.empty() || m_ipad) { saveDialog(); return; }
+    if (m_scenePath.empty()) { hubSaveHere(); return; }   // (into Mes scènes, the hub: Wzx 15/11/2026)
+    if (m_ipad) { saveDialog(); return; }
     saveScene(m_scenePath);
 }
 
@@ -2831,6 +2832,7 @@ void BrickApp::drawUiStudio() {
         uiVoxelEditor();
         return;
     }
+    g_uiBlock = m_popup == 8;   // (the hub of the scenes over everything: drawn last, it alone takes the pointer)
     stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
     manualReserveDock();
@@ -2851,7 +2853,6 @@ void BrickApp::drawUiStudio() {
     uiMechPanel();
     uiReader();
     stMore();
-    stFile();
     stGroupBar();
     stPresets();
     uiPopups();
@@ -2865,6 +2866,8 @@ void BrickApp::drawUiStudio() {
     uiDevReview();
     uiManualBig();
     drawDropzone();
+    g_uiBlock = false;
+    stHub();   // the hub of the scenes (Wzx 15/11/2026), over everything
 }
 
 // ------------------------------------------------------------------ the bar of the left hand (Wzx 10/11, 14/11/2026)

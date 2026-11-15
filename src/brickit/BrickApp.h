@@ -153,6 +153,7 @@ struct Options {
     bool noEnv = false;         // --no-env
     std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
     int perfFrames = 600, perfOrbit = 0;
+    bool hubTest = false;        // --hub: the hub of the scenes open (captures)
     bool groupBarTest = false;   // --group-bar-test: the bricks of the scene grouped and selected (the box and the bar of the group, captures)
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
@@ -872,6 +873,29 @@ private:
     bool placePreset(const std::wstring& path, const std::string& name);
     std::vector<std::pair<std::string, std::wstring>> listPresets();
     std::wstring presetsDir() const;
+    // ---- the hub of the scenes (BrickHub.cpp, BrickHub.inl; Wzx 15/11/2026: « un hub quand on clique sur l'espace de
+    // sauvegarde de la scène : gestion des sauvegardes, sync, vignettes, renommer ») - opened by the name of the scene
+    struct HubScene { std::string name; std::wstring path; long long mtime = 0; int bricks = 0; };
+    std::vector<HubScene> m_hubLocal;
+    bool m_hubStale = true;
+    int m_hubTab = 0;                   // 0 this device, 1 the cloud, 2 the demos
+    float m_hubScroll = 0;
+    int m_hubEdit = -1;                 // the card being renamed (-2: the scene open), -1 none
+    bool m_hubEditFocus = false;
+    char m_hubName[160] = {};
+    std::string m_hubFilter;
+    std::wstring m_thumbReq;            // a thumbnail to take of the 3D view at the next frame (.brick.png next to the scene)
+    std::map<std::wstring, std::pair<long long, ImTextureID>> m_hubTex;
+    std::wstring scenesDir() const;
+    void hubRefresh();
+    void hubSaveHere();                 // the scene open into « Mes scènes » (its name), with its thumbnail
+    bool hubRename(int i, const std::string& name);   // i: a card of m_hubLocal, -2 the scene open
+    void hubDuplicate(int i);
+    void hubDelete(int i);
+    void hubTakeThumb();                // (frame(): after the 3D view is rendered)
+    ImTextureID hubThumb(const std::wstring& scenePath);
+    static long long hubFileTime(const std::wstring& path);
+    void stHub();
     std::vector<std::pair<std::string, std::wstring>> m_presets;
     std::string m_presetsKey;
     float m_presetsScroll = 0;            // Réglages: scrolled (a section taller than the screen)
