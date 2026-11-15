@@ -174,7 +174,8 @@ void BrickApp::stBriqueStage() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImDrawList* dl = u.dl;
     // the right column (Scène, Couleurs), gaps around the view, its rounded corners
-    const bool col = !m_mechOn && (m_pColors.visible || m_pGroups.visible);
+    auto inCol = [&](const char* id) { auto it = m_boxes.find(id); return it == m_boxes.end() || (it->second.x < 0 && (!it->second.hidden || m_editUi)); };   // (still in the column: not moved, not hidden)
+    const bool col = !m_mechOn && ((m_pColors.visible && inCol("colors")) || (m_pGroups.visible && inCol("groups")));
     const float RW = col ? 296 * s : g;
     m_bqColX = d.x - RW + g * 0.5f;
     m_bqColW = RW - g * 1.5f;
@@ -392,7 +393,8 @@ void BrickApp::stEditUi() {
         const char* t1 = "Édition de l'interface";
         const char* t2 = "Glisse un bloc pour le déplacer, son coin pour le redimensionner, l'œil pour le masquer.";
         const float W = std::max(u.textW(16, t1, true), u.textW(11.5f, t2)) + 300 * s, Hh = 64 * s;
-        const ImVec2 a((d.x - W) * 0.5f, std::floor(d.y * 0.62f)), b(a.x + W, a.y + Hh);   // (above the corners of the view)
+        const float hT = m_ipad ? kIpadTopStrip * s : 0;
+        const ImVec2 a((d.x - W) * 0.5f, hT + 4 * s), b(a.x + W, a.y + Hh);   // (over the header: it does not move)
         bqRaise(dl, a, b, 18 * s, s, IM_COL32(0x28, 0x2d, 0x37, 250), 90);
         u.text(ImVec2(a.x + 20 * s, a.y + 12 * s), 16, C_TEXT, t1, true);
         u.text(ImVec2(a.x + 20 * s, a.y + 36 * s), 11.5f, C_DIM, t2);

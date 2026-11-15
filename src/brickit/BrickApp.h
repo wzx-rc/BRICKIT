@@ -153,7 +153,8 @@ struct Options {
     bool noEnv = false;         // --no-env
     std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
     int perfFrames = 600, perfOrbit = 0;
-    bool editUiTest = false;     // --edit-ui: the UI editor open (captures)
+    bool editUiTest = false;
+    int editUiDemo = 0;          // --edit-ui-demo N: blocks moved / resized / hidden (captures of the UI editor)     // --edit-ui: the UI editor open (captures)
     bool hubTest = false;        // --hub: the hub of the scenes open (captures)
     bool groupBarTest = false;   // --group-bar-test: the bricks of the scene grouped and selected (the box and the bar of the group, captures)
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
