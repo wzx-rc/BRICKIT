@@ -153,6 +153,7 @@ struct Options {
     bool noEnv = false;         // --no-env
     std::wstring perfTrace;     // --perf-trace <file> <frames> [orbit]: the time of each part of each frame, then quits
     int perfFrames = 600, perfOrbit = 0;
+    bool editUiTest = false;     // --edit-ui: the UI editor open (captures)
     bool hubTest = false;        // --hub: the hub of the scenes open (captures)
     bool groupBarTest = false;   // --group-bar-test: the bricks of the scene grouped and selected (the box and the bar of the group, captures)
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
@@ -896,6 +897,30 @@ private:
     ImTextureID hubThumb(const std::wstring& scenePath);
     static long long hubFileTime(const std::wstring& path);
     void stHub();
+    // ---- the « Brique » interface (BrickUiBrique.inl; Wzx 15/11/2026) and its UI editor (Réglages › Interface)
+    struct UiBox { float x = -1, y = -1, w = -1, h = -1, k = 1; bool hidden = false, sized = false; ImVec4 def{0, 0, 0, 0}, last{0, 0, 0, 0}; std::string label; };
+    std::map<std::string, UiBox> m_boxes;          // the blocks moved / resized / hidden (fractions of the screen), « uiBoxes »
+    std::vector<std::string> m_editIds;
+    bool m_editUi = false;
+    std::string m_editDrag;
+    int m_editMode = 0;
+    ImVec2 m_editP0{0, 0};
+    UiBox m_editB0;
+    int m_hubSection = 0;                          // the hub page: 0 Mes scènes, 1 Récentes, 2 Cloud, 3 Démos
+    float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0;
+    ImVec4 m_stageB{0, 0, 0, 0};                    // the 3D view inset in its frame (this frame)
+    void stHeaderBrique();
+    void stBriqueStage();
+    void stBriqueCorners();
+    void stEditUi();
+    void stHubPage();
+    float bqLeftW() const;
+    ImVec2 bqOff(const char* id);
+    float bqK(const char* id);
+    ImVec2 bqSize(const char* id, ImVec2 def);
+    bool bqHidden(const char* id);
+    void bqReg(const char* id, const char* label, ImVec4 def, ImVec4 now, bool sized);
+    int bqEditField(Ui& u, ImVec2 ea, ImVec2 eb, float px);
     std::vector<std::pair<std::string, std::wstring>> m_presets;
     std::string m_presetsKey;
     float m_presetsScroll = 0;            // Réglages: scrolled (a section taller than the screen)

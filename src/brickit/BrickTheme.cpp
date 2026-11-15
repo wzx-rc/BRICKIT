@@ -67,6 +67,11 @@ const std::vector<Def>& themes() {
         {"glass", "Glass", "Verre fumé gris, filets fins, pilules, nuancier en briques 1×1.", 1,
          {{"graphite", "Graphite", 0, 0, 0x2a2b2f}, {"ardoise", "Ardoise", 0, 0, 0x262b33}},
          {{"Ambre", 0xd9b443}, {"Blanc", 0xe6e7ea}, {"Glacier", 0x6fb8d6}, {"Vert", 0x5aa66b}, {"Rouge", 0xd0101b}}},
+        // the « Brique » interface (Wzx 15/11/2026, canvas JBtw2wBYiTVRTg7JuzaXc5): slate panels in relief, the yellow of
+        // the brick in gradient on what is active, round type (Fredoka); its own layout (BrickUiBrique.inl)
+        {"brique", "Brique", "Ardoise en relief, boutons jaunes, police ronde : la nouvelle interface (Hub, Construire).", 1,
+         {{"ardoise", "Ardoise", 0, 0, 0x282d37}},
+         {{"Jaune", 0xffc93c}, {"Orange", 0xff9f1c}, {"Bleu", 0x5b8def}, {"Vert", 0x3dd68c}}},
         {"red", "Red", "Le verre fumé de Glass sur un rouge brique profond, accent rouge LEGO.", 1,
          {{"brique", "Brique", 0, 0, 0x3a1013}, {"noir", "Noir", 0, 0, 0x1c1213}},
          {{"Rouge", 0xe3141f}, {"Ambre", 0xd9b443}, {"Blanc", 0xf0e8e8}}},
@@ -196,6 +201,36 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
         if (accent == 0) t.onAccent = IM_COL32(0x2a, 0x31, 0x40, 255);
         t.font = FONT_SEGOE;
         t.hudStyle = HUD_LEGO;
+        return t;
+    }
+
+    if (t.id == "brique") {
+        t.dark = true;
+        t.brique = true;
+        t.bg = IM_COL32(0x22, 0x26, 0x2f, 255);
+        t.panel = IM_COL32(0x28, 0x2d, 0x37, 248);
+        t.panelSolid = IM_COL32(0x28, 0x2d, 0x37, 255);
+        t.overlay = IM_COL32(0x24, 0x28, 0x31, 245);
+        t.hud = IM_COL32(0x20, 0x24, 0x2c, 228);
+        t.card = IM_COL32(0x32, 0x38, 0x44, 255);
+        t.cardHi = IM_COL32(0x3a, 0x40, 0x4d, 255);
+        t.line = IM_COL32(255, 255, 255, 20);
+        t.text = IM_COL32(0xf1, 0xf3, 0xf7, 255);
+        t.dim = IM_COL32(0xb4, 0xb9, 0xc4, 255);
+        t.faint = IM_COL32(0x8a, 0x90, 0x9c, 255);
+        t.thumb = IM_COL32_WHITE;
+        t.shadow = IM_COL32(0, 0, 0, 80);
+        accentOf(t, d, accent, 0xffc93c, 0xf9b800, 0xffc93c, 0xffd84a);
+        if (accent == 0) t.onAccent = IM_COL32(0x23, 0x18, 0x00, 255);
+        t.radius = 1.35f;
+        t.pill = false;
+        t.lines = false;
+        t.font = FONT_FREDOKA;
+        t.hudStyle = HUD_FLAT;
+        t.hudBtn = IM_COL32(0x32, 0x38, 0x44, 235);
+        t.hudBtnWhiteIcon = true;
+        t.brickSwatch = false;
+        t.stage = {};   // (the dark stage of the PC, its HDRI and its grid)
         return t;
     }
 

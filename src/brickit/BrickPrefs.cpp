@@ -108,6 +108,18 @@ std::string BrickApp::prefsJson() {
     { char mb[160]; snprintf(mb, sizeof(mb), "\"manual\": {\"w\": %d, \"h\": %d, \"dock\": %d, \"pdfPage\": %d, \"pdfName\": ", (int)m_manW, (int)m_manH, m_manDock, m_pdfPage); j += mb; j += jstr(m_pdfName) + "},"; }
     // the scene of the cloud (BrickCloud.cpp): its id, the version last sent or read, the automatic sync
     j += std::string("\"orbitAuto\": ") + (m_orbitAuto ? "true" : "false") + ", \"rotStep\": " + std::to_string(m_rotStep) + ", \"navClassic\": " + (m_navClassic ? "true" : "false") + ", \"permRotate\": " + (m_permRotate ? "true" : "false") + ", \"manPageScale\": " + std::to_string(m_manPageScale) + ",";
+    {   // the layout of the Brique interface edited by hand (Réglages › Interface › Éditer l'interface), and the switch to it
+        j += "\"brique01\": true, \"uiBoxes\": {";
+        bool first = true;
+        for (const auto& [id, b] : m_boxes) {
+            if (b.x < 0 && b.w <= 0 && std::fabs(b.k - 1) < 0.001f && !b.hidden) continue;
+            char bb[200];
+            snprintf(bb, sizeof(bb), "[%.4f, %.4f, %.4f, %.4f, %.3f, %s]", b.x, b.y, b.w, b.h, b.k, b.hidden ? "true" : "false");
+            j += std::string(first ? "" : ", ") + jstr(id) + ": " + bb;
+            first = false;
+        }
+        j += "},";
+    }
     j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + ", \"pending\": " + (m_cloudDirty ? "true" : "false") + "},";   // (pending: changes not sent yet, sent at the next start)
     { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale05\": true},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false"); j += sb; }
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
@@ -239,6 +251,14 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
         else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
+        if (p["brique01"].type != app::Json::Bool) { m_themeId = "brique"; m_studioUi = true; m_libDock = 1; m_libW = 0; m_pGroups.visible = true; }   // (Wzx 15/11/2026: the Brique interface, once)
+        for (const auto& [id, v] : p["uiBoxes"].o) {
+            if (v.type != app::Json::Array || v.a.size() < 6) continue;
+            UiBox& b = m_boxes[id];
+            b.x = (float)v[0].num(-1); b.y = (float)v[1].num(-1); b.w = (float)v[2].num(-1); b.h = (float)v[3].num(-1);
+            b.k = std::clamp((float)v[4].num(1), 0.5f, 2.5f);
+            b.hidden = v[5].type == app::Json::Bool && v[5].b;
+        }
         for (const auto& kv : tj["looks"].o)
             if (kv.second.type == app::Json::Array && theme::indexOf(kv.first) >= 0) m_themeLooks[kv.first] = {(int)kv.second[0].num(), (int)kv.second[1].num()};
         if (st["lightPreset"].type == app::Json::Number) m_lightPreset = (int)st["lightPreset"].n;

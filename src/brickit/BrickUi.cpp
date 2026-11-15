@@ -49,7 +49,7 @@ static ImU32 alphaOf(ImU32 c, float a) { return (c & 0x00FFFFFF) | ((ImU32)(((c 
 static ImFont* g_thFont = nullptr;    // regular (nullptr: Segoe UI)
 static ImFont* g_thBold = nullptr;    // semibold
 static ImFont* g_thHead = nullptr;    // titles of the panels (Minimal: Manrope Light)
-static ImFont* g_fInstr[2] = {}, *g_fGeist[2] = {}, *g_fManrope = nullptr;
+static ImFont* g_fInstr[2] = {}, *g_fGeist[2] = {}, *g_fManrope = nullptr, *g_fFredoka[2] = {};
 static float g_fontK = 1.22f;         // Segoe UI in ImGui reads smaller than in the browser at the same px size
 static float g_rk = 1.0f;             // radii of the panels and buttons
 static bool g_pill = false, g_lines = false;
@@ -459,6 +459,8 @@ void BrickApp::loadThemeFonts() {
     g_fManrope = add(L"Manrope-Light.ttf");
     g_fGeist[0] = add(L"GeistMono-Regular.ttf");
     g_fGeist[1] = add(L"GeistMono-SemiBold.ttf");
+    g_fFredoka[0] = add(L"Fredoka-500.ttf");   // (the « Brique » interface)
+    g_fFredoka[1] = add(L"Fredoka-600.ttf");
 }
 
 // an image of a theme (assets/brickit/ui_pc/themes), loaded on first use
@@ -514,6 +516,11 @@ static void setTheme(const theme::Tokens& t) {
         g_thBold = g_fInstr[1] ? g_fInstr[1] : g_fInstr[0];
         g_thHead = g_fManrope ? g_fManrope : g_thBold;
         g_fontK = 1.22f * 1.22f / 1.33f * 1.02f;
+    } else if (t.font == theme::FONT_FREDOKA && g_fFredoka[0]) {
+        g_thFont = g_fFredoka[0];
+        g_thBold = g_fFredoka[1] ? g_fFredoka[1] : g_fFredoka[0];
+        g_thHead = g_thBold;
+        g_fontK = 1.22f * 0.98f;
     } else if (t.font == theme::FONT_GEIST && g_fGeist[0]) {
         g_thFont = g_fGeist[0];
         g_thBold = g_fGeist[1] ? g_fGeist[1] : g_fGeist[0];
@@ -2076,7 +2083,7 @@ void BrickApp::drawToast() {
     ImVec2 ts = f->CalcTextSizeA(12 * s, 1e9f, 0, m_toast.c_str());
     ImVec2 d = ImGui::GetIO().DisplaySize;
     float a = (float)std::clamp(3.2 - (ImGui::GetTime() - m_toastTime), 0.0, 0.4) / 0.4f;
-    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, m_vePart >= 0 ? d.y - 190 * s : (m_popup == 8 ? d.y - 70 * s : m_ipad ? 20 * s : m_studioUi ? 176 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
+    ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, m_vePart >= 0 ? d.y - 190 * s : (m_popup == 8 ? d.y - 70 * s : m_th.brique && m_studioUi ? m_stageB.y + 150 * s : m_ipad ? 20 * s : m_studioUi ? 176 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
     dl->AddRectFilled(p0, p1, alphaOf(IM_COL32(15, 16, 19, 224), a), 18 * s);
     dl->AddRect(p0, p1, alphaOf(IM_COL32(247, 197, 30, 115), a), 18 * s);
     dl->AddText(f, 12 * s, ImVec2(p0.x + 12 * s, p0.y + 5 * s), alphaOf(C_TEXT, a), m_toast.c_str());
@@ -3393,7 +3400,7 @@ static void textWrap(Ui& u, ImVec2 p, float w, float px, ImU32 col, const char* 
     if (lines < maxLines && !line.empty()) u.text(ImVec2(p.x, y), px, col, line.c_str());
 }
 
-static float fontKOf(int font) { return font == theme::FONT_INSTRUMENT ? 1.22f * 1.22f / 1.33f * 1.02f : font == theme::FONT_GEIST ? 1.22f * 1.30f / 1.33f * 0.86f : 1.22f; }
+static float fontKOf(int font) { return font == theme::FONT_INSTRUMENT ? 1.22f * 1.22f / 1.33f * 1.02f : font == theme::FONT_GEIST ? 1.22f * 1.30f / 1.33f * 0.86f : font == theme::FONT_FREDOKA ? 1.22f * 0.98f : 1.22f; }
 
 void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
     const float s = u.s, pad = 14 * s, gap = 10 * s, rowH = 30 * s;
@@ -3421,6 +3428,7 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
         ImFont* f = m_gui->fontBold ? m_gui->fontBold : u.bold;
         if (t.font == theme::FONT_INSTRUMENT && g_fInstr[1]) f = g_fInstr[1];
         if (t.font == theme::FONT_GEIST && g_fGeist[1]) f = g_fGeist[1];
+        if (t.font == theme::FONT_FREDOKA && g_fFredoka[1]) f = g_fFredoka[1];
         u.dl->AddText(f, 13 * s * fontKOf(t.font), ImVec2(a.x + 8 * s, pb.y + 6 * s), C_TEXT, d.label);
         textWrap(u, ImVec2(a.x + 8 * s, pb.y + 25 * s), cw - 14 * s, 9.5f, C_DIM, d.desc, 2);
         if (on) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
@@ -3716,6 +3724,17 @@ void BrickApp::uiSettings() {
         for (int i = 0; i < 6; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
         row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
+        if (m_studioUi) {   // (Wzx 15/11/2026): the Brique interface; its layout edited by hand
+            const int kb = seg("Interface Brique", {"Oui", "Non"}, m_themeId == "brique" ? 0 : 1);
+            if (kb == 0 && m_themeId != "brique") { m_themeId = "brique"; m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; savePrefs(); }
+            if (kb == 1 && m_themeId == "brique") { m_themeId = "glass"; savePrefs(); }
+            if (m_themeId == "brique") {
+                const int ke = seg("Disposition", {"Éditer l'interface", "Par défaut"}, -1);
+                if (ke == 0) { m_editUi = true; m_popup = 0; }
+                if (ke == 1) { m_boxes.clear(); savePrefs(); toast("Disposition par défaut"); }
+                note("Éditer : déplace, redimensionne ou masque chaque bloc (les fonctions sont en pause).");
+            }
+        }
         row("Icône de l'app", {"A : viseur", "B : brique seule"}, m_appIcon, 25);
         group("Aides");
         yesNo("HUD de sélection", m_selHud, 16);
@@ -4163,6 +4182,7 @@ void BrickApp::uiThumbEditor() {
 #include "BrickUiIpad.inl"
 #include "BrickUiStudio.inl"
 #include "BrickHub.inl"
+#include "BrickUiBrique.inl"
 #include "BrickVoxelEditor.inl"
 
 } // namespace brickit

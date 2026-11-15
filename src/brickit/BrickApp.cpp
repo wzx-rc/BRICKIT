@@ -1411,6 +1411,7 @@ void BrickApp::frame() {
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
     if (m_opt.hubTest && m_frame == 12 && !m_opt.savePath.empty()) saveScene(m_opt.savePath);   // (its thumbnail at the next frame)
     if (m_opt.hubTest && m_frame == 16) { m_popup = 8; m_hubStale = true; }
+    if (m_opt.editUiTest && m_frame == 16) { m_editUi = true; m_pGroups.visible = true; }
     if (m_opt.groupBarTest && m_frame == 8 && m_bricks.size() > 1) {
         m_selected = 0;
         m_multi.clear();
@@ -1562,6 +1563,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--group-test") { opt.groupTest = next(); continue; }
         if (a == L"--group-bar-test") { opt.groupBarTest = true; continue; }
         if (a == L"--hub") { opt.hubTest = true; continue; }
+        if (a == L"--edit-ui") { opt.editUiTest = true; continue; }
         if (a == L"--group-snap-test") { opt.groupSnapTest = next(); continue; }
         if (a == L"--still-aa") { opt.stillAA = _wtoi(next().c_str()); continue; }
         if (a == L"--touch-hud") { opt.touchHud = _wtoi(next().c_str()); continue; }

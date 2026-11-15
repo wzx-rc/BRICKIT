@@ -35,7 +35,7 @@ struct Stage {
     float gridAlpha = 0.25f;
 };
 
-enum Font { FONT_SEGOE = 0, FONT_INSTRUMENT = 1, FONT_GEIST = 2 };
+enum Font { FONT_SEGOE = 0, FONT_INSTRUMENT = 1, FONT_GEIST = 2, FONT_FREDOKA = 3 };
 enum Hud { HUD_LEGO = 0, HUD_FLAT = 1, HUD_PILL = 2 };   // the bubbles of the selection HUD
 
 // everything the interface needs, resolved for a theme, a mode, a tint and an accent (ImU32 = IM_COL32)
@@ -54,6 +54,7 @@ struct Tokens {
     ImU32 hudBtn = 0;                             // the bubbles of the HUD (HUD_FLAT, HUD_PILL)
     bool hudBtnWhiteIcon = true;
     bool brickSwatch = false;                     // colour swatches drawn as a 1x1 brick seen from above (Glass, Red)
+    bool brique = false;                          // the « Brique » interface (Wzx 15/11/2026): its own layout, bevelled panels, yellow gradient buttons, the hub as a page
     Stage stage;
 };
 
