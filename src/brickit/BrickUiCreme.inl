@@ -135,10 +135,21 @@ void BrickApp::ipadModes() {
 // ------------------------------------------------------------------ the tools, in pebbles on the left
 
 void BrickApp::ipadTools() {
-    if (m_libOpen || m_reading || m_mechOn || m_pManual.visible || m_holding) return;
+    if (m_reading || m_mechOn || m_pManual.visible || m_holding) return;
     Ui u = ui(m_ui);
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
+    {   // Recadrer and Dupliquer on the left (Wzx 22/11/2026), under the tools; the drawer open: just above it
+        const float D = 44 * s, gap = 10 * s;
+        const float drawerTop = m_libOpen ? d.y - std::round(std::max(200 * s, d.y * std::clamp(m_kitLibFrac, 0.2f, 0.8f))) : d.y;
+        const float y1 = m_libOpen ? drawerTop - 18 * s - D * 2 - gap : d.y * 0.47f + (m_paintMode ? 3 : 5) * (D + gap) * 0.5f + 22 * s;
+        const bool sel = !selection().empty();
+        if (y1 > 84 * s) {
+            if (kitGalet(u, ImVec2(22 * s + D * 0.5f, y1 + D * 0.5f), D, "recadrer", 0)) { u.pressed = false; crFrame(); }
+            if (kitGalet(u, ImVec2(22 * s + D * 0.5f, y1 + D + gap + D * 0.5f), D, "dupliquer", sel ? 0 : 2)) { u.pressed = false; duplicateSelected(); }
+        }
+    }
+    if (m_libOpen) return;
     struct T { const char* icon; bool on; int id; };
     std::vector<T> ts;
     if (m_paintMode) ts = {{"pinceau", m_paintTool && !m_pipette, 10}, {"pipette", m_pipette, 11}, {"grouper", m_paintGroup, 12}};
@@ -207,10 +218,77 @@ bool BrickApp::ipadAngles(ImVec2 above) {
 }
 
 // the Tourner bubble: by the angle chosen (90°: the quarter turn on the studs; 15° / 45° / Libre: free turns of 15°)
-void BrickApp::crTurn() {
-    if (m_holding || m_rotStep == 90) { rotateSelected(1); return; }
+void BrickApp::crTurn(int dir) {
+    if (m_holding || m_rotStep == 90) { rotateSelected(dir); return; }
     const int n = m_rotStep == 45 ? 3 : 1;
-    for (int k = 0; k < n; ++k) turnSelectedFree(1);
+    for (int k = 0; k < n; ++k) turnSelectedFree(dir);
+}
+
+// ------------------------------------------------------------------ the ring of colours (a long press on a brick)
+// Wzx 22/11/2026: « quand je maintiens sur une brique, apparition d'un cercle avec toutes les couleurs tout autour, avec
+// la même animation d'apparition »: every colour of the Nuancier in rings around the finger, the studs appearing one
+// after the other (0.85 -> 1, ease-out); the finger slid onto a colour and lifted paints the brick (or its selection);
+// lifted at once, the ring stays and a tap picks; a tap elsewhere closes it.
+void BrickApp::ipadColorRing() {
+    if (!m_crRing) return;
+    if (selection().empty()) { m_crRing = false; return; }
+    kitColors();
+    Ui u = ui(m_ui);
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const double now = ImGui::GetTime();
+    std::vector<int> cols;
+    for (const KitColor& kc : m_kitColorList) cols.push_back(kc.index);
+    if (cols.empty()) for (int i = 0; i < (int)m_lib.palette.size() && i < 60; ++i) cols.push_back(i);
+    // rings of studs 34 pt, 40 pt apart along the ring, 44 pt between the rings, from 78 pt
+    struct At { ImVec2 p; int col; int order; };
+    std::vector<At> at;
+    float R = 78 * s;
+    const float stud = 34 * s, step = 40 * s;
+    size_t k = 0;
+    int ring = 0;
+    while (k < cols.size()) {
+        const int n = std::max(6, (int)(2 * 3.14159265f * R / step));
+        for (int i = 0; i < n && k < cols.size(); ++i, ++k) {
+            const float th = -3.14159265f * 0.5f + 2 * 3.14159265f * (i + (ring % 2) * 0.5f) / n;
+            at.push_back({ImVec2(std::cos(th) * R, std::sin(th) * R), cols[k], (int)k});
+        }
+        R += 44 * s;
+        ++ring;
+    }
+    const float outer = R - 44 * s + stud * 0.5f + 6 * s;
+    const ImVec2 c(std::clamp(m_crRingAt.x, std::min(outer, d.x * 0.5f), std::max(d.x - outer, d.x * 0.5f)),
+                   std::clamp(m_crRingAt.y, std::min(outer + 60 * s, d.y * 0.5f), std::max(d.y - outer - 20 * s, d.y * 0.5f)));
+    m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
+    u.dl->AddCircleFilled(c, outer + 10 * s, alphaOf(T_FEUILLE, 0.55f), 96);   // a soft disc under the studs
+    const int cur = m_selected >= 0 && m_selected < (int)m_bricks.size() ? m_bricks[m_selected].color : m_color;
+    int hot = -1;
+    for (const At& a : at) {
+        const ImVec2 p(c.x + a.p.x, c.y + a.p.y);
+        if (u.hover(ImVec2(p.x - stud * 0.55f, p.y - stud * 0.55f), ImVec2(p.x + stud * 0.55f, p.y + stud * 0.55f))) hot = a.col;
+    }
+    for (const At& a : at) {
+        const ImVec2 p(c.x + a.p.x, c.y + a.p.y);
+        const float e = std::clamp((float)(now - m_crRingT0 - a.order * 0.008) / 0.16f, 0.0f, 1.0f);
+        if (e <= 0) continue;   // (one after the other)
+        const float sc = (0.85f + 0.15f * (1.0f - (1.0f - e) * (1.0f - e) * (1.0f - e))) * (a.col == hot ? 1.22f : 1.0f);
+        kitStud(u.dl, p, stud * sc, a.col, 0, a.col == cur);
+    }
+    kitLabel(u.dl, c, colorNameFr(hot >= 0 ? hot : cur));
+    const bool down = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    auto pick = [&](int col) {
+        m_color = col;
+        applyColor(col);
+        m_crRing = false;
+    };
+    if (now - m_crRingT0 < 0.12) {}   // (the finger reaches the mouse of ImGui a frame later)
+    else if (!m_crRingSticky) {   // the finger still down since the long press: lifted on a colour = that colour
+        if (!down) {
+            if (hot >= 0) pick(hot);
+            else m_crRingSticky = true;   // (lifted elsewhere: the ring stays, a tap picks)
+        }
+    } else if (u.released && hot >= 0) pick(hot);
+    else if (u.pressed && hot < 0) m_crRing = false;
 }
 
 // ------------------------------------------------------------------ Scène: the groups of the scene (top right)

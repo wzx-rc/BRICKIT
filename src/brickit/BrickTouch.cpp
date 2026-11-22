@@ -56,6 +56,28 @@ void BrickApp::touchPump() {
     // Studio: a finger held still 0.45 s on a brick opens the marking menu around it; sliding then lifting picks
     // an action or a colour (stSelHud reads the ImGui mouse, fed here like a pressed button)
     TouchGesture& g = m_tg;
+    // the kit: a finger held still 0.45 s on a brick opens the ring of colours around it (Wzx 22/11/2026); the finger
+    // stays its mouse: slid onto a colour and lifted, it paints
+    if (g.type == TG_PRESS && m_ipadCreme && !m_mechOn && !m_reading && m_touches.count(g.pid) && ImGui::GetTime() - m_touches[g.pid].t > 0.45 &&
+        m_frame - g.f0 > 12) {
+        const TouchPt& p = m_touches[g.pid];
+        if (g.hit != m_selected && !inSelection(g.hit)) select(g.hit);
+        m_crRing = true;
+        m_crRingSticky = false;
+        m_crRingAt = ImVec2(p.x, p.y);
+        m_crRingT0 = ImGui::GetTime();
+        m_moreOpen = false;
+        m_arcOpen = false;
+        const uint64_t pid = g.pid;
+        g = TouchGesture();
+        g.type = TG_MENU;
+        g.pid = pid;
+        g.hasPid = true;
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMouseSourceEvent(p.pen ? ImGuiMouseSource_Pen : ImGuiMouseSource_TouchScreen);
+        io.AddMousePosEvent(p.x, p.y);
+        io.AddMouseButtonEvent(0, true);
+    }
     if (g.type == TG_PRESS && m_studioUi && !m_ipadCreme && !m_mechOn && !m_reading && m_touches.count(g.pid) &&
         ImGui::GetTime() - m_touches[g.pid].t > 0.45 && m_frame - g.f0 > 12) {
         const TouchPt& p = m_touches[g.pid];
@@ -597,6 +619,25 @@ void BrickApp::touchTestFrame() {
         snprintf(b, sizeof(b), "hinge: %zu bricks, the top %.3f %.3f %.3f from the closed hinge", m_bricks.size(), d.x, d.y, d.z);
         line(std::string(b) + (two && length(d) < 0.02f ? " OK" : " FAIL"));
     }
+    // the kit: a finger held on a brick opens the ring of colours; slid onto a stud and lifted, the brick takes it
+    static double ringT = 0;
+    static int ringCol0 = -1;
+    if (t == "cring" && f == 20) { a = brickPoint(target); ringCol0 = m_bricks[target].color; touchBegan(1, a.x, a.y, false); ringT = ImGui::GetTime(); }
+    if (t == "cring" && f > 20 && !m_crRing && ringT > 0 && ImGui::GetTime() - ringT < 2) touchMoved(1, a.x + 0.5f, a.y);
+    if (t == "cring" && m_crRing && ringT > 0) {
+        line(std::string("cring: the ring open after ") + std::to_string((int)((ImGui::GetTime() - ringT) * 1000)) + " ms");
+        ringT = -1;
+        mc = ImVec2((float)f, 0);
+    }
+    if (t == "cring" && ringT < 0 && f == (int)mc.x + 20) {   // onto the first stud of the inner ring (straight up from the centre of the ring)
+        const ImVec2 d = ImGui::GetIO().DisplaySize;
+        const float R = 78 * m_ui;
+        (void)d;
+        touchMoved(1, m_crRingAt.x, m_crRingAt.y - R);
+    }
+    if (t == "cring" && ringT < 0 && f == (int)mc.x + 24) touchEnded(1, m_crRingAt.x, m_crRingAt.y - 78 * m_ui, false);
+    if (t == "cring" && ringT < 0 && f == (int)mc.x + 30)
+        line(std::string("cring: colour ") + std::to_string(ringCol0) + " -> " + std::to_string(m_bricks[target].color) + (m_bricks[target].color != ringCol0 && !m_crRing ? " OK" : " FAIL"));
     if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }
     if (t == "ring" && f == 24 && m_ringR > 0) { touchBegan(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); touchEnded(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); }
     if (t == "ring" && f == 70) {

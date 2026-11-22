@@ -391,6 +391,7 @@ private:
     // apart from the Thème (Classique, Brique, Crème: the colours), each theme on each interface. Réglages › Interface,
     // the hub of the kit. 0 Grey (the layout of Brique), 1 Black (the layout of Classique), 2 Crème (the touch kit)
     int m_ux = 0;
+    float m_kitLibFrac = 0.36f;   // the height of the drawer of the kit (its grip), part of the screen
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
     struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
     std::map<std::string, ImTextureID> m_kitTex;
@@ -941,7 +942,12 @@ private:
     void ipadModes();
     void ipadTools();
     bool ipadAngles(ImVec2 above);
-    void crTurn();
+    void crTurn(int dir = 1);
+    void crFrame();                // Recadrer: the selection in the middle, closer (all the scene without one)
+    void ipadColorRing();          // a long press on a brick: all the colours in rings around it
+    bool m_crRing = false, m_crRingSticky = false;
+    ImVec2 m_crRingAt{0, 0};
+    double m_crRingT0 = 0;
     void ipadScenePanel();
     void ipadPresets();
     void ipadHub();

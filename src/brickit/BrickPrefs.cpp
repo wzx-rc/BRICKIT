@@ -121,7 +121,7 @@ std::string BrickApp::prefsJson() {
         j += "},";
     }
     j += "\"cloud\": {\"id\": " + jstr(m_cloudId) + ", \"ver\": " + std::to_string(m_cloudVer) + ", \"auto\": " + (m_cloudAuto ? "true" : "false") + ", \"pending\": " + (m_cloudDirty ? "true" : "false") + "},";   // (pending: changes not sent yet, sent at the next start)
-    { char sb[400]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale05\": true, \"ux\": %d},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false", m_ux); j += sb; }
+    { char sb[640]; snprintf(sb, sizeof(sb), "\"settings\": {\"uiScale\": %.2f, \"ssao\": %s, \"autosave\": %s, \"showVox\": %s, \"renderScale\": %.2f, \"stillAA\": %s, \"touchHud\": %s, \"selHud\": %s, \"uiTheme\": %d, \"lightPreset\": %d, \"pencilOnly\": %s, \"ipadCreme\": %s, \"ipadScale05\": true, \"ux\": %d, \"kitLib\": %.2f},", m_uiScaleUser, m_ssaoOn ? "true" : "false", m_autosaveOn ? "true" : "false", m_showVox ? "true" : "false", m_renderScale, m_stillAA ? "true" : "false", m_touchHud ? "true" : "false", m_selHud ? "true" : "false", m_uiThemePref, m_lightPreset, m_pencilOnly ? "true" : "false", m_ipadCreme ? "true" : "false", m_ux, m_kitLibFrac); j += sb; }
     {   // Réglages › Thème: the theme, and the tint and accent of each theme (BrickTheme.h; PLUM's ids)
         j += "\"theme\": {\"id\": " + jstr(m_themeId) + ", \"looks\": {";
         bool first = true;
@@ -266,6 +266,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (st["ipadCreme"].type == app::Json::Bool && st["ipadCreme"].b) m_themeId = "creme";   // (Wzx 22/11/2026: the cream kit of the iPad is the theme Crème now)
         m_ipadCreme = false;
         // the UX: saved since 22/11/2026; before, the theme Crème was the kit
+        if (st["kitLib"].type == app::Json::Number) m_kitLibFrac = std::clamp((float)st["kitLib"].n, 0.2f, 0.8f);
         if (st["ux"].type == app::Json::Number) m_ux = std::clamp((int)st["ux"].n, 0, 2);
         else if (st["uxKit"].type == app::Json::Bool && st["uxKit"].b) m_ux = 2;
         else m_ux = m_themeId == "creme" ? 2 : m_themeId == "classic" ? 1 : 0;   // (before: the theme was the interface)
