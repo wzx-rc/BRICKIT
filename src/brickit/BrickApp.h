@@ -833,7 +833,7 @@ private:
     double m_sysThemeT = -1;
     // the theme module (BrickTheme.h): Réglages › Thème, the theme, and its tint and accent remembered per theme
     struct ThemeLook { int tint = 0, accent = 0; };
-    std::string m_themeId = "glass";
+    std::string m_themeId = "brique";
     std::map<std::string, ThemeLook> m_themeLooks;
     theme::Tokens m_th;               // the theme resolved for this frame (BrickUi.cpp applyTheme)
     std::string m_thKey;              // what m_th was resolved for (id, mode, tint, accent)

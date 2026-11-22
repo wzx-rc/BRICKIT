@@ -12,7 +12,62 @@ static ImU32 stA(ImU32 c, float k) { return (c & 0x00FFFFFF) | ((ImU32)(((c >> 2
 
 // ---- the « Brique » interface (Wzx 15/11/2026): slate panels in relief, the yellow of the brick in a gradient with a
 // darker rim below on what is active (BrickUiBrique.inl: its header, its hub page, its layout, the UI editor)
-static bool g_brique = false;
+static ImU32 bqMixC(ImU32 a, ImU32 b, float t) {
+    auto ch = [&](int sh) { const float x = ((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t; return (ImU32)std::clamp((int)(x + 0.5f), 0, 255) << sh; };
+    return ch(0) | ch(8) | ch(16) | ch(24);
+}
+static bool g_brique = false;   // the layout of Brique (Brique, Crème)
+static bool g_hubPage = false;  // the hub as a page (Brique, Crème, Classic: Wzx 22/11/2026)
+// the colours of that layout, per theme (Wzx 22/11/2026: Classic, Brique, Crème / Galet)
+struct BqSkin {
+    ImU32 sideA, sideB, headTop, btn, btnHi, navIdle, sel, badge, banner, bannerSub, ph0, ph1, phIco, chip, chipIco;
+    ImU32 accTop, accBot, accRim, accLine, rim, hl, hover, brand;
+    int shadow;      // the alpha of the drop shadows
+    bool relief;     // the gradient and the rim on the accent (Classic: flat)
+    bool upper;      // the titles in spaced capitals (Classic)
+};
+static BqSkin g_bq = {};
+// a light theme (Crème, Galet): the dark fills and the white veils of the Studio interface turned into their light equivalents
+static bool g_light = false;
+static ImU32 stD(ImU32 c) {   // a dark fill (its alpha kept): the light ground of the theme
+    if (!g_light) return c;
+    const int a = (int)((c >> 24) & 255);
+    return (C_HUD & 0x00FFFFFF) | ((ImU32)std::min(255, a + 30) << 24);
+}
+static ImU32 stT(ImU32 c) { return g_light ? ((C_DIM & 0x00FFFFFF) | (c & 0xFF000000)) : c; }   // a light grey text or icon: the dim ink of a light theme
+static ImU32 stY(int a) { return g_light ? ((C_ACCENT_TXT & 0x00FFFFFF) | ((ImU32)a << 24)) : IM_COL32(246, 196, 0, a); }   // the yellow of what is chosen
+static ImU32 stThumb() { return g_light ? C_THUMB : IM_COL32(232, 234, 238, 255); }   // the tint of the thumbnails of the parts (Crème: warm, as the kit)
+static ImU32 stW(int a) { return g_light ? IM_COL32(70, 55, 40, std::min(255, (int)(a * 0.75f))) : IM_COL32(255, 255, 255, a); }   // a white veil (hover, line)
+static ImU32 bqA0(ImU32 c) { return c & 0x00FFFFFF; }
+static void bqSkinOf(const theme::Tokens& t, int tint) {
+    BqSkin& k = g_bq;
+    if (t.id == "creme" && tint == 1) {   // Galet: a little less cream
+        k = {IM_COL32(0xe8, 0xe7, 0xe4, 255), IM_COL32(0xef, 0xee, 0xeb, 255), IM_COL32(0xf5, 0xf4, 0xf2, 255), IM_COL32(0xff, 0xff, 0xff, 255), IM_COL32(0xf1, 0xef, 0xec, 255),
+             IM_COL32(0x77, 0x73, 0x6d, 255), IM_COL32(0xff, 0xff, 0xff, 255), IM_COL32(0xe3, 0xe1, 0xdd, 255), IM_COL32(0xe8, 0xe6, 0xe2, 255), IM_COL32(0x5e, 0x5a, 0x55, 255),
+             IM_COL32(0xf0, 0xee, 0xeb, 255), IM_COL32(0xe4, 0xe2, 0xde, 255), IM_COL32(0xa9, 0xa4, 0x9c, 255), IM_COL32(47, 45, 42, 215), IM_COL32(255, 255, 255, 255),
+             IM_COL32(0x52, 0x50, 0x4c, 255), IM_COL32(0x33, 0x31, 0x2e, 255), IM_COL32(0x1f, 0x1e, 0x1c, 255), IM_COL32(255, 255, 255, 50), IM_COL32(0, 0, 0, 16), IM_COL32(255, 255, 255, 200),
+             IM_COL32(0, 0, 0, 10), IM_COL32(0xd9, 0x9a, 0x0b, 255), 26, true, false};
+    } else if (t.id == "creme") {   // Crème: the cream of the iPad kit, espresso
+        k = {IM_COL32(0xee, 0xe5, 0xd8, 255), IM_COL32(0xf4, 0xed, 0xe3, 255), IM_COL32(0xf9, 0xf4, 0xec, 255), IM_COL32(0xff, 0xfc, 0xf8, 255), IM_COL32(0xf3, 0xea, 0xdf, 255),
+             IM_COL32(0x8a, 0x7b, 0x6d, 255), IM_COL32(0xff, 0xfc, 0xf8, 255), IM_COL32(0xe8, 0xdd, 0xcf, 255), IM_COL32(0xef, 0xe5, 0xd8, 255), IM_COL32(0x6b, 0x5a, 0x4a, 255),
+             IM_COL32(0xf3, 0xeb, 0xdf, 255), IM_COL32(0xe7, 0xdc, 0xce, 255), IM_COL32(0xb3, 0xa3, 0x91, 255), IM_COL32(62, 50, 41, 215), IM_COL32(0xff, 0xf8, 0xee, 255),
+             IM_COL32(0x5e, 0x4b, 0x3c, 255), IM_COL32(0x3e, 0x31, 0x28, 255), IM_COL32(0x2a, 0x20, 0x19, 255), IM_COL32(255, 255, 255, 45), IM_COL32(120, 90, 60, 22), IM_COL32(255, 255, 255, 200),
+             IM_COL32(62, 50, 41, 12), IM_COL32(0xd9, 0x9a, 0x0b, 255), 28, true, false};
+    } else if (t.id == "classic") {   // Classic: flat, dark, LEGO yellow, titles in spaced capitals
+        k = {IM_COL32(0x11, 0x12, 0x15, 255), IM_COL32(0x15, 0x16, 0x1a, 255), IM_COL32(0x0f, 0x10, 0x12, 255), IM_COL32(0x1e, 0x1f, 0x23, 255), IM_COL32(0x2a, 0x2c, 0x31, 255),
+             IM_COL32(0x9a, 0x9c, 0xa4, 255), IM_COL32(0x24, 0x26, 0x2b, 255), IM_COL32(0x2f, 0x31, 0x37, 255), IM_COL32(0x1a, 0x1b, 0x1f, 255), IM_COL32(0xc4, 0xc6, 0xcc, 255),
+             IM_COL32(0x26, 0x28, 0x2d, 255), IM_COL32(0x1c, 0x1d, 0x21, 255), IM_COL32(0x6e, 0x71, 0x78, 255), IM_COL32(10, 11, 13, 215), IM_COL32(0xec, 0xec, 0xee, 255),
+             t.accent, t.accent, t.accent, IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 12), IM_COL32(255, 255, 255, 14),
+             IM_COL32(255, 255, 255, 12), IM_COL32(0xf7, 0xc5, 0x1e, 255), 50, false, true};
+    } else {   // Brique
+        k = {IM_COL32(0x1b, 0x1e, 0x26, 255), IM_COL32(0x20, 0x24, 0x2c, 255), IM_COL32(0x1f, 0x23, 0x2b, 255), IM_COL32(0x2d, 0x32, 0x3d, 255), IM_COL32(0x38, 0x3e, 0x4a, 255),
+             IM_COL32(0xc9, 0xcd, 0xd6, 255), IM_COL32(0x2c, 0x31, 0x3c, 255), IM_COL32(0x3a, 0x40, 0x4c, 255), IM_COL32(0x34, 0x3b, 0x4c, 255), IM_COL32(0xe2, 0xe5, 0xec, 255),
+             IM_COL32(0x3c, 0x43, 0x52, 255), IM_COL32(0x2c, 0x31, 0x3c, 255), IM_COL32(0x9a, 0xa0, 0xac, 255), IM_COL32(20, 23, 30, 215), IM_COL32(240, 242, 246, 255),
+             IM_COL32(0xff, 0xd8, 0x4a, 255), IM_COL32(0xf9, 0xb8, 0x00, 255), IM_COL32(0xc8, 0x88, 0x00, 255), IM_COL32(255, 255, 255, 120), IM_COL32(255, 255, 255, 13), IM_COL32(255, 255, 255, 22),
+             IM_COL32(255, 255, 255, 14), IM_COL32(0xff, 0xc9, 0x3c, 255), 60, true, false};
+        if (t.accent != IM_COL32(0xff, 0xc9, 0x3c, 255)) { k.accTop = bqMixC(t.accent, IM_COL32(255, 255, 255, 255), 0.2f); k.accBot = t.accent; k.accRim = bqMixC(t.accent, IM_COL32(0, 0, 0, 255), 0.25f); }
+    }
+}
 static ImU32 bqMix(ImU32 a, ImU32 b, float t) {
     auto ch = [&](int sh) { const float x = ((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t; return (ImU32)std::clamp((int)(x + 0.5f), 0, 255) << sh; };
     return ch(0) | ch(8) | ch(16) | ch(24);
@@ -29,17 +84,19 @@ static void bqGrad(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, ImU32 top, ImU32
 }
 // the yellow button: a soft shadow, the darker rim below, the gradient, a light line on top
 static void bqYellow(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, float s, bool hot = false) {
-    dl->AddRectFilled(ImVec2(a.x + 1 * s, a.y + 4 * s), ImVec2(b.x - 1 * s, b.y + 4 * s), IM_COL32(0, 0, 0, 60), r);
-    dl->AddRectFilled(a, b, IM_COL32(0xc8, 0x88, 0x00, 255), r);
-    bqGrad(dl, a, ImVec2(b.x, b.y - 2.5f * s), r, hot ? IM_COL32(0xff, 0xe2, 0x6a, 255) : IM_COL32(0xff, 0xd8, 0x4a, 255), hot ? IM_COL32(0xff, 0xc4, 0x1a, 255) : IM_COL32(0xf9, 0xb8, 0x00, 255));
-    dl->AddLine(ImVec2(a.x + r * 0.7f, a.y + 1.2f * s), ImVec2(b.x - r * 0.7f, a.y + 1.2f * s), IM_COL32(255, 255, 255, 120), 1.0f * s);
+    const ImU32 W = IM_COL32(255, 255, 255, 255);
+    if (!g_bq.relief) { dl->AddRectFilled(a, b, hot ? bqMixC(g_bq.accBot, W, 0.15f) : g_bq.accBot, r); return; }   // (Classic: flat)
+    dl->AddRectFilled(ImVec2(a.x + 1 * s, a.y + 4 * s), ImVec2(b.x - 1 * s, b.y + 4 * s), IM_COL32(0, 0, 0, g_bq.shadow), r);
+    dl->AddRectFilled(a, b, g_bq.accRim, r);
+    bqGrad(dl, a, ImVec2(b.x, b.y - 2.5f * s), r, hot ? bqMixC(g_bq.accTop, W, 0.2f) : g_bq.accTop, hot ? bqMixC(g_bq.accBot, W, 0.12f) : g_bq.accBot);
+    dl->AddLine(ImVec2(a.x + r * 0.7f, a.y + 1.2f * s), ImVec2(b.x - r * 0.7f, a.y + 1.2f * s), g_bq.accLine, 1.0f * s);
 }
 // a raised slate surface (panel, card, button): shadow, fill, a light line on top, a faint rim
 static void bqRaise(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, float s, ImU32 fill, int shadow = 60) {
-    if (shadow > 0) dl->AddRectFilled(ImVec2(a.x, a.y + 4 * s), ImVec2(b.x, b.y + 6 * s), IM_COL32(0, 0, 0, shadow), r + 1 * s);
+    if (shadow > 0) dl->AddRectFilled(ImVec2(a.x, a.y + 4 * s), ImVec2(b.x, b.y + 6 * s), IM_COL32(0, 0, 0, shadow * g_bq.shadow / 60), r + 1 * s);
     dl->AddRectFilled(a, b, fill, r);
-    dl->AddRect(a, b, IM_COL32(255, 255, 255, 13), r, 0, 1.0f);
-    dl->AddLine(ImVec2(a.x + r * 0.8f, a.y + 1), ImVec2(b.x - r * 0.8f, a.y + 1), IM_COL32(255, 255, 255, 22), 1.0f);
+    dl->AddRect(a, b, g_bq.rim, r, 0, 1.0f);
+    dl->AddLine(ImVec2(a.x + r * 0.8f, a.y + 1), ImVec2(b.x - r * 0.8f, a.y + 1), g_bq.hl, 1.0f);
 }
 
 // a smoked glass panel: the translucent fill, a hairline, a soft drop shadow
@@ -47,7 +104,7 @@ static void stGlass(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, float s) {
     if (g_brique) { bqRaise(dl, a, b, r * 1.1f, s, C_PANEL, 70); return; }
     dl->AddRectFilled(ImVec2(a.x, a.y + 6 * s), ImVec2(b.x, b.y + 8 * s), IM_COL32(0, 0, 0, 40), r + 2 * s);
     dl->AddRectFilled(a, b, C_PANEL, r);
-    dl->AddRectFilledMultiColor(ImVec2(a.x + r * 0.3f, a.y + 1), ImVec2(b.x - r * 0.3f, a.y + 2 * s), IM_COL32(255, 255, 255, 14), IM_COL32(255, 255, 255, 14), IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 0));
+    dl->AddRectFilledMultiColor(ImVec2(a.x + r * 0.3f, a.y + 1), ImVec2(b.x - r * 0.3f, a.y + 2 * s), stW(14), stW(14), stW(0), stW(0));
     dl->AddRect(a, b, C_LINE, r, 0, 1.0f);
 }
 
@@ -382,8 +439,8 @@ void BrickApp::stHeader() {
     // notifications, Control Centre) lands without pressing Exporter (BrickTouch ignores the touches that start there)
     const float T = m_ipad ? kIpadTopStrip * s : 0;
     const float H = 46 * s + T;
-    u.dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, H), IM_COL32(8, 9, 11, 235), IM_COL32(8, 9, 11, 235), IM_COL32(12, 13, 15, 200), IM_COL32(12, 13, 15, 200));
-    u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), IM_COL32(255, 255, 255, 20), 1.0f);
+    u.dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, H), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(12, 13, 15, 200)), stD(IM_COL32(12, 13, 15, 200)));
+    u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), stW(20), 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
     const float cy = T + 23 * s;
     // the logo: the app icon (Wzx 11/11/2026: A, the yellow brick in its viewfinder; B, the brick alone); BRICKIT / B U I L D E R
@@ -393,7 +450,7 @@ void BrickApp::stHeader() {
     } else if (m_ipad) {   // iPad (Wzx 10/11/2026): the app icon, a 2x4 brick in thin amber lines on smoked grey
         const ImVec2 la(x, cy - 15 * s), lb(x + 30 * s, cy + 15 * s);
         u.dl->AddRectFilled(la, lb, IM_COL32(38, 40, 45, 255), 7 * s);
-        u.dl->AddRect(la, lb, IM_COL32(255, 255, 255, 40), 7 * s, 0, 1.0f);
+        u.dl->AddRect(la, lb, stW(40), 7 * s, 0, 1.0f);
         stPicto(u.dl, "brick", 2, 4, ImVec2(x + 15 * s, cy), 24 * s, IM_COL32(226, 191, 79, 255), 1.2f * s);
     } else {
         u.dl->AddRectFilled(ImVec2(x, cy - 14 * s), ImVec2(x + 28 * s, cy + 14 * s), IM_COL32(0xd0, 0x10, 0x1b, 255), 3 * s);
@@ -403,12 +460,12 @@ void BrickApp::stHeader() {
     stTrack(u, ImVec2(x, cy - 15 * s), 13, C_TEXT, "BRICKIT", 1.6f * s);
     stTrack(u, ImVec2(x, cy + 1 * s), 8, C_FAINT, "BUILDER", 3.2f * s, false);
     x += 92 * s;
-    u.dl->AddLine(ImVec2(x, cy - 11 * s), ImVec2(x, cy + 11 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+    u.dl->AddLine(ImVec2(x, cy - 11 * s), ImVec2(x, cy + 11 * s), stW(30), 1.0f);
     x += 12 * s;
     {   // the scene menu: a click on the logo or on the name (Nouvelle scène, Ouvrir, Enregistrer)
         const ImVec2 fa(0, T), fb(x + 190 * s, H);
         const bool hf = u.hover(fa, fb) && (m_popup == 0 || m_popup == 8);
-        if (hf || m_popup == 8) u.dl->AddRectFilled(ImVec2(x - 6 * s, cy - 17 * s), ImVec2(x + 180 * s, cy + 17 * s), IM_COL32(255, 255, 255, m_popup == 8 ? 22 : 12), 10 * s);
+        if (hf || m_popup == 8) u.dl->AddRectFilled(ImVec2(x - 6 * s, cy - 17 * s), ImVec2(x + 180 * s, cy + 17 * s), stW(m_popup == 8 ? 22 : 12), 10 * s);
         {   // a small chevron after the name
             const ImVec2 c(x + 170 * s, cy - 8 * s);
             u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 3.5f * s, c.y - 1.8f * s), ImVec2(c.x, c.y + 1.8f * s), ImVec2(c.x + 3.5f * s, c.y - 1.8f * s)}.data(), 3, C_DIM, 0, 1.3f * s);
@@ -432,15 +489,15 @@ void BrickApp::stHeader() {
     for (const Seg& m : modes) total += segW(m.label) + 2 * s;
     const float sh = 30 * s;
     ImVec2 a((d.x - total) * 0.5f, cy - sh * 0.5f), b(a.x + total, cy + sh * 0.5f);
-    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 10), sh * 0.5f);
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 34), sh * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(a, b, stW(10), sh * 0.5f);
+    u.dl->AddRect(a, b, stW(34), sh * 0.5f, 0, 1.0f);
     float mx = a.x + 3 * s;
     for (const Seg& m : modes) {
         const float w = segW(m.label);
         const ImVec2 ma(mx, a.y + 3 * s), mb(mx + w, b.y - 3 * s);
         const bool h = u.hover(ma, mb) && m_popup == 0;
-        if (m.on) u.dl->AddRectFilled(ma, mb, IM_COL32(255, 255, 255, 34), (mb.y - ma.y) * 0.5f);
-        else if (h) u.dl->AddRectFilled(ma, mb, IM_COL32(255, 255, 255, 14), (mb.y - ma.y) * 0.5f);
+        if (m.on) u.dl->AddRectFilled(ma, mb, stW(34), (mb.y - ma.y) * 0.5f);
+        else if (h) u.dl->AddRectFilled(ma, mb, stW(14), (mb.y - ma.y) * 0.5f);
         const float tw = stTrackW(u, 10, m.label, 1.6f * s, true);
         stTrack(u, ImVec2((ma.x + mb.x - tw) * 0.5f, (ma.y + mb.y) * 0.5f - u.fs(10) * 0.52f), 10, m.on ? C_TEXT : C_DIM, m.label, 1.6f * s);
         if (h && u.pressed) {
@@ -469,8 +526,8 @@ void BrickApp::stHeader() {
         const float r = 15 * s;
         const ImVec2 c(rx - r, cy);
         const bool h = enabled && (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r && (m_popup == 0 || on);   // (open: a second click closes it)
-        if (on || h) u.dl->AddCircleFilled(c, r, IM_COL32(255, 255, 255, on ? 34 : 16), 32);
-        u.dl->AddCircle(c, r, IM_COL32(255, 255, 255, 30), 32, 1.0f);
+        if (on || h) u.dl->AddCircleFilled(c, r, stW(on ? 34 : 16), 32);
+        u.dl->AddCircle(c, r, stW(30), 32, 1.0f);
         stIcon(u.dl, icon, c, 17 * s, enabled ? C_TEXT : stA(C_TEXT, 0.3f), 1.3f * s);
         if (h && tip && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
         rx -= 2 * r + 6 * s;
@@ -485,15 +542,15 @@ void BrickApp::stHeader() {
         float w = 6 * s;
         for (const R& r : rs) w += stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s + 2 * s;
         const ImVec2 ra(rx - w, cy - 14 * s), rb(rx, cy + 14 * s);
-        u.dl->AddRectFilled(ra, rb, IM_COL32(255, 255, 255, 10), 14 * s);
-        u.dl->AddRect(ra, rb, IM_COL32(255, 255, 255, 34), 14 * s, 0, 1.0f);
+        u.dl->AddRectFilled(ra, rb, stW(10), 14 * s);
+        u.dl->AddRect(ra, rb, stW(34), 14 * s, 0, 1.0f);
         float xx = ra.x + 3 * s;
         for (const R& r : rs) {
             const float bw = stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s;
             const ImVec2 ba(xx, ra.y + 3 * s), bb(xx + bw, rb.y - 3 * s);
             const bool h = u.hover(ba, bb) && m_popup == 0;
             if (r.on) u.dl->AddRectFilled(ba, bb, C_ACCENT, (bb.y - ba.y) * 0.5f);
-            else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), (bb.y - ba.y) * 0.5f);
+            else if (h) u.dl->AddRectFilled(ba, bb, stW(16), (bb.y - ba.y) * 0.5f);
             stTrack(u, ImVec2(ba.x + 10 * s, (ba.y + bb.y) * 0.5f - u.fs(9.5f) * 0.52f), 9.5f, r.on ? C_INK : C_DIM, r.label, 1.3f * s);
             if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", r.tip);
             if (h && u.pressed && !r.on) {
@@ -511,8 +568,8 @@ void BrickApp::stHeader() {
         const float bw = stTrackW(u, 9.5f, t, 1.3f * s, true) + 26 * s;
         const ImVec2 ba(rx - bw, cy - 14 * s), bb(rx, cy + 14 * s);
         const bool h = u.hover(ba, bb) && m_popup == 0, on = m_highPoly;
-        u.dl->AddRectFilled(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 20 : 10), 14 * s);
-        u.dl->AddRect(ba, bb, on ? C_ACCENT : IM_COL32(255, 255, 255, 34), 14 * s, 0, 1.0f);
+        u.dl->AddRectFilled(ba, bb, on ? C_ACCENT : stW(h ? 20 : 10), 14 * s);
+        u.dl->AddRect(ba, bb, on ? C_ACCENT : stW(34), 14 * s, 0, 1.0f);
         stTrack(u, ImVec2(ba.x + 13 * s, cy - u.fs(9.5f) * 0.52f), 9.5f, on ? C_INK : (m_lib.hasHd ? C_DIM : C_FAINT), t, 1.3f * s);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0)
             ImGui::SetTooltip("%s", m_lib.hasHd ? "Pièces HD : les arrondis lisses (primitives 48 segments, tenons biseautés) quand elles existent" : "Pièces HD : la bibliothèque HD n'est pas encore construite");
@@ -563,7 +620,7 @@ void BrickApp::stTools() {
         else if (t.on) {   // the active tool: a translucent yellow, a fine rim
             u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 13 * s);
             u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.8f), 13 * s, 0, 1.0f);
-        } else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 13 * s);
+        } else if (h) u.dl->AddRectFilled(ba, bb, stW(16), 13 * s);
         stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), (g_brique ? 21 : 19) * s, t.on ? (g_brique ? C_INK : C_ACCENT_TXT) : C_TEXT, (g_brique ? 1.8f : 1.2f) * s);
         if (t.key[0] && !m_ipad) u.text(ImVec2(bb.x - 9 * s, bb.y - 13 * s), 7.5f, t.on ? (g_brique ? stA(C_INK, 0.7f) : C_ACCENT_TXT) : C_FAINT, t.key, true);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
@@ -620,8 +677,8 @@ void BrickApp::stToolOptions(Ui& u, ImVec2 at, bool row, float colW) {
         const bool reset = o.id == 4;
         if (o.on && g_brique) bqYellow(u.dl, ba, bb, 9 * s, s, h);
         else if (o.on) u.dl->AddRectFilled(ba, bb, C_ACCENT, 9 * s);
-        else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 18), 9 * s);
-        if (reset && !o.on) u.dl->AddRect(ba, bb, IM_COL32(255, 255, 255, h ? 90 : 40), 9 * s, 0, 1.0f);
+        else if (h) u.dl->AddRectFilled(ba, bb, stW(18), 9 * s);
+        if (reset && !o.on) u.dl->AddRect(ba, bb, stW(h ? 90 : 40), 9 * s, 0, 1.0f);
         const float px = row ? 10.0f : 9.0f, lw = u.textW(px, o.label, true);
         u.text(ImVec2((ba.x + bb.x - lw) * 0.5f, (ba.y + bb.y) * 0.5f - u.fs(px) * 0.55f), px, o.on ? C_INK : C_TEXT, o.label, true);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", o.tip);
@@ -676,9 +733,9 @@ void BrickApp::stBadge() {
     const ImVec2 a(bx, by), b(a.x + w1 + w2, by + 22 * s);
     const bool h = u.hover(a, b) && m_popup == 0;
     if (g_brique) bqReg("badge", "Grille", ImVec4(bq0.x, bq0.y, bq0.x + w1 + w2, bq0.y + 22 * s), ImVec4(a.x, a.y, b.x, b.y), false);
-    u.dl->AddRectFilled(a, b, IM_COL32(10, 11, 13, h ? 200 : by > top ? 175 : 120), 11 * s);   // darker when pushed under the tools (over the bricks)
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 50), 11 * s, 0, 1.0f);
-    u.dl->AddLine(ImVec2(a.x + w1, a.y), ImVec2(a.x + w1, b.y), IM_COL32(255, 255, 255, 50), 1.0f);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(10, 11, 13, h ? 200 : by > top ? 175 : 120)), 11 * s);   // darker when pushed under the tools (over the bricks)
+    u.dl->AddRect(a, b, stW(50), 11 * s, 0, 1.0f);
+    u.dl->AddLine(ImVec2(a.x + w1, a.y), ImVec2(a.x + w1, b.y), stW(50), 1.0f);
     stTrack(u, ImVec2(a.x + 8 * s, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, C_TEXT, "1 : 1", 1.2f * s);
     stTrack(u, ImVec2(a.x + w1 + 8 * s, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, C_DIM, g, 1.2f * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -702,18 +759,18 @@ void BrickApp::stMore() {
     const float W = 240 * s, ih = 28 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih);
     stGlass(u.dl, a, b, 14 * s, s);
-    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 150), 14 * s);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(16, 17, 19, 150)), 14 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     float y = a.y + pad;
     bool clicked = false;
     for (const It& it : its) {
         const ImVec2 ia(a.x + pad, y), ib(b.x - pad, y + ih);
         const bool h = u.hover(ia, ib);
-        if (h) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, 16), 9 * s);
+        if (h) u.dl->AddRectFilled(ia, ib, stW(16), 9 * s);
         {   // a small switch
             const ImVec2 sa(ib.x - 34 * s, (ia.y + ib.y) * 0.5f - 8 * s), sb(ib.x - 8 * s, (ia.y + ib.y) * 0.5f + 8 * s);
-            u.dl->AddRectFilled(sa, sb, it.on ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, 30), 8 * s);
-            u.dl->AddCircleFilled(ImVec2(it.on ? sb.x - 8 * s : sa.x + 8 * s, (sa.y + sb.y) * 0.5f), 6 * s, it.on ? C_INK : IM_COL32(220, 222, 226, 255), 20);
+            u.dl->AddRectFilled(sa, sb, it.on ? stA(C_ACCENT, 0.85f) : stW(30), 8 * s);
+            u.dl->AddCircleFilled(ImVec2(it.on ? sb.x - 8 * s : sa.x + 8 * s, (sa.y + sb.y) * 0.5f), 6 * s, it.on ? C_INK : stT(IM_COL32(220, 222, 226, 255)), 20);
         }
         u.text(ImVec2(ia.x + 8 * s, (ia.y + ib.y) * 0.5f - u.fs(11.5f) * 0.55f), 11.5f, C_TEXT, it.label);
         if (h && u.pressed) {
@@ -779,7 +836,7 @@ void BrickApp::stPaintPanel() {
         }
         if (u.hover(ImVec2(x, a.y), ImVec2(x + cw, b.y)) && m_popup == 0) ImGui::SetTooltip("Couleur active : %s · %d", colorFr(c.name), c.id);
         x += cw + 7 * s;
-        u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
+        u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), stW(24), 1.0f);
         x += 7 * s;
     }
     struct B { const char* icon; const char* label; const char* tip; bool on; int id; };
@@ -789,7 +846,7 @@ void BrickApp::stPaintPanel() {
         const ImVec2 ba(x, a.y + pad), bb(x + bw, a.y + pad + bh);
         const bool h = u.hover(ba, bb) && m_popup == 0;
         if (t.on) { u.dl->AddRectFilled(ba, bb, stA(C_ACCENT, 0.2f), 14 * s); u.dl->AddRect(ba, bb, stA(C_ACCENT, 0.85f), 14 * s, 0, 1.0f); }
-        else { u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, h ? 18 : 8), 14 * s); u.dl->AddRect(ba, bb, IM_COL32(255, 255, 255, h ? 60 : 26), 14 * s, 0, 1.0f); }
+        else { u.dl->AddRectFilled(ba, bb, stW(h ? 18 : 8), 14 * s); u.dl->AddRect(ba, bb, stW(h ? 60 : 26), 14 * s, 0, 1.0f); }
         const ImU32 col = t.on ? C_ACCENT_TXT : C_TEXT;
         stIcon(u.dl, t.icon, ImVec2((ba.x + bb.x) * 0.5f, small ? (ba.y + bb.y) * 0.5f : ba.y + 30 * s), (small ? 44 : 32) * s, col, (small ? 2.2f : 1.5f) * s);
         if (!small) {
@@ -801,7 +858,7 @@ void BrickApp::stPaintPanel() {
         x += bw + 6 * s;
     }
     x += 6 * s;
-    u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), IM_COL32(255, 255, 255, 24), 1.0f);
+    u.dl->AddLine(ImVec2(x, a.y + 16 * s), ImVec2(x, b.y - 16 * s), stW(24), 1.0f);
     x += 8 * s;
     {   // Groupe entier: a switch
         const float cy = a.y + pad + 20 * s;
@@ -811,8 +868,8 @@ void BrickApp::stPaintPanel() {
         const ImVec2 ha(x, a.y), hb(b.x, b.y);
         const bool h = u.hover(ha, hb) && m_popup == 0;
         const float kr = (sb.y - sa.y) * 0.5f;
-        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, h ? 44 : 30), kr);
-        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - kr : sa.x + kr, (sa.y + sb.y) * 0.5f), kr - 2 * m_ui, m_paintGroup ? C_INK : IM_COL32(220, 222, 226, 255), 20);
+        u.dl->AddRectFilled(sa, sb, m_paintGroup ? stA(C_ACCENT, 0.85f) : stW(h ? 44 : 30), kr);
+        u.dl->AddCircleFilled(ImVec2(m_paintGroup ? sb.x - kr : sa.x + kr, (sa.y + sb.y) * 0.5f), kr - 2 * m_ui, m_paintGroup ? C_INK : stT(IM_COL32(220, 222, 226, 255)), 20);
         if (!small) u.text(ImVec2(sb.x + 8 * s, (sa.y + sb.y) * 0.5f - u.fs(8.5f) * 0.55f), 8.5f, m_paintGroup ? C_ACCENT_TXT : C_FAINT, m_paintGroup ? "tout le groupe" : "la brique seule");
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Activé : un clic peint tout le groupe de la brique. Désactivé : la brique seule, même dans un groupe");
         if (h && u.pressed) { m_paintGroup = !m_paintGroup; savePrefs(); }
@@ -913,7 +970,7 @@ void BrickApp::stPaintColors() {
         const float a = std::clamp((tIn - 0.15f) / 0.25f, 0.0f, 1.0f);
         const ImVec2 p(cxm + std::sin(ga) * R, cy + std::cos(ga) * R), n(std::sin(ga), std::cos(ga));
         const float h = sw * 0.75f;
-        u.dl->AddLine(ImVec2(p.x - n.x * h, p.y - n.y * h), ImVec2(p.x + n.x * h, p.y + n.y * h), IM_COL32(255, 255, 255, (int)(70 * a)), 1.5f * s);
+        u.dl->AddLine(ImVec2(p.x - n.x * h, p.y - n.y * h), ImVec2(p.x + n.x * h, p.y + n.y * h), stW((int)(70 * a)), 1.5f * s);
     }
     for (const P& q : ps) if (m_paintHov[q.i] < 0.01f) draw(q);
     for (const P& q : ps) if (m_paintHov[q.i] >= 0.01f && q.i != hot) draw(q);
@@ -940,7 +997,7 @@ void BrickApp::stPaintFx() {
     const float s = m_ui;
     const double now = ImGui::GetTime();
     auto colU = [&](int i, float a) {
-        if (i < 0 || i >= (int)m_lib.palette.size()) return IM_COL32(255, 255, 255, (int)(255 * a));
+        if (i < 0 || i >= (int)m_lib.palette.size()) return stW((int)(255 * a));
         const Color& c = m_lib.palette[i];
         return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), (int)(255 * std::clamp(a, 0.0f, 1.0f)));
     };
@@ -964,8 +1021,8 @@ void BrickApp::stPaintFx() {
                 const float r = (9 - 3 * k) * s, a = m_paintSwatchAt.x >= 0 ? 1.0f : 1 - k;
                 dl->AddCircleFilled(ImVec2(q.x + 1.5f * s, q.y + 2.5f * s), r, IM_COL32(0, 0, 0, (int)(80 * a)), 24);
                 dl->AddCircleFilled(q, r, colU(f.color, a), 24);
-                dl->AddCircle(q, r, IM_COL32(255, 255, 255, (int)(220 * a)), 24, 1.5f * s);
-                dl->AddCircleFilled(ImVec2(q.x - r * 0.35f, q.y - r * 0.35f), r * 0.25f, IM_COL32(255, 255, 255, (int)(150 * a)), 12);
+                dl->AddCircle(q, r, stW((int)(220 * a)), 24, 1.5f * s);
+                dl->AddCircleFilled(ImVec2(q.x - r * 0.35f, q.y - r * 0.35f), r * 0.25f, stW((int)(150 * a)), 12);
             }
         } else {   // Pinceau: a splash
             const float e = std::clamp(t / 0.45f, 0.0f, 1.0f), o = 1 - (1 - e) * (1 - e);
@@ -989,7 +1046,7 @@ void BrickApp::stPaintFx() {
         if (r > 2) {
             dl->AddCircleFilled(mp, r, colU(m_color, m_paintCircle ? 0.18f : 0.1f), 48);
             dl->AddCircle(mp, r, colU(m_color, 0.95f), 48, 2.0f * s);
-            dl->AddCircle(mp, r + 1.5f * s, IM_COL32(255, 255, 255, 120), 48, 1.0f * s);
+            dl->AddCircle(mp, r + 1.5f * s, stW(120), 48, 1.0f * s);
         }
     }
 }
@@ -1111,15 +1168,15 @@ void BrickApp::stFile() {
     const float W = 260 * s, ih = 36 * s, pad = 6 * s;
     const ImVec2 a(m_popupAt.x, m_popupAt.y), b(a.x + W, a.y + pad * 2 + its.size() * ih + 22 * s);
     stGlass(u.dl, a, b, 14 * s, s);
-    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 228), 14 * s);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(16, 17, 19, 228)), 14 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     float y = a.y + pad;
     bool clicked = false;
     for (const It& it : its) {
         const ImVec2 ia(a.x + pad, y), ib(b.x - pad, y + ih);
         const bool h = u.hover(ia, ib);
-        if (h) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, 16), 10 * s);
-        stTrack(u, ImVec2(ia.x + 12 * s, (ia.y + ib.y) * 0.5f - u.fs(9) * 0.52f), 9, h ? C_TEXT : IM_COL32(214, 216, 220, 255), it.label, 1.6f * s);
+        if (h) u.dl->AddRectFilled(ia, ib, stW(16), 10 * s);
+        stTrack(u, ImVec2(ia.x + 12 * s, (ia.y + ib.y) * 0.5f - u.fs(9) * 0.52f), 9, h ? C_TEXT : stT(IM_COL32(214, 216, 220, 255)), it.label, 1.6f * s);
         const float kw = u.textW(9, it.key);
         u.text(ImVec2(ib.x - 12 * s - kw, (ia.y + ib.y) * 0.5f - u.fs(9) * 0.55f), 9, C_FAINT, it.key);
         if (h && u.pressed) {
@@ -1141,7 +1198,7 @@ void BrickApp::stFile() {
     {   // the file of the scene
         std::string f = m_scenePath.empty() ? std::string("pas encore enregistrée") : std::string(m_scenePath.begin(), m_scenePath.end());
         if (!m_scenePath.empty()) { const size_t k = f.find_last_of("\\/"); if (k != std::string::npos) f = f.substr(k + 1); }
-        u.dl->AddLine(ImVec2(a.x + 12 * s, y + 4 * s), ImVec2(b.x - 12 * s, y + 4 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.dl->AddLine(ImVec2(a.x + 12 * s, y + 4 * s), ImVec2(b.x - 12 * s, y + 4 * s), stW(20), 1.0f);
         u.text(ImVec2(a.x + 18 * s, y + 8 * s), 8.5f, C_FAINT, f.c_str());
     }
     if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
@@ -1248,7 +1305,7 @@ void BrickApp::stGroups() {
     const float listH = std::min(std::max(1, (int)rows.size()) * rowH, maxH - pad - headH - footH - pad);
     const ImVec2 a = g_brique ? bqA : ImVec2((m_paintMode ? 14 : 74) * s + m_dockL, top + (m_paintMode ? 52 * s : 0)), b(a.x + W, a.y + pad + headH + listH + footH + pad);
     stGlass(u.dl, a, b, 18 * s, s);
-    if (!g_brique) u.dl->AddRectFilled(a, b, IM_COL32(14, 15, 17, 120), 18 * s);
+    if (!g_brique) u.dl->AddRectFilled(a, b, stD(IM_COL32(14, 15, 17, 120)), 18 * s);
     if (g_brique) { m_bqGroupsY = b.y; bqReg("groups", "Scène", ImVec4(bq0.x, bq0.y, bq0.x + W, bq0.y + maxH), ImVec4(a.x, a.y, b.x, std::max(b.y, a.y + 60 * s)), true); }
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     // the title: GROUPES, how many; the shared prefix; Tout afficher while one is isolated; the close
@@ -1294,11 +1351,11 @@ void BrickApp::stGroups() {
         const bool h = u.hover(ra, rb) && u.hover(la, lb);
         const bool on = g == sel;
         if (on) { u.dl->AddRectFilled(ra, rb, stA(C_ACCENT, 0.2f), 10 * s); u.dl->AddRect(ra, rb, stA(C_ACCENT, 0.85f), 10 * s, 0, 1.0f); }
-        else if (h) u.dl->AddRectFilled(ra, rb, IM_COL32(255, 255, 255, 14), 10 * s);
+        else if (h) u.dl->AddRectFilled(ra, rb, stW(14), 10 * s);
         const float cy = (ra.y + rb.y) * 0.5f;
         float x = ra.x + 8 * s + rows[r].depth * 16 * s;
         for (int dpt = 0; dpt < rows[r].depth; ++dpt)   // the guides of the tree
-            u.dl->AddLine(ImVec2(ra.x + 15 * s + dpt * 16 * s, ra.y + 2 * s), ImVec2(ra.x + 15 * s + dpt * 16 * s, rb.y - 2 * s), IM_COL32(255, 255, 255, 22), 1.0f);
+            u.dl->AddLine(ImVec2(ra.x + 15 * s + dpt * 16 * s, ra.y + 2 * s), ImVec2(ra.x + 15 * s + dpt * 16 * s, rb.y - 2 * s), stW(22), 1.0f);
         bool hasKids = false;
         for (int k = 0; k < G; ++k) if (parent[k] == g && count[k] > 0) hasKids = true;
         const bool open = std::find(m_groupsOpen.begin(), m_groupsOpen.end(), g) != m_groupsOpen.end();
@@ -1378,10 +1435,10 @@ void BrickApp::stGroups() {
     u.dl->PopClipRect();
     if (contentH > listH) {   // a thin scroll bar
         const float bh = listH * listH / contentH, by = la.y + (listH - bh) * (m_groupsScroll / (contentH - listH));
-        u.dl->AddRectFilled(ImVec2(b.x - 5 * s, by), ImVec2(b.x - 3 * s, by + bh), IM_COL32(255, 255, 255, 50), 1 * s);
+        u.dl->AddRectFilled(ImVec2(b.x - 5 * s, by), ImVec2(b.x - 3 * s, by + bh), stW(50), 1 * s);
     }
     // the foot: the loose pieces, the shortcuts
-    u.dl->AddLine(ImVec2(a.x + pad, lb.y + 6 * s), ImVec2(b.x - pad, lb.y + 6 * s), IM_COL32(255, 255, 255, 18), 1.0f);
+    u.dl->AddLine(ImVec2(a.x + pad, lb.y + 6 * s), ImVec2(b.x - pad, lb.y + 6 * s), stW(18), 1.0f);
     char f[96];
     snprintf(f, sizeof(f), "%d pièces hors groupe   ·   Ctrl+G grouper   ·   Ctrl+Maj+G dégrouper", loose);
     const std::string fs = stFit(u, 8.5f, f, W - 2 * pad, false);
@@ -1399,7 +1456,7 @@ bool BrickApp::stPartIco(ImDrawList* dl, int part, ImVec2 c, float size, float a
     const float z = zoom, hs = size * 0.5f;
     const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
     dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
-                 IM_COL32(255, 255, 255, (int)(255 * std::clamp(alpha, 0.0f, 1.0f))));
+                 stA(stThumb(), std::clamp(alpha, 0.0f, 1.0f)));   // (the tint of the theme: warm on Crème)
     return true;
 }
 
@@ -1520,7 +1577,7 @@ void BrickApp::stColors() {
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     m_colPanelX = a.x;
     // vertical ribs, as in the trans-clear brick (very faint)
-    for (float x = a.x + 48 * s; x < b.x - 8 * s; x += 48 * s) u.dl->AddLine(ImVec2(x, a.y + 8 * s), ImVec2(x, b.y - 8 * s), IM_COL32(255, 255, 255, 6), 1.0f);
+    for (float x = a.x + 48 * s; x < b.x - 8 * s; x += 48 * s) u.dl->AddLine(ImVec2(x, a.y + 8 * s), ImVec2(x, b.y - 8 * s), stW(6), 1.0f);
     const Color& cur = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
     float y = a.y + pad;
     stTrack(u, ImVec2(a.x + pad, y), 10, C_TEXT, "COULEUR", 2.2f * s);
@@ -1540,23 +1597,23 @@ void BrickApp::stColors() {
             u.dl->PushClipRect(p0, ImVec2(p0.x + size, p0.y + size), true);
             for (int i = 0; i < n; ++i)
                 for (int j = 0; j < n; ++j)
-                    u.dl->AddRectFilled(ImVec2(p0.x + i * q, p0.y + j * q), ImVec2(p0.x + (i + 1) * q, p0.y + (j + 1) * q), ((i + j) & 1) ? IM_COL32(205, 208, 214, 255) : IM_COL32(120, 124, 132, 255));
+                    u.dl->AddRectFilled(ImVec2(p0.x + i * q, p0.y + j * q), ImVec2(p0.x + (i + 1) * q, p0.y + (j + 1) * q), ((i + j) & 1) ? stT(IM_COL32(205, 208, 214, 255)) : IM_COL32(120, 124, 132, 255));
             u.dl->PopClipRect();
             if (g_studTex) u.dl->AddImage(g_studTex, p0, ImVec2(p0.x + size, p0.y + size), ImVec2(0, 0), ImVec2(1, 1), colOf(c, 175));
             else u.dl->AddRectFilled(p0, ImVec2(p0.x + size, p0.y + size), colOf(c, 175), 3 * s);
             u.dl->AddQuadFilled(ImVec2(p0.x + size * 0.18f, p0.y + size * 0.92f), ImVec2(p0.x + size * 0.34f, p0.y + size * 0.92f), ImVec2(p0.x + size * 0.86f, p0.y + size * 0.1f),
-                                ImVec2(p0.x + size * 0.70f, p0.y + size * 0.1f), IM_COL32(255, 255, 255, 70));
-            u.dl->AddRect(p0, ImVec2(p0.x + size, p0.y + size), IM_COL32(255, 255, 255, 90), 3 * s, 0, 1.0f);
+                                ImVec2(p0.x + size * 0.70f, p0.y + size * 0.1f), stW(70));
+            u.dl->AddRect(p0, ImVec2(p0.x + size, p0.y + size), stW(90), 3 * s, 0, 1.0f);
         } else if (g_studTex) u.dl->AddImage(g_studTex, p0, ImVec2(p0.x + size, p0.y + size), ImVec2(0, 0), ImVec2(1, 1), colOf(c, 255));
         else u.dl->AddRectFilled(p0, ImVec2(p0.x + size, p0.y + size), colOf(c, 255), 3 * s);
-        if (c.group == "metallic") u.dl->AddRectFilledMultiColor(ImVec2(p0.x + size * 0.08f, p0.y + size * 0.08f), ImVec2(p0.x + size * 0.8f, p0.y + size * 0.45f), IM_COL32(255, 255, 255, 60), IM_COL32(255, 255, 255, 60), IM_COL32(255, 255, 255, 0), IM_COL32(255, 255, 255, 0));
+        if (c.group == "metallic") u.dl->AddRectFilledMultiColor(ImVec2(p0.x + size * 0.08f, p0.y + size * 0.08f), ImVec2(p0.x + size * 0.8f, p0.y + size * 0.45f), stW(60), stW(60), stW(0), stW(0));
     };
     {   // the current colour: a big brick, its name and hex
         const float bs = 44 * s;
         swatch(ImVec2(a.x + pad, y), bs, cur);
         {   // a click on it folds the panel down to it (Wzx 14/11/2026)
             const bool h = u.hover(ImVec2(a.x + pad, y), ImVec2(a.x + pad + bs, y + bs));
-            if (h) u.dl->AddRect(ImVec2(a.x + pad - 2 * s, y - 2 * s), ImVec2(a.x + pad + bs + 2 * s, y + bs + 2 * s), IM_COL32(255, 255, 255, 120), 5 * s, 0, 1.2f * s);
+            if (h) u.dl->AddRect(ImVec2(a.x + pad - 2 * s, y - 2 * s), ImVec2(a.x + pad + bs + 2 * s, y + bs + 2 * s), stW(120), 5 * s, 0, 1.2f * s);
             if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Clic : réduire le panneau à cette couleur · glisser sur une brique : la peindre");
             if (h && u.pressed) { m_colPress = m_color; m_colPressBig = true; m_colPressPos = u.mouse; }
         }
@@ -1583,7 +1640,7 @@ void BrickApp::stColors() {
     u.dl->PushClipRect(ImVec2(a.x, y), ImVec2(b.x, b.y - 6 * s), true);
     auto group = [&](const char* title, const char* key) {
         stTrack(u, ImVec2(a.x + pad, y), 8.5f, C_DIM, title, 1.8f * s);
-        u.dl->AddLine(ImVec2(a.x + pad + stTrackW(u, 8.5f, title, 1.8f * s, true) + 8 * s, y + 7 * s), ImVec2(b.x - pad, y + 7 * s), IM_COL32(255, 255, 255, 22), 1.0f);
+        u.dl->AddLine(ImVec2(a.x + pad + stTrackW(u, 8.5f, title, 1.8f * s, true) + 8 * s, y + 7 * s), ImVec2(b.x - pad, y + 7 * s), stW(22), 1.0f);
         y += 17 * s;
         int k = 0;
         for (int i = 0; i < (int)m_lib.palette.size(); ++i) {
@@ -1593,8 +1650,8 @@ void BrickApp::stColors() {
             swatch(p0, sw, c);
             const bool exists = !filter || m_lib.colorExists(fpart, i);
             if (!exists) {
-                u.dl->AddRectFilled(p0, p1, IM_COL32(16, 17, 19, 170), 3 * s);
-                u.dl->AddLine(ImVec2(p0.x + 4 * s, p1.y - 4 * s), ImVec2(p1.x - 4 * s, p0.y + 4 * s), IM_COL32(255, 255, 255, 60), 1.0f);
+                u.dl->AddRectFilled(p0, p1, stD(IM_COL32(16, 17, 19, 170)), 3 * s);
+                u.dl->AddLine(ImVec2(p0.x + 4 * s, p1.y - 4 * s), ImVec2(p1.x - 4 * s, p0.y + 4 * s), stW(60), 1.0f);
             }
             if (i == m_color) m_colCurAt = ImVec2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
             if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2.5f * s, p0.y - 2.5f * s), ImVec2(p1.x + 2.5f * s, p1.y + 2.5f * s), C_ACCENT, 4 * s, 0, 1.5f * s);
@@ -1669,15 +1726,15 @@ static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, b
     float w[2];
     for (int k = 0; k < 2; ++k) w[k] = stTrackW(u, 7.6f, kL[k], 1.2f * s, true) + 16 * s;
     const ImVec2 a(right - w[0] - w[1] - 6 * s, y), b(right, y + h);
-    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 8), h * 0.5f);
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 34), h * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(a, b, stW(8), h * 0.5f);
+    u.dl->AddRect(a, b, stW(34), h * 0.5f, 0, 1.0f);
     bool changed = false;
     float x = a.x + 3 * s;
     for (int k = 0; k < 2; ++k) {
         const ImVec2 ka(x, a.y + 3 * s), kb(x + w[k], b.y - 3 * s);
         const bool on = classic == (k == 1), hv = live && u.hover(ka, kb);
         if (on) u.dl->AddRectFilled(ka, kb, stA(C_ACCENT, 0.9f), (kb.y - ka.y) * 0.5f);
-        else if (hv) u.dl->AddRectFilled(ka, kb, IM_COL32(255, 255, 255, 14), (kb.y - ka.y) * 0.5f);
+        else if (hv) u.dl->AddRectFilled(ka, kb, stW(14), (kb.y - ka.y) * 0.5f);
         stTrack(u, ImVec2(ka.x + 8 * s, (ka.y + kb.y) * 0.5f - u.fs(7.6f) * 0.52f), 7.6f, on ? C_INK : C_DIM, kL[k], 1.2f * s);
         if (hv && u.pressed && !on) { classic = k == 1; changed = true; }
         if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(k ? "Bibliothèque Classic : LEGO / TECHNIC, arbre des familles, grande grille" : "Bibliothèque Studio : familles en pictos, cartes en bandeau");
@@ -1692,8 +1749,8 @@ static float stDecoChip(Ui& u, bool& hideDeco, float right, float y, float h, bo
     const float w = stTrackW(u, 7.6f, t, 1.2f * s, true) + 34 * s;
     const ImVec2 a(right - w, y), b(right, y + h);
     const bool on = !hideDeco, hv = live && u.hover(a, b);
-    u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.16f) : IM_COL32(255, 255, 255, hv ? 16 : 8), h * 0.5f);
-    u.dl->AddRect(a, b, on ? stA(C_ACCENT, 0.7f) : IM_COL32(255, 255, 255, 34), h * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.16f) : stW(hv ? 16 : 8), h * 0.5f);
+    u.dl->AddRect(a, b, on ? stA(C_ACCENT, 0.7f) : stW(34), h * 0.5f, 0, 1.0f);
     const ImVec2 c(a.x + 12 * s, (a.y + b.y) * 0.5f);   // a little box: ticked when they are shown
     u.dl->AddRect(ImVec2(c.x - 4.5f * s, c.y - 4.5f * s), ImVec2(c.x + 4.5f * s, c.y + 4.5f * s), on ? C_ACCENT : C_DIM, 2 * s, 0, 1.2f * s);
     if (on) u.dl->AddPolyline(std::vector<ImVec2>{ImVec2(c.x - 2.5f * s, c.y), ImVec2(c.x - 0.5f * s, c.y + 2.2f * s), ImVec2(c.x + 3 * s, c.y - 2.5f * s)}.data(), 3, C_ACCENT, 0, 1.4f * s);
@@ -1714,7 +1771,7 @@ void BrickApp::stLibGrip(Ui& u, ImVec2 a, ImVec2 b, bool live) {
     const ImVec2 za = bottom ? ImVec2(hc.x - 70 * s, a.y - (gz - 1) * 6 * s) : ImVec2(hc.x - 8 * gz * s, hc.y - 70 * s);
     const ImVec2 zb = bottom ? ImVec2(hc.x + 70 * s, a.y + 13 * gz * s) : ImVec2(hc.x + 8 * gz * s, hc.y + 70 * s);
     const bool hv = live && u.hover(za, zb);
-    const ImU32 hcol = m_libGrip || hv ? stA(C_ACCENT, 0.9f) : IM_COL32(255, 255, 255, 46);
+    const ImU32 hcol = m_libGrip || hv ? stA(C_ACCENT, 0.9f) : stW(46);
     if (bottom) u.dl->AddRectFilled(ImVec2(hc.x - 22 * s, hc.y - 1.5f * s), ImVec2(hc.x + 22 * s, hc.y + 1.5f * s), hcol, 2 * s);
     else u.dl->AddRectFilled(ImVec2(hc.x - 1.5f * s, hc.y - 22 * s), ImVec2(hc.x + 1.5f * s, hc.y + 22 * s), hcol, 2 * s);
     if (hv && !m_libGrip) {
@@ -1786,7 +1843,7 @@ void BrickApp::stLibPressEnd(Ui& u, ImVec2 p0, ImVec2 p1) {
             ImDrawList* fg = ImGui::GetForegroundDrawList();
             const float g = 80 * s;
             const ImVec2 c(u.mouse.x, u.mouse.y - g * 0.35f);
-            fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), IM_COL32(30, 31, 34, 200), 14 * s);
+            fg->AddRectFilled(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), stD(IM_COL32(30, 31, 34, 200)), 14 * s);
             fg->AddRect(ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), C_ACCENT, 14 * s, 0, 1.2f * s);
             const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / 1.4f) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / 1.4f) * 0.5f);
             fg->AddImage(tex, ImVec2(c.x - g * 0.5f, c.y - g * 0.5f), ImVec2(c.x + g * 0.5f, c.y + g * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), IM_COL32(255, 255, 255, 235));
@@ -1828,10 +1885,10 @@ void BrickApp::stDrawerClassic() {
         (m_libDock == 1 ? m_dockL : m_dockR) = W;
     }
     const float alpha = m_mechOn ? 0.45f : 1.0f;
-    if (g_brique) u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(0x1b, 0x1e, 0x26, 255), IM_COL32(0x20, 0x24, 0x2c, 255), IM_COL32(0x20, 0x24, 0x2c, 255), IM_COL32(0x1b, 0x1e, 0x26, 255));
-    else u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(10, 11, 13, 240), IM_COL32(10, 11, 13, 240), IM_COL32(14, 15, 17, 248), IM_COL32(14, 15, 17, 248));
-    if (bottom) u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), IM_COL32(255, 255, 255, 28), 1.0f);
-    else u.dl->AddLine(ImVec2(m_libDock == 1 ? p1.x : p0.x, p0.y), ImVec2(m_libDock == 1 ? p1.x : p0.x, p1.y), IM_COL32(255, 255, 255, 28), 1.0f);
+    if (g_brique) u.dl->AddRectFilledMultiColor(p0, p1, g_bq.sideA, g_bq.sideB, g_bq.sideB, g_bq.sideA);
+    else u.dl->AddRectFilledMultiColor(p0, p1, stD(IM_COL32(10, 11, 13, 240)), stD(IM_COL32(10, 11, 13, 240)), stD(IM_COL32(14, 15, 17, 248)), stD(IM_COL32(14, 15, 17, 248)));
+    if (bottom) u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), stW(28), 1.0f);
+    else u.dl->AddLine(ImVec2(m_libDock == 1 ? p1.x : p0.x, p0.y), ImVec2(m_libDock == 1 ? p1.x : p0.x, p1.y), stW(28), 1.0f);
     if (bottom) m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y));
     else { m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y)); m_uiRects.push_back(ImVec4(p0.x, p0.y, p1.x, p1.y)); }   // ([1]: nothing at the bottom)
     const bool live = !m_mechOn && m_popup == 0 && m_ctxPart < 0;
@@ -1853,7 +1910,7 @@ void BrickApp::stDrawerClassic() {
         for (int k = 0; k < 2 && !studio; ++k) {
             const ImVec2 a(x0 + k * (tw + 6 * s), y), b(a.x + tw, y + th);
             const bool on = m_clsTechnic == (k == 1), h = live && u.hover(a, b);
-            u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.95f) : IM_COL32(255, 255, 255, h ? 16 : 7), 6 * s);
+            u.dl->AddRectFilled(a, b, on ? stA(C_ACCENT, 0.95f) : stW(h ? 16 : 7), 6 * s);
             const char* t = k ? "TECHNIC" : "LEGO";
             const float lw = stTrackW(u, 9, t, 3 * s, true);
             stTrack(u, ImVec2((a.x + b.x - lw) * 0.5f, (a.y + b.y) * 0.5f - u.fs(9) * 0.52f), 9, on ? C_INK : C_DIM, t, 3 * s);
@@ -1912,10 +1969,10 @@ void BrickApp::stDrawerClassic() {
             const ImVec2 a(x0 + c * cw, y + r * chh), b(a.x + cw, a.y + chh);
             const bool on = m_stFam == f.key && !m_searchOpen, h = live && u.hover(a, b);
             if (on) {
-                u.dl->AddRectFilledMultiColor(ImVec2(a.x + 2 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 0), IM_COL32(246, 196, 0, 24), IM_COL32(246, 196, 0, 24));
-                u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 3 * s), ImVec2(b.x - 12 * s, b.y - 3 * s), IM_COL32(246, 196, 0, 255), 2.0f * s);
-            } else if (h) u.dl->AddRectFilled(ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), IM_COL32(255, 255, 255, 9), 10 * s);
-            stIco(u.dl, f.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 17 * s), 23 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                u.dl->AddRectFilledMultiColor(ImVec2(a.x + 2 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 2 * s, b.y - 2 * s), stY(0), stY(0), stY(24), stY(24));
+                u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 3 * s), ImVec2(b.x - 12 * s, b.y - 3 * s), stY(255), 2.0f * s);
+            } else if (h) u.dl->AddRectFilled(ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), stW(9), 10 * s);
+            stIco(u.dl, f.ico, ImVec2((a.x + b.x) * 0.5f, a.y + 17 * s), 23 * s, stA(on ? stY(255) : stT(IM_COL32(162, 165, 170, 255)), alpha), 1.0f * s);
             std::string lab = stUpper(f.label);
             while (lab.size() > 3 && stTrackW(u, 7, lab.c_str(), 0.9f * s, true) > cw - 6 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
             const float lw = stTrackW(u, 7, lab.c_str(), 0.9f * s, true);
@@ -1944,10 +2001,10 @@ void BrickApp::stDrawerClassic() {
                 if (px + w > x1 && px > x0) { px = x0; y += ph + 5 * s; }
                 const ImVec2 a(px, y), b(px + w, y + ph);
                 const bool on = m_stSub == i, h = live && u.hover(a, b);
-                u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), ph * 0.5f);
-                u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), ph * 0.5f, 0, 1.0f);
-                stIco(u.dl, i < 0 ? "all" : cf->subs[i].ico, ImVec2(a.x + 6 * s + 10 * s, (a.y + b.y) * 0.5f), 19 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
-                stTrack(u, ImVec2(a.x + 6 * s + 20 * s + 5 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.55f), 7.6f, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), lab.c_str(), 1.0f * s);
+                u.dl->AddRectFilled(a, b, on ? stY(18) : stW(h ? 14 : 8), ph * 0.5f);
+                u.dl->AddRect(a, b, on ? stY(255) : stW(h ? 76 : 36), ph * 0.5f, 0, 1.0f);
+                stIco(u.dl, i < 0 ? "all" : cf->subs[i].ico, ImVec2(a.x + 6 * s + 10 * s, (a.y + b.y) * 0.5f), 19 * s, stA(on ? stY(255) : stT(IM_COL32(162, 165, 170, 255)), alpha), 1.0f * s);
+                stTrack(u, ImVec2(a.x + 6 * s + 20 * s + 5 * s, (a.y + b.y) * 0.5f - u.fs(7.6f) * 0.55f), 7.6f, on ? stY(255) : stT(IM_COL32(195, 198, 203, 255)), lab.c_str(), 1.0f * s);
                 if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; m_clsGridScroll = 0; }
                 px += w + 5 * s;
             }
@@ -1979,7 +2036,7 @@ void BrickApp::stDrawerClassic() {
             const bool h = live && u.hover(ra, rb) && u.hover(ta, tb);
             const bool sel = !m_searchOpen && m_stFam == r.f->key && m_stSub == r.sub;
             const bool famRow = r.sub < 0, leaf = r.f->subs.empty();
-            if (h) u.dl->AddRectFilled(ra, rb, IM_COL32(255, 255, 255, 10), 5 * s);
+            if (h) u.dl->AddRectFilled(ra, rb, stW(10), 5 * s);
             const float cy = ry + rh * 0.5f;
             if (famRow) {
                 float tx = ra.x + 6 * s;
@@ -1993,8 +2050,8 @@ void BrickApp::stDrawerClassic() {
             } else {
                 const float lx = ra.x + 10 * s;   // the tree line
                 const bool last = r.sub == (int)r.f->subs.size() - 1;
-                u.dl->AddLine(ImVec2(lx, ry), ImVec2(lx, last ? cy : ry + rh), IM_COL32(255, 255, 255, 50), 1.0f);
-                u.dl->AddLine(ImVec2(lx, cy), ImVec2(lx + 8 * s, cy), IM_COL32(255, 255, 255, 50), 1.0f);
+                u.dl->AddLine(ImVec2(lx, ry), ImVec2(lx, last ? cy : ry + rh), stW(50), 1.0f);
+                u.dl->AddLine(ImVec2(lx, cy), ImVec2(lx + 8 * s, cy), stW(50), 1.0f);
                 u.text(ImVec2(lx + 12 * s, cy - u.fs(10.5f) * 0.55f), 10.5f, sel ? C_ACCENT_TXT : C_DIM, r.f->subs[r.sub].label);
             }
             if (h && u.pressed) {
@@ -2017,7 +2074,7 @@ void BrickApp::stDrawerClassic() {
         stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
         stIco(u.dl, "brick", ImVec2(x0 + sw - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
         const float k = (cs - 0.6f) / 1.4f, kx = tx0 + (tx1 - tx0) * k;
-        u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), IM_COL32(255, 255, 255, 40), 2 * s);
+        u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), stW(40), 2 * s);
         u.dl->AddLine(ImVec2(tx0, sy), ImVec2(kx, sy), stA(C_ACCENT, 0.9f), 2 * s);
         const bool hs = live && u.hover(ImVec2(tx0 - 8 * s, sy - 10 * s), ImVec2(tx1 + 8 * s, sy + 10 * s));
         if (hs && u.pressed) m_stCardDrag = true;
@@ -2095,10 +2152,10 @@ void BrickApp::stDrawerClassic() {
         const bool on = part == taken;
         const float rr = (studio ? 12 : 4) * s;   // (Studio: the cards of the drawer, Classic: flat cells)
         if (studio) {
-            u.dl->AddRectFilled(a, b, stA(IM_COL32(18, 19, 24, 255), alpha), rr);
-            u.dl->AddRect(a, b, stA(on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 102 : 41), alpha), rr, 0, on ? 1.5f * s : 1.0f);
+            u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(18, 19, 24, 255)), alpha), rr);
+            u.dl->AddRect(a, b, stA(on ? C_ACCENT : stW(h ? 102 : 41), alpha), rr, 0, on ? 1.5f * s : 1.0f);
         } else {
-            u.dl->AddRectFilled(a, b, stA(h ? IM_COL32(30, 31, 36, 255) : IM_COL32(22, 23, 27, 255), alpha), rr);
+            u.dl->AddRectFilled(a, b, stA(h ? stD(IM_COL32(30, 31, 36, 255)) : stD(IM_COL32(22, 23, 27, 255)), alpha), rr);
             if (on) u.dl->AddRect(a, b, C_ACCENT, rr, 0, 1.5f * s);
         }
         if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 4 * s, 0, 2.0f * s);
@@ -2109,7 +2166,7 @@ void BrickApp::stDrawerClassic() {
             const float z = studio ? 1.5f : 1.3f;
             const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
             u.dl->AddImage(tex, ImVec2(a.x + 4 * s, a.y + 4 * s), ImVec2(b.x - 4 * s, b.y - 4 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
-                           stA(IM_COL32(232, 234, 238, 255), alpha * (on ? 0.4f : 1.0f)));
+                           stA(stThumb(), alpha * (on ? 0.4f : 1.0f)));
         }
         if (std::find(m_fav.begin(), m_fav.end(), part) != m_fav.end()) stPicto(u.dl, "star", 0, 0, ImVec2(b.x - 10 * s, a.y + 10 * s), 10 * s, C_ACCENT_TXT, 1.0f * s);
         if (h) {
@@ -2122,7 +2179,7 @@ void BrickApp::stDrawerClassic() {
     u.dl->PopClipRect();
     if (contentH > viewH) {   // a thin scroll bar
         const float bh = viewH * viewH / contentH, by = ga.y + (viewH - bh) * (m_clsGridScroll / (contentH - viewH));
-        u.dl->AddRectFilled(ImVec2(gb.x + 3 * s, by), ImVec2(gb.x + 5 * s, by + bh), IM_COL32(255, 255, 255, 40), 2 * s);
+        u.dl->AddRectFilled(ImVec2(gb.x + 3 * s, by), ImVec2(gb.x + 5 * s, by + bh), stW(40), 2 * s);
     }
     if (!hovered || m_libPress >= 0 || ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (!hovered) m_stHov = -1; }
     else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
@@ -2135,7 +2192,7 @@ void BrickApp::stDrawer() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     m_dockL = m_dockR = 0;
-    if (g_brique && m_popup == 8) { const ImVec2 dd = ImGui::GetIO().DisplaySize; m_uiRects.push_back(ImVec4(0, dd.y, dd.x, dd.y)); return; }   // (the hub page over the whole screen)
+    if (g_hubPage && m_popup == 8) { const ImVec2 dd = ImGui::GetIO().DisplaySize; m_uiRects.push_back(ImVec4(0, dd.y, dd.x, dd.y)); return; }   // (the hub page over the whole screen)
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
     if (m_libDock != 0 || m_libClassic) { stDrawerClassic(); return; }   // (Classic, or docked on a side)
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
@@ -2156,9 +2213,9 @@ void BrickApp::stDrawer() {
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + bodyH + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
-    u.dl->AddRectFilledMultiColor(p0, p1, IM_COL32(10, 11, 13, 235), IM_COL32(10, 11, 13, 235), IM_COL32(14, 15, 17, 245), IM_COL32(14, 15, 17, 245));
-    u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), IM_COL32(255, 255, 255, 28), 1.0f);
-    for (float x = 96 * s; x < d.x; x += 96 * s) u.dl->AddLine(ImVec2(x, p0.y + 1), ImVec2(x, p1.y), IM_COL32(255, 255, 255, 5), 1.0f);   // the faint ribs
+    u.dl->AddRectFilledMultiColor(p0, p1, stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(14, 15, 17, 245)), stD(IM_COL32(14, 15, 17, 245)));
+    u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), stW(28), 1.0f);
+    for (float x = 96 * s; x < d.x; x += 96 * s) u.dl->AddLine(ImVec2(x, p0.y + 1), ImVec2(x, p1.y), stW(5), 1.0f);   // the faint ribs
     m_uiRects.push_back(ImVec4(0, p0.y, d.x, d.y));
     const bool live = !m_mechOn && m_popup == 0 && m_ctxPart < 0;   // (the menu of a card open, DEV: its click is not a press on the card under it)
     // the grip: dragged it resizes the drawer or docks it on a side, a click folds it
@@ -2195,11 +2252,11 @@ void BrickApp::stDrawer() {
             const ImVec2 pa(ta.x + 3 * s, ta.y + 2 * s), pb(tb.x - 3 * s, tb.y - 2 * s);
             const float pr = (pb.y - pa.y) * 0.5f;
             if (on) {
-                u.dl->AddRectFilled(pa, pb, IM_COL32(246, 196, 0, 26), pr);
-                u.dl->AddRect(pa, pb, IM_COL32(246, 196, 0, 150), pr, 0, 1.0f);
-            } else if (h) u.dl->AddRectFilled(pa, pb, IM_COL32(255, 255, 255, 12), pr);
-            const ImU32 pic = stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha);
-            const ImU32 txt = stA(on ? IM_COL32(246, 196, 0, 255) : (h ? C_TEXT : IM_COL32(167, 170, 175, 255)), alpha);
+                u.dl->AddRectFilled(pa, pb, stY(26), pr);
+                u.dl->AddRect(pa, pb, stY(150), pr, 0, 1.0f);
+            } else if (h) u.dl->AddRectFilled(pa, pb, stW(12), pr);
+            const ImU32 pic = stA(on ? stY(255) : stT(IM_COL32(162, 165, 170, 255)), alpha);
+            const ImU32 txt = stA(on ? stY(255) : (h ? C_TEXT : stT(IM_COL32(167, 170, 175, 255))), alpha);
             const float isz = (pb.y - pa.y) - 6 * s, fpx = m_ipad ? 9.0f : 10.0f, gapI = 8 * s;
             std::string lab = stUpper(f.label);
             const float room = (pb.x - pa.x) - isz - gapI - 16 * s;
@@ -2238,14 +2295,14 @@ void BrickApp::stDrawer() {
             const float lw = stTrackW(u, 8.6f, lab.c_str(), 1.2f * s, true), w = 4 * s + (subH - 4 * s) + 5 * s + lw + 12 * s;
             const ImVec2 a(x, y), b(x + w, y + subH);
             const bool on = m_stSub == i, h = live && u.hover(a, b) && u.hover(ra, rb);
-            u.dl->AddRectFilled(a, b, on ? IM_COL32(246, 196, 0, 18) : IM_COL32(255, 255, 255, h ? 14 : 8), subH * 0.5f);
-            u.dl->AddRect(a, b, on ? IM_COL32(246, 196, 0, 255) : IM_COL32(255, 255, 255, h ? 76 : 36), subH * 0.5f, 0, 1.0f);
+            u.dl->AddRectFilled(a, b, on ? stY(18) : stW(h ? 14 : 8), subH * 0.5f);
+            u.dl->AddRect(a, b, on ? stY(255) : stW(h ? 76 : 36), subH * 0.5f, 0, 1.0f);
             {   // the image of its first part (Toutes: the pictogram), the pictogram while it loads
                 const ImVec2 ic(a.x + 4 * s + (subH - 4 * s) * 0.5f, (a.y + b.y) * 0.5f);
                 const int fp = i >= 0 && i < (int)m_stSubFirst.size() ? m_stSubFirst[i] : -1;
-                if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 8 * s, alpha, 1.6f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? IM_COL32(217, 180, 67, 255) : IM_COL32(162, 165, 170, 255), alpha), 1.0f * s);
+                if (!(i >= 0 && stPartIco(u.dl, fp, ic, subH - 8 * s, alpha, 1.6f))) stIco(u.dl, i < 0 ? "all" : fam->subs[i].ico, ic, 26 * s, stA(on ? stY(255) : stT(IM_COL32(162, 165, 170, 255)), alpha), 1.0f * s);
             }
-            stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? IM_COL32(246, 196, 0, 255) : IM_COL32(195, 198, 203, 255), alpha), lab.c_str(), 1.2f * s);
+            stTrack(u, ImVec2(a.x + 4 * s + (subH - 4 * s) + 5 * s, (a.y + b.y) * 0.5f - u.fs(8.6f) * 0.55f), 8.6f, stA(on ? stY(255) : stT(IM_COL32(195, 198, 203, 255)), alpha), lab.c_str(), 1.2f * s);
             if (h && u.pressed && !on) { m_stSub = i; m_stW = m_stL = 0; }
             x += w + 6 * s;
             total += w + 6 * s;
@@ -2319,7 +2376,7 @@ void BrickApp::stDrawer() {
                 const bool in = pw > 0 && r < pw && c < pl;
                 const bool h = live && !m_stSizeDrag && overGrid && (int)((u.mouse.x - g0.x) / cell) == c && (int)((u.mouse.y - g0.y) / cell) == r;
                 if (in) { u.dl->AddCircleFilled(cc, rad, stA(C_ACCENT, m_stSizeDrag ? 0.95f : 0.85f), 18); u.dl->AddCircleFilled(cc, rad * 0.45f, stA(C_ACCENT, 0.35f), 14); }
-                else u.dl->AddCircle(cc, rad, h ? C_TEXT : IM_COL32(255, 255, 255, 56), 18, 1.0f);
+                else u.dl->AddCircle(cc, rad, h ? C_TEXT : stW(56), 18, 1.0f);
             }
     } else {   // the path: FAMILLE › CATÉGORIE
         const ImVec2 ka(padX, y + 40 * s), kb(padX + colW, y + 40 * s + 52 * s);
@@ -2337,7 +2394,7 @@ void BrickApp::stDrawer() {
             stIco(u.dl, "brick", ImVec2(x0 + 7 * s, sy), 13 * s, C_DIM, 1.0f * s);
             stIco(u.dl, "brick", ImVec2(padX + colW - 9 * s, sy), 19 * s, C_DIM, 1.0f * s);
             const float k = (cs - 0.6f) / 1.4f, kx = tx0 + (tx1 - tx0) * k;
-            u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), IM_COL32(255, 255, 255, 40), 2 * s);
+            u.dl->AddLine(ImVec2(tx0, sy), ImVec2(tx1, sy), stW(40), 2 * s);
             u.dl->AddLine(ImVec2(tx0, sy), ImVec2(kx, sy), stA(C_ACCENT, 0.9f), 2 * s);
             const bool hs = live && u.hover(ImVec2(tx0 - 8 * s, sy - 10 * s), ImVec2(tx1 + 8 * s, sy + 10 * s));
             if (hs && u.pressed) m_stCardDrag = true;
@@ -2361,8 +2418,8 @@ void BrickApp::stDrawer() {
             const float bw = stTrackW(u, 8, kModes[k], 1.2f * s, true) + 18 * s;
             const ImVec2 ba(bx - bw, ty), bb(bx, ty + 24 * s);
             const bool on = m_stCardMode == k, h = live && u.hover(ba, bb);
-            u.dl->AddRectFilled(ba, bb, on ? stA(C_ACCENT, 0.2f) : IM_COL32(255, 255, 255, h ? 18 : 8), 12 * s);
-            u.dl->AddRect(ba, bb, on ? stA(C_ACCENT, 0.8f) : IM_COL32(255, 255, 255, 34), 12 * s, 0, 1.0f);
+            u.dl->AddRectFilled(ba, bb, on ? stA(C_ACCENT, 0.2f) : stW(h ? 18 : 8), 12 * s);
+            u.dl->AddRect(ba, bb, on ? stA(C_ACCENT, 0.8f) : stW(34), 12 * s, 0, 1.0f);
             stTrack(u, ImVec2(ba.x + 9 * s, ty + 12 * s - u.fs(8) * 0.52f), 8, on ? C_ACCENT_TXT : C_DIM, kModes[k], 1.2f * s);
             if (h && u.pressed && !on) { m_stCardMode = k; m_cardsScroll = 0; savePrefs(); }
             bx -= bw + 4 * s;
@@ -2424,9 +2481,9 @@ void BrickApp::stDrawer() {
     if (!sizable) m_stSizeDrag = false;
     // the ground of a card or a tile: the grey of the maquette (the thumbnails are transparent PNG), a hairline
     auto cardBg = [&](ImVec2 a, ImVec2 b, bool h, bool on) {
-        u.dl->AddRectFilled(a, b, stA(IM_COL32(18, 19, 24, 255), alpha), 12 * s);
+        u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(18, 19, 24, 255)), alpha), 12 * s);
         u.dl->AddRectFilledMultiColor(ImVec2(a.x + 6 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 6 * s, b.y - 6 * s), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 14), IM_COL32(0, 0, 0, 14));
-        u.dl->AddRect(a, b, stA(on ? C_ACCENT : IM_COL32(255, 255, 255, h ? 102 : 41), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
+        u.dl->AddRect(a, b, stA(on ? C_ACCENT : stW(h ? 102 : 41), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
     };
     if (!tiles && parts.empty()) {
         const char* msg = m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici"
@@ -2458,8 +2515,8 @@ void BrickApp::stDrawer() {
                 if (fp >= 0 && thumbUv(fp, tex, uv0, uv1)) {
                     const float z = 1.6f;
                     const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
-                    u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32_WHITE, op));
-                } else stIco(u.dl, q.ico, c, 46 * s, stA(IM_COL32(184, 187, 192, 255), op), 1.1f * s);
+                    u.dl->AddImage(tex, ImVec2(c.x - hs, c.y - hs), ImVec2(c.x + hs, c.y + hs), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(stThumb(), op));
+                } else stIco(u.dl, q.ico, c, 46 * s, stA(stT(IM_COL32(184, 187, 192, 255)), op), 1.1f * s);
             }
             std::string lab = stUpper(q.label);
             while (lab.size() > 4 && stTrackW(u, 8, lab.c_str(), 1.2f * s, true) > tileW - 12 * s) { lab.pop_back(); while (!lab.empty() && ((unsigned char)lab.back() & 0xC0) == 0x80) lab.pop_back(); }
@@ -2492,7 +2549,7 @@ void BrickApp::stDrawer() {
             const float z = 1.5f;
             const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
             u.dl->AddImageRounded(tex, ImVec2(a.x + 2 * s, a.y + 2 * s), ImVec2(b.x - 2 * s, b.y - 2 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y),
-                                  stA(IM_COL32(226, 229, 234, 255), alpha * (on ? 0.4f : 1.0f)), 10 * s);
+                                  stA(stT(stThumb()), alpha * (on ? 0.4f : 1.0f)), 10 * s);
         }
         if (sheet) {   // FICHE: the image, the dimension line, the name in tracked capitals, the id
             const float imgH = cardH - 44 * s;
@@ -2502,7 +2559,7 @@ void BrickApp::stDrawer() {
                 const ImVec2 m((a.x + b.x) * 0.5f, a.y + 6 * s + imgH * 0.5f);
                 const float half = imgH * 0.5f;
                 u.dl->AddImage(tex, ImVec2(m.x - half * 1.25f, m.y - half), ImVec2(m.x + half * 1.25f, m.y + half), ImVec2(uv0.x + du.x * 0.8f, uv0.y + du.y * 1.25f), ImVec2(uv1.x - du.x * 0.8f, uv1.y - du.y * 1.25f),
-                               stA(IM_COL32(222, 226, 232, 255), alpha * (on ? 0.4f : 1.0f)));
+                               stA(stT(IM_COL32(222, 226, 232, 255)), alpha * (on ? 0.4f : 1.0f)));
             }
             char dim[24];
             int tw = 0, tl = 0;
@@ -2515,8 +2572,8 @@ void BrickApp::stDrawer() {
             }
             if (tw > 0 && tl > 0) snprintf(dim, sizeof(dim), "%d × %d", tw, tl); else snprintf(dim, sizeof(dim), "%s", catFr(P.category));
             const float dy = a.y + 6 * s + imgH + 6 * s, dw = u.textW(8, dim), mxc = (a.x + b.x) * 0.5f;
-            u.dl->AddLine(ImVec2(a.x + 8 * s, dy), ImVec2(mxc - dw * 0.5f - 4 * s, dy), IM_COL32(255, 255, 255, 40), 1.0f);
-            u.dl->AddLine(ImVec2(mxc + dw * 0.5f + 4 * s, dy), ImVec2(b.x - 8 * s, dy), IM_COL32(255, 255, 255, 40), 1.0f);
+            u.dl->AddLine(ImVec2(a.x + 8 * s, dy), ImVec2(mxc - dw * 0.5f - 4 * s, dy), stW(40), 1.0f);
+            u.dl->AddLine(ImVec2(mxc + dw * 0.5f + 4 * s, dy), ImVec2(b.x - 8 * s, dy), stW(40), 1.0f);
             u.text(ImVec2(mxc - dw * 0.5f, dy - u.fs(8) * 0.55f), 8, C_FAINT, dim);
             std::string nm = stUpper(partFr(P.label));
             u.dl->PushClipRect(ImVec2(a.x + 6 * s, a.y), ImVec2(b.x - 6 * s, b.y), true);
@@ -2545,7 +2602,7 @@ void BrickApp::stDrawer() {
     else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
     if (contentW > viewW) {   // a thin scroll bar
         const float bw = viewW * viewW / contentW, bx = ca.x + (viewW - bw) * (m_cardsScroll / (contentW - viewW));
-        u.dl->AddRectFilled(ImVec2(bx, cb.y + 3 * s), ImVec2(bx + bw, cb.y + 5 * s), IM_COL32(255, 255, 255, 40), 2 * s);
+        u.dl->AddRectFilled(ImVec2(bx, cb.y + 3 * s), ImVec2(bx + bw, cb.y + 5 * s), stW(40), 2 * s);
     }
     stLibPressEnd(u, p0, p1);
 }
@@ -2563,11 +2620,11 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
     const float cx = std::clamp((ca.x + cb.x) * 0.5f - W * 0.5f, 10 * s, d.x - W - 10 * s);
     const ImVec2 a(cx, ca.y - H - 10 * s + (1 - ease) * 8 * s), b(a.x + W, a.y + H);
     u.dl->AddRectFilled(ImVec2(a.x, a.y + 10 * s), ImVec2(b.x, b.y + 14 * s), IM_COL32(0, 0, 0, (int)(70 * ease)), 18 * s);
-    u.dl->AddRectFilled(a, b, stA(IM_COL32(24, 25, 28, 240), ease), 16 * s);
-    u.dl->AddRect(a, b, stA(IM_COL32(255, 255, 255, 46), ease), 16 * s, 0, 1.0f);
+    u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(24, 25, 28, 240)), ease), 16 * s);
+    u.dl->AddRect(a, b, stA(stW(46), ease), 16 * s, 0, 1.0f);
     const ImVec2 ia(a.x + pad, a.y + pad), ib(b.x - pad, a.y + pad + 168 * s);
-    u.dl->AddRectFilled(ia, ib, stA(IM_COL32(18, 19, 24, 255), ease), 12 * s);   // the ground of the cards
-    u.dl->AddRect(ia, ib, stA(IM_COL32(255, 255, 255, 30), ease), 12 * s, 0, 1.0f);
+    u.dl->AddRectFilled(ia, ib, stA(stD(IM_COL32(18, 19, 24, 255)), ease), 12 * s);   // the ground of the cards
+    u.dl->AddRect(ia, ib, stA(stW(30), ease), 12 * s, 0, 1.0f);
     ImTextureID tex = 0;
     ImVec2 uv0, uv1;
     {   // the image at the size it is drawn (no aliasing), else the thumbnail of the cards
@@ -2579,7 +2636,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
         const float z = 1.2f, side = std::min(ib.x - ia.x, ib.y - ia.y);
         const ImVec2 du((uv1.x - uv0.x) * (1 - 1 / z) * 0.5f, (uv1.y - uv0.y) * (1 - 1 / z) * 0.5f);
         const ImVec2 m((ia.x + ib.x) * 0.5f, (ia.y + ib.y) * 0.5f);
-        u.dl->AddImage(tex, ImVec2(m.x - side * 0.5f, m.y - side * 0.5f), ImVec2(m.x + side * 0.5f, m.y + side * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(IM_COL32(232, 235, 240, 255), ease));
+        u.dl->AddImage(tex, ImVec2(m.x - side * 0.5f, m.y - side * 0.5f), ImVec2(m.x + side * 0.5f, m.y + side * 0.5f), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), stA(stThumb(), ease));
     }
     float y = ib.y + 14 * s;
     {   // ——— 2 × 4 ———
@@ -2594,8 +2651,8 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
         }
         if (tw > 0 && tl > 0) snprintf(dim, sizeof(dim), "%d × %d", tw, tl); else snprintf(dim, sizeof(dim), "%s", catFr(P.category));
         const float dw = u.textW(9.5f, dim), mx = (a.x + b.x) * 0.5f;
-        u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(mx - dw * 0.5f - 6 * s, y), stA(IM_COL32(255, 255, 255, 46), ease), 1.0f);
-        u.dl->AddLine(ImVec2(mx + dw * 0.5f + 6 * s, y), ImVec2(b.x - pad, y), stA(IM_COL32(255, 255, 255, 46), ease), 1.0f);
+        u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(mx - dw * 0.5f - 6 * s, y), stA(stW(46), ease), 1.0f);
+        u.dl->AddLine(ImVec2(mx + dw * 0.5f + 6 * s, y), ImVec2(b.x - pad, y), stA(stW(46), ease), 1.0f);
         u.text(ImVec2(mx - dw * 0.5f, y - u.fs(9.5f) * 0.55f), 9.5f, stA(C_DIM, ease), dim);
     }
     y += 14 * s;
@@ -2695,7 +2752,7 @@ void BrickApp::stSelHud() {
             const ImVec2 p(c.x + std::cos(r) * ST_R_ACT * s, c.y + std::sin(r) * ST_R_ACT * s);
             const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
             fg->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 80), 40);
-            fg->AddCircleFilled(p, rad, IM_COL32(30, 32, 36, 235), 40);
+            fg->AddCircleFilled(p, rad, stD(IM_COL32(30, 32, 36, 235)), 40);
             fg->AddCircleFilled(p, rad, stA(tint, 0.42f), 40);
             fg->AddCircle(p, rad, tint, 40, 1.5f * s);
             stIcon(fg, A.icon, p, 21 * s, IM_COL32_WHITE, 1.3f * s);
@@ -2706,10 +2763,10 @@ void BrickApp::stSelHud() {
             u.dl = keep;
         }
         // a dark halo, the guides, the gesture
-        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 184 * s + k * 6 * s, IM_COL32(6, 7, 9, 10), 64);
-        dl->AddCircleFilled(c, 184 * s, IM_COL32(6, 7, 9, 70), 64);
-        dl->AddCircle(c, ST_R_ACT * s, IM_COL32(255, 255, 255, 30), 64, 1.0f);
-        dl->AddCircle(c, 34 * s, IM_COL32(255, 255, 255, 50), 40, 1.0f);
+        for (int k = 6; k >= 1; --k) dl->AddCircleFilled(c, 184 * s + k * 6 * s, stD(IM_COL32(6, 7, 9, 10)), 64);
+        dl->AddCircleFilled(c, 184 * s, stD(IM_COL32(6, 7, 9, 70)), 64);
+        dl->AddCircle(c, ST_R_ACT * s, stW(30), 64, 1.0f);
+        dl->AddCircle(c, 34 * s, stW(50), 40, 1.0f);
         for (float a = ST_ARC0; a < ST_ARC1; a += 4) {   // the dotted guide of the arc
             const float r = a * 0.0174533f;
             dl->AddCircleFilled(ImVec2(c.x + std::cos(r) * ST_R_COL * s, c.y + std::sin(r) * ST_R_COL * s), 0.8f * s, stA(C_ACCENT, 0.4f), 6);
@@ -2739,7 +2796,7 @@ void BrickApp::stSelHud() {
             const ImU32 tint = A.danger ? IM_COL32(208, 16, 27, 255) : C_ACCENT;
             dl->AddCircleFilled(ImVec2(p.x, p.y + 3 * s), rad, IM_COL32(0, 0, 0, 70), 40);
             dl->AddCircleFilled(p, rad, on ? stA(tint, 0.42f) : IM_COL32(44, 46, 50, 215), 40);
-            dl->AddCircle(p, rad, on ? tint : IM_COL32(255, 255, 255, 70), 40, on ? 1.5f * s : 1.0f);
+            dl->AddCircle(p, rad, on ? tint : stW(70), 40, on ? 1.5f * s : 1.0f);
             stIcon(dl, A.icon, p, (A.danger ? 15 : 21) * s, on ? IM_COL32_WHITE : (A.danger ? IM_COL32(255, 154, 144, 255) : C_TEXT), 1.3f * s);
             const float lw = stTrackW(u, 8, A.label, 1.4f * s, true);
             const ImVec2 lp(p.x - lw * 0.5f, p.y + rad + 4 * s);
@@ -2849,14 +2906,14 @@ void BrickApp::stSelHud() {
     const float w1 = stTrackW(u, 9, nm.c_str(), 1.4f * s, true), w2 = u.textW(9, hint);
     const float W = 10 * s + wg + 8 * s + w1 + 10 * s + w2 + 10 * s, H = 24 * s;
     const ImVec2 ta(std::clamp((a.x + b.x) * 0.5f - W * 0.5f, 70 * s, d.x - W - 240 * s), std::max(top + 6 * s, a.y - H - 12 * s)), tb(ta.x + W, ta.y + H);
-    u.dl->AddRectFilled(ta, tb, IM_COL32(12, 13, 15, 190), H * 0.5f);
-    u.dl->AddRect(ta, tb, isGroup ? stA(C_ACCENT, 0.75f) : IM_COL32(255, 255, 255, 46), H * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(ta, tb, stD(IM_COL32(12, 13, 15, 190)), H * 0.5f);
+    u.dl->AddRect(ta, tb, isGroup ? stA(C_ACCENT, 0.75f) : stW(46), H * 0.5f, 0, 1.0f);
     if (isGroup) {   // the stack (two offset squares) and GROUPE · n, in amber
         const ImVec2 g0(ta.x + 10 * s, (ta.y + tb.y) * 0.5f - 5 * s);
         u.dl->AddRect(ImVec2(g0.x + 3 * s, g0.y - 2 * s), ImVec2(g0.x + 11 * s, g0.y + 6 * s), stA(C_ACCENT_TXT, 0.7f), 1.5f * s, 0, 1.0f);
         u.dl->AddRectFilled(ImVec2(g0.x, g0.y + 2 * s), ImVec2(g0.x + 8 * s, g0.y + 10 * s), stA(C_ACCENT, 0.9f), 1.5f * s);
         stTrack(u, ImVec2(ta.x + 26 * s, (ta.y + tb.y) * 0.5f - u.fs(8) * 0.52f), 8, C_ACCENT_TXT, gl, 1.4f * s);
-        u.dl->AddLine(ImVec2(ta.x + wg + 2 * s, ta.y + 6 * s), ImVec2(ta.x + wg + 2 * s, tb.y - 6 * s), IM_COL32(255, 255, 255, 40), 1.0f);
+        u.dl->AddLine(ImVec2(ta.x + wg + 2 * s, ta.y + 6 * s), ImVec2(ta.x + wg + 2 * s, tb.y - 6 * s), stW(40), 1.0f);
     }
     const Color& cc = m_lib.palette[std::clamp(m_bricks[sel[0]].color, 0, (int)m_lib.palette.size() - 1)];
     const ImVec2 sq(ta.x + 10 * s + wg, (ta.y + tb.y) * 0.5f - 4 * s);
@@ -2879,7 +2936,7 @@ void BrickApp::stHeld() {
     const float tw = u.textW(10.5f, t.c_str()), lw = stTrackW(u, 9, "EN MAIN", 1.6f * s, true);
     const float W = 8 * s + 30 * s + 8 * s + lw + 10 * s + tw + 14 * s, H = 34 * s;
     const ImVec2 a((d.x - W) * 0.5f, top), b(a.x + W, top + H);
-    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 200), H * 0.5f);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(16, 17, 19, 200)), H * 0.5f);
     u.dl->AddRect(a, b, stA(C_ACCENT, 0.6f), H * 0.5f, 0, 1.0f);
     std::string kd;
     int w, l;
@@ -2900,17 +2957,21 @@ void BrickApp::drawUiStudio() {
         return;
     }
     g_brique = m_th.brique;
-    g_uiBlock = m_editUi;   // (the header answers over the hub page of the Brique interface)
+    g_hubPage = g_brique || m_th.id == "classic";
+    g_light = !m_th.dark;
+    bqSkinOf(m_th, m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId].tint : 0);
+    g_uiBlock = m_editUi;   // (the header answers over the hub page)
     if (g_brique) stHeaderBrique();
+    else if (g_hubPage) stHeader();
     g_uiBlock = m_popup == 8 || m_editUi;   // (the hub of the scenes over everything: drawn last, it alone takes the pointer; the UI editor: nothing answers)
-    if (!g_brique) stHeader();      // m_uiRects[0]
+    if (!g_hubPage) stHeader();      // m_uiRects[0]
     stDrawer();      // m_uiRects[1]
     if (g_brique) { stBriqueStage(); stBriqueCorners(); }
     manualReserveDock();
     if (m_focusReticle && m_focusMode == 0 && m_rs.dof > 0 && !m_opt.noUi) {
         const ImVec2 c((m_stage.x + m_stage.z) * 0.5f, (m_stage.y + m_stage.w) * 0.5f);
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        dl->AddCircle(c, 9 * m_ui, IM_COL32(255, 255, 255, 120), 32, 1.0f * m_ui);
+        dl->AddCircle(c, 9 * m_ui, stW(120), 32, 1.0f * m_ui);
     }
     stTools();
     stGroups();      // (before the badge: it goes right of it)
@@ -3001,8 +3062,8 @@ void BrickApp::stRing() {
         const bool poser = part == 4 && m_holding;
         dl->AddCircleFilled(ImVec2(c.x, c.y + 3 * s), D * 0.5f, IM_COL32(0, 0, 0, 30), 48);
         dl->AddCircleFilled(c, D * 0.5f, poser ? C_ACCENT : IM_COL32(255, 255, 255, (int)((hv || flash > 0 ? 80 : 43) * al + 60 * flash)), 48);
-        dl->AddCircle(c, D * 0.5f, IM_COL32(255, 255, 255, (int)(90 * al)), 48, 1.2f * s);
-        const ImU32 fg = poser ? C_INK : IM_COL32(255, 255, 255, (int)(235 * al));
+        dl->AddCircle(c, D * 0.5f, stW((int)(90 * al)), 48, 1.2f * s);
+        const ImU32 fg = poser ? C_INK : stW((int)(235 * al));
         if (poser) {
             const float lw = stTrackW(u, 10, "POSER", 1.2f * s, true);
             stTrack(u, ImVec2(c.x - lw * 0.5f, c.y - u.fs(10) * 0.52f), 10, fg, "POSER", 1.2f * s);
@@ -3026,14 +3087,14 @@ void BrickApp::stCloudList() {
     const float listH = std::max(1, shown) * ih;
     const ImVec2 a(std::min(m_popupAt.x, d.x - W - 10 * s), m_popupAt.y), b(a.x + W, a.y + 40 * s + listH + 30 * s);
     stGlass(u.dl, a, b, 14 * s, s);
-    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 236), 14 * s);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(16, 17, 19, 236)), 14 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     stTrack(u, ImVec2(a.x + 16 * s, a.y + 14 * s), 9, C_TEXT, "SCÈNES DU CLOUD", 1.6f * s);
     bool clicked = false;
     if (in) {   // refresh
         const ImVec2 ra(b.x - 34 * s, a.y + 8 * s), rb2(b.x - 10 * s, a.y + 32 * s);
         const bool h = u.hover(ra, rb2);
-        if (h) u.dl->AddRectFilled(ra, rb2, IM_COL32(255, 255, 255, 16), 6 * s);
+        if (h) u.dl->AddRectFilled(ra, rb2, stW(16), 6 * s);
         const ImVec2 c((ra.x + rb2.x) * 0.5f, (ra.y + rb2.y) * 0.5f);
         u.dl->PathArcTo(c, 6 * s, 0.6f, 5.6f, 16);
         u.dl->PathStroke(m_cloudListBusy ? C_ACCENT : C_DIM, 0, 1.6f * s);
@@ -3061,7 +3122,7 @@ void BrickApp::stCloudList() {
             const ImVec2 ia(a.x + pad, y + i * ih - m_cloudScroll), ib(b.x - pad, ia.y + ih - 4 * s);
             if (ib.y < la.y || ia.y > lb.y) continue;
             const bool cur = c.id == m_cloudId, h = u.hover(ia, ib) && u.hover(la, lb);
-            if (h || cur) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, cur ? 22 : 14), 9 * s);
+            if (h || cur) u.dl->AddRectFilled(ia, ib, stW(cur ? 22 : 14), 9 * s);
             if (cur) u.dl->AddCircleFilled(ImVec2(ia.x + 9 * s, ia.y + 14 * s), 3.5f * s, C_ACCENT);
             u.text(ImVec2(ia.x + 18 * s, ia.y + 6 * s), 12.5f, C_TEXT, c.name.empty() ? "Ma scène" : c.name.c_str(), true);
             const std::string sub = (c.device.empty() ? std::string() : c.device + " · ") + Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces";
@@ -3100,7 +3161,7 @@ void BrickApp::stCloudList() {
     }
     {   // the state of the sync
         std::string st = !in ? std::string() : m_cloudSending ? "envoi de la scène…" : m_cloudDirty ? "scène modifiée : envoyée dans la minute" : m_cloud.email();
-        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), stW(20), 1.0f);
         u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 9, C_FAINT, st.c_str());
     }
     if (u.pressed && !clicked && !u.hover(a, b) && !u.hover(ImVec2(0, 0), ImVec2(330 * s, 46 * s))) m_popup = 0;
@@ -3151,7 +3212,7 @@ void BrickApp::stGroupBar() {
     const float s = m_ui;
     ImDrawList* dl = u.dl;
     static const int kE[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3}, {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-    const ImU32 lc = open ? IM_COL32(242, 197, 48, 120) : IM_COL32(255, 255, 255, 80);
+    const ImU32 lc = open ? IM_COL32(242, 197, 48, 120) : stW(80);
     for (auto& e : kE) dl->AddLine(p[e[0]], p[e[1]], lc, 1.0f);
     // the bar: its name, then the four buttons
     struct B { const char* ico; const char* tip; int id; };
@@ -3173,17 +3234,17 @@ void BrickApp::stGroupBar() {
     a.y = std::clamp(a.y, m_stage.y + 8 * s, m_stage.w - h - 8 * s);
     const ImVec2 b(a.x + W, a.y + h);
     u.dl->AddRectFilled(ImVec2(a.x, a.y + 3 * s), ImVec2(b.x, b.y + 3 * s), IM_COL32(0, 0, 0, 8), h * 0.5f);   // (white, semi-transparent, Wzx 14/11/2026)
-    u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 43), h * 0.5f);   // (3 times more transparent, white text and icons: Wzx 14/11/2026)
-    u.dl->AddRect(a, b, IM_COL32(255, 255, 255, 60), h * 0.5f, 0, 1.0f);
+    u.dl->AddRectFilled(a, b, stW(43), h * 0.5f);   // (3 times more transparent, white text and icons: Wzx 14/11/2026)
+    u.dl->AddRect(a, b, stW(60), h * 0.5f, 0, 1.0f);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     u.dl->PushClipRect(ImVec2(a.x, a.y), ImVec2(a.x + nameW, b.y), true);
     u.text(ImVec2(a.x + 14 * s, a.y + (h - u.fs(12)) * 0.5f), 12, open ? C_ACCENT_TXT : IM_COL32(255, 255, 255, 240), name.c_str(), true);
     u.dl->PopClipRect();
-    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 8 * s), ImVec2(a.x + nameW, b.y - 8 * s), IM_COL32(255, 255, 255, 50), 1.0f);
+    u.dl->AddLine(ImVec2(a.x + nameW, a.y + 8 * s), ImVec2(a.x + nameW, b.y - 8 * s), stW(50), 1.0f);
     for (int k = 0; k < nb; ++k) {
         const ImVec2 ba(a.x + nameW + 3 * s + k * bw, a.y + 2 * s), bb(ba.x + bw, b.y - 2 * s);
         const bool hv = u.hover(ba, bb);
-        if (hv) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 30), 8 * s);
+        if (hv) u.dl->AddRectFilled(ba, bb, stW(30), 8 * s);
         stIcon(u.dl, loose ? ST_GROUP : bs[k].ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 16 * s, hv ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 215), 1.5f * s);
         if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", loose ? "Grouper ces pièces (Ctrl+G)" : bs[k].tip);
         if (hv && u.pressed) {
@@ -3208,7 +3269,7 @@ void BrickApp::stPresets() {
     const int shown = std::min(n, std::max(3, (int)((d.y - m_popupAt.y - 100 * s) / ih)));
     const ImVec2 a(std::min(m_popupAt.x, d.x - W - 10 * s), m_popupAt.y), b(a.x + W, a.y + 40 * s + std::max(1, shown) * ih + 30 * s);
     stGlass(u.dl, a, b, 14 * s, s);
-    u.dl->AddRectFilled(a, b, IM_COL32(16, 17, 19, 236), 14 * s);
+    u.dl->AddRectFilled(a, b, stD(IM_COL32(16, 17, 19, 236)), 14 * s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     stTrack(u, ImVec2(a.x + 16 * s, a.y + 14 * s), 9, C_TEXT, "PRESETS", 1.6f * s);
     bool clicked = false;
@@ -3223,7 +3284,7 @@ void BrickApp::stPresets() {
             const ImVec2 ia(a.x + pad, y + i * ih - m_presetsScroll), ib(b.x - pad, ia.y + ih - 4 * s);
             if (ib.y < la.y || ia.y > lb.y) continue;
             const bool h = u.hover(ia, ib) && u.hover(la, lb);
-            if (h) u.dl->AddRectFilled(ia, ib, IM_COL32(255, 255, 255, 16), 9 * s);
+            if (h) u.dl->AddRectFilled(ia, ib, stW(16), 9 * s);
             stIcon(u.dl, ST_PRESET, ImVec2(ia.x + 16 * s, (ia.y + ib.y) * 0.5f), 13 * s, C_DIM, 1.3f * s);
             u.text(ImVec2(ia.x + 32 * s, ia.y + (ib.y - ia.y - u.fs(12)) * 0.5f), 12, C_TEXT, m_presets[i].first.c_str());
             if (h && u.pressed) {
@@ -3236,7 +3297,7 @@ void BrickApp::stPresets() {
     }
     {
         const std::string dir = "Dossier : " + plat::toUtf8(presetsDir());
-        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), IM_COL32(255, 255, 255, 20), 1.0f);
+        u.dl->AddLine(ImVec2(a.x + 12 * s, b.y - 26 * s), ImVec2(b.x - 12 * s, b.y - 26 * s), stW(20), 1.0f);
         u.dl->PushClipRect(ImVec2(a.x, b.y - 26 * s), ImVec2(b.x - 10 * s, b.y), true);
         u.text(ImVec2(a.x + 18 * s, b.y - 20 * s), 8.5f, C_FAINT, dir.c_str());
         u.dl->PopClipRect();
@@ -3314,7 +3375,7 @@ void BrickApp::stNavHud() {
             const float c0 = cr(q[0], q[1], u.mouse), c1 = cr(q[1], q[2], u.mouse), c2 = cr(q[2], q[3], u.mouse), c3 = cr(q[3], q[0], u.mouse);
             if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) hot = order[i];
         }
-        u.dl->AddCircleFilled(cc, cs * 0.5f, IM_COL32(12, 13, 15, 70), 40);
+        u.dl->AddCircleFilled(cc, cs * 0.5f, stD(IM_COL32(12, 13, 15, 70)), 40);
         // the name of a face laid flat on it, like a sticker (Wzx 14/11/2026): the text drawn, then its vertices carried onto
         // the plane of the face (the view of the brick is orthographic: an affine map), fading as the face turns away
         auto sticker = [&](int fi) {
@@ -3334,7 +3395,7 @@ void BrickApp::stNavHud() {
             const float sc = std::min(0.62f * fw / std::max(1.0f, tw), 0.42f * fh / std::max(1.0f, th));
             const int al = (int)(std::clamp((facing - 0.2f) / 0.5f, 0.0f, 1.0f) * 210);
             const int v0 = u.dl->VtxBuffer.Size;
-            stTrack(u, ImVec2(0, 0), px, IM_COL32(255, 255, 255, al), lab.c_str(), 1.4f * s);
+            stTrack(u, ImVec2(0, 0), px, stW(al), lab.c_str(), 1.4f * s);
             for (int vi = v0; vi < u.dl->VtxBuffer.Size; ++vi) {
                 ImDrawVert& vt = u.dl->VtxBuffer[vi];
                 vt.pos = P(ctr + e1 * ((vt.pos.x - tw * 0.5f) * sc) + e2 * ((vt.pos.y - th * 0.5f) * sc) + f.n * 0.01f);
@@ -3345,8 +3406,8 @@ void BrickApp::stNavHud() {
             const bool vis = dot(f.n, F) < -0.05f;
             ImVec2 q[4];
             for (int c = 0; c < 4; ++c) q[c] = P(f.c[c]);
-            if (vis) u.dl->AddQuadFilled(q[0], q[1], q[2], q[3], order[i] == hot ? IM_COL32(255, 255, 255, 140) : IM_COL32(255, 255, 255, 42));
-            u.dl->AddQuad(q[0], q[1], q[2], q[3], IM_COL32(255, 255, 255, vis ? 175 : 40), 1.0f * s);
+            if (vis) u.dl->AddQuadFilled(q[0], q[1], q[2], q[3], order[i] == hot ? IM_COL32(255, 255, 255, 140) : stW(42));
+            u.dl->AddQuad(q[0], q[1], q[2], q[3], stW(vis ? 175 : 40), 1.0f * s);
             if (vis && order[i] != 4) sticker(order[i]);
             if (order[i] == 4 && vis)   // the 8 studs on the top face
                 for (int sx = 0; sx < 2; ++sx)
@@ -3356,7 +3417,7 @@ void BrickApp::stNavHud() {
                             const float a = j * 6.2831853f / 12;
                             ring[j] = P(float3(0.5f + sx + std::cos(a) * 0.3f, H + 0.18f, 0.5f + sz + std::sin(a) * 0.3f));
                         }
-                        u.dl->AddConvexPolyFilled(ring, 12, IM_COL32(255, 255, 255, 60));
+                        u.dl->AddConvexPolyFilled(ring, 12, stW(60));
                         u.dl->AddPolyline(ring, 12, IM_COL32(255, 255, 255, 170), ImDrawFlags_Closed, 1.0f * s);
                     }
             if (vis && order[i] == 4) sticker(4);   // (over the studs)
@@ -3399,15 +3460,15 @@ void BrickApp::stNavHud() {
     float y = a.y + pad;
     for (const B& t : bs) {
         if (t.id == 3) {   // a line between the gestures and the actions
-            u.dl->AddLine(ImVec2(a.x + 9 * s, y + 4 * s), ImVec2(b.x - 9 * s, y + 4 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+            u.dl->AddLine(ImVec2(a.x + 9 * s, y + 4 * s), ImVec2(b.x - 9 * s, y + 4 * s), stW(30), 1.0f);
             y += 8 * s;
         }
         ImVec2 ba(a.x + pad, y), bb(ba.x + bw, y + bw);
         if (g_brique) { const ImVec2 o = bqEl("nav" + std::to_string(t.id), t.tip, ImVec4(ba.x, ba.y, bb.x, bb.y)); ba = ImVec2(ba.x + o.x, ba.y + o.y); bb = ImVec2(bb.x + o.x, bb.y + o.y); }
         const bool h = u.hover(ba, bb);
         if (t.on && g_brique) bqYellow(u.dl, ba, bb, 12 * s, s, h);
-        else if (t.on) u.dl->AddRectFilled(ba, bb, t.id == 4 ? stA(C_ACCENT, 0.28f) : IM_COL32(255, 255, 255, 34), 10 * s);
-        else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 10 * s);
+        else if (t.on) u.dl->AddRectFilled(ba, bb, t.id == 4 ? stA(C_ACCENT, 0.28f) : stW(34), 10 * s);
+        else if (h) u.dl->AddRectFilled(ba, bb, stW(16), 10 * s);
         stIcon(u.dl, t.ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 22 * s, t.on && g_brique ? C_INK : t.on && t.id == 4 ? C_ACCENT_TXT : C_TEXT, (g_brique ? 1.9f : 1.5f) * s);
         if (h && m_navDrag < 0 && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
         if (h && u.pressed) {

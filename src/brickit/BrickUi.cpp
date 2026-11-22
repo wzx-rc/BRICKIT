@@ -441,7 +441,11 @@ void BrickApp::loadThemeFonts() {
     ImGuiIO& io = ImGui::GetIO();
     const std::wstring dir = m_exeDir + L"\\assets\\fonts\\";
     auto add = [&](const wchar_t* file) -> ImFont* {
+#ifdef _WIN32
         const std::string path = plat::toUtf8(dir + file);
+#else
+        const std::string path = plat::nativePath(dir + file);   // (the iPad: '/' separators, else the fonts of the themes were not read)
+#endif
         FILE* f = nullptr;
         if (_wfopen_s(&f, (dir + file).c_str(), L"rb") != 0 || !f) return nullptr;
         fclose(f);
@@ -461,6 +465,7 @@ void BrickApp::loadThemeFonts() {
     g_fGeist[1] = add(L"GeistMono-SemiBold.ttf");
     g_fFredoka[0] = add(L"Fredoka-500.ttf");   // (the « Brique » interface)
     g_fFredoka[1] = add(L"Fredoka-600.ttf");
+    if (!g_fFredoka[0] && m_gui->fontKit) { g_fFredoka[0] = m_gui->fontKit; g_fFredoka[1] = m_gui->fontKitMed ? m_gui->fontKitMed : m_gui->fontKit; }   // (the iPad kit's Fredoka)
 }
 
 // an image of a theme (assets/brickit/ui_pc/themes), loaded on first use
@@ -2084,7 +2089,8 @@ void BrickApp::drawToast() {
     ImVec2 d = ImGui::GetIO().DisplaySize;
     float a = (float)std::clamp(3.2 - (ImGui::GetTime() - m_toastTime), 0.0, 0.4) / 0.4f;
     ImVec2 p0(d.x * 0.5f - ts.x * 0.5f - 12 * s, m_vePart >= 0 ? d.y - 190 * s : (m_popup == 8 ? d.y - 70 * s : m_th.brique && m_studioUi ? m_stageB.y + 150 * s : m_ipad ? 20 * s : m_studioUi ? 176 * s : 30 * s + 8 * s)), p1(d.x * 0.5f + ts.x * 0.5f + 12 * s, p0.y + ts.y + 10 * s);
-    dl->AddRectFilled(p0, p1, alphaOf(IM_COL32(15, 16, 19, 224), a), 18 * s);
+    dl->AddRectFilled(p0, p1, alphaOf(m_th.dark ? IM_COL32(15, 16, 19, 224) : C_HUD, a), 18 * s);
+    if (!m_th.dark) dl->AddRect(p0, p1, alphaOf(C_LINE, a), 18 * s, 0, 1.0f);
     dl->AddRect(p0, p1, alphaOf(IM_COL32(247, 197, 30, 115), a), 18 * s);
     dl->AddText(f, 12 * s, ImVec2(p0.x + 12 * s, p0.y + 5 * s), alphaOf(C_TEXT, a), m_toast.c_str());
 }
@@ -3435,21 +3441,6 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
         if (hv && u.pressed && (!on || m_ipadCreme)) { m_themeId = d.id; changed = true; if (m_ipad) { m_ipadCreme = false; savePrefs(); } }
     }
     y += nRows * ch + (nRows - 1) * cg + gap + 4 * s;
-    if (m_ipad) {   // iPad: the cream touch kit 2.0 (galets crème, bulles brunes, Fredoka), kept as a theme of its own
-        const ImVec2 a(p0.x + pad, y - gap + 4 * s), b(p1.x - pad, y - gap + 4 * s + 58 * s);
-        const bool hv = u.hover(a, b);
-        u.dl->AddRectFilled(a, b, hv ? IM_COL32(0xef, 0xe5, 0xd4, 255) : IM_COL32(0xf9, 0xf5, 0xeb, 255), rr(10 * s));
-        for (int k = 0; k < 3; ++k) {   // three pebbles: the look in a glance
-            const ImVec2 c(a.x + 24 * s + k * 26 * s, (a.y + b.y) * 0.5f);
-            u.dl->AddCircleFilled(c, 10 * s, k == 1 ? IM_COL32(64, 46, 32, 140) : IM_COL32(255, 249, 241, 255), 24);
-            u.dl->AddCircle(c, 10 * s, IM_COL32(0xd9, 0xcb, 0xb4, 255), 24, 1.0f);
-        }
-        u.dl->AddText(m_gui->fontBold ? m_gui->fontBold : u.bold, 13 * s * 1.22f, ImVec2(a.x + 100 * s, a.y + 10 * s), IM_COL32(0x57, 0x46, 0x38, 255), "Crème iPad");
-        u.dl->AddText(u.font, 9.5f * s * 1.22f, ImVec2(a.x + 100 * s, a.y + 31 * s), IM_COL32(0x96, 0x86, 0x72, 255), "Le kit tactile crème : galets, bulles autour de la brique, arc de tenons, dock");
-        if (m_ipadCreme) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
-        if (hv && u.pressed) { m_ipadCreme = true; m_popup = 0; savePrefs(); return; }
-        y += 58 * s + gap;
-    }
     const int ti = std::max(0, theme::indexOf(m_themeId));
     const theme::Def& cur = all[ti];
     ThemeLook& look = m_themeLooks[m_themeId];
@@ -3725,10 +3716,10 @@ void BrickApp::uiSettings() {
         row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
         if (m_studioUi) {   // (Wzx 15/11/2026): the Brique interface; its layout edited by hand
-            const int kb = seg("Interface Brique", {"Oui", "Non"}, m_themeId == "brique" ? 0 : 1);
+            const int kb = seg("Interface Brique", {"Oui", "Non"}, m_themeId == "brique" || m_themeId == "creme" ? 0 : 1);
             if (kb == 0 && m_themeId != "brique") { m_themeId = "brique"; m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; savePrefs(); }
-            if (kb == 1 && m_themeId == "brique") { m_themeId = "glass"; savePrefs(); }
-            if (m_themeId == "brique") {
+            if (kb == 1 && m_themeId == "brique") { m_themeId = "classic"; savePrefs(); }
+            if (m_th.brique) {
                 const int ke = seg("Disposition", {"Éditer l'interface", "Par défaut"}, -1);
                 if (ke == 0) { m_editUi = true; m_popup = 0; }
                 if (ke == 1) { m_boxes.clear(); savePrefs(); toast("Disposition par défaut"); }

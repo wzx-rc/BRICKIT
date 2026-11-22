@@ -89,8 +89,8 @@ void BrickApp::stHeaderBrique() {
     const float H = 64 * s + T, g = 12 * s;
     const float LW = bqLeftW();
     dl->AddRectFilled(ImVec2(0, 0), ImVec2(d.x, H + g), C_BG);
-    bqGrad(dl, ImVec2(0, 0), ImVec2(d.x, H), 0, IM_COL32(0x1f, 0x23, 0x2b, 255), C_BG);
-    dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(LW, H), IM_COL32(0x1b, 0x1e, 0x26, 255), IM_COL32(0x1f, 0x23, 0x2b, 255), IM_COL32(0x1f, 0x23, 0x2b, 255), IM_COL32(0x1b, 0x1e, 0x26, 255));
+    bqGrad(dl, ImVec2(0, 0), ImVec2(d.x, H), 0, g_bq.headTop, C_BG);
+    dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(LW, H), g_bq.sideA, g_bq.headTop, g_bq.headTop, g_bq.sideA);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H + g));
     const float cy = T + 32 * s;
     const bool hubOn = m_popup == 8;
@@ -103,7 +103,7 @@ void BrickApp::stHeaderBrique() {
         ImFont* f = u.bold;
         dl->AddText(f, u.fs(19), ImVec2(x, cy - u.fs(19) * 0.62f), C_TEXT, "Brick");
         const float bw = f->CalcTextSizeA(u.fs(19), 1e9f, 0, "Brick").x;
-        dl->AddText(f, u.fs(19), ImVec2(x + bw, cy - u.fs(19) * 0.62f), C_ACCENT, "It");
+        dl->AddText(f, u.fs(19), ImVec2(x + bw, cy - u.fs(19) * 0.62f), g_bq.brand, "It");
         const ImVec2 la(0, T), lb(LW, H);
         if (u.hover(la, lb) && u.pressed) { m_popup = hubOn ? 0 : 8; m_hubStale = true; if (m_popup == 8) cloudRefreshList(); }
     }
@@ -121,9 +121,9 @@ void BrickApp::stHeaderBrique() {
         const float pcy = (a.y + b.y) * 0.5f;
         const bool h = u.hover(a, b);
         if (p.on) bqYellow(dl, a, b, 13 * s, s, h);
-        else if (h) dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 14), 13 * s);
+        else if (h) dl->AddRectFilled(a, b, g_bq.hover, 13 * s);
         const ImU32 fg = p.on ? C_INK : C_TEXT;
-        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, pcy), 21 * s, p.on ? C_INK : IM_COL32(0xc9, 0xcd, 0xd6, 255), 2.0f * s);
+        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, pcy), 21 * s, p.on ? C_INK : g_bq.navIdle, 2.0f * s);
         u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
         if (h && u.pressed) {
             switch (p.id) {
@@ -144,7 +144,7 @@ void BrickApp::stHeaderBrique() {
         const ImVec2 c(rx - r + o.x, cy + o.y);
         const bool h = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r;
         dl->AddCircleFilled(ImVec2(c.x, c.y + 2 * s), r + 2 * s, IM_COL32(0, 0, 0, 60), 32);
-        dl->AddCircleFilled(c, r + 2.5f * s, IM_COL32(0x2d, 0x32, 0x3d, 255), 32);
+        dl->AddCircleFilled(c, r + 2.5f * s, g_bq.btn, 32);
         dl->AddCircleFilled(c, r, h ? IM_COL32(0xff, 0xdc, 0x5c, 255) : IM_COL32(0xfa, 0xc0, 0x18, 255), 32);
         std::string ini = "?";
         if (m_cloud.signedIn() && !m_cloud.email().empty()) ini = std::string(1, (char)std::toupper((unsigned char)m_cloud.email()[0]));
@@ -161,7 +161,7 @@ void BrickApp::stHeaderBrique() {
         const ImVec2 a(rx - w + o.x, cy - w * 0.5f + o.y), b(a.x + w, a.y + w);
         const bool h = enabled && u.hover(a, b);
         if (on) bqYellow(dl, a, b, 13 * s, s, h);
-        else bqRaise(dl, a, b, 13 * s, s, h ? IM_COL32(0x38, 0x3e, 0x4a, 255) : IM_COL32(0x2d, 0x32, 0x3d, 255), 50);
+        else bqRaise(dl, a, b, 13 * s, s, h ? g_bq.btnHi : g_bq.btn, 50);
         stIcon(dl, icon, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), 20 * s, on ? C_INK : enabled ? C_TEXT : stA(C_TEXT, 0.3f), 2.0f * s);
         if (h && tip && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
         rx -= w + 10 * s;
@@ -199,12 +199,15 @@ void BrickApp::stBriqueStage() {
     m_bqColW = RW - g * 1.5f;
     m_dockR += RW;
     m_dockL += m_dockL > 0 ? g : g;
-    if (m_uiRects.size() > 1 && m_uiRects[1].y >= d.y - 1) m_uiRects[1].y = d.y - g;
-    const float top = m_uiRects[0].w, x0 = m_dockL, x1 = d.x - m_dockR, y1 = m_uiRects.size() > 1 ? m_uiRects[1].y : d.y - g;
-    dl->AddRectFilled(ImVec2(x1, top), ImVec2(d.x, d.y), C_BG);
-    dl->AddRectFilled(ImVec2(x0 - g, top), ImVec2(x0, d.y), C_BG);
-    dl->AddRectFilled(ImVec2(x0, y1), ImVec2(x1, d.y), C_BG);
-    m_uiRects.push_back(ImVec4(x1, top, d.x, d.y));
+    // the bottom: the library docked on a side, a gap; the library at the bottom (the dock of the iPad kit), the gap
+    // above it (Wzx 22/11/2026: the fills covered the drawer at the bottom)
+    const float bot = m_uiRects.size() > 1 ? m_uiRects[1].y : d.y;   // (the top of the drawer, d.y when docked on a side)
+    if (m_uiRects.size() > 1) m_uiRects[1].y = bot - g;
+    const float top = m_uiRects[0].w, x0 = m_dockL, x1 = d.x - m_dockR, y1 = bot - g;
+    dl->AddRectFilled(ImVec2(x1, top), ImVec2(d.x, bot), C_BG);
+    dl->AddRectFilled(ImVec2(x0 - g, top), ImVec2(x0, bot), C_BG);
+    dl->AddRectFilled(ImVec2(x0, y1), ImVec2(x1, bot), C_BG);
+    m_uiRects.push_back(ImVec4(x1, top, d.x, bot));
     {   // the corners of the view, rounded (the background filled outside a quarter circle)
         const float r = 16 * s;
         const ImVec2 cs[4] = {ImVec2(x0, top), ImVec2(x1, top), ImVec2(x1, y1), ImVec2(x0, y1)};
@@ -285,9 +288,9 @@ void BrickApp::stBriqueCorners() {
             const ImVec2 eo = bqEl(std::string("render") + std::to_string(r.id), r.label, ImVec4(xx, a.y + 5 * s, xx + bw, b.y - 5 * s));
             const ImVec2 ba(xx + eo.x, a.y + 5 * s + eo.y), bb(ba.x + bw, b.y - 5 * s + eo.y);
             const bool h = u.hover(ba, bb);
-            if (r.id == 3) u.dl->AddLine(ImVec2(ba.x - 2 * s, ba.y + 6 * s), ImVec2(ba.x - 2 * s, bb.y - 6 * s), IM_COL32(255, 255, 255, 30), 1.0f);
+            if (r.id == 3) u.dl->AddLine(ImVec2(ba.x - 2 * s, ba.y + 6 * s), ImVec2(ba.x - 2 * s, bb.y - 6 * s), C_LINE, 1.0f);
             if (r.on) bqYellow(u.dl, ba, bb, 10 * s, s, h);
-            else if (h) u.dl->AddRectFilled(ba, bb, IM_COL32(255, 255, 255, 16), 10 * s);
+            else if (h) u.dl->AddRectFilled(ba, bb, g_bq.hover, 10 * s);
             u.text(ImVec2(ba.x + 12 * s, (ba.y + bb.y) * 0.5f - u.fs(12) * 0.56f), 12, r.on ? C_INK : C_TEXT, r.label, true);
             if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", r.tip);
             if (h && u.pressed) {
@@ -459,7 +462,7 @@ void BrickApp::stEditUi() {
         const float W = std::max(u.textW(16, t1, true), u.textW(11.5f, t2)) + 300 * s, Hh = 64 * s;
         const float hT = m_ipad ? kIpadTopStrip * s : 0;
         const ImVec2 a((d.x - W) * 0.5f, hT + 4 * s), b(a.x + W, a.y + Hh);   // (over the header: it does not move)
-        bqRaise(dl, a, b, 18 * s, s, IM_COL32(0x28, 0x2d, 0x37, 250), 90);
+        bqRaise(dl, a, b, 18 * s, s, C_PANEL, 90);
         u.text(ImVec2(a.x + 20 * s, a.y + 12 * s), 16, C_TEXT, t1, true);
         u.text(ImVec2(a.x + 20 * s, a.y + 36 * s), 11.5f, C_DIM, t2);
         const ImVec2 fa(b.x - 132 * s, a.y + 12 * s), fb(b.x - 14 * s, b.y - 12 * s);
@@ -490,7 +493,7 @@ void BrickApp::stHubPage() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImDrawList* dl = u.dl;
     const double now = ImGui::GetTime();
-    const float top = m_uiRects.empty() ? 64 * s : m_uiRects[0].w - 12 * s;
+    const float top = m_uiRects.empty() ? 64 * s : (g_brique ? m_uiRects[0].w - 12 * s : m_uiRects[0].w);
     const bool editing = m_hubEdit != -1;
     bool close = false;
     m_uiRects.push_back(ImVec4(0, top, d.x, d.y));
@@ -512,8 +515,8 @@ void BrickApp::stHubPage() {
     // ======== the menu on the left
     const float LW = bqLeftW();
     for (int i = 0; i < 12; ++i)   // its soft shadow on the page
-        dl->AddRectFilled(ImVec2(LW + i * 1.5f * s, top), ImVec2(LW + (i + 1) * 1.5f * s, d.y), IM_COL32(0, 0, 0, (int)(50 * (1 - i / 12.0f))));
-    dl->AddRectFilledMultiColor(ImVec2(0, top), ImVec2(LW, d.y), IM_COL32(0x1b, 0x1e, 0x26, 255), IM_COL32(0x20, 0x24, 0x2c, 255), IM_COL32(0x20, 0x24, 0x2c, 255), IM_COL32(0x1b, 0x1e, 0x26, 255));
+        dl->AddRectFilled(ImVec2(LW + i * 1.5f * s, top), ImVec2(LW + (i + 1) * 1.5f * s, d.y), IM_COL32(0, 0, 0, (int)((g_light ? 14 : 50) * (1 - i / 12.0f))));
+    dl->AddRectFilledMultiColor(ImVec2(0, top), ImVec2(LW, d.y), g_bq.sideA, g_bq.sideB, g_bq.sideB, g_bq.sideA);
     if (ImTextureID bt = themeTex("brique/bricks.png")) {   // the yellow bricks, at the bottom of the menu
         const float bs = 210 * s;
         dl->PushClipRect(ImVec2(0, top), ImVec2(LW, d.y), true);
@@ -537,30 +540,31 @@ void BrickApp::stHubPage() {
         const ImVec2 a(18 * s, y), b(LW - 18 * s, y + 44 * s);
         const bool on = m_hubSection == n.sec, h = u.hover(a, b) && !editing;
         if (on) {
-            dl->AddRectFilled(a, b, IM_COL32(0x2c, 0x31, 0x3c, 255), 12 * s);
+            dl->AddRectFilled(a, b, g_bq.sel, 12 * s);
             dl->AddRectFilled(ImVec2(0, a.y + 6 * s), ImVec2(4 * s, b.y - 6 * s), C_ACCENT, 2 * s);
-        } else if (h) dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 10), 12 * s);
+        } else if (h) dl->AddRectFilled(a, b, g_bq.hover, 12 * s);
         stIcon(dl, n.ico, ImVec2(a.x + 24 * s, (a.y + b.y) * 0.5f), 21 * s, C_TEXT, 2.0f * s);
         u.text(ImVec2(a.x + 46 * s, (a.y + b.y) * 0.5f - u.fs(14.5f) * 0.58f), 14.5f, C_TEXT, n.label, true);
         if (n.count >= 0) {
             const std::string c = std::to_string(n.count);
             const float cw = std::max(26 * s, u.textW(11, c.c_str(), true) + 14 * s);
             const ImVec2 ca(b.x - 10 * s - cw, (a.y + b.y) * 0.5f - 12 * s), cb(b.x - 10 * s, (a.y + b.y) * 0.5f + 12 * s);
-            dl->AddRectFilled(ca, cb, IM_COL32(0x3a, 0x40, 0x4c, 255), 12 * s);
+            dl->AddRectFilled(ca, cb, g_bq.badge, 12 * s);
             u.text(ImVec2((ca.x + cb.x - u.textW(11, c.c_str(), true)) * 0.5f, (ca.y + cb.y) * 0.5f - u.fs(11) * 0.58f), 11, C_TEXT, c.c_str(), true);
         }
         if (h && u.pressed) { m_hubSection = n.sec; m_hubScroll = 0; if (n.sec == 2) cloudRefreshList(); if (n.sec <= 1) m_hubStale = true; }
         y += 48 * s;
     }
-    dl->AddLine(ImVec2(34 * s, y + 8 * s), ImVec2(LW - 34 * s, y + 8 * s), IM_COL32(255, 255, 255, 22), 1.0f);
+    dl->AddLine(ImVec2(34 * s, y + 8 * s), ImVec2(LW - 34 * s, y + 8 * s), C_LINE, 1.0f);
     y += 22 * s;
     {
         struct M { const char* ico; const char* label; int id; };
         const M ms[3] = {{ST_PRESET, "Presets", 0}, {ST_SET, "Réglages", 1}, {BQ_GRID, "Éditer l'interface", 2}};
         for (const M& m : ms) {
+            if (m.id == 2 && !g_brique) continue;
             const ImVec2 a(18 * s, y), b(LW - 18 * s, y + 44 * s);
             const bool h = u.hover(a, b) && !editing;
-            if (h) dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 10), 12 * s);
+            if (h) dl->AddRectFilled(a, b, g_bq.hover, 12 * s);
             stIcon(dl, m.ico, ImVec2(a.x + 24 * s, (a.y + b.y) * 0.5f), 21 * s, C_TEXT, 2.0f * s);
             u.text(ImVec2(a.x + 46 * s, (a.y + b.y) * 0.5f - u.fs(14.5f) * 0.58f), 14.5f, C_TEXT, m.label, true);
             if (h && u.pressed) {
@@ -588,7 +592,7 @@ void BrickApp::stHubPage() {
         const ImVec2 a(rx0, ry), b(rx1, ry + ch);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
         stIcon(dl, BQ_CLOUD, ImVec2(a.x + 34 * s, a.y + 34 * s), 34 * s, C_TEXT, 1.8f * s);
-        u.text(ImVec2(a.x + 64 * s, a.y + 16 * s), 15, C_TEXT, "Stockage", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 64 * s, a.y + 18 * s), 10, C_TEXT, "STOCKAGE", 2.0f * s); else u.text(ImVec2(a.x + 64 * s, a.y + 16 * s), 15, C_TEXT, "Stockage", true);
         char b1[96];
         snprintf(b1, sizeof(b1), "%d scènes · %.1f Mo sur cet appareil", (int)m_hubLocal.size(), bytes / 1048576.0);
         u.text(ImVec2(a.x + 64 * s, a.y + 38 * s), 11, C_DIM, b1);
@@ -615,7 +619,7 @@ void BrickApp::stHubPage() {
         const float ch = 150 * s;
         const ImVec2 a(rx0, ry), b(rx1, ry + ch);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
-        u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Continuer", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "CONTINUER", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Continuer", true);
         const ImVec2 ta(a.x + 18 * s, a.y + 48 * s), tb(ta.x + 84 * s, ta.y + 60 * s);
         ImTextureID tex = inLib ? hubThumb(m_scenePath) : 0;
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0.05f, 0), ImVec2(0.95f, 1), IM_COL32_WHITE, 10 * s);
@@ -626,14 +630,14 @@ void BrickApp::stHubPage() {
             if (int r = bqEditField(u, na, nb, 13)) { const int i = m_hubEdit; m_hubEdit = -1; if (r == 1 && m_hubName[0]) hubRename(i, m_hubName); }
         } else {
             const bool hn = u.hover(na, nb) && !editing;
-            if (hn) dl->AddRectFilled(na, nb, IM_COL32(255, 255, 255, 10), 7 * s);
+            if (hn) dl->AddRectFilled(na, nb, g_bq.hover, 7 * s);
             u.text(ImVec2(na.x + 4 * s, na.y + 4 * s), 14, C_TEXT, stFit(u, 14, nm, nb.x - na.x - 8 * s, true).c_str(), true);
             if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Renommer");
             if (hn && u.pressed) { m_hubEdit = -2; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", nm.c_str()); }
         }
         char info[64];
         snprintf(info, sizeof(info), "%d pièces", (int)m_bricks.size());
-        u.text(ImVec2(na.x + 4 * s, na.y + 30 * s), 11, C_DIM, inLib ? (std::string(info) + " · " + hubDate(hubFileTime(m_scenePath))).c_str() : info);
+        u.text(ImVec2(na.x + 4 * s, na.y + 30 * s), 11, C_DIM, stFit(u, 11, inLib ? std::string(info) + " · " + hubDate(hubFileTime(m_scenePath)) : std::string(info), nb.x - na.x - 8 * s, false).c_str());
         {   // the yellow play: back to the scene
             const ImVec2 pa(b.x - 52 * s, ta.y + 10 * s), pb(b.x - 14 * s, ta.y + 48 * s);
             const bool h = u.hover(pa, pb) && !editing;
@@ -662,7 +666,7 @@ void BrickApp::stHubPage() {
     {   // Outils rapides
         const ImVec2 a(rx0, ry), b(rx1, d.y - 18 * s);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
-        u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Outils rapides", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "OUTILS RAPIDES", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Outils rapides", true);
         struct Q { const char* ico; const char* label; int id; };
         const Q qs[5] = {{BQ_CAMERA, m_ipad ? "Rendu HQ" : "Rendu photo", 0}, {BQ_BUILD, "Pièces", 1}, {BQ_PALETTE, "Couleurs", 2}, {BQ_BOOK, "Notice", 3}, {BQ_EXPORT, "Exporter", 4}};
         float qy = a.y + 48 * s;
@@ -691,17 +695,19 @@ void BrickApp::stHubPage() {
     const float mx0 = LW + 24 * s, mx1 = rx0 - 18 * s;
     float my = top + 16 * s;
     {   // the banner: a brick castle on the right, the welcome on the left, three glass buttons
-        const float bh = std::clamp((mx1 - mx0) * 0.25f, 170 * s, 230 * s);
+        const float needH = 26 * s + u.fs(26) * 1.25f + u.fs(13.5f) * 1.45f + 16 * s + 68 * s + 20 * s;   // (iPad: the fonts are bigger for the scale)
+        const float bh = std::max(std::clamp((mx1 - mx0) * 0.25f, 170 * s, 230 * s), needH);
         const ImVec2 a(mx0, my), b(mx1, my + bh);
         dl->AddRectFilled(ImVec2(a.x, a.y + 5 * s), ImVec2(b.x, b.y + 7 * s), IM_COL32(0, 0, 0, 70), 18 * s);
-        dl->AddRectFilled(a, b, IM_COL32(0x34, 0x3b, 0x4c, 255), 18 * s);
+        dl->AddRectFilled(a, b, g_bq.banner, 18 * s);
         if (ImTextureID ht = themeTex("brique/hero.jpg")) {
             const float iw = (b.x - a.x) * 0.66f, ar = 720.0f / 1280.0f;
             const float vh = (b.y - a.y) / iw / ar;   // (the part of the image that fills the height)
             const float v0 = std::max(0.0f, (1 - vh) * 0.45f);
             dl->AddImageRounded(ht, ImVec2(b.x - iw, a.y), b, ImVec2(0, v0), ImVec2(1, std::min(1.0f, v0 + vh)), IM_COL32_WHITE, 18 * s, ImDrawFlags_RoundCornersRight);
             const float fx0 = b.x - iw, fx1 = fx0 + iw * 0.45f;
-            dl->AddRectFilledMultiColor(ImVec2(fx0, a.y), ImVec2(fx1, b.y), IM_COL32(0x34, 0x3b, 0x4c, 255), IM_COL32(0x34, 0x3b, 0x4c, 0), IM_COL32(0x34, 0x3b, 0x4c, 0), IM_COL32(0x34, 0x3b, 0x4c, 255));
+            dl->AddRectFilled(ImVec2(fx0 - 1 * s, a.y), ImVec2(fx0 + 3 * s, b.y), g_bq.banner);   // (the edge of the image hidden: no seam)
+            dl->AddRectFilledMultiColor(ImVec2(fx0 + 3 * s, a.y), ImVec2(fx1, b.y), g_bq.banner, bqA0(g_bq.banner), bqA0(g_bq.banner), g_bq.banner);
         }
         for (int i = 0; i < 10; ++i) {   // a warm glow at the bottom left
             const float rr = (10 - i) * 16 * s;
@@ -715,8 +721,8 @@ void BrickApp::stHubPage() {
         const float ty = a.y + 26 * s;
         dl->AddText(f, u.fs(px), ImVec2(tx, ty), C_TEXT, "Bienvenue dans ");
         tx += f->CalcTextSizeA(u.fs(px), 1e9f, 0, "Bienvenue dans ").x;
-        dl->AddText(f, u.fs(px), ImVec2(tx, ty), C_ACCENT, "BrickIt");
-        u.text(ImVec2(a.x + 36 * s, ty + u.fs(px) * 1.25f), 13.5f, IM_COL32(0xe2, 0xe5, 0xec, 255), "Construire · Imaginer · Assembler · Rendre", true);
+        dl->AddText(f, u.fs(px), ImVec2(tx, ty), g_bq.brand, "BrickIt");
+        u.text(ImVec2(a.x + 36 * s, ty + u.fs(px) * 1.25f), 13.5f, g_bq.bannerSub, "Construire · Imaginer · Assembler · Rendre", true);
         struct B { const char* ico; const char* label; int id; };
         const B bs[3] = {{ST_NEW, "Nouvelle scène", 0}, {BQ_DEMO, "Démos", 1}, {ST_OPEN, "Ouvrir…", 2}};
         float bx = a.x + 34 * s;
@@ -724,8 +730,14 @@ void BrickApp::stHubPage() {
         for (const B& bb0 : bs) {
             const ImVec2 qa(bx, by), qb(bx + bw, by + bhh);
             const bool h = u.hover(qa, qb) && !editing;
-            dl->AddRectFilled(qa, qb, IM_COL32(255, 255, 255, h ? 40 : 22), 14 * s);
-            dl->AddRect(qa, qb, IM_COL32(255, 255, 255, 52), 14 * s, 0, 1.0f);
+            if (g_light) {   // (on the cream: white pebbles with a soft shadow)
+                dl->AddRectFilled(ImVec2(qa.x, qa.y + 3 * s), ImVec2(qb.x, qb.y + 4 * s), IM_COL32(60, 40, 20, 18), 14 * s);
+                dl->AddRectFilled(qa, qb, IM_COL32(255, 255, 255, h ? 245 : 205), 14 * s);
+                dl->AddRect(qa, qb, C_LINE, 14 * s, 0, 1.0f);
+            } else {
+                dl->AddRectFilled(qa, qb, IM_COL32(255, 255, 255, h ? 40 : 22), 14 * s);
+                dl->AddRect(qa, qb, IM_COL32(255, 255, 255, 52), 14 * s, 0, 1.0f);
+            }
             stIcon(dl, bb0.ico, ImVec2((qa.x + qb.x) * 0.5f, qa.y + 24 * s), 24 * s, bb0.id == 0 ? C_ACCENT : C_TEXT, bb0.id == 0 ? 3.0f * s : 2.0f * s);
             u.text(ImVec2((qa.x + qb.x - u.textW(12, bb0.label, true)) * 0.5f, qb.y - 26 * s), 12, C_TEXT, bb0.label, true);
             if (h && u.pressed) {
@@ -742,7 +754,7 @@ void BrickApp::stHubPage() {
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
         const char* titles[4] = {"Mes scènes", "Récentes", "Cloud", "Démos"};
         stIcon(dl, m_hubSection == 2 ? BQ_CLOUD : m_hubSection == 3 ? BQ_DEMO : BQ_FOLDER, ImVec2(a.x + 30 * s, a.y + 30 * s), 24 * s, C_TEXT, 2.0f * s);
-        u.text(ImVec2(a.x + 52 * s, a.y + 30 * s - u.fs(18) * 0.6f), 18, C_TEXT, titles[m_hubSection], true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 52 * s, a.y + 30 * s - u.fs(11) * 0.55f), 11, C_TEXT, stUpper(titles[m_hubSection]).c_str(), 2.2f * s); else u.text(ImVec2(a.x + 52 * s, a.y + 30 * s - u.fs(18) * 0.6f), 18, C_TEXT, titles[m_hubSection], true);
         if (m_hubSection == 2 && m_cloud.signedIn()) {   // refresh
             const ImVec2 c(b.x - 34 * s, a.y + 30 * s);
             const bool h = u.hover(ImVec2(c.x - 16 * s, c.y - 16 * s), ImVec2(c.x + 16 * s, c.y + 16 * s)) && !editing;
@@ -796,12 +808,12 @@ void BrickApp::stHubPage() {
                 sub = cd.i == 0 ? "Le set 31153 et ses figurines" : "4 moteurs, 2 vérins";
                 ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
             }
-            bqRaise(dl, ca, cb, 14 * s, s, h ? IM_COL32(0x3a, 0x40, 0x4d, 255) : C_CARD, 50);
+            bqRaise(dl, ca, cb, 14 * s, s, h ? C_CARD_HI : C_CARD, 50);
             if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0.05f), ImVec2(1, 0.95f), IM_COL32_WHITE, 14 * s, ImDrawFlags_RoundCornersTop);
             else {
-                bqGrad(dl, ta, tb, 14 * s, IM_COL32(0x3c, 0x43, 0x52, 255), IM_COL32(0x2c, 0x31, 0x3c, 255), ImDrawFlags_RoundCornersTop);
-                if (ico) stIcon(dl, ico, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.36f, IM_COL32(0x9a, 0xa0, 0xac, 255), 1.6f * s);
-                else stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.45f, IM_COL32(0x9a, 0xa0, 0xac, 255), 1.2f * s);
+                bqGrad(dl, ta, tb, 14 * s, g_bq.ph0, g_bq.ph1, ImDrawFlags_RoundCornersTop);
+                if (ico) stIcon(dl, ico, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.36f, g_bq.phIco, 1.6f * s);
+                else stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.45f, g_bq.phIco, 1.2f * s);
             }
             if (cur) dl->AddRect(ImVec2(ca.x - 1 * s, ca.y - 1 * s), ImVec2(cb.x + 1 * s, cb.y + 1 * s), C_ACCENT, 15 * s, 0, 3.0f * s);
             if (cur) {   // OUVERTE
@@ -825,8 +837,8 @@ void BrickApp::stHubPage() {
                 auto rb = [&](const char* icon, const char* tip, bool danger) {
                     const ImVec2 c(bx, by);
                     const bool hb = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) < r * r && !editing;
-                    dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : IM_COL32(0x3a, 0x40, 0x4d, 245)) : IM_COL32(20, 23, 30, 215), 24);
-                    stIcon(dl, icon, c, r * 1.05f, IM_COL32(240, 242, 246, 255), 1.6f * s);
+                    dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : bqMixC(g_bq.chip, IM_COL32(255, 255, 255, 255), 0.18f)) : g_bq.chip, 24);
+                    stIcon(dl, icon, c, r * 1.05f, g_bq.chipIco, 1.6f * s);
                     if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
                     bx -= 2 * r + 6 * s;
                     return hb && u.pressed;
@@ -867,11 +879,11 @@ void BrickApp::stHubPage() {
             const char* t = m_hubSection <= 1 ? "Aucune scène enregistrée ici pour l'instant : « Enregistrer » range la scène ouverte dans Mes scènes, avec sa vignette."
                           : !m_cloud.signedIn() ? "Connecte-toi (Stockage, à droite) pour retrouver tes scènes de l'iPad et du PC."
                           : m_cloudListBusy ? "Chargement…" : !m_cloudListErr.empty() ? m_cloudListErr.c_str() : "Aucune scène dans le cloud pour l'instant.";
-            u.text(ImVec2(ga.x + 4 * s, ga.y + 8 * s), 12, C_DIM, t);
+            u.dl->AddText(u.font, u.fs(12), ImVec2(ga.x + 4 * s, ga.y + 8 * s), C_DIM, t, nullptr, gb.x - ga.x - 8 * s);
         }
         if (contentH > gb.y - ga.y) {
             const float vh = gb.y - ga.y, bh = std::max(30 * s, vh * vh / contentH), by = ga.y + (vh - bh) * (m_hubScroll / (contentH - vh));
-            dl->AddRectFilled(ImVec2(gb.x + 6 * s, by), ImVec2(gb.x + 10 * s, by + bh), IM_COL32(255, 255, 255, 60), 2 * s);
+            dl->AddRectFilled(ImVec2(gb.x + 6 * s, by), ImVec2(gb.x + 10 * s, by + bh), stA(C_TEXT, 0.25f), 2 * s);
         }
     }
     (void)now;
@@ -882,7 +894,7 @@ void BrickApp::stHubPage() {
 // an edit field (rename) over a rectangle: 1 Entrée, -1 Échap, 0 typing
 int BrickApp::bqEditField(Ui& u, ImVec2 ea, ImVec2 eb, float px) {
     const float s = u.s;
-    u.dl->AddRectFilled(ea, eb, IM_COL32(255, 255, 255, 14), 8 * s);
+    u.dl->AddRectFilled(ea, eb, g_bq.hover, 8 * s);
     u.dl->AddRect(ea, eb, stA(C_ACCENT, 0.9f), 8 * s, 0, 1.5f * s);
     ImGui::SetNextWindowPos(ImVec2(ea.x + 8 * s, ea.y));
     ImGui::SetNextWindowSize(ImVec2(eb.x - ea.x - 12 * s, eb.y - ea.y));

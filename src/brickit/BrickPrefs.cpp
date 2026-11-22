@@ -250,7 +250,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
-        else m_themeId = "glass";   // (the first launch of the Studio interface: its theme, Glass)
+        else m_themeId = "brique";   // (the first launch of the Studio interface: Brique)
         if (p["brique01"].type != app::Json::Bool) { m_themeId = "brique"; m_studioUi = true; m_libDock = 1; m_libW = 0; m_pGroups.visible = true; }   // (Wzx 15/11/2026: the Brique interface, once)
         for (const auto& [id, v] : p["uiBoxes"].o) {
             if (v.type != app::Json::Array || v.a.size() < 6) continue;
@@ -263,7 +263,8 @@ void BrickApp::applyPrefs(const std::string& t) {
             if (kv.second.type == app::Json::Array && theme::indexOf(kv.first) >= 0) m_themeLooks[kv.first] = {(int)kv.second[0].num(), (int)kv.second[1].num()};
         if (st["lightPreset"].type == app::Json::Number) m_lightPreset = (int)st["lightPreset"].n;
         if (st["pencilOnly"].type == app::Json::Bool) m_pencilOnly = st["pencilOnly"].b;
-        if (st["ipadCreme"].type == app::Json::Bool) m_ipadCreme = st["ipadCreme"].b;
+        if (st["ipadCreme"].type == app::Json::Bool && st["ipadCreme"].b) m_themeId = "creme";   // (Wzx 22/11/2026: the cream kit of the iPad is the theme Crème now)
+        m_ipadCreme = false;
         if (m_ipad && st["ipadScale05"].type != app::Json::Bool) m_uiScaleUser = 1.0f;   // (the scale of the iPad changed, 14/11/2026: back to 100 %)
         if (st["renderScale"].type == app::Json::Number) m_renderScale = std::clamp((float)st["renderScale"].n, 0.5f, 1.0f);
         if (st["shadows"].type == app::Json::Number) m_rs.shadowQuality = std::clamp((int)st["shadows"].n, 0, 4);

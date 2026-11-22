@@ -53,28 +53,16 @@ const std::vector<Def>& themes() {
         {"classic", "Classic", "L'interface sombre d'origine, accents LEGO.", 1,
          {{"anthracite", "Anthracite", 0, 0, 0x25262b}},
          {{"Jaune", 0xf7c51e}, {"Orange", 0xfe8a18}, {"Rouge", 0xc91a09}, {"Bleu", 0x0055bf}, {"Vert", 0x237841}, {"Azur", 0x36aebf}}},
-        {"creme", "Crème", "Les galets translucides de l'iPad, clair ou sombre.", -1,
-         {{"ciel", "Ciel", 0, 0, 0xdfe7f1}, {"sable", "Sable", 0, 0, 0xefe3cf}},
-         kLego},
-        {"minimal", "Minimal", "PLUM : sobre et aéré, des aplats et des filets.", -1,
-         {{"graphite", "Graphite", 80, 0.003f, 0}, {"pierre", "Pierre", 70, 0.011f, 0}, {"ardoise", "Ardoise", 250, 0.014f, 0},
-          {"sauge", "Sauge", 150, 0.013f, 0}, {"encre", "Encre", 268, 0.028f, 0}, {"prune", "Prune", 330, 0.018f, 0}},
-         {{"Émeraude", 0x22a55b}, {"Encre", 0x3e7bfa}, {"Iris", 0x8c7bff}, {"Ambre", 0xe9a23b}, {"Corail", 0xf0644a}, {"Rose", 0xe5579a}}},
-        {"sommet", "Sommet", "PLUM : monochrome en Geist Mono, pilules noires, bleu ciel.", -1,
-         {{"neutre", "Neutre", 270, 0.003f, 0}, {"brume", "Brume", 250, 0.012f, 0}, {"pierre", "Pierre", 70, 0.008f, 0}},
-         {{"Bleu ciel", 0x3b6cf6}, {"Glacier", 0x22a2c4}, {"Alpage", 0x2f9e5b}, {"Lavande", 0x7c5ce0}, {"Crépuscule", 0xe86b3a}}},
-        // the « boîte Technic » mock-up (Maquette 4.0, 09/11/2026): smoked glass, fine lines, pills, line pictograms
-        {"glass", "Glass", "Verre fumé gris, filets fins, pilules, nuancier en briques 1×1.", 1,
-         {{"graphite", "Graphite", 0, 0, 0x2a2b2f}, {"ardoise", "Ardoise", 0, 0, 0x262b33}},
-         {{"Ambre", 0xd9b443}, {"Blanc", 0xe6e7ea}, {"Glacier", 0x6fb8d6}, {"Vert", 0x5aa66b}, {"Rouge", 0xd0101b}}},
         // the « Brique » interface (Wzx 15/11/2026, canvas JBtw2wBYiTVRTg7JuzaXc5): slate panels in relief, the yellow of
         // the brick in gradient on what is active, round type (Fredoka); its own layout (BrickUiBrique.inl)
-        {"brique", "Brique", "Ardoise en relief, boutons jaunes, police ronde : la nouvelle interface (Hub, Construire).", 1,
+        {"brique", "Brique", "Ardoise en relief, boutons jaunes, police ronde : Hub et Construire.", 1,
          {{"ardoise", "Ardoise", 0, 0, 0x282d37}},
          {{"Jaune", 0xffc93c}, {"Orange", 0xff9f1c}, {"Bleu", 0x5b8def}, {"Vert", 0x3dd68c}}},
-        {"red", "Red", "Le verre fumé de Glass sur un rouge brique profond, accent rouge LEGO.", 1,
-         {{"brique", "Brique", 0, 0, 0x3a1013}, {"noir", "Noir", 0, 0, 0x1c1213}},
-         {{"Rouge", 0xe3141f}, {"Ambre", 0xd9b443}, {"Blanc", 0xf0e8e8}}},
+        // Crème (Wzx 22/11/2026): the cream touch kit of the iPad, rebuilt on the layout of Brique (all its functions, the
+        // library of today); Galet, the same a little less cream (warm greys)
+        {"creme", "Crème", "Le kit crème de l'iPad : galets clairs, brun espresso, police ronde.", 0,
+         {{"creme", "Crème", 0, 0, 0xf1e7d8}, {"galet", "Galet", 0, 0, 0xe6e4df}},
+         {{"Espresso", 0x4a3b30}, {"Jaune", 0xe2a300}, {"Terracotta", 0xc0603a}, {"Sauge", 0x5c8a68}, {"Bleu", 0x3d6fb6}}},
     };
     static bool swatches = false;
     if (!swatches) {   // the swatch of an oklch tint: its grey at mid lightness, a little more saturated so that it shows
@@ -152,55 +140,51 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
         return t;
     }
 
-    if (t.id == "creme") {   // PC theme 2.0 (BrickUi.cpp, 09/11/2026): Ciel as it was; Sable, the cream of the iPad kit
-        const bool sand = d.tints[tint].id == std::string("sable");
-        if (!dark && !sand) {
-            t.bg = IM_COL32(0xe6, 0xec, 0xf3, 255);
-            t.panel = IM_COL32(255, 255, 255, 222);
-            t.panelSolid = IM_COL32(0xfb, 0xfc, 0xfd, 255);
-            t.card = IM_COL32(0xed, 0xf0, 0xf4, 255);
-            t.cardHi = IM_COL32(0xe0, 0xe5, 0xec, 255);
-            t.line = IM_COL32(0xe1, 0xe5, 0xeb, 255);
-            t.text = IM_COL32(0x1f, 0x27, 0x33, 255);
-            t.dim = IM_COL32(0x6a, 0x73, 0x83, 255);
-            t.faint = IM_COL32(0x9a, 0xa3, 0xb1, 255);
-            t.thumb = IM_COL32(0x60, 0x66, 0x70, 255);
-            t.overlay = IM_COL32(255, 255, 255, 228);
-            t.hud = IM_COL32(255, 255, 255, 214);
-            t.stage = {true, 0xcfe3f5, 0xf2f6fa, 0xdfe5ec, 0xb9c3cf, 0xcfd6df, 0x8a96a8, 0.25f};
-        } else if (!dark) {   // Sable: the kit's cream (BrickUiIpad.inl), a little denser for the mouse
-            t.bg = IM_COL32(0xf6, 0xef, 0xe2, 255);
-            t.panel = IM_COL32(252, 248, 240, 226);
-            t.panelSolid = IM_COL32(0xfc, 0xf8, 0xf0, 255);
-            t.card = IM_COL32(0xf2, 0xe9, 0xda, 255);
-            t.cardHi = IM_COL32(0xea, 0xdd, 0xc8, 255);
-            t.line = IM_COL32(0xe8, 0xdc, 0xc8, 255);
-            t.text = IM_COL32(0x45, 0x37, 0x2b, 255);
-            t.dim = IM_COL32(0x8a, 0x79, 0x66, 255);
-            t.faint = IM_COL32(0xb4, 0xa4, 0x8e, 255);
-            t.thumb = IM_COL32(0x6e, 0x62, 0x55, 255);
-            t.overlay = IM_COL32(252, 248, 240, 232);
-            t.hud = IM_COL32(255, 250, 242, 214);
-            t.stage = {true, 0xf1e6d6, 0xfbf5eb, 0xf2e6d4, 0xcfc1aa, 0xe6d9c4, 0xa8957c, 0.25f};
+    if (t.id == "creme") {   // the cream of the iPad kit (Crème) or warm greys (Galet), on the layout of Brique
+        const bool galet = d.tints[std::clamp(tint, 0, (int)d.tints.size() - 1)].id == std::string("galet");
+        t.dark = false;
+        t.brique = true;
+        if (!galet) {
+            t.bg = IM_COL32(0xf4, 0xed, 0xe3, 255);
+            t.panel = IM_COL32(0xfb, 0xf7, 0xf1, 250);
+            t.panelSolid = IM_COL32(0xfb, 0xf7, 0xf1, 255);
+            t.card = IM_COL32(0xff, 0xfc, 0xf8, 255);
+            t.cardHi = IM_COL32(0xf3, 0xea, 0xdf, 255);
+            t.line = IM_COL32(0xe6, 0xda, 0xcb, 255);
+            t.text = IM_COL32(0x3e, 0x32, 0x29, 255);
+            t.dim = IM_COL32(0x80, 0x71, 0x64, 255);
+            t.faint = IM_COL32(0xa9, 0x9a, 0x8b, 255);
+            t.thumb = IM_COL32(0xc8, 0xb8, 0xa5, 255);
+            t.overlay = IM_COL32(0xf8, 0xf2, 0xea, 244);
+            t.hud = IM_COL32(0xff, 0xfb, 0xf6, 236);
+            t.stage = {true, 0xf3e9d9u, 0xfbf6eeu, 0xeee3d2u, 0xf2e9dcu, 0xe8dccbu, 0xc4b39du, 0.30f};
         } else {
-            const bool s = sand;
-            t.bg = s ? IM_COL32(0x1c, 0x18, 0x14, 255) : IM_COL32(0x16, 0x19, 0x1f, 255);
-            t.panel = s ? IM_COL32(48, 42, 36, 222) : IM_COL32(40, 44, 53, 222);
-            t.panelSolid = s ? IM_COL32(0x26, 0x21, 0x1c, 255) : IM_COL32(0x1e, 0x21, 0x29, 255);
-            t.card = s ? IM_COL32(0x36, 0x30, 0x29, 255) : IM_COL32(0x2d, 0x32, 0x3c, 255);
-            t.cardHi = s ? IM_COL32(0x44, 0x3c, 0x33, 255) : IM_COL32(0x3a, 0x40, 0x4c, 255);
-            t.line = s ? IM_COL32(0x45, 0x3d, 0x34, 255) : IM_COL32(0x3a, 0x41, 0x4c, 255);
-            t.text = s ? IM_COL32(0xf5, 0xee, 0xe4, 255) : IM_COL32(0xee, 0xf1, 0xf5, 255);
-            t.dim = s ? IM_COL32(0xb4, 0xa6, 0x94, 255) : IM_COL32(0x9a, 0xa4, 0xb4, 255);
-            t.faint = s ? IM_COL32(0x73, 0x67, 0x59, 255) : IM_COL32(0x5d, 0x65, 0x73, 255);
-            t.thumb = IM_COL32_WHITE;
-            t.overlay = s ? IM_COL32(36, 31, 26, 236) : IM_COL32(30, 33, 41, 236);
-            t.hud = s ? IM_COL32(48, 42, 36, 200) : IM_COL32(40, 44, 53, 200);
+            t.bg = IM_COL32(0xef, 0xee, 0xeb, 255);
+            t.panel = IM_COL32(0xfa, 0xf9, 0xf7, 250);
+            t.panelSolid = IM_COL32(0xfa, 0xf9, 0xf7, 255);
+            t.card = IM_COL32(0xff, 0xff, 0xff, 255);
+            t.cardHi = IM_COL32(0xf0, 0xee, 0xea, 255);
+            t.line = IM_COL32(0xe2, 0xdf, 0xda, 255);
+            t.text = IM_COL32(0x2f, 0x2d, 0x2a, 255);
+            t.dim = IM_COL32(0x74, 0x70, 0x6a, 255);
+            t.faint = IM_COL32(0xa2, 0x9e, 0x97, 255);
+            t.thumb = IM_COL32(0xbd, 0xb8, 0xb0, 255);
+            t.overlay = IM_COL32(0xf7, 0xf6, 0xf4, 244);
+            t.hud = IM_COL32(0xff, 0xff, 0xff, 236);
+            t.stage = {true, 0xe9e8e5u, 0xf6f5f3u, 0xe5e3dfu, 0xeceae6u, 0xe0ddd8u, 0xb2ada5u, 0.28f};
         }
-        accentOf(t, d, accent, 0xf2cd37, 0xe0b81c, 0xf2cd37, 0xf7da5e);
-        if (accent == 0) t.onAccent = IM_COL32(0x2a, 0x31, 0x40, 255);
-        t.font = FONT_SEGOE;
-        t.hudStyle = HUD_LEGO;
+        accentOf(t, d, accent, 0x4a3b30, 0x6a5848, 0x4a3b30, 0x6a5848);
+        if (accent == 0 && galet) { t.accent = IM_COL32(0x3a, 0x38, 0x35, 255); t.accent2 = IM_COL32(0x5a, 0x57, 0x53, 255); t.accentTxt = t.accent; t.progress = t.accent; }
+        if (accent == 0) t.onAccent = IM_COL32(0xff, 0xf8, 0xee, 255);
+        t.shadow = IM_COL32(60, 40, 20, 40);
+        t.radius = 1.4f;
+        t.pill = false;
+        t.lines = false;
+        t.font = FONT_FREDOKA;
+        t.hudStyle = HUD_FLAT;
+        t.hudBtn = galet ? IM_COL32(0x3a, 0x38, 0x35, 225) : IM_COL32(0x4a, 0x3b, 0x30, 225);   // (the brown bubbles of the kit)
+        t.hudBtnWhiteIcon = true;
+        t.brickSwatch = true;
         return t;
     }
 
