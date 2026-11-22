@@ -1694,7 +1694,7 @@ void BrickApp::uiMechPanel() {
     const float s = m_ui;
     ImVec2 d = ImGui::GetIO().DisplaySize;
     const float W = 280 * s, pad = 12 * s;
-    ImVec2 p0(d.x - 16 * s - W, 30 * s + 12 * s);
+    ImVec2 p0(d.x - 16 * s - W, m_ipadCreme ? 84 * s : 30 * s + 12 * s);   // (Crème: under the pebbles of the top bar)
     // content height first (two passes would be cleaner; the layout is linear)
     float H = pad + 20 * s + 38 * s + 38 * s + 44 * s + m_mm.warnings.size() * 18 * s + m_mm.cmds.size() * 78 * s + 30 * s + pad;
     if (m_mm.cmds.empty()) H += 34 * s;

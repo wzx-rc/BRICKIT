@@ -1142,6 +1142,14 @@ void BrickApp::frame() {
         m_newSceneOpen = o == "new";
         m_arcOpen = o == "arc" || (o == "palette" && m_selected >= 0);
         m_moreOpen = o == "more";
+        m_crScene = o == "scene";   // (Crème A: the Scène pebble, the presets, Réglages, a mode, the « … » of the first card)
+        m_crPresets = o == "presets";
+        if (o == "settings") { m_popup = 5; m_popupAt = ImVec2(124 * m_ui, 84 * m_ui); }
+        if (o == "paint") { m_paintMode = true; m_paintTool = true; }
+        if (o == "mech") mechEnter();
+        if (o == "notice") { m_pManual.visible = true; m_pManual.collapsed = false; }
+        if (o == "cards") { m_homeOpen = true; m_crCardMenu = 0; m_crCardMenuAt = ImVec2(500 * m_ui, 420 * m_ui); }
+        if (o == "demos") { m_homeOpen = true; m_hubSection = 3; }
     }
     if (m_frame == 1 && !m_opt.ttBase.empty()) {   // self-test: a turntable base and its top on one axis -> one pivot
         Part* b = m_lib.get(m_opt.ttBase);

@@ -19,7 +19,8 @@ static void uiTheme(bool warm) {
         C_TEXT = IM_COL32(0x57, 0x46, 0x38, 255);
         C_DIM = IM_COL32(0x96, 0x86, 0x72, 255);
         C_FAINT = IM_COL32(0xb6, 0xa6, 0x90, 255);
-        C_ACCENT = IM_COL32(0xc9, 0x45, 0x2f, 255);
+        C_ACCENT = IM_COL32(0xf0, 0xcf, 0x6a, 255);   // (no red in Crème, Wzx 22/11/2026: the kit's yellow, brown on it)
+        C_ACCENT_TXT = IM_COL32(0x8a, 0x5a, 0x2b, 255);
         C_INK = IM_COL32(0x57, 0x46, 0x38, 255);
         C_OVERLAY = IM_COL32(251, 246, 237, 238);
         C_HUD = IM_COL32(255, 249, 241, 199);
@@ -155,7 +156,7 @@ static const ImU32 T_BLANC = IM_COL32(0xfb, 0xf4, 0xea, 255);   // (Wzx 22/11/20
 static const ImU32 T_PIECE = IM_COL32(0xb9, 0xa4, 0x8d, 255);   // the parts of the dock and the drawer: the light brown of the kit, not the active colour
 static const ImU32 T_CARTE_DOCK = IM_COL32(255, 255, 255, 140);
 static const ImU32 T_JAUNE = IM_COL32(0xf6, 0xde, 0x86, 255);   // (a paler yellow, Wzx 22/11/2026)
-static const ImU32 T_ROUGE = IM_COL32(0xc9, 0x45, 0x2f, 255);
+static const ImU32 T_ROUGE = IM_COL32(0xa4, 0x5c, 0x36, 255);   // Supprimer: a terracotta brown (no red in Crème, Wzx 22/11/2026)
 static const ImU32 T_VERT = IM_COL32(0x8b, 0xbe, 0x68, 255);
 static const ImU32 T_ETIQUETTE = IM_COL32(64, 46, 32, 140);
 static const ImU32 T_MESSAGE = IM_COL32(64, 46, 32, 184);
@@ -172,6 +173,7 @@ static ImU32 kitCol(const Color& c, float a = 1.0f) {
 
 // ---- Fredoka (Gfx fontKit / fontKitMed; the default font on the PC)
 static ImVec2 g_morePos(0, 0);
+static float g_crModesR = 0;   // the right edge of the modes pill (Crème A: the scene pill goes right of it)
 static ImFont* g_kf = nullptr;
 static ImFont* g_kfm = nullptr;
 static ImFont* kF(bool med) { ImFont* f = med ? g_kfm : g_kf; return f ? f : ImGui::GetFont(); }
@@ -446,19 +448,33 @@ void BrickApp::drawUiIpad() {
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     // the stage: the whole screen (index 0 / 1 of m_uiRects as the PC: the top bar and the tray), the drawer excepted
     m_uiRects.push_back(ImVec4(0, 0, d.x, 0));
-    if (m_libOpen) ipadDrawer();           // m_uiRects[1]
+    if (!m_paintMode) m_paintTool = false;   // (the Pinceau only in the mode Peindre: the pipette of Construire takes the colour, no more)
+    const bool hub = m_homeOpen || m_newSceneOpen;
+    if (m_libOpen && !hub) ipadDrawer();   // m_uiRects[1]
     else m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y));
-    ipadBubbles();
-    ipadTopBar();
-    ipadCorners();
-    ipadDock();
-    if (m_moreOpen && m_selKey >= 0) ipadMoreMenu(g_morePos);
-    uiReader();
-    uiManual();
-    uiInfoSheet();
-    ipadNuancier();
-    ipadHomeMenu();
-    ipadNewScene();
+    if (!hub) {
+        ipadBubbles();
+        ipadModes();
+    }
+    if (!hub) ipadTopBar();
+    if (!hub) {
+        ipadTools();
+        ipadCorners();
+        ipadDock();
+        ipadScenePanel();
+        ipadPresets();
+        uiMechPanel();
+        if (m_moreOpen && m_selKey >= 0) ipadMoreMenu(g_morePos);
+        uiReader();
+        uiManual();
+        uiInfoSheet();
+        ipadNuancier();
+        if (m_paintMode && !m_mechOn && !m_libOpen && !m_paletteOpen)
+            kitLabel(ImGui::GetWindowDrawList(), ImVec2(d.x * 0.5f, d.y - 18 * m_ui - 72 * m_ui - 44 * m_ui), m_pipette ? "Pipette · touche une brique pour prendre sa couleur" : "Peindre · touche ou glisse sur les briques");
+    }
+    ipadHub();
+    if (hub) ipadTopBar();   // (the Maison pebble over the veil of the hub)
+    uiPopups();   // (Réglages, from the hub)
 }
 
 void BrickApp::ipadPucks() {}
@@ -467,16 +483,20 @@ void BrickApp::ipadColorArc() {}
 // ------------------------------------------------------------------ 5. the top bar: Maison, the pill, undo / redo
 
 void BrickApp::ipadTopBar() {
-    if (m_newSceneOpen) return;
     Ui u = ui(m_ui);
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    if (kitGalet(u, ImVec2(22 * s + 26 * s, 20 * s + 26 * s), 52 * s, "maison", m_homeOpen ? 1 : 0)) {
-        m_homeOpen = !m_homeOpen; m_paletteOpen = false; m_arcOpen = false; m_moreOpen = false;
+    const bool hub = m_homeOpen || m_newSceneOpen;
+    if (kitGalet(u, ImVec2(22 * s + 26 * s, 20 * s + 26 * s), 52 * s, "maison", hub ? 1 : 0)) {   // Maison: the hub of the scenes (Crème A)
+        if (hub) { m_homeOpen = false; m_newSceneOpen = false; }
+        else { m_homeOpen = true; m_hubStale = true; m_crHubScroll = 0; }
+        m_paletteOpen = false; m_arcOpen = false; m_moreOpen = false; m_crScene = false; m_crPresets = false;
         u.pressed = false;
     }
-    // the pill: « Maison moderne · 214 pièces · enregistrée », or the selected part « Brique 1 × 6 · Bleu · 3009 »
-    if (!m_homeOpen && !m_paletteOpen && !m_libOpen) {
+    if (hub) return;
+    // the pill: « Maison moderne · enregistrée · cloud à jour », or the selected part « Brique 1 × 6 · Bleu · 3009 »; a tap
+    // on the scene opens the hub
+    if (!m_paletteOpen && !m_libOpen) {
         std::string name, detail;
         const std::vector<int> sel = selection();
         if (sel.size() == 1 && sel[0] >= 0 && sel[0] < (int)m_bricks.size()) {
@@ -488,24 +508,41 @@ void BrickApp::ipadTopBar() {
         } else if (sel.size() > 1) {
             name = std::to_string(sel.size()) + " pièces";
             detail = "· sélection";
-        } else {
-            name = sceneTitle(m_scenePath);
-            detail = "· " + std::to_string(m_bricks.size()) + " pièces · enregistrée";
+        }
+        ImU32 dot = T_VERT;
+        const bool scene = sel.empty();
+        if (scene) {
+            name = m_modelName.empty() ? sceneTitle(m_scenePath) : m_modelName;
+            const bool in = m_cloud.signedIn(), busy = m_cloudDirty || m_cloudSending;
+            detail = "· " + std::to_string(m_bricks.size()) + " pièces · enregistrée" + (!in ? "" : busy ? " · envoi au cloud" : " · cloud à jour");
+            if (in && busy) dot = IM_COL32(0xe8, 0xc0, 0x4a, 255);
         }
         const float pn = 16 * s, pd = 14 * s;
         const float wn = kSize(pn, name.c_str()).x, wd = kSize(pd, detail.c_str()).x;
-        const float W = 18 * s + 8 * s + 10 * s + wn + 7 * s + wd + 18 * s, H = 42 * s;
-        const ImVec2 a((d.x - W) * 0.5f, 25 * s), b(a.x + W, a.y + H);
+        const float W = 18 * s + 8 * s + 10 * s + wn + 7 * s + wd + (scene ? 8 * s + 12 * s : 0) + 18 * s, H = 42 * s;
+        ImVec2 a((d.x - W) * 0.5f, 25 * s);
+        a.x = std::max(a.x, g_crModesR + 12 * s);   // (right of the modes)
+        const ImVec2 b(a.x + W, a.y + H);
+        const bool h = scene && u.hover(a, b);
         kitShadowRect(u.dl, a, b, T_OMBRE, 4 * s, 14 * s);
-        u.dl->AddRectFilled(a, b, T_GALET, H * 0.5f);
+        u.dl->AddRectFilled(a, b, h && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? T_CREUX : T_GALET, H * 0.5f);
         const float cy = (a.y + b.y) * 0.5f;
-        u.dl->AddCircleFilled(ImVec2(a.x + 18 * s + 4 * s, cy), 4 * s, T_VERT, 16);
+        u.dl->AddCircleFilled(ImVec2(a.x + 18 * s + 4 * s, cy), 4 * s, dot, 16);
         kTextC(u.dl, a.x + 18 * s + 8 * s + 10 * s, cy, pn, T_BRUN, name.c_str());
         kTextC(u.dl, a.x + 18 * s + 8 * s + 10 * s + wn + 7 * s, cy + 1 * s, pd, T_BRUN_PALE, detail.c_str());
+        if (scene) {   // the chevron: the hub
+            const ImVec2 c(b.x - 18 * s - 6 * s, cy + 1 * s);
+            const float k = 4 * s;
+            const ImVec2 pts[3] = {ImVec2(c.x - k, c.y - k * 0.5f), ImVec2(c.x, c.y + k * 0.5f), ImVec2(c.x + k, c.y - k * 0.5f)};
+            u.dl->AddPolyline(pts, 3, T_BRUN_PALE, 0, 2 * s);
+        }
         m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+        if (h && u.pressed) { u.pressed = false; m_homeOpen = true; m_hubStale = true; m_crHubScroll = 0; m_crScene = false; m_crPresets = false; return; }
     }
     if (m_paletteOpen) return;   // (the Nuancier sits there)
     const bool canUndo = !m_undo.empty() || m_holding, canRedo = !m_redo.empty();
+    // Scène (Crème A): the groups of the scene, then undo / redo
+    if (kitGalet(u, ImVec2(d.x - 128 * s - 22 * s, 24 * s + 22 * s), 44 * s, "scene", m_crScene ? 1 : 0)) { m_crScene = !m_crScene; m_crPresets = false; u.pressed = false; }
     if (kitGalet(u, ImVec2(d.x - 76 * s - 22 * s, 24 * s + 22 * s), 44 * s, "annuler", canUndo ? 0 : 2)) undo();
     if (kitGalet(u, ImVec2(d.x - 24 * s - 22 * s, 24 * s + 22 * s), 44 * s, "retablir", canRedo ? 0 : 2)) redo();
 }
@@ -685,7 +722,8 @@ void BrickApp::ipadBubbles() {
     // 3. the cross: Tourner above, Déplacer below, Dupliquer left, Couleur right, « … » small in the top right corner
     const ImVec2 pT((a.x + b.x) * 0.5f, a.y - 36 * s), pB((a.x + b.x) * 0.5f, b.y + 38 * s), pL(a.x - 42 * s, (a.y + b.y) * 0.5f),
         pR(b.x + 42 * s, (a.y + b.y) * 0.5f), pM(b.x + 24 * s, a.y - 24 * s);
-    if (kitBubble(u, pT, 46 * s, "tourner", appear(0))) { u.pressed = false; rotateSelected(1); }
+    if (ipadAngles(pT)) u.pressed = false;   // (Crème A: the angle over Tourner)
+    if (kitBubble(u, pT, 46 * s, "tourner", appear(0))) { u.pressed = false; crTurn(); }
     if (kitBubble(u, pR, 46 * s, "couleur", appear(1))) { u.pressed = false; m_arcOpen = true; m_moreOpen = false; }
     if (kitBubble(u, pB, 46 * s, "deplacer", appear(2))) {   // in hand, at the brick; the finger still down carries it
         u.pressed = false;

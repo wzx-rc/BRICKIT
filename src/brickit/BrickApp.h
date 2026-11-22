@@ -931,6 +931,21 @@ private:
     int crSubCount();
     const char* crSubLabel(int j);
     void crLibParts();
+    // Crème A (Wzx 22/11/2026): the modes beside Maison, the tools in pebbles, the angle over Tourner, the Scène pebble,
+    // the hub (the Maison menu and « Nouvelle scène » in one cream sheet), the presets
+    void ipadModes();
+    void ipadTools();
+    bool ipadAngles(ImVec2 above);
+    void crTurn();
+    void ipadScenePanel();
+    void ipadPresets();
+    void ipadHub();
+    bool m_crScene = false, m_crPresets = false;
+    float m_crHubScroll = 0, m_crHubPressY = 0, m_crSceneScroll = 0;
+    bool m_crHubDragging = false;
+    int m_crCardMenu = -1, m_crHubRename = -1;   // the card of the « … » menu (kind * 100000 + index), the local card renamed
+    ImVec2 m_crCardMenuAt{0, 0};
+    char m_crSearch[96] = {};
     // one button, icon or element moved on its own (a long press on it in the UI editor): its offset, « el:<id> » in m_boxes
     ImVec2 bqEl(const std::string& id, const char* label, ImVec4 r);
     std::vector<std::string> m_editEls;
