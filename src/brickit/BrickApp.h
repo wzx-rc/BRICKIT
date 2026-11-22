@@ -253,6 +253,7 @@ private:
         float3 hitPoint;
         float sx = 0, sy = 0, moved = 0;
         bool tap = false;
+        bool penEmpty = false;        // the Pencil on the empty view: held still, it draws the selection rectangle (Wzx 22/11/2026)
         bool paint = false;           // TG_MOUSE in the view: the Pinceau / Pipette (a second finger turns it into the camera)
         bool second = false, rotated = false;   // a second finger while a brick is in hand: swipe turns / tilts, tap turns
         uint64_t secondId = 0;

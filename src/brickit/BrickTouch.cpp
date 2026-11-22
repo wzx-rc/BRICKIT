@@ -56,6 +56,18 @@ void BrickApp::touchPump() {
     // Studio: a finger held still 0.45 s on a brick opens the marking menu around it; sliding then lifting picks
     // an action or a colour (stSelHud reads the ImGui mouse, fed here like a pressed button)
     TouchGesture& g = m_tg;
+    // the Pencil held still 0.35 s on the empty view: the selection rectangle from there (Wzx 22/11/2026)
+    if (g.type == TG_ORBIT && g.penEmpty && g.moved < 6 && m_touches.count(g.pid) && ImGui::GetTime() - g.t0 > 0.35) {
+        const TouchPt& p = m_touches[g.pid];
+        const uint64_t pid = g.pid;
+        g = TouchGesture();
+        g.type = TG_MARQUEE;
+        g.pid = pid;
+        g.hasPid = true;
+        m_marquee = true;
+        m_marquee0 = ImVec2(p.sx, p.sy);
+        m_marquee1 = ImVec2(p.x, p.y);
+    }
     // the kit: a finger held still 0.45 s on a brick opens the ring of colours around it (Wzx 22/11/2026); the finger
     // stays its mouse: slid onto a colour and lifted, it paints
     if (g.type == TG_PRESS && m_ipadCreme && !m_mechOn && !m_reading && m_touches.count(g.pid) && ImGui::GetTime() - m_touches[g.pid].t > 0.45 &&
@@ -268,6 +280,8 @@ void BrickApp::touchDown(const TouchEvent& e) {
         }
         g.type = TG_ORBIT;
         g.tap = hit < 0;
+        g.penEmpty = e.pen && hit < 0;
+        g.t0 = now;
         return;
     }
     if (hit >= 0 && m_pencilOnly && !e.pen) {   // « Construire au stylet seulement »: a finger selects, never takes
@@ -278,6 +292,8 @@ void BrickApp::touchDown(const TouchEvent& e) {
     if (hit >= 0) { g.type = TG_PRESS; g.hit = hit; g.hitPoint = pt; g.f0 = m_frame; return; }   // Viseur: tap selects, drag takes
     g.type = TG_ORBIT;
     g.tap = true;
+    g.penEmpty = e.pen;
+    g.t0 = now;
 }
 
 // --------------------------------------------------------------------------- pointermove
@@ -472,7 +488,23 @@ void BrickApp::touchUp(const TouchEvent& e) {
         break;
     case TG_ORBIT:
         if (e.id == g.pid && g.tap && g.moved < 6 && !cancelled && m_touches.empty()) {
-            if (!leaveGroup()) select(-1);
+            // a double tap (finger or Pencil) on the empty view: the focus, on the selection of before the first tap
+            // (the whole scene without one), Wzx 22/11/2026
+            static double lastTap = -1;
+            static ImVec2 lastAt;
+            static int lastSel = -1;
+            static std::vector<int> lastMulti;
+            if (now - lastTap < 0.35 && dist2(e.x, e.y, lastAt.x, lastAt.y) < 50 * m_ui) {
+                if (lastSel >= 0 && lastSel < (int)m_bricks.size()) { m_selected = lastSel; m_multi = lastMulti; syncObjects(); }
+                crFrame();
+                lastTap = -1;
+            } else {
+                lastSel = m_selected;
+                lastMulti = m_multi;
+                lastTap = now;
+                lastAt = ImVec2(e.x, e.y);
+                if (!leaveGroup()) select(-1);
+            }
         }
         break;
     case TG_TWO:
@@ -665,6 +697,16 @@ void BrickApp::touchTestFrame() {
         const float3 now = m_mm.mats[m_mm.tree[mj].child].point(float3(0));
         line("mring: the part beyond the pivot moved " + std::to_string(length(now - childAt0)) + " cm" + (length(now - childAt0) > 0.05f ? " OK" : " FAIL"));
     }
+    // the Pencil held on the empty view: the selection rectangle; a double tap on the empty view: the focus
+    if (t == "pmarq" && f == 20) { m_bricks.size(); select(-1); a = ImVec2(m_stage.x + 30, m_stage.y + 30); for (int j = 1; j < 8; ++j) for (int i = 1; i < 8; ++i) { const float x = m_stage.x + sw * i / 8.0f, y = m_stage.y + sh * j / 8.0f; if (pickBrick(x, y) < 0 && !touchOverUi(x, y) && a.x == m_stage.x + 30) a = ImVec2(x, y); } touchBegan(1, a.x, a.y, true); }
+    if (t == "pmarq" && f == 50) line(std::string("pmarq: rectangle ") + (m_marquee && m_tg.type == TG_MARQUEE ? "OK" : "FAIL"));
+    if (t == "pmarq" && f > 50 && f <= 60) touchMoved(1, a.x + (cx - a.x) * (f - 50) / 10.0f * 2, a.y + (cy - a.y) * (f - 50) / 10.0f * 2);
+    if (t == "pmarq" && f == 62) touchEnded(1, a.x + (cx - a.x) * 2, a.y + (cy - a.y) * 2, false);
+    if (t == "pmarq" && f == 66) line("pmarq: selected " + std::to_string(selection().size()) + (selection().size() > 0 ? " OK" : " FAIL"));
+    static float dist0b = 0;
+    if (t == "pmarq" && f == 70) { dist0b = m_scene.camera.distance; m_scene.camera.distance *= 3; touchBegan(2, a.x, a.y, false); touchEnded(2, a.x, a.y, false); }
+    if (t == "pmarq" && f == 74) { touchBegan(3, a.x + 2, a.y, false); touchEnded(3, a.x + 2, a.y, false); }
+    if (t == "pmarq" && f == 80) line("pmarq: double tap, distance " + std::to_string(dist0b * 3) + " -> " + std::to_string(m_scene.camera.distance) + (m_scene.camera.distance < dist0b * 2.5f ? " OK" : " FAIL"));
     if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }
     if (t == "ring" && f == 24 && m_ringR > 0) { touchBegan(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); touchEnded(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); }
     if (t == "ring" && f == 70) {

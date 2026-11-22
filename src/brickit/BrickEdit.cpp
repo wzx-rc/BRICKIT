@@ -778,7 +778,7 @@ void BrickApp::editInput() {
         if (m_mode == 0 && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
         if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
     }
-    if (m_marquee) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds
+    if (m_marquee && m_tg.type != TG_MARQUEE) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds (a finger / the Pencil: BrickTouch.cpp)
         m_marquee1 = mp;
         if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) finishMarquee(io.KeyShift || io.KeyCtrl);
         return;
