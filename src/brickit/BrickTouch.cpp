@@ -631,11 +631,11 @@ void BrickApp::touchTestFrame() {
     }
     if (t == "cring" && ringT < 0 && f == (int)mc.x + 20) {   // onto the first stud of the inner ring (straight up from the centre of the ring)
         const ImVec2 d = ImGui::GetIO().DisplaySize;
-        const float R = 78 * m_ui;
+        const float R = 150 * m_ui;
         (void)d;
         touchMoved(1, m_crRingAt.x, m_crRingAt.y - R);
     }
-    if (t == "cring" && ringT < 0 && f == (int)mc.x + 24) touchEnded(1, m_crRingAt.x, m_crRingAt.y - 78 * m_ui, false);
+    if (t == "cring" && ringT < 0 && f == (int)mc.x + 24) touchEnded(1, m_crRingAt.x, m_crRingAt.y - 150 * m_ui, false);
     if (t == "cring" && ringT < 0 && f == (int)mc.x + 30)
         line(std::string("cring: colour ") + std::to_string(ringCol0) + " -> " + std::to_string(m_bricks[target].color) + (m_bricks[target].color != ringCol0 && !m_crRing ? " OK" : " FAIL"));
     if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }

@@ -225,6 +225,26 @@ void BrickApp::crTurn(int dir) {
 }
 
 // ------------------------------------------------------------------ the ring of colours (a long press on a brick)
+
+// a swatch: a plain disc of the colour, its soft shadow, a thin darker rim, a gloss on top (the transparent ones lighter,
+// the metallic ones with a brighter gloss); the current one ringed in white then ink
+void BrickApp::crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool current, float alpha) {
+    const float s = m_ui;
+    const Color& col = m_lib.palette[std::clamp(color, 0, (int)m_lib.palette.size() - 1)];
+    const bool trans = col.group == "transparent", metal = col.group == "metallic" || col.group == "metal" || col.group == "chrome" || col.group == "pearl";
+    const float a = std::clamp(alpha, 0.0f, 1.0f);
+    kitShadowCircle(dl, p, r * 2, alphaOf(IM_COL32(40, 25, 10, 110), a), 2.5f * s);
+    if (current) {
+        dl->AddCircleFilled(p, r + 5 * s, alphaOf(IM_COL32(255, 255, 255, 255), a), 48);
+        dl->AddCircle(p, r + 5 * s, alphaOf(T_BRUN, a), 48, 1.5f * s);
+    }
+    const ImU32 base = kitCol(col, (trans ? 0.78f : 1.0f) * a);
+    dl->AddCircleFilled(p, r, base, 48);
+    const float lum = col.srgb.x * 0.3f + col.srgb.y * 0.59f + col.srgb.z * 0.11f;
+    dl->AddCircle(p, r - 0.5f * s, alphaOf(lum > 0.85f ? IM_COL32(150, 140, 125, 255) : IM_COL32(0, 0, 0, 70), a), 48, 1.0f * s);
+    dl->AddCircleFilled(ImVec2(p.x - r * 0.18f, p.y - r * 0.26f), r * 0.62f, alphaOf(IM_COL32(255, 255, 255, metal ? 60 : trans ? 50 : 26), a), 40);
+    dl->AddCircleFilled(ImVec2(p.x - r * 0.32f, p.y - r * 0.38f), r * 0.24f, alphaOf(IM_COL32(255, 255, 255, metal ? 100 : 60), a), 24);
+}
 // Wzx 22/11/2026: « quand je maintiens sur une brique, apparition d'un cercle avec toutes les couleurs tout autour, avec
 // la même animation d'apparition »: every colour of the Nuancier in rings around the finger, the studs appearing one
 // after the other (0.85 -> 1, ease-out); the finger slid onto a colour and lifted paints the brick (or its selection);
@@ -240,27 +260,27 @@ void BrickApp::ipadColorRing() {
     std::vector<int> cols;
     for (const KitColor& kc : m_kitColorList) cols.push_back(kc.index);
     if (cols.empty()) for (int i = 0; i < (int)m_lib.palette.size() && i < 60; ++i) cols.push_back(i);
-    // rings of studs 34 pt, 40 pt apart along the ring, 44 pt between the rings, from 78 pt
+    // rings of swatches 34 pt, 48 pt apart along the ring, 56 pt between the rings, from 150 pt (Wzx 22/11/2026: « met les
+    // ring plus loin », no white disc under them, simple round swatches instead of the studs)
     struct At { ImVec2 p; int col; int order; };
     std::vector<At> at;
-    float R = 78 * s;
-    const float stud = 34 * s, step = 40 * s;
+    float R = 150 * s;
+    const float stud = 34 * s, step = 48 * s, ringGap = 62 * s;
     size_t k = 0;
     int ring = 0;
     while (k < cols.size()) {
-        const int n = std::max(6, (int)(2 * 3.14159265f * R / step));
+        const int n = std::min(std::max(6, (int)(2 * 3.14159265f * R / step)), (int)(cols.size() - k));   // (the last ring: its swatches spread all around)
         for (int i = 0; i < n && k < cols.size(); ++i, ++k) {
             const float th = -3.14159265f * 0.5f + 2 * 3.14159265f * (i + (ring % 2) * 0.5f) / n;
             at.push_back({ImVec2(std::cos(th) * R, std::sin(th) * R), cols[k], (int)k});
         }
-        R += 44 * s;
+        R += ringGap;
         ++ring;
     }
-    const float outer = R - 44 * s + stud * 0.5f + 6 * s;
+    const float outer = R - ringGap + stud * 0.5f + 6 * s;
     const ImVec2 c(std::clamp(m_crRingAt.x, std::min(outer, d.x * 0.5f), std::max(d.x - outer, d.x * 0.5f)),
                    std::clamp(m_crRingAt.y, std::min(outer + 60 * s, d.y * 0.5f), std::max(d.y - outer - 20 * s, d.y * 0.5f)));
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
-    u.dl->AddCircleFilled(c, outer + 10 * s, alphaOf(T_FEUILLE, 0.55f), 96);   // a soft disc under the studs
     const int cur = m_selected >= 0 && m_selected < (int)m_bricks.size() ? m_bricks[m_selected].color : m_color;
     int hot = -1;
     for (const At& a : at) {
@@ -272,7 +292,7 @@ void BrickApp::ipadColorRing() {
         const float e = std::clamp((float)(now - m_crRingT0 - a.order * 0.008) / 0.16f, 0.0f, 1.0f);
         if (e <= 0) continue;   // (one after the other)
         const float sc = (0.85f + 0.15f * (1.0f - (1.0f - e) * (1.0f - e) * (1.0f - e))) * (a.col == hot ? 1.22f : 1.0f);
-        kitStud(u.dl, p, stud * sc, a.col, 0, a.col == cur);
+        crSwatch(u.dl, p, stud * sc * 0.5f, a.col, a.col == cur, e);
     }
     kitLabel(u.dl, c, colorNameFr(hot >= 0 ? hot : cur));
     const bool down = ImGui::IsMouseDown(ImGuiMouseButton_Left);

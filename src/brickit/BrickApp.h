@@ -945,6 +945,7 @@ private:
     void crTurn(int dir = 1);
     void crFrame();                // Recadrer: the selection in the middle, closer (all the scene without one)
     void ipadColorRing();          // a long press on a brick: all the colours in rings around it
+    void crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool current, float alpha);
     bool m_crRing = false, m_crRingSticky = false;
     ImVec2 m_crRingAt{0, 0};
     double m_crRingT0 = 0;
