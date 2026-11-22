@@ -60,6 +60,7 @@ struct Part {
     // (failed), 4 validated by hand, 5 the locators of the old BrickIt (Maya, when LDraw does not know the part). connAuto: the value of the conversion (conn_status.json)
     uint8_t connSrc = 0, connAuto = 0;
     bool connOld = false;     // (automatic, from the voxels of the old BrickIt)
+    bool hinge = false;       // hinge axes added from the LDCad fingers (assets/brickit/hinges.json): pins / holes with their axis
     float3 bmin, bmax;
 };
 
@@ -92,6 +93,12 @@ public:
     // a pin hole: one voxel at its middle, not one every half stud along it (Wzx 13/11/2026: « les pins receveurs ne
     // devraient avoir qu'un voxel au milieu pour faciliter l'encapsulage »); its axis kept in vaxis (mechanics)
     static void mergePinHoles(Part& p);
+    // the hinge axes of the LDCad shadow library (SNAP_FGR, tools/brickit/hinges_from_ldcad.py), the conversion having
+    // kept none (Wzx 22/11/2026: a hinge base 3937 and its top 3938 did not join): {part: (axis, centre, length, male)}
+    struct HingeAxis { int axis; float3 c; float len; bool male; };
+    std::unordered_map<std::string, std::vector<HingeAxis>> hinges;
+    void loadHinges(const std::wstring& path);
+    void applyHinges(Part& p) const;
 
     std::vector<Part> parts;
     std::vector<Color> palette;

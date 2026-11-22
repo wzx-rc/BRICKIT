@@ -946,6 +946,8 @@ private:
     int m_crCardMenu = -1, m_crHubRename = -1;   // the card of the « … » menu (kind * 100000 + index), the local card renamed
     ImVec2 m_crCardMenuAt{0, 0};
     char m_crSearch[96] = {};
+    ImVec2 m_kitMoreAt{0, 0};
+    ImVec4 m_kitMoreSheet{0, 0, 0, 0};   // its sheet (a, b)   // the « … » bubble of the selection (touch test « more »)
     // one button, icon or element moved on its own (a long press on it in the UI editor): its offset, « el:<id> » in m_boxes
     ImVec2 bqEl(const std::string& id, const char* label, ImVec4 r);
     std::vector<std::string> m_editEls;

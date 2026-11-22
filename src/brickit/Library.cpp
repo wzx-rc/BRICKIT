@@ -92,6 +92,39 @@ static void readMeta(const Json& j, Part& p) {
     }
 }
 
+void Library::loadHinges(const std::wstring& path) {
+    hinges.clear();
+    std::vector<uint8_t> text;
+    if (!readFile(path, text)) return;
+    Json j;
+    if (!Json::parse(std::string(text.begin(), text.end()), j)) return;
+    for (const auto& [name, rows] : j.o)
+        for (const Json& r : rows.a)
+            if (r.a.size() >= 6)
+                hinges[name].push_back({std::clamp((int)r[0].num(), 0, 2), float3((float)r[1].num(), (float)r[2].num(), (float)r[3].num()), (float)r[4].num(), r[5].num() > 0.5});
+}
+
+// a hinge: its pins (male) or its holes (female) on the axis, one per 0.8 cm (a hinge 1 x 2: two), their axis known
+// (vaxis): the pin of the top snaps into the hole of the base, and turns there in Mécanique
+void Library::applyHinges(Part& p) const {
+    auto it = hinges.find(p.name);
+    if (it == hinges.end()) return;
+    if (p.vaxis.size() != p.voxels.size()) p.vaxis.assign(p.voxels.size(), 255);
+    if (p.conn.size() != p.voxels.size()) p.conn.assign(p.voxels.size(), CONN_STUD);
+    for (const HingeAxis& h : it->second) {
+        const int n = std::max(1, (int)std::lround(h.len / 0.8f));
+        const float w = h.len / n;
+        for (int k = 0; k < n; ++k) {
+            float3 q = h.c;
+            (&q.x)[h.axis] = (&h.c.x)[h.axis] - h.len * 0.5f + w * (k + 0.5f);
+            p.voxels.push_back(q);
+            p.conn.push_back(h.male ? CONN_PIN : CONN_PINHOLE);
+            p.vaxis.push_back((uint8_t)h.axis);
+        }
+    }
+    p.hinge = true;
+}
+
 // the pin hole voxels on one line (one axis, 0.5 cm apart at most) become the middles of its holes (one per 0.8 cm, the
 // width of a Technic hole); a lone voxel stays as it is (axis unknown)
 void Library::mergePinHoles(Part& p) {
@@ -234,6 +267,7 @@ std::wstring fullLibraryDir(const std::wstring& assets) {
 bool Library::load(const std::wstring& dir, std::string* error) {
     m_dir = dir;
     loadPartColors(dir + L"\\part_colors.txt", m_partColors);
+    loadHinges(dir + L"\\hinges.json");
     parts.clear();
     palette.clear();
     m_byName.clear();
@@ -401,6 +435,7 @@ bool Library::loadPack(int no, std::string* error) {
         if (p.loaded) continue;
         readMeta(m, p);
         applyVoxEdit(p);   // (the voxels placed by hand)
+        applyHinges(p);    // (the hinge axes of LDCad)
         const Json& q = m["q"];
         size_t off = (size_t)q["off"].num(), vc = (size_t)q["vc"].num(), ic = (size_t)q["ic"].num();
         bool big = q["big"].type == Json::Bool && q["big"].b;

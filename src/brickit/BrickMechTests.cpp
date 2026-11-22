@@ -787,6 +787,23 @@ void BrickApp::runMechTests() {
         } else { ++total; fprintf(f, "[ÉCHEC] 16. scène introuvable\n"); }
         m_bricks = keep;
     }
+    // 30. a hinge 1 x 2: the base 3937 and its top 3938 at the same place (LDraw: the hinge closed) = two bodies on one
+    // pivot along X (the axes of LDCad, assets/brickit/hinges.json; Wzx 22/11/2026)
+    {
+        Mount m = mk();
+        const int base = m.partOf("3937"), top = m.partOf("3938");
+        if (base >= 0 && top >= 0) {
+            const Part& pb = m_lib.parts[base];
+            const Part& pt = m_lib.parts[top];
+            // the hinge closed: the axes of the two halves on one line (their LDraw origins together)
+            m.add(base, float4(0, 0, 0, 1), float3(0, 0, 0));
+            m.add(top, float4(0, 0, 0, 1), pb.ldrawOrigin - pt.ldrawOrigin);
+            const MechMeta& mt = m_mech.meta(top);
+            fprintf(f, "# 3938 : %zu mâles (axe %.0f %.0f %.0f), 3937 : %zu trous\n", mt.males.size(), mt.males.empty() ? 0.f : mt.males[0].axis.x,
+                    mt.males.empty() ? 0.f : mt.males[0].axis.y, mt.males.empty() ? 0.f : mt.males[0].axis.z, m_mech.meta(base).holes.size());
+            run("30. charnière 1 × 2 (3937 + 3938) : deux corps sur un pivot", m, 2, -1, {});
+        } else { ++total; fprintf(f, "[ÉCHEC] 30. 3937 / 3938 introuvables\n"); }
+    }
     fprintf(f, "\n%d / %d réussis\n", passed, total);
     fclose(f);
 }

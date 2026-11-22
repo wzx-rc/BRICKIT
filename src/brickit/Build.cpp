@@ -216,11 +216,15 @@ void Builder::computeTarget(Held& H, const View& view, float sx, float sy, const
     // The typed targets (holes, axles, pins) stay; the candidate nearest to the cursor wins, whatever its kind.
     float3 pivStud, pivAnti;
     const bool hasStud = nearestOf(CONN_STUD, pivStud), hasAnti = nearestOf(CONN_ANTISTUD, pivAnti);
+    float3 pivPin, pivHole;   // a hinge (Wzx 22/11/2026): taken by its studs, it still joins its other half through its axis
+    const bool hingePin = hp.hinge && nearestOf(CONN_PIN, pivPin), hingeHole = hp.hinge && nearestOf(CONN_PINHOLE, pivHole);
     auto pivotFor = [&](uint8_t target, float3& piv, int& pt) -> bool {
         if (gT < 0 || snapCompatible((uint8_t)gT, target)) { piv = H.grab; pt = gT; return true; }
         // (also a part taken by a stud: onto studs through its nearest anti-stud, under anti-studs through its nearest stud)
         if (target == CONN_STUD && hasAnti) { piv = pivAnti; pt = CONN_ANTISTUD; return true; }
         if (target == CONN_ANTISTUD && hasStud) { piv = pivStud; pt = CONN_STUD; return true; }
+        if (target == CONN_PINHOLE && hingePin) { piv = pivPin; pt = CONN_PIN; return true; }
+        if (target == CONN_PIN && hingeHole) { piv = pivHole; pt = CONN_PINHOLE; return true; }
         return false;
     };
     // voxels attract strongly over a brick, only very close otherwise (free move on the floor)
@@ -266,6 +270,38 @@ void Builder::computeTarget(Held& H, const View& view, float sx, float sy, const
         chosen = onGrid ? float3(std::floor(p.x / kPitch) * kPitch + 0.4f, 0, std::floor(p.z / kPitch) * kPitch + 0.4f)
                         : float3(p.x, 0, p.z);
     }
+    // a hinge: its pins go into the holes of the other half rank for rank (the two halves together, not one stud off)
+    if (found && hp.hinge && (pivotType == CONN_PIN || pivotType == CONN_PINHOLE) && hp.vaxis.size() == hp.voxels.size()) {
+        int pa = -1;
+        for (size_t i = 0; i < hp.voxels.size(); ++i)
+            if (hp.conn[i] == pivotType && hp.vaxis[i] < 3 && length(hp.voxels[i] - pivot) < 1e-3f) pa = hp.vaxis[i];
+        if (pa >= 0) {
+            float3 la(0);
+            (&la.x)[pa] = 1;
+            const float3 u = qRot(H.rot, la);
+            std::vector<float> mine, theirs;
+            for (size_t i = 0; i < hp.voxels.size(); ++i) {
+                if (hp.conn[i] != pivotType || hp.vaxis[i] != pa) continue;
+                const float3 d = hp.voxels[i] - pivot;
+                const float t = dot(d, la);
+                if (length(d - la * t) < 0.02f) mine.push_back(t);
+            }
+            const uint8_t tgt = pivotType == CONN_PIN ? CONN_PINHOLE : CONN_PIN;
+            for (size_t ci = 0; ci < H.vox.size(); ++ci) {
+                if (H.conn[ci] != tgt) continue;
+                const float3 d = H.vox[ci] - chosen;
+                const float t = dot(d, u);
+                if (length(d - u * t) < 0.02f && std::fabs(t) < 2.5f) theirs.push_back(t);
+            }
+            std::sort(mine.begin(), mine.end());
+            std::sort(theirs.begin(), theirs.end());
+            if (mine.size() == theirs.size() && mine.size() > 1) {
+                size_t rank = 0;
+                for (size_t k = 0; k < theirs.size(); ++k) if (std::fabs(theirs[k]) < 1e-3f) rank = k;
+                pivot = pivot + la * mine[rank];
+            }
+        }
+    }
     const float3 gW = qRot(H.rot, pivot);
     const Box rel = aabbOf(hb.part, H.rot, float3(0));
     auto floorClamp = [&](float3 pos) {
@@ -275,7 +311,9 @@ void Builder::computeTarget(Held& H, const View& view, float sx, float sy, const
     float3 pos = floorClamp(chosen - gW);
     H.blocked = H.suggested = false;
     auto overlap = [&](const float3& at) { return H.boxes.worstOverlap(bodyBox(hb.part, H.rot, at)); };
-    if (safety && overlap(pos) > 0.5f) {
+    // (a hinge on its axis: the two halves nest into each other by design, their boxes overlap)
+    const bool hingeSnap = found && hp.hinge && (pivotType == CONN_PIN || pivotType == CONN_PINHOLE);
+    if (safety && !hingeSnap && overlap(pos) > 0.5f) {
         // refused: the aimed voxel stays, another pivot of the same type is tried (about 1, 2 then 3 studs away)
         struct Cand { float3 v; float d; };
         std::vector<Cand> cands;

@@ -551,6 +551,52 @@ void BrickApp::touchTestFrame() {
     if (t == "menu" && mc.x != 0 && !endF && m_tg.type == TG_MENU) { endF = f + 6; }
     if (t == "menu" && endF && f == endF) touchEnded(1, mc.x + std::cos(1.5708f) * 100 * m_ui, mc.y + std::sin(1.5708f) * 100 * m_ui, false);
     if (t == "menu" && endF && f == endF + 6) line(std::string("menu: slide to Dupliquer then lift, bricks ") + std::to_string(count0) + " -> " + std::to_string(m_bricks.size()) + (m_bricks.size() == count0 + 1 && !m_stMenu ? " OK" : " FAIL"));
+    // Crème: a tap on the « … » bubble of the selection opens its sheet (Wzx 22/11/2026: « la fenêtre s'affiche pas »)
+    if (t == "more" && f == 20) { a = brickPoint(target); touchBegan(1, a.x, a.y, false); }   // a finger taps a brick (selected on the lift)
+    if (t == "more" && f == 23) touchEnded(1, a.x, a.y, false);
+    if (t == "more" && f == 30) { a = m_kitMoreAt; touchBegan(1, a.x, a.y, false); touchEnded(1, a.x, a.y, false); }   // (a quick tap: both in one frame)
+    if (t == "more" && f == 40) {   // then « Fiche de la pièce », the last row of the sheet (over the bubble)
+        a = ImVec2(m_kitMoreSheet.x + 120 * m_ui, m_kitMoreSheet.w - 11 * m_ui - 25 * m_ui);
+        touchBegan(1, a.x, a.y, false);
+        touchEnded(1, a.x, a.y, false);
+    }
+    if (t == "more" && f == 50) line("more: frame 50 sheet of the part " + std::to_string(m_infoPart) + " open " + (m_moreOpen ? "1" : "0"));
+    for (int k : {31, 32, 33, 35, 40})
+        if (t == "more" && f == k) line("more: frame " + std::to_string(f) + " open " + (m_moreOpen ? "1" : "0") + " selKey " + std::to_string(m_selKey) + " sel " + std::to_string(m_selected));
+    // a hinge top 3938 taken from the library over a hinge base 3937: it clips on the axis of the base (Wzx 22/11/2026)
+    static float3 hingeAt;
+    if (t == "hinge" && f == 20) {
+        m_bricks.clear();
+        const int pb = m_lib.find("3937"), pt = m_lib.find("3938");
+        if (pb >= 0 && pt >= 0 && m_lib.get("3937") && m_lib.get("3938")) {
+            Brick b;
+            b.part = pb;
+            b.color = m_color;
+            b.pos = float3(0.4f, 0, 0.4f);
+            m_bricks.push_back(b);
+            rebuildScene();
+            hingeAt = b.pos + m_lib.parts[pb].ldrawOrigin - m_lib.parts[pt].ldrawOrigin;   // the hinge closed
+            m_scene.camera.target = float3(1.2f, 0.5f, 0.8f);
+            m_scene.camera.distance = 8;
+            m_libSel = pt;
+            spawn(pt, cx, cy);
+        }
+    }
+    if (t == "hinge" && f > 20 && f < 30 && m_holding) {   // over the hole of the base
+        const Part& p = m_lib.parts[m_bricks[0].part];
+        float3 hole(0);
+        for (size_t k = 0; k < p.voxels.size(); ++k) if (p.conn[k] == CONN_PINHOLE) { hole = m_bricks[0].pos + p.voxels[k]; break; }
+        float sx, sy;
+        if (view().project(hole, sx, sy)) updateHeld(sx, sy);
+    }
+    if (t == "hinge" && f == 30 && m_holding) dropHeld();
+    if (t == "hinge" && f == 40) {
+        const bool two = m_bricks.size() == 2;
+        const float3 d = two ? m_bricks[1].pos - hingeAt : float3(9);
+        char b[200];
+        snprintf(b, sizeof(b), "hinge: %zu bricks, the top %.3f %.3f %.3f from the closed hinge", m_bricks.size(), d.x, d.y, d.z);
+        line(std::string(b) + (two && length(d) < 0.02f ? " OK" : " FAIL"));
+    }
     if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }
     if (t == "ring" && f == 24 && m_ringR > 0) { touchBegan(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); touchEnded(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); }
     if (t == "ring" && f == 70) {

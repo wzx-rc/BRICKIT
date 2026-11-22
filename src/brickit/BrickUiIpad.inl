@@ -173,7 +173,10 @@ static ImU32 kitCol(const Color& c, float a = 1.0f) {
 
 // ---- Fredoka (Gfx fontKit / fontKitMed; the default font on the PC)
 static ImVec2 g_morePos(0, 0);
-static float g_crModesR = 0;   // the right edge of the modes pill (Crème A: the scene pill goes right of it)
+static float g_crModesR = 0;
+struct KitTop { int tag; ImVec4 r; };
+static std::vector<KitTop> g_kitTop, g_kitTopNext;   // the sheets drawn last frame (« … », Nuancier, Scène, Presets): a tap on one is its own
+static int g_kitTag = 0;   // the right edge of the modes pill (Crème A: the scene pill goes right of it)
 static ImFont* g_kf = nullptr;
 static ImFont* g_kfm = nullptr;
 static ImFont* kF(bool med) { ImFont* f = med ? g_kfm : g_kf; return f ? f : ImGui::GetFont(); }
@@ -338,6 +341,7 @@ void BrickApp::kitSheet(ImDrawList* dl, ImVec2 a, ImVec2 b, ImDrawFlags flags) {
     kitShadowRect(dl, a, b, T_OMBRE_FEUILLE, 18 * m_ui, 40 * m_ui);
     dl->AddRectFilled(a, b, T_FEUILLE, 26 * m_ui, flags);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+    g_kitTopNext.push_back({g_kitTag, ImVec4(a.x, a.y, b.x, b.y)});
 }
 
 // 11. segmented control: a hollow pill, the active option white with a soft shadow. a = top left (top right if alignRight);
@@ -450,6 +454,17 @@ void BrickApp::drawUiIpad() {
     m_uiRects.push_back(ImVec4(0, 0, d.x, 0));
     if (!m_paintMode) m_paintTool = false;   // (the Pinceau only in the mode Peindre: the pipette of Construire takes the colour, no more)
     const bool hub = m_homeOpen || m_newSceneOpen;
+    // a sheet open (« … », Nuancier, Scène, Presets, the part sheet): a tap on it is its own (Wzx 22/11/2026: « la fenêtre
+    // s'affiche pas »: the bubbles under the « … » sheet, drawn first, took the tap on its rows and closed it)
+    g_kitTop.swap(g_kitTopNext);
+    g_kitTopNext.clear();
+    const ImVec2 mp = ImGui::GetIO().MousePos;
+    int hitTag = m_infoPart >= 0 ? 5 : 0;   // (the part sheet: over everything)
+    if (!hitTag)
+        for (const KitTop& t : g_kitTop) if (mp.x >= t.r.x && mp.y >= t.r.y && mp.x < t.r.z && mp.y < t.r.w) hitTag = t.tag;   // (the last drawn: on top)
+    const bool overTop = hitTag != 0;
+    g_uiBlock = overTop;
+    auto onTop = [&](int tag, auto&& draw) { g_kitTag = tag; g_uiBlock = overTop && tag != hitTag; draw(); g_uiBlock = overTop; g_kitTag = 0; };
     if (m_libOpen && !hub) ipadDrawer();   // m_uiRects[1]
     else m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y));
     if (!hub) {
@@ -461,17 +476,18 @@ void BrickApp::drawUiIpad() {
         ipadTools();
         ipadCorners();
         ipadDock();
-        ipadScenePanel();
-        ipadPresets();
+        onTop(1, [&] { ipadScenePanel(); });
+        onTop(2, [&] { ipadPresets(); });
         uiMechPanel();
-        if (m_moreOpen && m_selKey >= 0) ipadMoreMenu(g_morePos);
+        if (m_moreOpen && m_selKey >= 0) onTop(3, [&] { ipadMoreMenu(g_morePos); });
         uiReader();
         uiManual();
-        uiInfoSheet();
-        ipadNuancier();
+        onTop(5, [&] { uiInfoSheet(); });
+        onTop(4, [&] { ipadNuancier(); });
         if (m_paintMode && !m_mechOn && !m_libOpen && !m_paletteOpen)
             kitLabel(ImGui::GetWindowDrawList(), ImVec2(d.x * 0.5f, d.y - 18 * m_ui - 72 * m_ui - 44 * m_ui), m_pipette ? "Pipette · touche une brique pour prendre sa couleur" : "Peindre · touche ou glisse sur les briques");
     }
+    g_uiBlock = false;
     ipadHub();
     if (hub) ipadTopBar();   // (the Maison pebble over the veil of the hub)
     uiPopups();   // (Réglages, from the hub)
@@ -739,6 +755,7 @@ void BrickApp::ipadBubbles() {
     if (kitBubble(u, pL, 46 * s, "dupliquer", appear(3))) { u.pressed = false; duplicateSelected(); }
     if (kitBubble(u, pM, 36 * s, "plus_actions", appear(4))) { u.pressed = false; m_moreOpen = !m_moreOpen; }
     (void)d;
+    m_kitMoreAt = pM;
     g_morePos = pM;   // the « … » sheet is drawn above the top bar (drawUiIpad)
 }
 
@@ -755,6 +772,7 @@ void BrickApp::ipadMoreMenu(ImVec2 bubble) {
     a.x = std::min(a.x, d.x - 16 * s - W);
     a.y = std::clamp(a.y, 80 * s, d.y - 16 * s - H);   // (under the top bar)
     const ImVec2 b(a.x + W, a.y + H);
+    m_kitMoreSheet = ImVec4(a.x, a.y, b.x, b.y);
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));   // a tap outside closes
     kitSheet(u.dl, a, b);
     float y = a.y + pad;

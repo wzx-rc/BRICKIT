@@ -52,6 +52,7 @@ const MechMeta& Mech::meta(int part) {
     if (m_metaDone[part]) return m;
     m_metaDone[part] = true;
     const Part& p = m_lib.parts[part];
+    m.hinge = p.hinge;
     {   // turntable halves: "Technic Turntable 28 Tooth Bottom" / "... Top", "Turntable 5 x 5 Base" / "... Top"
         const std::string t = p.title.empty() ? p.label : p.title;
         if (t.find("Turntable") != std::string::npos) {
@@ -87,10 +88,11 @@ const MechMeta& Mech::meta(int part) {
         for (size_t i = 0; i < p.voxels.size(); ++i) {
             if (p.conn[i] != k.conn) continue;
             // a pin hole merged to its middle (Library::mergePinHoles): one hole, its axis known
-            if (k.hole && p.vaxis.size() == p.voxels.size() && p.vaxis[i] < 3) {
+            if (p.vaxis.size() == p.voxels.size() && p.vaxis[i] < 3) {   // (a pin of a hinge too: its axis known)
                 float3 dir(0);
                 (&dir.x)[p.vaxis[i]] = 1;
-                m.holes.push_back({p.voxels[i], dir, 0.4f, k.cross});
+                if (k.hole) m.holes.push_back({p.voxels[i], dir, 0.4f, k.cross});
+                else m.males.push_back({p.voxels[i], dir, 0.4f, k.cross});
                 continue;
             }
             pts.push_back(p.voxels[i]);
@@ -398,6 +400,8 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
                 if (h->cross) unite(m.i, h->i);
                 else revs.push_back({m.i, h->i, h->p, m.u});
             }
+        } else if (meta(bricks[m.i].part).hinge) {   // the pin of a hinge half: a pivot in the holes of the other half
+            for (const WH* h : hit) revs.push_back({m.i, h->i, h->p, m.u});
         } else {   // pin: rides with the first part, pivot between it and the others
             unite(m.i, hit[0]->i);
             for (size_t a = 1; a < hit.size(); ++a) revs.push_back({hit[0]->i, hit[a]->i, hit[a]->p, m.u});

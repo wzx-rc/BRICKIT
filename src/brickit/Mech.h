@@ -15,6 +15,7 @@ struct MechGear { int teeth = 0; float3 c, axis, ex; int kind = 0; float radius 
 struct MechMeta {
     std::vector<MechConn> holes, males;   // males: cross = axle, else pin
     std::vector<float3> top, bottom;      // studs, anti-studs
+    bool hinge = false;                   // a hinge half (Part::hinge): its pin belongs to it, a pivot in the holes of the other half
     std::vector<MechGear> gears;
     // turntable half (web: metas[i].pair, never filled by the web v26): role 1 base / bottom, 2 top, family from the
     // LDraw title, vertical axis through the centre of the part, extent along the axis
