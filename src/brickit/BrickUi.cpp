@@ -2326,11 +2326,12 @@ void BrickApp::drawUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-    const bool creme = m_studioUi && m_themeId == "creme";   // Thème › Crème: the cream kit (PC and iPad, Wzx 22/11/2026), else the Studio interface
+    const bool creme = m_studioUi && m_uxKit;   // the UX Crème: the touch kit (PC and iPad), else the Studio interface
     m_ipadCreme = creme;
-    if (creme) uiTheme(true);
-    else if (applyTheme()) applyLook();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
-    if (m_ipadUiWas != (int)creme) { m_ipadUiWas = (int)creme; applyLook(); }   // (the PC too: Crème has its own stage)
+    const bool themeChanged = applyTheme();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
+    if (creme && m_themeId == "creme") uiTheme(true);   // (the panels shared with the PC: the cream of the kit)
+    const int uiNow = (creme ? 1 : 0) + (m_themeId == "creme" ? 2 : 0);
+    if (themeChanged || m_ipadUiWas != uiNow) { m_ipadUiWas = uiNow; applyLook(); }   // (the kit in Crème has its own stage)
     if (creme) {
         drawUiIpad();
         uiCtxMenu();
@@ -3439,7 +3440,7 @@ void BrickApp::uiThemeTab(Ui& u, ImVec2 p0, ImVec2 p1) {
         u.dl->AddText(f, 13 * s * fontKOf(t.font), ImVec2(a.x + 8 * s, pb.y + 6 * s), C_TEXT, d.label);
         textWrap(u, ImVec2(a.x + 8 * s, pb.y + 25 * s), cw - 14 * s, 9.5f, C_DIM, d.desc, 2);
         if (on) u.dl->AddRect(ImVec2(a.x - 1.5f * s, a.y - 1.5f * s), ImVec2(b.x + 1.5f * s, b.y + 1.5f * s), C_ACCENT_TXT, rr(11 * s), 0, 2.0f * s);
-        if (hv && u.pressed && (!on || m_ipadCreme)) { m_themeId = d.id; changed = true; if (m_ipad) { m_ipadCreme = false; savePrefs(); } }
+        if (hv && u.pressed && !on) { m_themeId = d.id; changed = true; savePrefs(); }   // (the colours only: the UX stays, Réglages › Interface)
     }
     y += nRows * ch + (nRows - 1) * cg + gap + 4 * s;
     const int ti = std::max(0, theme::indexOf(m_themeId));
@@ -3716,10 +3717,10 @@ void BrickApp::uiSettings() {
         for (int i = 0; i < 6; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
         row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
-        if (m_studioUi) {   // (Wzx 15/11/2026): the Brique interface; its layout edited by hand
-            const int kb = seg("Interface Brique", {"Oui", "Non"}, m_themeId == "brique" || m_themeId == "creme" ? 0 : 1);
-            if (kb == 0 && m_themeId != "brique") { m_themeId = "brique"; m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; savePrefs(); }
-            if (kb == 1 && m_themeId == "brique") { m_themeId = "classic"; savePrefs(); }
+        if (m_studioUi) {   // (Wzx 22/11/2026): the UX, apart from the theme (the colours: Réglages › Thème)
+            const int ku = seg("Interface", {"Classique", "Crème"}, m_uxKit ? 1 : 0);
+            if (ku >= 0 && (ku == 1) != m_uxKit) { m_uxKit = ku == 1; m_popup = 0; savePrefs(); }
+            note("Classique : barre, panneaux, Hub. Crème : galets, bulles autour de la brique, dock. Les 3 thèmes de couleur vont aux deux.");
             if (m_th.brique) {
                 const int ke = seg("Disposition", {"Éditer l'interface", "Par défaut"}, -1);
                 if (ke == 0) { m_editUi = true; m_popup = 0; }

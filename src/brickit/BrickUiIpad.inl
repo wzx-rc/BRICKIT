@@ -138,35 +138,105 @@ static const char* kFamilyFr[9] = {"Blancs et gris", "Rouges et roses", "Jaunes 
 // Every size is in iPad points (x m_ui). Icons and shapes: the kit's white masks (assets/brickit/ui_kit), drawn tinted.
 
 // ---- tokens (tokens.json > color, measured on the validated image)
-static const ImU32 T_BRUN = IM_COL32(0x57, 0x46, 0x38, 255);
-static const ImU32 T_BRUN_DOUX = IM_COL32(0x8d, 0x7a, 0x64, 255);
-static const ImU32 T_BRUN_PALE = IM_COL32(0x96, 0x86, 0x72, 255);
-static const ImU32 T_INACTIF = IM_COL32(0xb6, 0xa6, 0x90, 255);
-static const ImU32 T_ACTIF = IM_COL32(0x31, 0x2e, 0x27, 255);
-static const ImU32 T_GALET = IM_COL32(249, 240, 228, 205);
-static const ImU32 T_BULLE = IM_COL32(64, 46, 32, 122);
-static const ImU32 T_BULLE_VISEE = IM_COL32(255, 255, 255, 235);
-static const ImU32 T_OMBRE_ICONE = IM_COL32(30, 18, 8, 140);
-static const ImU32 T_FEUILLE = IM_COL32(251, 246, 237, 245);
-static const ImU32 T_TIROIR = IM_COL32(250, 244, 233, 240);
-static const ImU32 T_CREUX = IM_COL32(0xef, 0xe5, 0xd4, 255);
-static const ImU32 T_SEP = IM_COL32(0xe3, 0xd7, 0xc3, 255);
-static const ImU32 T_POIGNEE = IM_COL32(0xcd, 0xbc, 0xa4, 255);
-static const ImU32 T_BLANC = IM_COL32(0xfb, 0xf4, 0xea, 255);   // (Wzx 22/11/2026: a whiter cream, less contrast with the cream)
-static const ImU32 T_PIECE = IM_COL32(0xb9, 0xa4, 0x8d, 255);   // the parts of the dock and the drawer: the light brown of the kit, not the active colour
-static const ImU32 T_CARTE_DOCK = IM_COL32(0xf3, 0xeb, 0xde, 210);   // (cream, not white: Wzx 22/11/2026)
-static const ImU32 T_CARTE = IM_COL32(0xf3, 0xeb, 0xde, 255);   // a card of the drawer: cream, not white (Wzx 22/11/2026)
-static const ImU32 T_JAUNE = IM_COL32(0xf6, 0xde, 0x86, 255);   // (a paler yellow, Wzx 22/11/2026)
-static const ImU32 T_ROUGE = IM_COL32(0xa4, 0x5c, 0x36, 255);   // Supprimer: a terracotta brown (no red in Crème, Wzx 22/11/2026)
-static const ImU32 T_VERT = IM_COL32(0x8b, 0xbe, 0x68, 255);
-static const ImU32 T_ETIQUETTE = IM_COL32(64, 46, 32, 140);
-static const ImU32 T_MESSAGE = IM_COL32(64, 46, 32, 184);
-static const ImU32 T_VOILE = IM_COL32(60, 42, 28, 71);
-static const ImU32 T_SELECTION = IM_COL32(255, 255, 255, 242);
-static const ImU32 T_SELECTION_OMBRE = IM_COL32(40, 25, 10, 153);
-static const ImU32 T_OMBRE = IM_COL32(70, 45, 20, 89);
-static const ImU32 T_OMBRE_FEUILLE = IM_COL32(60, 40, 20, 128);
-static const ImU32 T_OMBRE_DOUCE = IM_COL32(70, 45, 20, 46);
+static ImU32 T_BRUN = IM_COL32(0x57, 0x46, 0x38, 255);
+static ImU32 T_BRUN_DOUX = IM_COL32(0x8d, 0x7a, 0x64, 255);
+static ImU32 T_BRUN_PALE = IM_COL32(0x96, 0x86, 0x72, 255);
+static ImU32 T_INACTIF = IM_COL32(0xb6, 0xa6, 0x90, 255);
+static ImU32 T_ACTIF = IM_COL32(0x31, 0x2e, 0x27, 255);
+static ImU32 T_GALET = IM_COL32(249, 240, 228, 205);
+static ImU32 T_BULLE = IM_COL32(64, 46, 32, 122);
+static ImU32 T_BULLE_VISEE = IM_COL32(255, 255, 255, 235);
+static ImU32 T_OMBRE_ICONE = IM_COL32(30, 18, 8, 140);
+static ImU32 T_FEUILLE = IM_COL32(251, 246, 237, 245);
+static ImU32 T_TIROIR = IM_COL32(250, 244, 233, 240);
+static ImU32 T_CREUX = IM_COL32(0xef, 0xe5, 0xd4, 255);
+static ImU32 T_SEP = IM_COL32(0xe3, 0xd7, 0xc3, 255);
+static ImU32 T_POIGNEE = IM_COL32(0xcd, 0xbc, 0xa4, 255);
+static ImU32 T_BLANC = IM_COL32(0xfb, 0xf4, 0xea, 255);   // (Wzx 22/11/2026: a whiter cream, less contrast with the cream)
+static ImU32 T_PIECE = IM_COL32(0xb9, 0xa4, 0x8d, 255);   // the parts of the dock and the drawer: the light brown of the kit, not the active colour
+static ImU32 T_CARTE_DOCK = IM_COL32(0xf3, 0xeb, 0xde, 210);   // (cream, not white: Wzx 22/11/2026)
+static ImU32 T_CARTE = IM_COL32(0xf3, 0xeb, 0xde, 255);   // a card of the drawer: cream, not white (Wzx 22/11/2026)
+static ImU32 T_JAUNE = IM_COL32(0xf6, 0xde, 0x86, 255);   // (a paler yellow, Wzx 22/11/2026)
+static ImU32 T_ROUGE = IM_COL32(0xa4, 0x5c, 0x36, 255);   // Supprimer: a terracotta brown (no red in Crème, Wzx 22/11/2026)
+static ImU32 T_VERT = IM_COL32(0x8b, 0xbe, 0x68, 255);
+static ImU32 T_ETIQUETTE = IM_COL32(64, 46, 32, 140);
+static ImU32 T_MESSAGE = IM_COL32(64, 46, 32, 184);
+static ImU32 T_VOILE = IM_COL32(60, 42, 28, 71);
+static ImU32 T_SELECTION = IM_COL32(255, 255, 255, 242);
+static ImU32 T_SELECTION_OMBRE = IM_COL32(40, 25, 10, 153);
+static ImU32 T_OMBRE = IM_COL32(70, 45, 20, 89);
+static ImU32 T_OMBRE_FEUILLE = IM_COL32(60, 40, 20, 128);
+static ImU32 T_OMBRE_DOUCE = IM_COL32(70, 45, 20, 46);
+
+// the tokens of the 2 themes added to the kit (Wzx 22/11/2026: « 2 UI / UX, 3 thèmes de couleur, applique les 3 thèmes
+// aux 2 »): what sits on the active fill, on the bubbles, on a chip, on the yellow; the pebble pill; the veil of the hub
+static ImU32 T_SURACTIF = IM_COL32(0xfb, 0xf4, 0xea, 255);
+static ImU32 T_SURBULLE = IM_COL32(0xfb, 0xf4, 0xea, 255);
+static ImU32 T_PUCE = IM_COL32(0x57, 0x46, 0x38, 255);
+static ImU32 T_SURPUCE = IM_COL32(0xfb, 0xf4, 0xea, 255);
+static ImU32 T_SURJAUNE = IM_COL32(0x57, 0x46, 0x38, 255);
+static ImU32 T_JAUNE_APPUI = IM_COL32(0xe6, 0xb2, 0x1f, 255);
+static ImU32 T_PILULE = IM_COL32(249, 240, 228, 224);
+static ImU32 T_VOILE_HUB = IM_COL32(232, 220, 202, 170);
+static ImU32 T_BULLE_APPUI = IM_COL32(64, 46, 32, 148);
+static ImU32 T_VIGNETTE = IM_COL32(0xf1, 0xe4, 0xd2, 255);   // the background of an image card (Nouvelle scène, a scene without thumbnail)
+static ImU32 T_CHERCHER = IM_COL32(0xa3, 0x90, 0x79, 255);
+static ImU32 T_REBORD = IM_COL32(255, 255, 255, 204);   // the light rim on top of a pebble
+static ImU32 CR_INK = IM_COL32(0x4a, 0x3b, 0x30, 255);      // the dark brown of the maquette (titles)
+static ImU32 CR_INK2 = IM_COL32(0x7d, 0x6b, 0x5a, 255);     // the options not chosen
+static ImU32 CR_PALE = IM_COL32(0xa8, 0x97, 0x8a, 255);     // the small notes
+static ImU32 CR_LINK = IM_COL32(0x8a, 0x5a, 0x2b, 255);     // a link (Remettre droit)
+static ImU32 CR_HOLLOW = IM_COL32(0xef, 0xe6, 0xd9, 255);   // a hollow pill (tabs, segmented)
+static ImU32 CR_LINE = IM_COL32(120, 90, 60, 31);           // the separators
+static ImU32 CR_CARD = IM_COL32(0xf8, 0xef, 0xe2, 255);     // a card on the sheet (#F9F1E5, a touch deeper)
+static const ImU32 CR_GREEN = IM_COL32(0x6b, 0xbf, 0x73, 255);
+static const ImU32 K_RELIEF = IM_COL32(0xfb, 0xf4, 0xea, 255);   // the relief of a stud (always light)
+
+// the theme of the kit: Crème (the validated kit), Classique (dark, yellow, white) or Brique (slate, yellow)
+static std::string g_kitPalette;
+static void kitPalette(const std::string& theme) {
+    if (theme == g_kitPalette) return;
+    g_kitPalette = theme;
+    struct P { ImU32 brun, doux, pale, inactif, actif, galet, bulle, feuille, tiroir, creux, sep, poignee, blanc, piece, carteDock, carte, jaune, rouge,
+               etiquette, message, voile, surActif, surBulle, puce, surPuce, surJaune, jauneAppui, pilule, voileHub, bulleAppui, vignette, chercher,
+               ink, ink2, pale2, link, hollow, line, card; };
+    P p;
+    if (theme == "classic") {   // the Classique theme: near black, the LEGO yellow, white
+        p = {IM_COL32(236, 236, 238, 255), IM_COL32(176, 178, 186, 255), IM_COL32(138, 141, 149, 255), IM_COL32(88, 91, 98, 255), IM_COL32(0xf7, 0xc5, 0x1e, 255),
+             IM_COL32(24, 25, 29, 225), IM_COL32(10, 11, 13, 175), IM_COL32(27, 28, 32, 248), IM_COL32(22, 23, 26, 242), IM_COL32(40, 42, 48, 255),
+             IM_COL32(58, 60, 66, 255), IM_COL32(80, 83, 90, 255), IM_COL32(50, 52, 59, 255), IM_COL32(196, 198, 204, 255), IM_COL32(40, 42, 48, 225),
+             IM_COL32(36, 38, 43, 255), IM_COL32(0xf7, 0xc5, 0x1e, 255), IM_COL32(230, 96, 76, 255), IM_COL32(10, 11, 13, 200), IM_COL32(10, 11, 13, 225),
+             IM_COL32(0, 0, 0, 110), IM_COL32(23, 23, 26, 255), IM_COL32(245, 245, 247, 255), IM_COL32(0xf7, 0xc5, 0x1e, 255), IM_COL32(23, 23, 26, 255),
+             IM_COL32(23, 23, 26, 255), IM_COL32(0xff, 0xd4, 0x3a, 255), IM_COL32(24, 25, 29, 235), IM_COL32(8, 9, 11, 175), IM_COL32(30, 31, 36, 230),
+             IM_COL32(40, 42, 48, 255), IM_COL32(138, 141, 149, 255), IM_COL32(240, 240, 242, 255), IM_COL32(176, 178, 186, 255), IM_COL32(138, 141, 149, 255),
+             IM_COL32(0xf7, 0xc5, 0x1e, 255), IM_COL32(40, 42, 48, 255), IM_COL32(255, 255, 255, 30), IM_COL32(36, 38, 43, 255)};
+    } else if (theme == "brique") {   // the Brique theme: slate in relief, the yellow of the brick
+        p = {IM_COL32(240, 241, 245, 255), IM_COL32(184, 190, 204, 255), IM_COL32(140, 148, 164, 255), IM_COL32(95, 102, 118, 255), IM_COL32(0xff, 0xce, 0x28, 255),
+             IM_COL32(40, 45, 55, 228), IM_COL32(20, 23, 30, 180), IM_COL32(40, 45, 55, 248), IM_COL32(34, 38, 47, 242), IM_COL32(50, 56, 68, 255),
+             IM_COL32(64, 71, 86, 255), IM_COL32(90, 98, 116, 255), IM_COL32(62, 69, 84, 255), IM_COL32(200, 205, 214, 255), IM_COL32(55, 62, 76, 225),
+             IM_COL32(50, 56, 68, 255), IM_COL32(0xff, 0xce, 0x28, 255), IM_COL32(255, 107, 92, 255), IM_COL32(20, 23, 30, 200), IM_COL32(20, 23, 30, 225),
+             IM_COL32(0, 0, 0, 110), IM_COL32(35, 24, 0, 255), IM_COL32(255, 255, 255, 255), IM_COL32(0xff, 0xce, 0x28, 255), IM_COL32(35, 24, 0, 255),
+             IM_COL32(35, 24, 0, 255), IM_COL32(0xff, 0xd8, 0x4a, 255), IM_COL32(40, 45, 55, 238), IM_COL32(18, 21, 27, 175), IM_COL32(44, 50, 62, 230),
+             IM_COL32(50, 56, 68, 255), IM_COL32(140, 148, 164, 255), IM_COL32(244, 245, 248, 255), IM_COL32(184, 190, 204, 255), IM_COL32(140, 148, 164, 255),
+             IM_COL32(0xff, 0xce, 0x28, 255), IM_COL32(50, 56, 68, 255), IM_COL32(255, 255, 255, 30), IM_COL32(50, 56, 68, 255)};
+    } else {   // Crème: the kit as validated (Wzx 22/11/2026)
+        p = {IM_COL32(0x57, 0x46, 0x38, 255), IM_COL32(0x8d, 0x7a, 0x64, 255), IM_COL32(0x96, 0x86, 0x72, 255), IM_COL32(0xb6, 0xa6, 0x90, 255), IM_COL32(0x31, 0x2e, 0x27, 255),
+             IM_COL32(249, 240, 228, 205), IM_COL32(64, 46, 32, 122), IM_COL32(251, 246, 237, 245), IM_COL32(250, 244, 233, 240), IM_COL32(0xef, 0xe5, 0xd4, 255),
+             IM_COL32(0xe3, 0xd7, 0xc3, 255), IM_COL32(0xcd, 0xbc, 0xa4, 255), IM_COL32(0xfb, 0xf4, 0xea, 255), IM_COL32(0xb9, 0xa4, 0x8d, 255), IM_COL32(0xf3, 0xeb, 0xde, 210),
+             IM_COL32(0xf3, 0xeb, 0xde, 255), IM_COL32(0xf6, 0xde, 0x86, 255), IM_COL32(0xa4, 0x5c, 0x36, 255), IM_COL32(64, 46, 32, 140), IM_COL32(64, 46, 32, 184),
+             IM_COL32(60, 42, 28, 71), IM_COL32(0xfb, 0xf4, 0xea, 255), IM_COL32(0xfb, 0xf4, 0xea, 255), IM_COL32(0x57, 0x46, 0x38, 255), IM_COL32(0xfb, 0xf4, 0xea, 255),
+             IM_COL32(0x57, 0x46, 0x38, 255), IM_COL32(0xe6, 0xb2, 0x1f, 255), IM_COL32(249, 240, 228, 224), IM_COL32(232, 220, 202, 170), IM_COL32(64, 46, 32, 148),
+             IM_COL32(0xf1, 0xe4, 0xd2, 255), IM_COL32(0xa3, 0x90, 0x79, 255), IM_COL32(0x4a, 0x3b, 0x30, 255), IM_COL32(0x7d, 0x6b, 0x5a, 255), IM_COL32(0xa8, 0x97, 0x8a, 255),
+             IM_COL32(0x8a, 0x5a, 0x2b, 255), IM_COL32(0xef, 0xe6, 0xd9, 255), IM_COL32(120, 90, 60, 31), IM_COL32(0xf8, 0xef, 0xe2, 255)};
+    }
+    T_BRUN = p.brun; T_BRUN_DOUX = p.doux; T_BRUN_PALE = p.pale; T_INACTIF = p.inactif; T_ACTIF = p.actif; T_GALET = p.galet; T_BULLE = p.bulle;
+    T_FEUILLE = p.feuille; T_TIROIR = p.tiroir; T_CREUX = p.creux; T_SEP = p.sep; T_POIGNEE = p.poignee; T_BLANC = p.blanc; T_PIECE = p.piece;
+    T_CARTE_DOCK = p.carteDock; T_CARTE = p.carte; T_JAUNE = p.jaune; T_ROUGE = p.rouge; T_ETIQUETTE = p.etiquette; T_MESSAGE = p.message; T_VOILE = p.voile;
+    T_SURACTIF = p.surActif; T_SURBULLE = p.surBulle; T_PUCE = p.puce; T_SURPUCE = p.surPuce; T_SURJAUNE = p.surJaune; T_JAUNE_APPUI = p.jauneAppui;
+    T_PILULE = p.pilule; T_VOILE_HUB = p.voileHub; T_BULLE_APPUI = p.bulleAppui; T_VIGNETTE = p.vignette; T_CHERCHER = p.chercher;
+    T_REBORD = theme == "classic" || theme == "brique" ? IM_COL32(255, 255, 255, 34) : IM_COL32(255, 255, 255, 204);
+    CR_INK = p.ink; CR_INK2 = p.ink2; CR_PALE = p.pale2; CR_LINK = p.link; CR_HOLLOW = p.hollow; CR_LINE = p.line; CR_CARD = p.card;
+}
 
 static ImU32 kitCol(const Color& c, float a = 1.0f) {
     return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), (int)(a * 255));
@@ -301,8 +371,8 @@ void BrickApp::kitStud(ImDrawList* dl, ImVec2 c, float size, int color, int wher
         dl->AddCircleFilled(ImVec2(c.x - r * 0.3f, c.y - r * 0.3f), r * 0.5f, IM_COL32(255, 255, 255, 80), 32);
         dl->AddCircleFilled(ImVec2(c.x + r * 0.35f, c.y + r * 0.35f), r * 0.45f, IM_COL32(0, 0, 0, 50), 32);
     }
-    kitImage(dl, kitTex("shapes/tenon_relief.png"), c, size, T_BLANC);
-    if (where == 1 && (col.srgb.x + col.srgb.y + col.srgb.z) > 2.7f) dl->AddCircle(c, r, IM_COL32(0xd9, 0xcb, 0xb4, 255), 48, 1 * s);
+    kitImage(dl, kitTex("shapes/tenon_relief.png"), c, size, K_RELIEF);
+    if (where == 1 && (col.srgb.x + col.srgb.y + col.srgb.z) > 2.7f) dl->AddCircle(c, r, T_SEP, 48, 1 * s);
 }
 
 // 1. a pebble (« galet »): shadow, translucent cream disc, light rim on top, brown icon.
@@ -317,9 +387,9 @@ bool BrickApp::kitGalet(Ui& u, ImVec2 c, float diam, const char* icon, int state
     u.dl->AddCircleFilled(c, rr, fill, 64);
     if (state == 0 || state == 2) {   // the light rim on top
         u.dl->PathArcTo(c, rr - 0.5f * s, 3.14159265f * 1.12f, 3.14159265f * 1.88f, 24);
-        u.dl->PathStroke(IM_COL32(255, 255, 255, 204), 0, 1 * s);
+        u.dl->PathStroke(T_REBORD, 0, 1 * s);
     }
-    if (icon) kitIcon(u.dl, icon, c, (state == 3 ? 22 : diam >= 50 * s ? 24 : 22) * s, state == 1 ? T_BLANC : state == 2 ? T_INACTIF : T_BRUN);
+    if (icon) kitIcon(u.dl, icon, c, (state == 3 ? 22 : diam >= 50 * s ? 24 : 22) * s, state == 1 ? T_SURACTIF : state == 2 ? T_INACTIF : T_BRUN);
     m_uiRects.push_back(ImVec4(c.x - r, c.y - r, c.x + r, c.y + r));
     return state != 2 && h && u.pressed;
 }
@@ -331,8 +401,8 @@ bool BrickApp::kitBubble(Ui& u, ImVec2 c, float diam, const char* icon, float sc
     const bool down = h && ImGui::IsMouseDown(ImGuiMouseButton_Left);
     const float rr = r * scale * (down ? 0.94f : 1.0f);
     kitShadowCircle(u.dl, c, rr * 2, IM_COL32(40, 25, 10, 128), 3 * s);
-    u.dl->AddCircleFilled(c, rr, down ? IM_COL32(64, 46, 32, 148) : T_BULLE, 48);
-    kitIcon(u.dl, icon, c, (diam >= 44 * s ? 24 : 18) * s * scale, red ? T_ROUGE : T_BLANC, true);
+    u.dl->AddCircleFilled(c, rr, down ? T_BULLE_APPUI : T_BULLE, 48);
+    kitIcon(u.dl, icon, c, (diam >= 44 * s ? 24 : 18) * s * scale, red ? T_ROUGE : T_SURBULLE, true);
     m_uiRects.push_back(ImVec4(c.x - r, c.y - r, c.x + r, c.y + r));
     return h && u.pressed;
 }
@@ -393,7 +463,7 @@ void BrickApp::kitLabel(ImDrawList* dl, ImVec2 c, const std::string& t) {
     const ImVec2 ts = kSize(px, t.c_str(), true);
     const ImVec2 a(c.x - ts.x * 0.5f - 9 * s, c.y - px * 0.6f - 5 * s), b(c.x + ts.x * 0.5f + 9 * s, c.y + px * 0.6f + 5 * s);
     dl->AddRectFilled(a, b, T_ETIQUETTE, (b.y - a.y) * 0.5f);
-    kTextC(dl, a.x + 9 * s, c.y, px, T_BLANC, t.c_str(), true);
+    kTextC(dl, a.x + 9 * s, c.y, px, T_SURBULLE, t.c_str(), true);
 }
 
 // a dashed rounded rectangle (the selection frame)
@@ -448,6 +518,7 @@ static std::string sceneTitle(const std::wstring& path) {
 // ------------------------------------------------------------------ the whole interface of the iPad
 
 void BrickApp::drawUiIpad() {
+    kitPalette(m_themeId);
     g_kf = m_gui->fontKit;
     g_kfm = m_gui->fontKitMed ? m_gui->fontKitMed : m_gui->fontKit;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
@@ -641,8 +712,8 @@ void BrickApp::ipadDock() {
     {   // the yellow button: all the parts
         const ImVec2 ya(a.x + padX, a.y + padY), yb(ya.x + bw, ya.y + ch);
         const bool h = u.hover(ya, yb), down = h && ImGui::IsMouseDown(ImGuiMouseButton_Left);
-        u.dl->AddRectFilled(ya, yb, down ? IM_COL32(0xe6, 0xb2, 0x1f, 255) : T_JAUNE, 16 * s);
-        kitIcon(u.dl, "brique", ImVec2((ya.x + yb.x) * 0.5f, (ya.y + yb.y) * 0.5f), 26 * s, T_BRUN);
+        u.dl->AddRectFilled(ya, yb, down ? T_JAUNE_APPUI : T_JAUNE, 16 * s);
+        kitIcon(u.dl, "brique", ImVec2((ya.x + yb.x) * 0.5f, (ya.y + yb.y) * 0.5f), 26 * s, T_SURJAUNE);
         if (h && u.pressed) { m_libOpen = true; m_homeOpen = false; m_paletteOpen = false; m_libPress = -1; return; }
     }
     const ImU32 tint = T_PIECE;
@@ -727,7 +798,7 @@ void BrickApp::ipadBubbles() {
             const float r = 20 * s * appear(9);
             const bool h = u.hover(ImVec2(p.x - 20 * s, p.y - 20 * s), ImVec2(p.x + 20 * s, p.y + 20 * s));
             kitShadowCircle(u.dl, p, r * 2, T_OMBRE, 3 * s);
-            u.dl->AddCircleFilled(p, r, h && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? T_CREUX : IM_COL32(255, 249, 239, 230), 48);
+            u.dl->AddCircleFilled(p, r, h && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? T_CREUX : T_BLANC, 48);
             kitIcon(u.dl, "ajouter", p, 22 * s, T_BRUN);
             m_uiRects.push_back(ImVec4(p.x - 20 * s, p.y - 20 * s, p.x + 20 * s, p.y + 20 * s));
             if (h && u.pressed && !hit) { hit = true; m_paletteOpen = true; m_homeOpen = false; }
@@ -873,7 +944,7 @@ void BrickApp::ipadDrawer() {
     {
         const ImVec2 sa(d.x - M - searchW, a.y + 43 * s), sb(d.x - M, a.y + 43 * s + 40 * s);
         u.dl->AddRectFilled(sa, sb, T_BLANC, 20 * s);
-        kitIcon(u.dl, "chercher", ImVec2(sa.x + 22 * s, (sa.y + sb.y) * 0.5f), 20 * s, IM_COL32(0xa3, 0x90, 0x79, 255));
+        kitIcon(u.dl, "chercher", ImVec2(sa.x + 22 * s, (sa.y + sb.y) * 0.5f), 20 * s, T_CHERCHER);
         ImGui::SetNextWindowPos(ImVec2(sa.x + 40 * s, sa.y + 3 * s));
         ImGui::SetNextWindowSize(ImVec2(sb.x - sa.x - 52 * s, sb.y - sa.y - 6 * s));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -906,8 +977,8 @@ void BrickApp::ipadDrawer() {
     auto chip = [&](const char* label, bool sel) {
         const float w = kSize(14 * s, label).x + 26 * s;
         const ImVec2 ca(x, y), cb(x + w, y + chipH);
-        u.dl->AddRectFilled(ca, cb, sel ? T_BRUN : T_CREUX, chipH * 0.5f);
-        kTextC(u.dl, ca.x + 13 * s, (ca.y + cb.y) * 0.5f, 14 * s, sel ? T_BLANC : T_BRUN, label);
+        u.dl->AddRectFilled(ca, cb, sel ? T_PUCE : T_CREUX, chipH * 0.5f);
+        kTextC(u.dl, ca.x + 13 * s, (ca.y + cb.y) * 0.5f, 14 * s, sel ? T_SURPUCE : T_BRUN, label);
         x += w + 6 * s;
         return u.released && u.hover(ca, cb) && u.hover(qa, qb) && !swipeTaken(2) && m_swipeDragged != 2;
     };
@@ -1173,6 +1244,7 @@ void BrickApp::shareImage() {
 // ------------------------------------------------------------------ 12. the message: dark pill 118 pt above the bottom, 2.5 s
 
 void BrickApp::ipadMessage() {
+    kitPalette(m_themeId);
     const double t = ImGui::GetTime() - m_toastTime;
     if (m_toast.empty() || t > 2.5) return;
     g_kf = m_gui->fontKit;
@@ -1185,8 +1257,8 @@ void BrickApp::ipadMessage() {
     const float W = 16 * s + 18 * s + 10 * s + tw + 20 * s, H = 42 * s;
     const ImVec2 a((d.x - W) * 0.5f, d.y - 118 * s - H * 0.5f), b(a.x + W, a.y + H);
     dl->AddRectFilled(a, b, alphaOf(T_MESSAGE, al), H * 0.5f);
-    kitIcon(dl, "coche", ImVec2(a.x + 16 * s + 9 * s, (a.y + b.y) * 0.5f), 18 * s, alphaOf(T_BLANC, al));
-    kTextC(dl, a.x + 16 * s + 18 * s + 10 * s, (a.y + b.y) * 0.5f, px, alphaOf(T_BLANC, al), m_toast.c_str());
+    kitIcon(dl, "coche", ImVec2(a.x + 16 * s + 9 * s, (a.y + b.y) * 0.5f), 18 * s, alphaOf(T_SURBULLE, al));
+    kTextC(dl, a.x + 16 * s + 18 * s + 10 * s, (a.y + b.y) * 0.5f, px, alphaOf(T_SURBULLE, al), m_toast.c_str());
 }
 
 // ------------------------------------------------------------------ 11. Nouvelle scène (a centred sheet 880 pt over a veil)

@@ -48,15 +48,7 @@ void BrickApp::crLibParts() {
 // beside Maison, the tools in pebbles on the left, the angle over Tourner, the Scène pebble (its groups) top right, and
 // the hub: the Maison menu and « Nouvelle scène » grown into one cream sheet (the scenes of the iPad, the cloud, the demos).
 
-static const ImU32 CR_INK = IM_COL32(0x4a, 0x3b, 0x30, 255);      // the dark brown of the maquette (titles, active)
-static const ImU32 CR_INK2 = IM_COL32(0x7d, 0x6b, 0x5a, 255);     // the options not chosen
-static const ImU32 CR_PALE = IM_COL32(0xa8, 0x97, 0x8a, 255);     // the small notes
-static const ImU32 CR_CREAM = IM_COL32(0xff, 0xf8, 0xee, 255);    // text on the dark brown
-static const ImU32 CR_LINK = IM_COL32(0x8a, 0x5a, 0x2b, 255);     // a link (Remettre droit)
-static const ImU32 CR_HOLLOW = IM_COL32(0xef, 0xe6, 0xd9, 255);   // a hollow pill (tabs, segmented)
-static const ImU32 CR_LINE = IM_COL32(120, 90, 60, 31);           // the separators
-static const ImU32 CR_CARD = IM_COL32(0xf8, 0xef, 0xe2, 255);    // a card on the sheet (#F9F1E5, a touch deeper)
-static const ImU32 CR_GREEN = IM_COL32(0x6b, 0xbf, 0x73, 255);
+// (the colours: kitPalette, BrickUiIpad.inl)
 
 // a small segmented pill of the maquette (.pill2: 12 px, hollow, the chosen one cream with a soft shadow); top right given
 static int crPill(Ui& u, ImVec2 topRight, float s, const std::vector<const char*>& opts, int cur) {
@@ -100,7 +92,7 @@ void BrickApp::ipadModes() {
     W -= 2 * s;
     const ImVec2 a(22 * s + 52 * s + 12 * s, cy - H * 0.5f), b(a.x + W, cy + H * 0.5f);
     kitShadowRect(u.dl, a, b, T_OMBRE, 4 * s, 14 * s);
-    u.dl->AddRectFilled(a, b, IM_COL32(249, 240, 228, 224), H * 0.5f);
+    u.dl->AddRectFilled(a, b, T_PILULE, H * 0.5f);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     g_crModesR = b.x;
     float x = a.x + pad;
@@ -194,16 +186,16 @@ bool BrickApp::ipadAngles(ImVec2 above) {
     a.y = std::max(a.y, 80 * s);
     const ImVec2 b(a.x + W, a.y + h);
     kitShadowRect(u.dl, a, b, T_OMBRE, 3 * s, 10 * s);
-    u.dl->AddRectFilled(a, b, IM_COL32(249, 240, 228, 235), h * 0.5f);
+    u.dl->AddRectFilled(a, b, T_PILULE, h * 0.5f);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     bool hit = false;
     float x = a.x + pad;
     for (int k = 0; k < 5; ++k) {
         const ImVec2 oa(x, a.y + pad), ob(x + ws[k], b.y - pad);
         const bool on = os[k].step == m_rotStep, hv = u.hover(oa, ob);
-        if (on) u.dl->AddRectFilled(oa, ob, CR_INK, (ob.y - oa.y) * 0.5f);
+        if (on) u.dl->AddRectFilled(oa, ob, T_PUCE, (ob.y - oa.y) * 0.5f);
         else if (hv && ImGui::IsMouseDown(ImGuiMouseButton_Left)) u.dl->AddRectFilled(oa, ob, T_CREUX, (ob.y - oa.y) * 0.5f);
-        kTextC(u.dl, oa.x + 9 * s, (oa.y + ob.y) * 0.5f, px, on ? CR_CREAM : os[k].step < 0 ? CR_LINK : T_BRUN, os[k].label, true);
+        kTextC(u.dl, oa.x + 9 * s, (oa.y + ob.y) * 0.5f, px, on ? T_SURPUCE : os[k].step < 0 ? CR_LINK : T_BRUN, os[k].label, true);
         if (hv && u.pressed && !hit) {
             hit = true;
             if (os[k].step < 0) resetRotation();
@@ -375,12 +367,12 @@ void BrickApp::ipadHub() {
     ImDrawList* dl = u.dl;
     bool close = false;
     // the veil over the scene (the maquette blurs it), the sheet
-    dl->AddRectFilled(ImVec2(0, 0), d, IM_COL32(232, 220, 202, 170));
+    dl->AddRectFilled(ImVec2(0, 0), d, T_VOILE_HUB);
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));
     const float W = std::min(d.x - 2 * 84 * s, 1400 * s);
     const ImVec2 a(std::max(84 * s, std::floor((d.x - W) * 0.5f)), 50 * s), b(a.x + W, d.y - 40 * s);
     kitShadowRect(dl, a, b, T_OMBRE_FEUILLE, 18 * s, 40 * s);
-    dl->AddRectFilled(a, b, IM_COL32(251, 246, 237, 248), 30 * s);
+    dl->AddRectFilled(a, b, T_FEUILLE, 30 * s);
     const float padX = 32 * s, padY = 30 * s, colW = 300 * s;
     const float cx0 = b.x - padX - colW, L0 = a.x + padX, L1 = cx0 - 28 * s;
     const std::wstring dir = scenesDir();
@@ -417,7 +409,7 @@ void BrickApp::ipadHub() {
                 dl->AddRectFilled(ImVec2(qa.x, qa.y + 2 * s), ImVec2(qb.x, qb.y + 2 * s), T_OMBRE_DOUCE, th * 0.5f);
                 dl->AddRectFilled(qa, qb, T_BLANC, th * 0.5f);
             }
-            kTextC(dl, qa.x + 16 * s, (qa.y + qb.y) * 0.5f, 14 * s, on ? CR_INK : IM_COL32(0x8a, 0x78, 0x66, 255), labs[k], true);
+            kTextC(dl, qa.x + 16 * s, (qa.y + qb.y) * 0.5f, 14 * s, on ? CR_INK : CR_INK2, labs[k], true);
             if (ub.hover(qa, qb) && ub.pressed) { m_hubSection = secOf[k]; m_crHubScroll = 0; if (secOf[k] == 2) cloudRefreshList(); else m_hubStale = true; }
             tx += tw[k] + 2 * s;
         }
@@ -428,7 +420,7 @@ void BrickApp::ipadHub() {
         if (sw > 120 * s) {
             const ImVec2 sa(L1 - sw, y + 20 * s - 19 * s), sb(L1, y + 20 * s + 19 * s);
             dl->AddRectFilled(sa, sb, T_BLANC, 19 * s);
-            dl->AddRect(sa, sb, IM_COL32(120, 90, 60, 31), 19 * s, 0, 1.0f * s);
+            dl->AddRect(sa, sb, CR_LINE, 19 * s, 0, 1.0f * s);
             kitIcon(dl, "chercher", ImVec2(sa.x + 22 * s, (sa.y + sb.y) * 0.5f), 18 * s, CR_PALE);
             if (!menuOpen) {
                 ImGui::SetNextWindowPos(ImVec2(sa.x + 38 * s, sa.y + 2 * s));
@@ -498,8 +490,8 @@ void BrickApp::ipadHub() {
     cy += 16 * s + 12 * s;
     {   // the three cards: Plaque verte, Sol libre, Depuis une notice (their images by Recraft)
         struct NC { const char* img; ImU32 bg; const char* title; const char* sub; int act; float k; };
-        const NC ncs[3] = {{"hub/new_plaque.png", IM_COL32(0xf1, 0xe4, 0xd2, 255), "Plaque verte", "32 × 32 tenons, lumière du matin", 0, 1.45f},
-                           {"hub/new_brique.png", IM_COL32(0xec, 0xe3, 0xd6, 255), "Sol libre", "Rien sur la scène", 1, 0.72f},
+        const NC ncs[3] = {{"hub/new_plaque.png", T_VIGNETTE, "Plaque verte", "32 × 32 tenons, lumière du matin", 0, 1.45f},
+                           {"hub/new_brique.png", T_CREUX, "Sol libre", "Rien sur la scène", 1, 0.72f},
                            {"hub/new_notice.png", IM_COL32(0x22, 0x1d, 0x1a, 255), "Depuis une notice", "Fichier .mpd officiel, étape par étape", 2, 1.1f}};
         for (int k = 0; k < 3; ++k) {
             const NC& c = ncs[k];
@@ -579,22 +571,22 @@ void BrickApp::ipadHub() {
             const float cu = ar < texAr ? 0.5f * (1 - ar / texAr) : 0, cv = ar < texAr ? 0 : 0.5f * (1 - texAr / ar);
             dl->AddImageRounded(tex, ta, tb, ImVec2(cu, cv), ImVec2(1 - cu, 1 - cv), IM_COL32_WHITE, 12 * s);
         } else {
-            dl->AddRectFilled(ta, tb, IM_COL32(0xf1, 0xe4, 0xd2, 255), 12 * s);
+            dl->AddRectFilled(ta, tb, T_VIGNETTE, 12 * s);
             kitIcon(dl, cd.kind == 1 ? "cloud" : "brique", ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, T_PIECE);
         }
         bool act = false;
         if (cd.kind == 0 || cd.kind == 1) {   // « … »: rename, duplicate, delete
             const ImVec2 mc(tb.x - 8 * s - 14 * s, ta.y + 8 * s + 14 * s);
             const bool hm = ub.hover(ImVec2(mc.x - 18 * s, mc.y - 18 * s), ImVec2(mc.x + 18 * s, mc.y + 18 * s)) && ub.hover(ga, gb);
-            dl->AddCircleFilled(mc, 14 * s, hm && held ? IM_COL32(74, 59, 48, 240) : IM_COL32(74, 59, 48, 209), 32);
-            kitIcon(dl, "plus_actions", mc, 16 * s, CR_CREAM);
+            dl->AddCircleFilled(mc, 14 * s, hm && held ? T_BULLE_APPUI : T_BULLE, 32);
+            kitIcon(dl, "plus_actions", mc, 16 * s, T_SURBULLE);
             if (hm && tap) { m_crCardMenu = cd.kind * 100000 + cd.i; m_crCardMenuAt = mc; }
             if (hm) act = true;
         }
         const float ny = tb.y + 8 * s;
         if (cd.kind == 0 && m_crHubRename == cd.i) {   // the name, edited in place
             const ImVec2 ea(ca.x + 8 * s, ny - 2 * s), eb(cb.x - 8 * s, ny + 24 * s);
-            dl->AddRectFilled(ea, eb, IM_COL32(255, 255, 255, 255), 8 * s);
+            dl->AddRectFilled(ea, eb, T_BLANC, 8 * s);
             dl->AddRect(ea, eb, CR_INK, 8 * s, 0, 1.5f * s);
             ImGui::SetNextWindowPos(ImVec2(ea.x + 6 * s, ea.y));
             ImGui::SetNextWindowSize(ImVec2(eb.x - ea.x - 12 * s, eb.y - ea.y));
@@ -692,7 +684,8 @@ void BrickApp::ipadHub() {
         const int thm = m_themeId == "brique" ? 1 : m_themeId == "classic" ? 2 : 0;
         struct Sg { const char* label; std::vector<const char*> opts; int cur; int id; };
         std::vector<Sg> sgs = {{"Qualité", {"Économie", "Normale", "Belle"}, qi, 0}, {"Lumière", {"Matin", "Midi", "Soir"}, m_lightPreset, 1},
-                               {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Thème", {"Crème", "Brique", "Classique"}, thm, 3}};
+                               {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Thème", {"Crème", "Brique", "Classique"}, thm, 3},
+                               {"Interface", {"Crème", "Classique"}, 0, 5}};
         if (m_ipad) sgs.push_back({"Stylet seul", {"Oui", "Auto"}, m_pencilOnly ? 0 : 1, 4});
         for (const Sg& sg : sgs) {
             kTextC(dl, X, ry + 14 * s, 14 * s, T_BRUN, sg.label);
@@ -702,7 +695,8 @@ void BrickApp::ipadHub() {
                 case 0: { static const float kS[3] = {0.67f, 0.85f, 1.0f}; m_renderScale = kS[k]; break; }
                 case 1: m_lightPreset = k; applyLook(); break;
                 case 2: m_build.gridSnap = k == 0; break;
-                case 3: if (k != thm) { m_themeId = k == 1 ? "brique" : "classic"; close = true; } break;
+                case 3: if (k != thm) m_themeId = k == 0 ? "creme" : k == 1 ? "brique" : "classic"; break;   // (the colours: the kit stays)
+                case 5: if (k == 1) { m_uxKit = false; close = true; } break;   // the UX Classique (the Studio interface)
                 case 4: m_pencilOnly = k == 0; break;
                 }
                 savePrefs();

@@ -122,7 +122,6 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     loadBac();
     buildNav();
     if (opt.shotPath.empty()) loadPrefs();   // captures stay reproducible
-    if (opt.ipadCreme || !opt.ipadOpen.empty()) m_ipadCreme = true;
     if (m_ipad) m_showVox = false;   // iPad: the voxels hidden at the start (the developer mode is back, Wzx 14/11/2026)
     else if (opt.useDefaults) { std::string dt; if (readDefaultPrefs(dt)) applyPrefs(dt); }   // (--use-defaults: a capture with the default settings)
     if (m_uiScaleUser != 1.0f) { m_ui *= m_uiScaleUser; th::apply(m_ui); }   // settings: UI scale over the screen scale
@@ -146,6 +145,9 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
     if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
     if (opt.skinAccent >= 0) m_themeLooks[m_themeId].accent = opt.skinAccent;
+    if (opt.ipadCreme || !opt.ipadOpen.empty()) m_uxKit = true;
+    if (!opt.shotPath.empty() && opt.ux.empty() && m_themeId == "creme") m_uxKit = true;   // (captures: --skin creme, the kit as before)
+    if (!opt.ux.empty()) m_uxKit = opt.ux == "kit";
     loadThemeFonts();   // (the iPad too: its Studio interface takes the themes)
     if (opt.quality >= 0) { m_quality = opt.quality; m_rs.msaaSamples = m_quality ? 4 : 1; }
     if (opt.aa >= 0) m_rs.aaQuality = std::clamp(opt.aa, 0, 2);
@@ -620,14 +622,15 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
     }
-    if (m_ipad && !m_ipadCreme && !m_th.stage.light) {   // iPad, dark stage (Wzx 15/11/2026: « le ciel au loin est tout noir »): a
+    const bool kitStage = m_ipadCreme && m_themeId == "creme";
+    if (m_ipad && !kitStage && !m_th.stage.light) {   // iPad, dark stage (Wzx 15/11/2026: « le ciel au loin est tout noir »): a
         // gradient behind, in the blue grey of the grid lines, lighter at the horizon where the grid fades into it
         m_scene.env.top = lin(0x14161b);
         m_scene.env.horizon = lin(0x2b303b);
         m_scene.env.bottom = lin(0x121317);
         m_scene.env.visibleToCamera = false;   // (the HDRI still lights and reflects)
     }
-    if (!m_ipadCreme && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
+    if (!kitStage && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
         const theme::Stage& st = m_th.stage;   // (Crème · Ciel: #cfe3f5 / #f2f6fa / #dfe5ec, floor #b9c3cf, lines #8a96a8 at 25 %)
         m_scene.env.top = lin((int)st.top);
         m_scene.env.horizon = lin((int)st.horizon);
@@ -639,7 +642,7 @@ void BrickApp::applyLook() {
         const uint32_t ga = (uint32_t)std::lround(std::clamp(st.gridAlpha, 0.0f, 1.0f) * 255);   // (the user's line colour is for the dark floor)
         m_scene.gridLine = (ga << 24) | ((st.grid & 255) << 16) | (((st.grid >> 8) & 255) << 8) | ((st.grid >> 16) & 255);
     }
-    if (m_ipadCreme) {   // Crème (kit 2.0): a bright stage, white floor, Matin / Midi / Soir, a low sun
+    if (kitStage) {   // Crème (kit 2.0): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
         static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf6ece2, 0xf6f2ec, 0xf6e2d2}, floor_[3] = {0xfbf8f4, 0xfcfbf9, 0xfbf4ee};   // (Wzx 22/11/2026: a white floor, not cream)   // (warm: the neutral HDRI greys it)
         static const int sun[3] = {0xffe0b0, 0xfff8ee, 0xffbe80};
@@ -1670,6 +1673,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());
         else if (a == L"--focus") opt.focusDim = true;
         else if (a == L"--save") opt.savePath = next();
+        else if (a == L"--ux") { std::wstring w = next(); opt.ux.assign(w.begin(), w.end()); }
         else if (a == L"--dup") opt.duplicate = true;
         else if (a == L"--mechdemo") opt.mechDemo = true;
         else if (a == L"--mech") opt.mech = true;
