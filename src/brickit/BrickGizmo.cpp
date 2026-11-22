@@ -26,7 +26,7 @@ static float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
 bool BrickApp::gizmoVisible() const {
     // (+ Réglages › Gizmo de rotation permanent: the rings, light, on any selected brick in Sélection and Construire)
     return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette &&
-           (m_mode == 2 || m_mode == 3 || (m_permRotate && (m_mode == 0 || m_mode == 1)));
+           (m_mode == 2 || m_mode == 3 || (m_permRotate && !m_ipadCreme && (m_mode == 0 || m_mode == 1)));   // (the kit: only when asked, its Tourner / Déplacer pebbles, Wzx 22/11/2026)
 }
 float3 BrickApp::gizmoPivot(int b) const { return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b])); }
 float BrickApp::gizmoScale(const float3& piv) const {
