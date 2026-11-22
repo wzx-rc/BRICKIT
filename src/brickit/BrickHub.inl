@@ -37,7 +37,7 @@ static std::string hubDate(long long t) {
 
 void BrickApp::stHub() {
     if (m_popup != 8) { m_hubEdit = -1; return; }
-    if (g_hubPage) { stHubPage(); return; }   // (Brique, Crème, Classic: the hub is a page)
+    if (g_hubPage) { if (g_brique) stHubPage(); else stHubClassic(); return; }   // (Classic: its own hub, Wzx 22/11/2026)   // (Brique, Crème, Classic: the hub is a page)
     if (m_hubStale) hubRefresh();
     Ui u = ui(m_ui);
     u.mouse = ImGui::GetIO().MousePos;   // (the rest of the interface is blind while the hub is open: g_uiBlock)

@@ -919,3 +919,244 @@ int BrickApp::bqEditField(Ui& u, ImVec2 ea, ImVec2 eb, float px) {
     if (enter || (lost && u.pressed && !u.hover(ea, eb))) return 1;
     return 0;
 }
+
+// ------------------------------------------------------------------ the hub of Classic (Wzx 22/11/2026)
+// Its own page, as a box of bricks (canvas JBtw2wBYiTVRTg7JuzaXc5, Classic_Hub): a picture banner (the excavator) with a
+// yellow and a white band, the titles in spaced capitals, four action tiles, the scene open on the banner, the scenes
+// in big pictures. Black, yellow and white only.
+void BrickApp::stHubClassic() {
+    if (m_hubStale) hubRefresh();
+    Ui u = ui(m_ui);
+    u.mouse = ImGui::GetIO().MousePos;
+    u.pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    ImDrawList* dl = u.dl;
+    const ImU32 Y = IM_COL32(0xf7, 0xc5, 0x1e, 255), INK = IM_COL32(0x17, 0x17, 0x1a, 255), W = IM_COL32(0xec, 0xec, 0xee, 255), DIM = IM_COL32(0x8a, 0x8d, 0x95, 255);
+    const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
+    const bool editing = m_hubEdit != -1;
+    bool close = false;
+    m_uiRects.push_back(ImVec4(0, top, d.x, d.y));
+    dl->AddRectFilled(ImVec2(0, top), d, IM_COL32(0x13, 0x14, 0x17, 255));
+    const std::wstring dir = scenesDir();
+    const bool inLib = !m_scenePath.empty() && m_scenePath.size() > dir.size() && m_scenePath.compare(0, dir.size(), dir) == 0;
+    auto keepOpen = [&] {
+        if (m_bricks.empty()) return;
+        if (inLib) saveScene(m_scenePath);
+        else if (m_scenePath.empty()) hubSaveHere();
+    };
+    const float X0 = 56 * s;
+    // ======== the banner
+    const float BH = std::clamp(d.y * 0.36f, 230 * s, 320 * s);
+    const ImVec2 ba(0, top), bb(d.x, top + BH);
+    if (ImTextureID bt = themeTex("classic/banner.jpg")) {   // cover: the width, the middle of the height
+        const float ar = 853.0f / 1280.0f, vh = (BH / d.x) / ar;
+        const float v0 = std::clamp(0.55f - vh * 0.5f, 0.0f, std::max(0.0f, 1 - vh));
+        dl->AddImage(bt, ba, bb, ImVec2(0, v0), ImVec2(1, std::min(1.0f, v0 + vh)));
+    }
+    const ImU32 B0 = IM_COL32(0x13, 0x14, 0x17, 250), B1 = IM_COL32(0x13, 0x14, 0x17, 0);
+    dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, IM_COL32(0x13, 0x14, 0x17, 190), IM_COL32(0x13, 0x14, 0x17, 190), B0);
+    dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), IM_COL32(0x13, 0x14, 0x17, 190), B1, B1, IM_COL32(0x13, 0x14, 0x17, 190));
+    dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, IM_COL32(0x13, 0x14, 0x17, 255), IM_COL32(0x13, 0x14, 0x17, 255));
+    dl->AddRectFilled(ImVec2(0, ba.y), ImVec2(10 * s, bb.y), Y);
+    dl->AddRectFilled(ImVec2(10 * s, ba.y), ImVec2(13 * s, bb.y), W);
+    stTrack(u, ImVec2(X0, ba.y + 40 * s), 9, Y, "BRICKIT · BUILDER", 2.6f * s);
+    stTrack(u, ImVec2(X0, ba.y + 58 * s), 30, W, "MES SCÈNES", 3.2f * s);
+    stTrack(u, ImVec2(X0, ba.y + 58 * s + u.fs(30) * 1.3f), 10, IM_COL32(0xc4, 0xc6, 0xcc, 255), "CONSTRUIRE · ASSEMBLER · RENDRE", 2.4f * s);
+    {   // the four tiles
+        struct Tl { const char* ico; const char* label; int id; };
+        const Tl ts[4] = {{ST_NEW, "NOUVELLE SCÈNE", 0}, {ST_OPEN, "OUVRIR…", 1}, {BQ_BOOK, "DEPUIS UNE NOTICE", 2}, {ST_PRESET, "PRESETS", 3}};
+        const float tw = 150 * s, th = 92 * s, ty = bb.y - th - 24 * s;
+        for (int k = 0; k < 4; ++k) {
+            const ImVec2 qa(X0 + k * (tw + 10 * s), ty), qb(qa.x + tw, ty + th);
+            const bool h = u.hover(qa, qb) && !editing;
+            const bool main = k == 0;
+            dl->AddRectFilled(qa, qb, main ? (h ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y) : IM_COL32(0x13, 0x14, 0x17, h ? 235 : 190), 6 * s);
+            dl->AddRect(qa, qb, main ? Y : (h ? stA(Y, 0.8f) : IM_COL32(255, 255, 255, 26)), 6 * s, 0, 1.0f);
+            stIcon(dl, ts[k].ico, ImVec2(qa.x + 26 * s, qa.y + 26 * s), 22 * s, main ? INK : Y, (main ? 2.4f : 1.7f) * s);
+            stTrack(u, ImVec2(qa.x + 14 * s, qb.y - 26 * s), 8.5f, main ? INK : W, ts[k].label, 1.8f * s);
+            if (h && u.pressed) {
+                switch (ts[k].id) {
+                case 0: keepOpen(); newScene(); close = true; break;
+                case 1: keepOpen(); openDialog(); close = true; break;
+                case 2: keepOpen(); openDialog(); close = true; break;   // (a .ldr / .mpd: the notice, step by step)
+                case 3: m_popup = 10; m_presetsKey.clear(); m_popupAt = ImVec2(X0, top + 10 * s); return;
+                }
+            }
+        }
+    }
+    {   // the scene open, on the banner
+        const float cw = 340 * s, ch = 100 * s;
+        const ImVec2 ca(d.x - 28 * s - cw, bb.y - 24 * s - ch), cb(ca.x + cw, ca.y + ch);
+        dl->AddRectFilled(ca, cb, IM_COL32(0x13, 0x14, 0x17, 215), 6 * s);
+        dl->AddRect(ca, cb, IM_COL32(255, 255, 255, 30), 6 * s, 0, 1.0f);
+        const ImVec2 ta(ca.x + 12 * s, ca.y + 12 * s), tb(ta.x + 112 * s, cb.y - 12 * s);
+        ImTextureID tex = inLib ? hubThumb(m_scenePath) : 0;
+        if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0.05f, 0), ImVec2(0.95f, 1), IM_COL32_WHITE, 4 * s);
+        else { dl->AddRectFilled(ta, tb, IM_COL32(0x26, 0x28, 0x2d, 255), 4 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, DIM, 1.2f * s); }
+        const float tx = tb.x + 14 * s;
+        stTrack(u, ImVec2(tx, ca.y + 14 * s), 7.5f, DIM, "SCÈNE OUVERTE", 2.0f * s);
+        const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+        if (m_hubEdit == -2) {
+            if (int r = bqEditField(u, ImVec2(tx - 4 * s, ca.y + 28 * s), ImVec2(cb.x - 10 * s, ca.y + 52 * s), 13)) { const int i = m_hubEdit; m_hubEdit = -1; if (r == 1 && m_hubName[0]) hubRename(i, m_hubName); }
+        } else {
+            const ImVec2 na(tx - 4 * s, ca.y + 28 * s), nb(cb.x - 10 * s, ca.y + 50 * s);
+            const bool hn = u.hover(na, nb) && !editing;
+            if (hn) dl->AddRectFilled(na, nb, IM_COL32(255, 255, 255, 12), 4 * s);
+            u.text(ImVec2(tx, ca.y + 30 * s), 13.5f, W, stFit(u, 13.5f, nm, cb.x - tx - 14 * s, true).c_str(), true);
+            if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Renommer");
+            if (hn && u.pressed) { m_hubEdit = -2; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", nm.c_str()); }
+        }
+        const bool in = m_cloud.signedIn();
+        char info[96];
+        snprintf(info, sizeof(info), "%d pièces · %s", (int)m_bricks.size(), !in ? "hors cloud" : m_cloudDirty || m_cloudSending ? "envoi au cloud" : "cloud à jour");
+        dl->AddCircleFilled(ImVec2(tx + 3 * s, ca.y + 59 * s), 3 * s, !in ? DIM : (m_cloudDirty || m_cloudSending) ? Y : IM_COL32(0x4c, 0xbe, 0x6e, 255), 10);
+        u.text(ImVec2(tx + 11 * s, ca.y + 52 * s), 9.5f, DIM, info);
+        const char* rl = "REPRENDRE ▸";
+        const ImVec2 ra(tx, cb.y - 26 * s), rb(tx + stTrackW(u, 7.5f, rl, 1.8f * s, true) + 18 * s, cb.y - 10 * s);
+        const bool hr = u.hover(ra, rb) && !editing;
+        dl->AddRectFilled(ra, rb, hr ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y, 3 * s);
+        stTrack(u, ImVec2(ra.x + 9 * s, (ra.y + rb.y) * 0.5f - u.fs(7.5f) * 0.55f), 7.5f, INK, rl, 1.8f * s);
+        if (hr && u.pressed) close = true;
+    }
+    // ======== the scenes
+    float y = bb.y + 18 * s;
+    {   // the tabs (a segmented pill) and the sort
+        const std::string t0 = "CET APPAREIL · " + std::to_string(m_hubLocal.size());
+        const std::string t1 = m_cloud.signedIn() ? "CLOUD · " + std::to_string(m_cloudList.size()) : std::string("CLOUD");
+        const char* labs[3] = {t0.c_str(), t1.c_str(), "DÉMOS"};
+        const int secOf[3] = {0, 2, 3};
+        float w = 6 * s;
+        for (const char* l : labs) w += stTrackW(u, 8, l, 1.6f * s, true) + 28 * s + 2 * s;
+        const ImVec2 pa(X0, y), pb(X0 + w, y + 30 * s);
+        dl->AddRect(pa, pb, IM_COL32(255, 255, 255, 30), 15 * s, 0, 1.0f);
+        float x = pa.x + 3 * s;
+        for (int k = 0; k < 3; ++k) {
+            const float lw = stTrackW(u, 8, labs[k], 1.6f * s, true) + 28 * s;
+            const ImVec2 qa(x, pa.y + 3 * s), qb(x + lw, pb.y - 3 * s);
+            const bool on = m_hubSection == secOf[k] || (k == 0 && m_hubSection == 1), h = u.hover(qa, qb) && !editing;
+            if (on) dl->AddRectFilled(qa, qb, Y, 12 * s);
+            else if (h) dl->AddRectFilled(qa, qb, IM_COL32(255, 255, 255, 14), 12 * s);
+            stTrack(u, ImVec2(qa.x + 14 * s, (qa.y + qb.y) * 0.5f - u.fs(8) * 0.55f), 8, on ? INK : IM_COL32(0x9a, 0x9c, 0xa4, 255), labs[k], 1.6f * s);
+            if (h && u.pressed) { m_hubSection = secOf[k]; m_hubScroll = 0; if (secOf[k] == 2) cloudRefreshList(); else m_hubStale = true; }
+            x += lw + 2 * s;
+        }
+        stTrack(u, ImVec2(d.x - X0 - stTrackW(u, 8, "TRI : RÉCENTES", 2.0f * s, true), y + 15 * s - u.fs(8) * 0.55f), 8, DIM, "TRI : RÉCENTES", 2.0f * s);
+        y += 30 * s + 14 * s;
+    }
+    struct Card { int kind; int i; };
+    std::vector<Card> cards;
+    if (m_hubSection <= 1) for (int i = 0; i < (int)m_hubLocal.size(); ++i) cards.push_back({0, i});
+    else if (m_hubSection == 2) { if (m_cloud.signedIn()) for (int i = 0; i < (int)m_cloudList.size(); ++i) cards.push_back({1, i}); }
+    else { cards.push_back({2, 0}); cards.push_back({2, 1}); }
+    const ImVec2 ga(X0, y), gb(d.x - X0, d.y - 12 * s);
+    const float gap = 14 * s, gw = gb.x - ga.x;
+    const int cols = std::max(2, (int)((gw + gap) / (220 * s + gap)));
+    const float cw = std::floor((gw - (cols - 1) * gap) / cols), thH = std::floor(cw * 0.62f), cH = thH + 50 * s;
+    const int rows = ((int)cards.size() + cols - 1) / cols;
+    const float contentH = rows * (cH + gap) - gap;
+    if (u.hover(ga, gb) && ImGui::GetIO().MouseWheel != 0) m_hubScroll -= ImGui::GetIO().MouseWheel * (cH + gap) * 0.5f;
+    m_hubScroll = std::clamp(m_hubScroll, 0.0f, std::max(0.0f, contentH - (gb.y - ga.y)));
+    dl->PushClipRect(ga, gb, true);
+    const bool inGrid = u.hover(ga, gb);
+    for (int k = 0; k < (int)cards.size(); ++k) {
+        const Card cd = cards[k];
+        const ImVec2 ca(ga.x + (k % cols) * (cw + gap), ga.y + (k / cols) * (cH + gap) - m_hubScroll), cb(ca.x + cw, ca.y + cH);
+        if (cb.y < ga.y || ca.y > gb.y) continue;
+        const bool h = inGrid && u.hover(ca, cb) && !editing;
+        std::string name, sub;
+        ImTextureID tex = 0;
+        bool cur = false;
+        const char* ico = nullptr;
+        if (cd.kind == 0) {
+            const HubScene& sc = m_hubLocal[cd.i];
+            name = sc.name; sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " pièces"; tex = hubThumb(sc.path); cur = sc.path == m_scenePath;
+        } else if (cd.kind == 1) {
+            const CloudScene& c = m_cloudList[cd.i];
+            name = c.name.empty() ? std::string("Ma scène") : c.name; sub = Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces"; cur = c.id == m_cloudId; ico = BQ_CLOUD;
+        } else {
+            name = cd.i == 0 ? "Maison (démo)" : "Pelleteuse et mécanismes"; sub = cd.i == 0 ? "Le set 31153" : "4 moteurs, 2 vérins"; ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
+        }
+        const ImVec2 ta(ca.x, ca.y), tb(cb.x, ca.y + thH);
+        dl->AddRectFilled(ca, cb, h ? IM_COL32(0x24, 0x25, 0x2a, 255) : IM_COL32(0x1c, 0x1d, 0x21, 255), 6 * s);
+        if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0.05f), ImVec2(1, 0.95f), IM_COL32_WHITE, 6 * s, ImDrawFlags_RoundCornersTop);
+        else {
+            dl->AddRectFilled(ta, tb, IM_COL32(0x22, 0x23, 0x28, 255), 6 * s, ImDrawFlags_RoundCornersTop);
+            if (ico) stIcon(dl, ico, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.34f, DIM, 1.5f * s);
+            else stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.42f, DIM, 1.2f * s);
+        }
+        dl->AddRectFilled(ImVec2(ca.x, tb.y), ImVec2(cb.x, tb.y + 3 * s), cur ? Y : IM_COL32(0x3a, 0x3c, 0x42, 255));
+        dl->AddRect(ca, cb, cur ? Y : IM_COL32(255, 255, 255, h ? 40 : 20), 6 * s, 0, cur ? 1.5f * s : 1.0f);
+        if (cur) {
+            const float w = stTrackW(u, 6.5f, "OUVERTE", 1.6f * s, true) + 14 * s;
+            dl->AddRectFilled(ImVec2(ta.x + 8 * s, ta.y + 8 * s), ImVec2(ta.x + 8 * s + w, ta.y + 24 * s), Y, 3 * s);
+            stTrack(u, ImVec2(ta.x + 15 * s, ta.y + 16 * s - u.fs(6.5f) * 0.55f), 6.5f, INK, "OUVERTE", 1.6f * s);
+        }
+        const float ny = tb.y + 12 * s;
+        if (cd.kind == 0 && m_hubEdit == cd.i) {
+            if (int r = bqEditField(u, ImVec2(ca.x + 6 * s, ny - 4 * s), ImVec2(cb.x - 6 * s, ny + 18 * s), 12)) { const int i = m_hubEdit; m_hubEdit = -1; if (r == 1 && m_hubName[0]) hubRename(i, m_hubName); }
+        } else stTrack(u, ImVec2(ca.x + 12 * s, ny), 8.5f, W, stFit(u, 8.5f, stUpper(name), cw - 30 * s, true).c_str(), 1.6f * s);
+        u.text(ImVec2(ca.x + 12 * s, ny + 16 * s), 9.5f, DIM, stFit(u, 9.5f, sub, cw - 24 * s, false).c_str());
+        bool act = false;
+        if ((h || m_ipad) && cd.kind != 2) {   // rename, duplicate, delete
+            float bx = tb.x - 18 * s;
+            const float by = ta.y + 18 * s, r = 13 * s;
+            auto rb = [&](const char* icon, const char* tip, bool danger) {
+                const ImVec2 c(bx, by);
+                const bool hb = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) < r * r && !editing;
+                dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : IM_COL32(0x3a, 0x3c, 0x42, 245)) : IM_COL32(10, 11, 13, 215), 24);
+                stIcon(dl, icon, c, r * 1.05f, W, 1.5f * s);
+                if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
+                bx -= 2 * r + 6 * s;
+                return hb && u.pressed;
+            };
+            if (rb(ST_DEL, cd.kind == 1 ? "Supprimer du cloud" : "Supprimer", true)) {
+                act = true;
+                if (cd.kind == 0) hubDelete(cd.i);
+                else {
+                    const CloudScene cs = m_cloudList[cd.i];
+                    plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Supprimer « " + (cs.name.empty() ? std::string("Ma scène") : cs.name) + " » du cloud ?"), [this, cs] {
+                        m_cloud.remove(cs.id, [this, cs](bool ok, const std::string& err) {
+                            if (!ok) { toast("Cloud : " + err); return; }
+                            if (cs.id == m_cloudId) cloudForget();
+                            cloudRefreshList();
+                        });
+                    });
+                }
+            }
+            if (cd.kind == 0 && rb(ST_DUP, "Dupliquer", false)) { act = true; hubDuplicate(cd.i); }
+            if (cd.kind == 0 && rb(ST_PEN, "Renommer", false)) { act = true; m_hubEdit = cd.i; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", name.c_str()); }
+        }
+        if (act) continue;
+        if (h && u.pressed) {
+            if (cd.kind == 0) {
+                const HubScene sc = m_hubLocal[cd.i];
+                if (sc.path != m_scenePath) { keepOpen(); if (openScene(sc.path)) m_modelName = sc.name; }
+            } else if (cd.kind == 1) {
+                const CloudScene c = m_cloudList[cd.i];
+                if (!cur) { keepOpen(); cloudOpen(c, false); }
+            } else {
+                keepOpen();
+                if (cd.i == 0) openOfficialHouse();
+                else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; }
+            }
+            close = true;
+        }
+    }
+    dl->PopClipRect();
+    if (cards.empty()) {
+        const char* t = m_hubSection <= 1 ? "Aucune scène enregistrée ici pour l'instant : « Enregistrer » range la scène ouverte dans Mes scènes, avec sa vignette."
+                      : !m_cloud.signedIn() ? "Connecte-toi (Réglages › Cloud) pour retrouver tes scènes de l'iPad et du PC."
+                      : m_cloudListBusy ? "Chargement…" : "Aucune scène dans le cloud pour l'instant.";
+        dl->AddText(u.font, u.fs(11), ImVec2(ga.x, ga.y + 4 * s), DIM, t, nullptr, gb.x - ga.x);
+    }
+    if (ImTextureID br = themeTex("brique/bricks.png")) {   // the yellow bricks, in the corner
+        const float bs = 230 * s;
+        dl->PushClipRect(ImVec2(0, top), d, true);
+        dl->AddImage(br, ImVec2(d.x - bs * 0.78f, d.y - bs * 0.62f), ImVec2(d.x - bs * 0.78f + bs, d.y - bs * 0.62f + bs));
+        dl->PopClipRect();
+    }
+    if (!editing && ImGui::IsKeyPressed(ImGuiKey_Escape)) close = true;
+    if (close && m_popup == 8) m_popup = 0;
+}

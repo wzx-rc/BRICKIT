@@ -915,6 +915,7 @@ private:
     void stBriqueCorners();
     void stEditUi();
     void stHubPage();
+    void stHubClassic();
     float bqLeftW() const;
     ImVec2 bqOff(const char* id);
     float bqK(const char* id);
