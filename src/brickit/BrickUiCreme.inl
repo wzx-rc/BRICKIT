@@ -226,14 +226,14 @@ void BrickApp::crTurn(int dir) {
 
 // ------------------------------------------------------------------ the ring of colours (a long press on a brick)
 
-// a swatch: a plain disc of the colour, its soft shadow, a thin darker rim, a gloss on top (the transparent ones lighter,
-// the metallic ones with a brighter gloss); the current one ringed in white then ink
+// a swatch: a flat disc of the colour, a light shadow, a thin darker rim (the transparent ones lighter, the metallic ones
+// with a thin light ring); the current one ringed in white then ink
 void BrickApp::crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool current, float alpha) {
     const float s = m_ui;
     const Color& col = m_lib.palette[std::clamp(color, 0, (int)m_lib.palette.size() - 1)];
     const bool trans = col.group == "transparent", metal = col.group == "metallic" || col.group == "metal" || col.group == "chrome" || col.group == "pearl";
     const float a = std::clamp(alpha, 0.0f, 1.0f);
-    kitShadowCircle(dl, p, r * 2, alphaOf(IM_COL32(40, 25, 10, 110), a), 2.5f * s);
+    kitShadowCircle(dl, p, r * 2, alphaOf(IM_COL32(40, 25, 10, 70), a), 1.5f * s);
     if (current) {
         dl->AddCircleFilled(p, r + 5 * s, alphaOf(IM_COL32(255, 255, 255, 255), a), 48);
         dl->AddCircle(p, r + 5 * s, alphaOf(T_BRUN, a), 48, 1.5f * s);
@@ -242,8 +242,7 @@ void BrickApp::crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool curre
     dl->AddCircleFilled(p, r, base, 48);
     const float lum = col.srgb.x * 0.3f + col.srgb.y * 0.59f + col.srgb.z * 0.11f;
     dl->AddCircle(p, r - 0.5f * s, alphaOf(lum > 0.85f ? IM_COL32(150, 140, 125, 255) : IM_COL32(0, 0, 0, 70), a), 48, 1.0f * s);
-    dl->AddCircleFilled(ImVec2(p.x - r * 0.18f, p.y - r * 0.26f), r * 0.62f, alphaOf(IM_COL32(255, 255, 255, metal ? 60 : trans ? 50 : 26), a), 40);
-    dl->AddCircleFilled(ImVec2(p.x - r * 0.32f, p.y - r * 0.38f), r * 0.24f, alphaOf(IM_COL32(255, 255, 255, metal ? 100 : 60), a), 24);
+    if (metal) dl->AddCircle(p, r * 0.62f, alphaOf(IM_COL32(255, 255, 255, 90), a), 40, 1.2f * s);   // (flat: a metallic one, a thin light ring; Wzx 22/11/2026: « plus cercle plat, moins sphère »)
 }
 // Wzx 22/11/2026: « quand je maintiens sur une brique, apparition d'un cercle avec toutes les couleurs tout autour, avec
 // la même animation d'apparition »: every colour of the Nuancier in rings around the finger, the studs appearing one
