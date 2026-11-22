@@ -959,8 +959,6 @@ void BrickApp::stHubClassic() {
     dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, IM_COL32(0x13, 0x14, 0x17, 190), IM_COL32(0x13, 0x14, 0x17, 190), B0);
     dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), IM_COL32(0x13, 0x14, 0x17, 190), B1, B1, IM_COL32(0x13, 0x14, 0x17, 190));
     dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, IM_COL32(0x13, 0x14, 0x17, 255), IM_COL32(0x13, 0x14, 0x17, 255));
-    dl->AddRectFilled(ImVec2(0, ba.y), ImVec2(10 * s, bb.y), Y);
-    dl->AddRectFilled(ImVec2(10 * s, ba.y), ImVec2(13 * s, bb.y), W);
     stTrack(u, ImVec2(X0, ba.y + 40 * s), 9, Y, "BRICKIT · BUILDER", 2.6f * s);
     stTrack(u, ImVec2(X0, ba.y + 58 * s), 30, W, "MES SCÈNES", 3.2f * s);
     stTrack(u, ImVec2(X0, ba.y + 58 * s + u.fs(30) * 1.3f), 10, IM_COL32(0xc4, 0xc6, 0xcc, 255), "CONSTRUIRE · ASSEMBLER · RENDRE", 2.4f * s);
