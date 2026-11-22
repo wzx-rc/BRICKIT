@@ -204,8 +204,8 @@ void BrickApp::touchDown(const TouchEvent& e) {
     if (m_mechOn) {   // Mechanical mode: a moving part follows the finger (mechUpdate, as the mouse), else orbit
         float3 hit;
         const int b = pickBrick(e.x, e.y, &hit);
-        bool movable = false;
-        if (b >= 0 && b < (int)m_mm.brickBody.size()) {
+        bool movable = mechRingHit(e.x, e.y) >= 0;   // (a ring of a pivot: its handle)
+        if (!movable && b >= 0 && b < (int)m_mm.brickBody.size()) {
             const int body = m_mm.brickBody[b];
             movable = std::find(m_mm.roots.begin(), m_mm.roots.end(), body) == m_mm.roots.end();
         }
@@ -638,6 +638,33 @@ void BrickApp::touchTestFrame() {
     if (t == "cring" && ringT < 0 && f == (int)mc.x + 24) touchEnded(1, m_crRingAt.x, m_crRingAt.y - 150 * m_ui, false);
     if (t == "cring" && ringT < 0 && f == (int)mc.x + 30)
         line(std::string("cring: colour ") + std::to_string(ringCol0) + " -> " + std::to_string(m_bricks[target].color) + (m_bricks[target].color != ringCol0 && !m_crRing ? " OK" : " FAIL"));
+    // Mécanique: a finger on the ring of a pivot turns the part beyond it (Wzx 22/11/2026)
+    static int mj = -1;
+    static float3 mc0, mu0, ma0, mb0;
+    static float3 childAt0;
+    if (t == "mring" && f == 10) { newScene(1); buildExcavatorDemo(); rebuildScene(); frameAll(); }
+    if (t == "mring" && f == 20) {
+        mechEnter();
+        mj = -1;
+        for (int k = 0; k < (int)m_mm.tree.size() && mj < 0; ++k) if (mechRingFrame(k, mc0, mu0, ma0, mb0)) mj = k;
+        line("mring: " + std::to_string(m_mm.tree.size()) + " pivots, ring " + std::to_string(mj));
+    }
+    auto ringPt = [&](float th, ImVec2& p) {
+        float3 c, u, aa, bb;
+        if (!mechRingFrame(mj, c, u, aa, bb)) return false;
+        return view().project(c + (aa * std::cos(th) + bb * std::sin(th)) * 0.62f, p.x, p.y);
+    };
+    if (t == "mring" && f == 30 && mj >= 0) {
+        childAt0 = m_mm.mats[m_mm.tree[mj].child].point(float3(0));
+        ImVec2 p;
+        if (ringPt(0, p)) { a = p; touchBegan(1, p.x, p.y, false); line(std::string("mring: hit ") + std::to_string(mechRingHit(p.x, p.y))); }
+    }
+    if (t == "mring" && f > 30 && f <= 50 && mj >= 0) { ImVec2 p; if (ringPt((f - 30) * 0.06f, p)) touchMoved(1, p.x, p.y); }
+    if (t == "mring" && f == 52 && mj >= 0) { ImVec2 p; ringPt(1.2f, p); touchEnded(1, p.x, p.y, false); }
+    if (t == "mring" && f == 60 && mj >= 0) {
+        const float3 now = m_mm.mats[m_mm.tree[mj].child].point(float3(0));
+        line("mring: the part beyond the pivot moved " + std::to_string(length(now - childAt0)) + " cm" + (length(now - childAt0) > 0.05f ? " OK" : " FAIL"));
+    }
     if (t == "ring" && f == 20) { m_touchHud = true; brickPoint(target); select(target); rot0 = m_bricks[target].rot; }
     if (t == "ring" && f == 24 && m_ringR > 0) { touchBegan(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); touchEnded(7, m_ringC.x + m_ringR * 0.75f, m_ringC.y, false); }
     if (t == "ring" && f == 70) {

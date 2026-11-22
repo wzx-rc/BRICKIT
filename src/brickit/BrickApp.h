@@ -1163,6 +1163,10 @@ private:
     Mech::Drag m_mechDrag;
     float3 m_mechDragPlaneN;
     bool m_mechDragging = false;
+    // the rings of the pivots (Mécanique): thick handles, a drag along one turns its pivot (Wzx 22/11/2026)
+    int m_mechRingDrag = -1, m_mechRingHot = -1;
+    int mechRingHit(float x, float y);
+    bool mechRingFrame(int t, float3& c, float3& u, float3& a, float3& b);
     bool m_testCarry = false;   // --gi-carry: a brick carried by the test
     double m_mechFlashTime = -10;
 

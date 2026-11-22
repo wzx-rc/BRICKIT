@@ -9,6 +9,8 @@ namespace brickit {
 
 namespace th = app::th;
 
+static const float kMechRingR = 0.62f;   // cm (a handle: wider than the hole, 0.46 before)
+
 void BrickApp::mechEnter() {
     if (m_holding) cancelHeld();
     m_selected = -1;
@@ -27,6 +29,7 @@ void BrickApp::mechEnter() {
 void BrickApp::mechExit() {
     if (!m_mechOn) return;
     m_mechOn = false;
+    m_mechRingDrag = m_mechRingHot = -1;
     m_mm = MechModel();
     syncObjects();   // back to the building pose
 }
@@ -50,8 +53,37 @@ void BrickApp::mechUpdate(float dt) {
     if (!m_mechOn) return;
     ImGuiIO& io = ImGui::GetIO();
     if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Escape)) { mechExit(); return; }
+    // a ring of a pivot taken: the part beyond it turns about it (Wzx 22/11/2026: « les ring poignée plus épais et
+    // sélectionnables pour rotate »)
+    m_mechRingHot = m_mechRingDrag >= 0 ? m_mechRingDrag : (!m_overUi ? mechRingHit(io.MousePos.x, io.MousePos.y) : -1);
+    auto ringTarget = [&](int t, float3& out) {
+        float3 c, u, a, b;
+        if (!mechRingFrame(t, c, u, a, b)) return false;
+        float3 o, d;
+        view().ray(io.MousePos.x, io.MousePos.y, o, d);
+        const float den = dot(d, u);
+        float3 dir = a;
+        if (std::fabs(den) > 1e-4f) {
+            float3 p = o + d * (dot(c - o, u) / den) - c;
+            p = p - u * dot(p, u);
+            if (length(p) > 1e-4f) dir = normalize(p);
+        }
+        out = c + dir * kMechRingR;
+        return true;
+    };
+    if (!m_overUi && !io.WantCaptureMouse && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt && m_mechRingHot >= 0) {
+        float3 grab;
+        if (ringTarget(m_mechRingHot, grab)) {
+            const int body = m_mm.tree[m_mechRingHot].child;
+            m_mechDrag.body = body;
+            m_mechDrag.local = m_mm.mats[body].inverse().point(grab);
+            m_mechDrag.target = grab;
+            m_mechDragging = true;
+            m_mechRingDrag = m_mechRingHot;
+        }
+    }
     // left drag on a moving part: the point grabbed follows the cursor on the plane facing the camera
-    if (!m_overUi && !io.WantCaptureMouse && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+    else if (!m_overUi && !io.WantCaptureMouse && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
         float3 hit;
         int b = pickBrick(io.MousePos.x, io.MousePos.y, &hit);
         if (b >= 0) {
@@ -67,8 +99,15 @@ void BrickApp::mechUpdate(float dt) {
             }
         }
     }
-    if (m_mechDragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_mechDragging = false;
-    if (m_mechDragging && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+    if (m_mechDragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) { m_mechDragging = false; m_mechRingDrag = -1; }
+    if (m_mechDragging && m_mechRingDrag >= 0 && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {   // along the ring
+        float3 tg;
+        if (ringTarget(m_mechRingDrag, tg)) {
+            m_mechDrag.target = tg;
+            m_mech.solve(m_mm, &m_mechDrag);
+            mechApplyPose();
+        }
+    } else if (m_mechDragging && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
         float3 o, d;
         view().ray(io.MousePos.x, io.MousePos.y, o, d);
         float3 p0 = m_mm.mats[m_mechDrag.body].point(m_mechDrag.local);
@@ -112,28 +151,76 @@ void BrickApp::mechUpdate(float dt) {
     mechApplyPose();
 }
 
+// the ring of the pivot t of the tree, in the world: its centre, its axis and two directions of its plane
+bool BrickApp::mechRingFrame(int t, float3& c, float3& u, float3& a, float3& b) {
+    if (t < 0 || t >= (int)m_mm.tree.size()) return false;
+    const MechTreeJ& j = m_mm.tree[t];
+    if (j.j.type != 0) return false;   // (a pivot; the sliding joints of the actuators are driven by their slider)
+    const Affine& M = m_mm.mats[j.parent];
+    c = M.point(j.j.p);
+    u = normalize(M.vector(j.j.u));
+    a = std::fabs(u.y) < 0.9f ? normalize(cross(u, float3(0, 1, 0))) : normalize(cross(u, float3(1, 0, 0)));
+    b = cross(u, a);
+    return true;
+}
+
+// the pivot whose ring is under the point (a finger: 18 pt around the drawn ring), -1 none
+int BrickApp::mechRingHit(float x, float y) {
+    if (!m_mechOn || !m_mechJoints) return -1;
+    View v = view();
+    int best = -1;
+    float bd = 18 * m_ui;
+    for (int t = 0; t < (int)m_mm.tree.size(); ++t) {
+        float3 c, u, a, b;
+        if (!mechRingFrame(t, c, u, a, b)) continue;
+        ImVec2 prev;
+        bool havePrev = false;
+        for (int i = 0; i <= 32; ++i) {
+            const float th = i * 2 * kPi / 32;
+            float sx, sy;
+            if (!v.project(c + (a * std::cos(th) + b * std::sin(th)) * kMechRingR, sx, sy)) { havePrev = false; continue; }
+            const ImVec2 p(sx, sy);
+            if (havePrev) {   // the distance to the segment prev - p
+                const float dx = p.x - prev.x, dy = p.y - prev.y, l2 = dx * dx + dy * dy;
+                const float k = l2 > 0 ? std::clamp(((x - prev.x) * dx + (y - prev.y) * dy) / l2, 0.0f, 1.0f) : 0.0f;
+                const float ex = prev.x + dx * k - x, ey = prev.y + dy * k - y, dd = std::sqrt(ex * ex + ey * ey);
+                if (dd < bd) { bd = dd; best = t; }
+            }
+            prev = p;
+            havePrev = true;
+        }
+    }
+    return best;
+}
+
 void BrickApp::drawMechOverlay() {
     if (!m_mechOn || !m_mechJoints) return;
     const float s = m_ui;
     // overlay: pivots (yellow rings), loop pivots (orange), gear meshes (pink lines with the ratio)
     View v = view();
     ImDrawList* dl = ImGui::GetBackgroundDrawList();   // over the 3D view (drawn after it), under the panels
-    auto ring = [&](const float3& p, const float3& u, int body, ImU32 col) {
+    auto ring = [&](const float3& p, const float3& u, int body, ImU32 col, bool hot, float R) {
         const Affine& M = m_mm.mats[body];
         float3 c = M.point(p), uu = normalize(M.vector(u));
         float3 a = std::fabs(uu.y) < 0.9f ? normalize(cross(uu, float3(0, 1, 0))) : normalize(cross(uu, float3(1, 0, 0))), b = cross(uu, a);
-        ImVec2 pts[24];
+        ImVec2 pts[40];
         int n = 0;
-        for (int i = 0; i < 24; ++i) {
-            float t = i * 2 * kPi / 24;
-            float3 w = c + (a * std::cos(t) + b * std::sin(t)) * 0.46f;
+        for (int i = 0; i < 40; ++i) {
+            float t = i * 2 * kPi / 40;
+            float3 w = c + (a * std::cos(t) + b * std::sin(t)) * R;
             float sx, sy;
             if (v.project(w, sx, sy)) pts[n++] = ImVec2(sx, sy);
         }
-        if (n > 2) dl->AddPolyline(pts, n, col, ImDrawFlags_Closed, 2.0f * s);
+        if (n > 2) {   // a thick handle: a dark outline, the colour (white when under the finger or taken)
+            dl->AddPolyline(pts, n, IM_COL32(20, 16, 10, 150), ImDrawFlags_Closed, (hot ? 10.0f : 8.0f) * s);
+            dl->AddPolyline(pts, n, hot ? IM_COL32(255, 255, 255, 245) : col, ImDrawFlags_Closed, (hot ? 6.5f : 5.0f) * s);
+        }
     };
-    for (const MechTreeJ& t : m_mm.tree) ring(t.j.p, t.j.u, t.parent, IM_COL32(247, 197, 30, 220));
-    for (const MechJoint& c : m_mm.closures) ring(c.p, c.u, c.a, IM_COL32(255, 122, 69, 230));
+    for (int t = 0; t < (int)m_mm.tree.size(); ++t) {
+        const MechTreeJ& j = m_mm.tree[t];
+        ring(j.j.p, j.j.u, j.parent, IM_COL32(247, 197, 30, 235), t == m_mechRingHot || t == m_mechRingDrag, j.j.type == 0 ? kMechRingR : 0.46f);
+    }
+    for (const MechJoint& c : m_mm.closures) ring(c.p, c.u, c.a, IM_COL32(255, 122, 69, 230), false, 0.46f);
     for (auto& ms : m_mm.meshes) {
         const MechGearW &A = m_mm.gears[ms.first], &B = m_mm.gears[ms.second];
         float3 a = m_mm.mats[A.body].point(A.c), b = m_mm.mats[B.body].point(B.c);
