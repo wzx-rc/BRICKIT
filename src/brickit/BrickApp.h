@@ -91,7 +91,7 @@ struct Options {
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
-    std::string ux;   // --ux kit | classic (captures: the interface, apart from the theme)
+    std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
     bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
@@ -386,10 +386,11 @@ private:
     bool m_pencilOnly = false;              // fingers never build (camera only)
     int m_ipadUiWas = -1;                   // (the interface of the last frame: the stage follows a change)
     bool m_stMenuWait = false;   // touch: the marking menu waits until ImGui has seen the finger down (the event lands a frame later)
-    bool m_ipadCreme = false;               // this frame: the touch kit 2.0 drawn (m_uxKit) instead of the Studio interface
-    // Wzx 22/11/2026: « 2 UI / UX : CLASSIC et CRÈME » (their layout and their way of working), « 3 thèmes » (Classique,
-    // Brique, Crème: the colours) applied to both. Réglages › Interface › Interface, the hub of the kit
-    bool m_uxKit = false;
+    bool m_ipadCreme = false;               // this frame: the touch kit 2.0 drawn (m_ux 2) instead of the Studio interface
+    // Wzx 22/11/2026: the Interface (the layout and the way of working: « Grey, Black (les 2 actuelles) et ajoute crème »)
+    // apart from the Thème (Classique, Brique, Crème: the colours), each theme on each interface. Réglages › Interface,
+    // the hub of the kit. 0 Grey (the layout of Brique), 1 Black (the layout of Classique), 2 Crème (the touch kit)
+    int m_ux = 0;
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
     struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
     std::map<std::string, ImTextureID> m_kitTex;

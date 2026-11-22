@@ -145,9 +145,9 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (!opt.skin.empty() && theme::indexOf(opt.skin) >= 0) m_themeId = opt.skin;
     if (opt.skinTint >= 0) m_themeLooks[m_themeId].tint = opt.skinTint;
     if (opt.skinAccent >= 0) m_themeLooks[m_themeId].accent = opt.skinAccent;
-    if (opt.ipadCreme || !opt.ipadOpen.empty()) m_uxKit = true;
-    if (!opt.shotPath.empty() && opt.ux.empty() && m_themeId == "creme") m_uxKit = true;   // (captures: --skin creme, the kit as before)
-    if (!opt.ux.empty()) m_uxKit = opt.ux == "kit";
+    if (!opt.shotPath.empty() && opt.ux.empty()) m_ux = m_themeId == "creme" ? 2 : m_themeId == "classic" ? 1 : 0;   // (captures: --skin alone, as before)
+    if (opt.ipadCreme || !opt.ipadOpen.empty()) m_ux = 2;
+    if (!opt.ux.empty()) m_ux = opt.ux == "kit" || opt.ux == "creme" ? 2 : opt.ux == "black" || opt.ux == "classic" ? 1 : 0;
     loadThemeFonts();   // (the iPad too: its Studio interface takes the themes)
     if (opt.quality >= 0) { m_quality = opt.quality; m_rs.msaaSamples = m_quality ? 4 : 1; }
     if (opt.aa >= 0) m_rs.aaQuality = std::clamp(opt.aa, 0, 2);

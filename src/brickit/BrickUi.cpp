@@ -542,11 +542,12 @@ bool BrickApp::applyTheme() {
     const bool dark = d.mode >= 0 ? d.mode == 1 : pcDarkNow();
     const ThemeLook lk = m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId] : ThemeLook{};
     char key[96];
-    snprintf(key, sizeof(key), "%s|%d|%d|%d", m_themeId.c_str(), dark ? 1 : 0, lk.tint, lk.accent);
+    snprintf(key, sizeof(key), "%s|%d|%d|%d|%d", m_themeId.c_str(), dark ? 1 : 0, lk.tint, lk.accent, m_ux);
     bool changed = false;
     if (m_thKey != key) {
         m_thKey = key;
         m_th = theme::resolve(m_themeId, dark, lk.tint, lk.accent);
+        m_th.brique = m_ux == 0;   // the layout of Brique: the Interface Grey, whatever the colours (Wzx 22/11/2026)
         changed = true;
     }
     m_darkUi = m_th.dark;
@@ -2326,7 +2327,7 @@ void BrickApp::drawUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-    const bool creme = m_studioUi && m_uxKit;   // the UX Crème: the touch kit (PC and iPad), else the Studio interface
+    const bool creme = m_studioUi && m_ux == 2;   // the Interface Crème: the touch kit (PC and iPad), else the Studio interface (Grey / Black)
     m_ipadCreme = creme;
     const bool themeChanged = applyTheme();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
     if (creme && m_themeId == "creme") uiTheme(true);   // (the panels shared with the PC: the cream of the kit)
@@ -3718,9 +3719,14 @@ void BrickApp::uiSettings() {
         row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
         if (m_studioUi) {   // (Wzx 22/11/2026): the UX, apart from the theme (the colours: Réglages › Thème)
-            const int ku = seg("Interface", {"Classique", "Crème"}, m_uxKit ? 1 : 0);
-            if (ku >= 0 && (ku == 1) != m_uxKit) { m_uxKit = ku == 1; m_popup = 0; savePrefs(); }
-            note("Classique : barre, panneaux, Hub. Crème : galets, bulles autour de la brique, dock. Les 3 thèmes de couleur vont aux deux.");
+            const int ku = seg("Interface", {"Grey", "Black", "Crème"}, m_ux);
+            if (ku >= 0 && ku != m_ux) {
+                m_ux = ku;
+                m_popup = 0;
+                if (ku == 0) { m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; }   // (the layout of Brique)
+                savePrefs();
+            }
+            note("Grey : la disposition Brique. Black : la disposition Classique. Crème : galets, bulles, dock. Les 3 thèmes de couleur vont aux trois.");
             if (m_th.brique) {
                 const int ke = seg("Disposition", {"Éditer l'interface", "Par défaut"}, -1);
                 if (ke == 0) { m_editUi = true; m_popup = 0; }

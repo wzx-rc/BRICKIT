@@ -685,7 +685,7 @@ void BrickApp::ipadHub() {
         struct Sg { const char* label; std::vector<const char*> opts; int cur; int id; };
         std::vector<Sg> sgs = {{"Qualité", {"Économie", "Normale", "Belle"}, qi, 0}, {"Lumière", {"Matin", "Midi", "Soir"}, m_lightPreset, 1},
                                {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Thème", {"Crème", "Brique", "Classique"}, thm, 3},
-                               {"Interface", {"Crème", "Classique"}, 0, 5}};
+                               {"Interface", {"Crème", "Grey", "Black"}, 0, 5}};
         if (m_ipad) sgs.push_back({"Stylet seul", {"Oui", "Auto"}, m_pencilOnly ? 0 : 1, 4});
         for (const Sg& sg : sgs) {
             kTextC(dl, X, ry + 14 * s, 14 * s, T_BRUN, sg.label);
@@ -696,7 +696,7 @@ void BrickApp::ipadHub() {
                 case 1: m_lightPreset = k; applyLook(); break;
                 case 2: m_build.gridSnap = k == 0; break;
                 case 3: if (k != thm) m_themeId = k == 0 ? "creme" : k == 1 ? "brique" : "classic"; break;   // (the colours: the kit stays)
-                case 5: if (k == 1) { m_uxKit = false; close = true; } break;   // the UX Classique (the Studio interface)
+                case 5: if (k > 0) { m_ux = k == 1 ? 0 : 1; close = true; } break;   // the Studio interface: Grey (Brique) or Black (Classique)
                 case 4: m_pencilOnly = k == 0; break;
                 }
                 savePrefs();

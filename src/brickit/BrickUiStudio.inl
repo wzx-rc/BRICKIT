@@ -2957,7 +2957,7 @@ void BrickApp::drawUiStudio() {
         return;
     }
     g_brique = m_th.brique;
-    g_hubPage = g_brique || m_th.id == "classic";
+    g_hubPage = g_brique || m_ux == 1;   // (Black: the hub of Classique)
     g_light = !m_th.dark;
     bqSkinOf(m_th, m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId].tint : 0);
     g_uiBlock = m_editUi;   // (the header answers over the hub page)
