@@ -154,7 +154,8 @@ static const ImU32 T_SEP = IM_COL32(0xe3, 0xd7, 0xc3, 255);
 static const ImU32 T_POIGNEE = IM_COL32(0xcd, 0xbc, 0xa4, 255);
 static const ImU32 T_BLANC = IM_COL32(0xfb, 0xf4, 0xea, 255);   // (Wzx 22/11/2026: a whiter cream, less contrast with the cream)
 static const ImU32 T_PIECE = IM_COL32(0xb9, 0xa4, 0x8d, 255);   // the parts of the dock and the drawer: the light brown of the kit, not the active colour
-static const ImU32 T_CARTE_DOCK = IM_COL32(255, 255, 255, 140);
+static const ImU32 T_CARTE_DOCK = IM_COL32(0xf3, 0xeb, 0xde, 210);   // (cream, not white: Wzx 22/11/2026)
+static const ImU32 T_CARTE = IM_COL32(0xf3, 0xeb, 0xde, 255);   // a card of the drawer: cream, not white (Wzx 22/11/2026)
 static const ImU32 T_JAUNE = IM_COL32(0xf6, 0xde, 0x86, 255);   // (a paler yellow, Wzx 22/11/2026)
 static const ImU32 T_ROUGE = IM_COL32(0xa4, 0x5c, 0x36, 255);   // Supprimer: a terracotta brown (no red in Crème, Wzx 22/11/2026)
 static const ImU32 T_VERT = IM_COL32(0x8b, 0xbe, 0x68, 255);
@@ -897,8 +898,8 @@ void BrickApp::ipadDrawer() {
     }
     // ---- chips at 116 pt: 14 pt on hollow cream, active brown with cream text (the categories of the family)
     y = a.y + 116 * s;
-    const float chipH = 30 * s;
-    const ImVec2 qa(M, y), qb(d.x - M, y + chipH);
+    const float chipH = 30 * s, sliderW = 170 * s;
+    const ImVec2 qa(M, y), qb(d.x - M - sliderW - 12 * s, y + chipH);
     const float chipStart = qa.x - m_catScroll;
     x = chipStart;
     u.dl->PushClipRect(qa, qb, true);
@@ -917,11 +918,32 @@ void BrickApp::ipadDrawer() {
     } else kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_PALE, m_stFam == "recent" ? "Les dernières pièces posées" : "Appui long sur une pièce pour l'ajouter aux favoris");
     u.dl->PopClipRect();
     swipeRow(2, qa, qb, m_catScroll, m_catVel, std::max(0.0f, x - chipStart - (qb.x - qa.x)), true);
+    {   // the size of the cards: a slider between a small and a big brick (Wzx 22/11/2026: « slider de taille »)
+        static bool drag = false;
+        const ImVec2 sa(d.x - M - sliderW, y), sb(d.x - M, y + chipH);
+        const float cy = (sa.y + sb.y) * 0.5f, tx0 = sa.x + 26 * s, tx1 = sb.x - 30 * s;
+        kitIcon(u.dl, "brique", ImVec2(sa.x + 10 * s, cy), 14 * s, T_BRUN_DOUX);
+        kitIcon(u.dl, "brique", ImVec2(sb.x - 12 * s, cy), 22 * s, T_BRUN_DOUX);
+        const float k0 = 0.7f, k1 = 1.6f, k = std::clamp(m_stCardScale, k0, k1), t = (k - k0) / (k1 - k0);
+        u.dl->AddRectFilled(ImVec2(tx0, cy - 2.5f * s), ImVec2(tx1, cy + 2.5f * s), T_CREUX, 2.5f * s);
+        u.dl->AddRectFilled(ImVec2(tx0, cy - 2.5f * s), ImVec2(tx0 + (tx1 - tx0) * t, cy + 2.5f * s), T_POIGNEE, 2.5f * s);
+        const ImVec2 kc(tx0 + (tx1 - tx0) * t, cy);
+        u.dl->AddCircleFilled(ImVec2(kc.x, kc.y + 1.5f * s), 11 * s, T_OMBRE_DOUCE, 24);
+        u.dl->AddCircleFilled(kc, 11 * s, drag ? T_CREUX : T_BLANC, 24);
+        u.dl->AddCircle(kc, 11 * s, T_SEP, 24, 1 * s);
+        m_uiRects.push_back(ImVec4(sa.x, sa.y - 6 * s, sb.x, sb.y + 6 * s));
+        if (u.pressed && u.hover(ImVec2(sa.x, sa.y - 6 * s), ImVec2(sb.x, sb.y + 6 * s))) drag = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (drag) savePrefs(); drag = false; }
+        if (drag) { m_stCardScale = k0 + (k1 - k0) * std::clamp((u.mouse.x - tx0) / (tx1 - tx0), 0.0f, 1.0f); m_libPress = -1; }
+    }
     crLibParts();
     const std::vector<int>& parts = m_stParts;
     // ---- the grid at 156 pt: 9 columns of white cards 72 pt, radius 16, gap 10; sliding sideways; the part taken 35 %
     y = a.y + 156 * s;
-    const float cgap = 10 * s, cw = std::floor((d.x - 2 * M - 8 * cgap) / 9), ch = 72 * s;
+    const float ks = std::clamp(m_stCardScale, 0.7f, 1.6f);   // (the slider)
+    const float cgap = 10 * s, ch = std::round(72 * s * ks);
+    const int ncol = std::max(3, (int)((d.x - 2 * M + cgap) / (116 * s * ks + cgap)));
+    const float cw = std::floor((d.x - 2 * M - (ncol - 1) * cgap) / ncol);
     const int rows = std::max(1, (int)((d.y - y - 6 * s + cgap) / (ch + cgap)));
     const int cols = ((int)parts.size() + rows - 1) / rows;
     const ImVec2 ca(M, y), cb(d.x - M, d.y);
@@ -938,7 +960,7 @@ void BrickApp::ipadDrawer() {
         if (pb.x < ca.x || pa.x > cb.x) continue;
         const int part = parts[k];
         const float al = part == taken ? 0.35f : 1.0f;
-        u.dl->AddRectFilled(pa, pb, alphaOf(T_BLANC, al), 16 * s);
+        u.dl->AddRectFilled(pa, pb, alphaOf(T_CARTE, al), 16 * s * std::min(1.0f, ks));
         ImTextureID tex;
         ImVec2 uv0, uv1;
         if (thumbUv(part, tex, uv0, uv1)) {

@@ -12,6 +12,18 @@ namespace brickit {
 
 static const uint32_t kThumbMagic = 0x42544831;   // "BTH1"
 
+// a clean cutout (Wzx 22/11/2026: « no thumbnail sont carré dans un rectangle blanc, il faut un joli détourage »): the
+// renders keep a nearly invisible floor of shadow over the whole image (alpha 4 to 14 / 255), a square that shows on
+// the light cards; it goes, the contact shadow under the part stays (rescaled)
+void cleanThumbAlpha(std::vector<uint8_t>& rgba) {
+    const int cut = 14;
+    for (size_t q = 0; q + 3 < rgba.size(); q += 4) {
+        const int a = rgba[q + 3];
+        if (a <= cut) { rgba[q] = rgba[q + 1] = rgba[q + 2] = rgba[q + 3] = 0; continue; }
+        if (a < 255) rgba[q + 3] = (uint8_t)((a - cut) * 255 / (255 - cut));
+    }
+}
+
 // The studio of the web thumbnails (outils/thumbs.mjs), also used by the 3D viewer of the part sheet: HDRI fill, warm
 // key and cool rim area lights, neutral grey plastic with a bevel. Returns the material.
 int BrickApp::setupStudio(Scene& ts) {
@@ -206,7 +218,7 @@ void BrickApp::buildThumbs() {
             fclose(f);
         }
     }
-    for (auto& a : pix) m_thumbAtlas.push_back(m_gui->createTexture(a.data(), atlasPx, atlasPx));
+    for (auto& a : pix) { cleanThumbAlpha(a); m_thumbAtlas.push_back(m_gui->createTexture(a.data(), atlasPx, atlasPx)); }
 }
 
 bool BrickApp::thumbUv(int part, ImTextureID& tex, ImVec2& uv0, ImVec2& uv1) {
@@ -798,7 +810,9 @@ bool BrickApp::thumbRgba(int part, std::vector<uint8_t>& rgba, int& w, int& h) {
     if (!hq && (part < 0 || part >= (int)m_fullThumbAt.size() || m_fullThumbAt[part].second == 0)) return false;
     const std::vector<uint8_t>& src = hq ? m_hqThumbData : m_fullThumbData;
     const std::pair<uint32_t, uint32_t> at = hq ? m_hqThumbAt[part] : m_fullThumbAt[part];
-    return decodeImage(&src[at.first], at.second, rgba, w, h) && w > 0 && h > 0;
+    if (!decodeImage(&src[at.first], at.second, rgba, w, h) || w <= 0 || h <= 0) return false;
+    cleanThumbAlpha(rgba);
+    return true;
 }
 
 bool BrickApp::lazyThumb(int part, ImTextureID& tex) {

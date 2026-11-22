@@ -20,10 +20,13 @@ std::wstring BrickApp::thumbOverrideDir() const {
 }
 
 // the image of an override: padded to 1.4 x (the cards zoom the thumbnails x 1.4, made with that margin)
+void cleanThumbAlpha(std::vector<uint8_t>& rgba);   // (Thumbs.cpp: the floor of shadow left out)
+
 ImTextureID BrickApp::overrideTexture(const std::vector<uint8_t>& rgba, int w, int h) {
     const int W = (int)std::lround(w * 1.4f), H = (int)std::lround(h * 1.4f), ox = (W - w) / 2, oy = (H - h) / 2;
     std::vector<uint8_t> big((size_t)W * H * 4, 0);
     for (int y = 0; y < h; ++y) memcpy(&big[((size_t)(y + oy) * W + ox) * 4], &rgba[(size_t)y * w * 4], (size_t)w * 4);
+    cleanThumbAlpha(big);
     return m_gui->createTexture(big.data(), (uint32_t)W, (uint32_t)H);
 }
 
