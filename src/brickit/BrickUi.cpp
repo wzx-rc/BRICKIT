@@ -2080,7 +2080,7 @@ void BrickApp::exportLdrDialog() {
 
 void BrickApp::drawToast() {
     // .toast: top 8 px of the view, round, dark, thin yellow border
-    if (m_ipad) { ipadMessage(); return; }
+    if (m_ipad || m_ipadCreme) { ipadMessage(); return; }   // (the messages of the kit on Crème, PC too)
     if (m_toast.empty() || ImGui::GetTime() - m_toastTime > 3.2) return;
     const float s = m_ui;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -2326,10 +2326,11 @@ void BrickApp::drawUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::Begin("##webui", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-    const bool creme = m_ipad && m_ipadCreme;   // iPad: the cream touch kit (Thème › Crème iPad), else the Studio interface
+    const bool creme = m_studioUi && m_themeId == "creme";   // Thème › Crème: the cream kit (PC and iPad, Wzx 22/11/2026), else the Studio interface
+    m_ipadCreme = creme;
     if (creme) uiTheme(true);
     else if (applyTheme()) applyLook();   // Réglages › Thème: the colours, the fonts; the 3D stage follows
-    if (m_ipad && m_ipadUiWas != (int)creme) { m_ipadUiWas = (int)creme; applyLook(); }
+    if (m_ipadUiWas != (int)creme) { m_ipadUiWas = (int)creme; applyLook(); }   // (the PC too: Crème has its own stage)
     if (creme) {
         drawUiIpad();
         uiCtxMenu();
@@ -4174,6 +4175,7 @@ void BrickApp::uiThumbEditor() {
 #include "BrickUiStudio.inl"
 #include "BrickHub.inl"
 #include "BrickUiBrique.inl"
+#include "BrickUiCreme.inl"
 #include "BrickVoxelEditor.inl"
 
 } // namespace brickit

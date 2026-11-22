@@ -922,6 +922,14 @@ private:
     bool bqHidden(const char* id);
     void bqReg(const char* id, const char* label, ImVec4 def, ImVec4 now, bool sized);
     int bqEditField(Ui& u, ImVec2 ea, ImVec2 eb, float px);
+    // the drawer of the Crème kit on the families of the library (BrickUiCreme.inl)
+    int crFamCount();
+    std::string crFamKey(int i);
+    const char* crFamLabel(int i);
+    int crFamFirst(int i);
+    int crSubCount();
+    const char* crSubLabel(int j);
+    void crLibParts();
     // one button, icon or element moved on its own (a long press on it in the UI editor): its offset, « el:<id> » in m_boxes
     ImVec2 bqEl(const std::string& id, const char* label, ImVec4 r);
     std::vector<std::string> m_editEls;

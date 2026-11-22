@@ -627,7 +627,7 @@ void BrickApp::applyLook() {
         m_scene.env.bottom = lin(0x121317);
         m_scene.env.visibleToCamera = false;   // (the HDRI still lights and reflects)
     }
-    if (!(m_ipad && m_ipadCreme) && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
+    if (!m_ipadCreme && m_th.stage.light) {   // a light theme (BrickTheme.cpp): a pale sky behind (the HDRI still lights), a light floor, its lines
         const theme::Stage& st = m_th.stage;   // (Crème · Ciel: #cfe3f5 / #f2f6fa / #dfe5ec, floor #b9c3cf, lines #8a96a8 at 25 %)
         m_scene.env.top = lin((int)st.top);
         m_scene.env.horizon = lin((int)st.horizon);
@@ -639,9 +639,9 @@ void BrickApp::applyLook() {
         const uint32_t ga = (uint32_t)std::lround(std::clamp(st.gridAlpha, 0.0f, 1.0f) * 255);   // (the user's line colour is for the dark floor)
         m_scene.gridLine = (ga << 24) | ((st.grid & 255) << 16) | (((st.grid >> 8) & 255) << 8) | ((st.grid >> 16) & 255);
     }
-    if (m_ipad && m_ipadCreme) {   // iPad, Crème (kit 2.0): a bright stage, white floor, Matin / Midi / Soir, a low sun
+    if (m_ipadCreme) {   // Crème (kit 2.0): a bright stage, white floor, Matin / Midi / Soir, a low sun
         // UI kit 2.0 (validated 08/11): a sand and peach sky, a cream floor, a low morning sun
-        static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf8d8b4, 0xf6ead8, 0xf8c49a}, floor_[3] = {0xfbe0bf, 0xf8e8d2, 0xfad8b4};   // (warm: the neutral HDRI greys it)
+        static const int top[3] = {0xe6e6e2, 0xe0e8ee, 0xd8d0e0}, hor[3] = {0xf6ece2, 0xf6f2ec, 0xf6e2d2}, floor_[3] = {0xfbf8f4, 0xfcfbf9, 0xfbf4ee};   // (Wzx 22/11/2026: a white floor, not cream)   // (warm: the neutral HDRI greys it)
         static const int sun[3] = {0xffe0b0, 0xfff8ee, 0xffbe80};
         const int i = std::clamp(m_lightPreset, 0, 2);
         // (the HDRI keeps the light and the shadows of the PC; the gradient only shows where the HDRI does not)

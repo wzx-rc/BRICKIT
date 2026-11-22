@@ -142,7 +142,7 @@ static const ImU32 T_BRUN_DOUX = IM_COL32(0x8d, 0x7a, 0x64, 255);
 static const ImU32 T_BRUN_PALE = IM_COL32(0x96, 0x86, 0x72, 255);
 static const ImU32 T_INACTIF = IM_COL32(0xb6, 0xa6, 0x90, 255);
 static const ImU32 T_ACTIF = IM_COL32(0x31, 0x2e, 0x27, 255);
-static const ImU32 T_GALET = IM_COL32(255, 249, 241, 199);
+static const ImU32 T_GALET = IM_COL32(249, 240, 228, 205);
 static const ImU32 T_BULLE = IM_COL32(64, 46, 32, 122);
 static const ImU32 T_BULLE_VISEE = IM_COL32(255, 255, 255, 235);
 static const ImU32 T_OMBRE_ICONE = IM_COL32(30, 18, 8, 140);
@@ -151,7 +151,8 @@ static const ImU32 T_TIROIR = IM_COL32(250, 244, 233, 240);
 static const ImU32 T_CREUX = IM_COL32(0xef, 0xe5, 0xd4, 255);
 static const ImU32 T_SEP = IM_COL32(0xe3, 0xd7, 0xc3, 255);
 static const ImU32 T_POIGNEE = IM_COL32(0xcd, 0xbc, 0xa4, 255);
-static const ImU32 T_BLANC = IM_COL32(255, 255, 255, 255);
+static const ImU32 T_BLANC = IM_COL32(0xfb, 0xf4, 0xea, 255);   // (Wzx 22/11/2026: a whiter cream, less contrast with the cream)
+static const ImU32 T_PIECE = IM_COL32(0xb9, 0xa4, 0x8d, 255);   // the parts of the dock and the drawer: the light brown of the kit, not the active colour
 static const ImU32 T_CARTE_DOCK = IM_COL32(255, 255, 255, 140);
 static const ImU32 T_JAUNE = IM_COL32(0xf5, 0xc3, 0x2c, 255);
 static const ImU32 T_ROUGE = IM_COL32(0xc9, 0x45, 0x2f, 255);
@@ -590,7 +591,7 @@ void BrickApp::ipadDock() {
         kitIcon(u.dl, "brique", ImVec2((ya.x + yb.x) * 0.5f, (ya.y + yb.y) * 0.5f), 26 * s, T_BRUN);
         if (h && u.pressed) { m_libOpen = true; m_homeOpen = false; m_paletteOpen = false; m_libPress = -1; return; }
     }
-    const ImU32 tint = kitCol(m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)]);
+    const ImU32 tint = T_PIECE;
     float x = a.x + padX + bw + gap;
     for (int p : parts) {
         const ImVec2 ca(x, a.y + padY), cb(x + cw, a.y + padY + ch);
@@ -638,8 +639,7 @@ void BrickApp::ipadBubbles() {
     // the frame: at least 60 x 36 pt, 4 pt around the part
     a = ImVec2(std::min(a.x - 4 * s, c.x - 30 * s), std::min(a.y - 4 * s, c.y - 18 * s));
     b = ImVec2(std::max(b.x + 4 * s, c.x + 30 * s), std::max(b.y + 4 * s, c.y + 18 * s));
-    dashedRRect(u.dl, ImVec2(a.x, a.y + 0.75f * s), ImVec2(b.x, b.y + 0.75f * s), 8 * s, T_SELECTION_OMBRE, 3.5f * s, 6 * s, 4 * s);
-    dashedRRect(u.dl, a, b, 8 * s, T_SELECTION, 2 * s, 6 * s, 4 * s);
+    // (no dashed frame any more, Wzx 22/11/2026: the bubbles alone around the part)
     const int cur = m_selected >= 0 && m_selected < (int)m_bricks.size() ? m_bricks[m_selected].color : m_color;
     auto appear = [&](int order) {   // 0.85 -> 1 in 160 ms, 25 ms apart, ease-out cubic
         const float e = std::clamp((float)(now - m_selT0 - order * 0.025) / 0.16f, 0.0f, 1.0f);
@@ -771,46 +771,42 @@ void BrickApp::ipadDrawer() {
     // the handle 46 x 5 at 10 pt: a tap closes
     u.dl->AddRectFilled(ImVec2(d.x * 0.5f - 23 * s, a.y + 10 * s), ImVec2(d.x * 0.5f + 23 * s, a.y + 15 * s), T_POIGNEE, 2.5f * s);
     if (u.pressed && u.hover(ImVec2(d.x * 0.5f - 90 * s, a.y), ImVec2(d.x * 0.5f + 90 * s, a.y + 26 * s))) { m_libOpen = false; m_libPress = -1; return; }
-    {   // a tab of the kit (the PC's families, e.g. « Basique » from the preferences, are not tabs here)
-        bool known = false;
-        for (const KitTab& t : kitTabs()) known |= m_fam == t.key;
-        if (!known) { m_fam = "Briques"; m_cat.clear(); m_sub.clear(); }
-    }
+    // (Wzx 22/11/2026: the families of the library of today, the same as Brique and Classic: Basique, Formes, Technic...)
     const float M = 22 * s;
-    // ---- tabs at 28 pt, margin 24: 78 wide, icon or thumbnail 46 x 34 + label 13; active: white with a soft shadow
+    // ---- tabs at 28 pt, margin 24: 78 wide, icon or thumbnail 46 x 34 + label 13; active: cream with a soft shadow
     const float searchW = 220 * s;
     float y = a.y + 28 * s;
     const float tw = 78 * s, th = 72 * s;
     const ImVec2 ta(24 * s, y - 6 * s), tb(d.x - M - searchW - 16 * s, y + th + 6 * s);
     const float tabStart = ta.x - m_famScroll;
     float x = tabStart;
-    const KitTab* curTab = nullptr;
-    const ImU32 thumbTint = IM_COL32(0xa8, 0x96, 0x80, 255);
+    crLibParts();   // (a family that exists, the parts of the family or category chosen)
     u.dl->PushClipRect(ta, tb, true);
-    for (const KitTab& t : kitTabs()) {
+    for (int i = 0; i < crFamCount(); ++i) {
+        const std::string key = crFamKey(i);
         const ImVec2 ca(x, y), cb(x + tw, y + th);
-        const bool sel = m_fam == t.key && !m_searchOpen;
-        if (m_fam == t.key) curTab = &t;
+        const bool sel = m_stFam == key && !m_searchOpen;
         if (sel) {
             kitShadowRect(u.dl, ca, cb, T_OMBRE_DOUCE, 2 * s, 10 * s);
             u.dl->AddRectFilled(ca, cb, T_BLANC, 16 * s);
         }
         const ImVec2 ic((ca.x + cb.x) * 0.5f, ca.y + 25 * s);
-        if (t.icon) kitIcon(u.dl, t.icon, ic, 26 * s, T_BRUN_DOUX);
+        if (key == "recent") kitIcon(u.dl, "recentes", ic, 26 * s, T_BRUN_DOUX);
+        else if (key == "fav") kitIcon(u.dl, "favoris", ic, 26 * s, T_BRUN_DOUX);
         else {
-            int part = -1;
-            for (const char* nm : t.parts) if (part < 0) part = m_lib.find(nm);
+            const int part = crFamFirst(i);
             ImTextureID tex;
             ImVec2 uv0, uv1;
             if (part >= 0 && thumbUv(part, tex, uv0, uv1)) {
                 const ImVec2 du((uv1.x - uv0.x) * 0.12f, (uv1.y - uv0.y) * 0.2f);
-                u.dl->AddImage(tex, ImVec2(ic.x - 23 * s, ic.y - 17 * s), ImVec2(ic.x + 23 * s, ic.y + 17 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), thumbTint);
+                u.dl->AddImage(tex, ImVec2(ic.x - 23 * s, ic.y - 17 * s), ImVec2(ic.x + 23 * s, ic.y + 17 * s), ImVec2(uv0.x + du.x, uv0.y + du.y), ImVec2(uv1.x - du.x, uv1.y - du.y), sel ? T_BRUN_DOUX : T_PIECE);
             }
         }
-        const float lw = kSize(13 * s, t.label).x;
-        kTextC(u.dl, (ca.x + cb.x) * 0.5f - lw * 0.5f, cb.y - 15 * s, 13 * s, sel ? T_BRUN : T_BRUN_DOUX, t.label);
+        const char* lab = crFamLabel(i);
+        const float lw = kSize(13 * s, lab).x;
+        kTextC(u.dl, (ca.x + cb.x) * 0.5f - lw * 0.5f, cb.y - 15 * s, 13 * s, sel ? T_BRUN : T_BRUN_DOUX, lab);
         if (u.released && u.hover(ca, cb) && u.hover(ta, tb) && !swipeTaken(1) && m_swipeDragged != 1) {
-            m_fam = t.key; m_cat.clear(); m_sub.clear(); m_cardsScroll = 0; m_search.clear(); m_searchOpen = false;
+            m_stFam = key; m_stSub = -1; m_cardsScroll = 0; m_search.clear(); m_searchOpen = false; m_catScroll = 0;
         }
         x += tw + 6 * s;
     }
@@ -843,23 +839,7 @@ void BrickApp::ipadDrawer() {
         ImGui::PopStyleVar(3);
         m_uiRects.push_back(ImVec4(sa.x, sa.y, sb.x, sb.y));
     }
-    // the counts per category (again when parts become available: the full library loads in the background)
-    int avail = 0;
-    for (const Part& p : m_lib.parts) avail += p.available() ? 1 : 0;
-    if (m_countsFor != m_lib.parts.size() || avail != m_availCount) {
-        m_countsFor = m_lib.parts.size();
-        m_catCount.clear();
-        m_techSubCount.clear();
-        m_availCount = 0;
-        for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
-            const Part& p = m_lib.parts[i];
-            if (!p.available()) continue;
-            ++m_availCount;
-            ++m_catCount[partCat(i)];
-            if (p.category == "Technic") ++m_techSubCount[p.sub];
-        }
-    }
-    // ---- chips at 116 pt: 14 pt on hollow cream, active brown with white text
+    // ---- chips at 116 pt: 14 pt on hollow cream, active brown with cream text (the categories of the family)
     y = a.y + 116 * s;
     const float chipH = 30 * s;
     const ImVec2 qa(M, y), qb(d.x - M, y + chipH);
@@ -875,48 +855,14 @@ void BrickApp::ipadDrawer() {
         return u.released && u.hover(ca, cb) && u.hover(qa, qb) && !swipeTaken(2) && m_swipeDragged != 2;
     };
     if (m_searchOpen) { std::string t = "Recherche « " + m_search + " »"; kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_DOUX, t.c_str()); }
-    else if (!curTab || curTab->cats.size() > 0) {
-        if (chip("Tout", m_cat.empty() && m_sub.empty())) { m_cat.clear(); m_sub.clear(); m_cardsScroll = 0; }
-        if (curTab) {
-            for (const char* cat : curTab->cats) {
-                auto it = m_catCount.find(cat);
-                if (it == m_catCount.end() || !it->second) continue;
-                if (std::string(cat) == "Technic") {
-                    for (const char* sn : kTechSubs) {
-                        auto jt = m_techSubCount.find(sn);
-                        if (jt == m_techSubCount.end() || !jt->second) continue;
-                        if (chip(sn, m_cat == "Technic" && m_sub == sn)) { m_cat = "Technic"; m_sub = sn; m_cardsScroll = 0; }
-                    }
-                    continue;
-                }
-                if (curTab->cats.size() > 1 && chip(catFr(cat), m_cat == cat)) { m_cat = cat; m_sub.clear(); m_cardsScroll = 0; }
-            }
-        }
-    } else kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_PALE, m_fam == "recent" ? "Les dernières pièces posées" : "Appui long sur une pièce pour l'ajouter aux favoris");
+    else if (crSubCount() > 0) {
+        if (chip("Tout", m_stSub < 0)) { m_stSub = -1; m_cardsScroll = 0; }
+        for (int j = 0; j < crSubCount(); ++j) if (chip(crSubLabel(j), m_stSub == j)) { m_stSub = j; m_cardsScroll = 0; }
+    } else kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_PALE, m_stFam == "recent" ? "Les dernières pièces posées" : "Appui long sur une pièce pour l'ajouter aux favoris");
     u.dl->PopClipRect();
     swipeRow(2, qa, qb, m_catScroll, m_catVel, std::max(0.0f, x - chipStart - (qb.x - qa.x)), true);
-    // ---- the parts of the tab (cached: the full library has 22 000 parts)
-    {
-        const std::string key = m_fam + "|" + m_cat + "|" + m_sub + "|" + (m_searchOpen ? m_search : std::string()) + "|" + std::to_string(avail) + "|" +
-                                std::to_string(m_recent.size()) + "|" + std::to_string(m_fav.size());
-        if (key != m_drawerKey) {
-            m_drawerKey = key;
-            m_drawerParts.clear();
-            if (m_searchOpen) m_drawerParts = visibleParts();
-            else if (m_fam == "recent") m_drawerParts = m_recent;
-            else if (m_fam == "fav") m_drawerParts = m_fav;
-            else if (curTab) {
-                for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
-                    const Part& p = m_lib.parts[i];
-                    if (!p.available()) continue;
-                    const std::string& c = partCat(i);
-                    const bool in = m_cat.empty() ? std::find_if(curTab->cats.begin(), curTab->cats.end(), [&](const char* k) { return c == k; }) != curTab->cats.end() : c == m_cat;
-                    if (in && (m_sub.empty() || p.sub == m_sub)) m_drawerParts.push_back(i);
-                }
-            }
-        }
-    }
-    const std::vector<int>& parts = m_drawerParts;
+    crLibParts();
+    const std::vector<int>& parts = m_stParts;
     // ---- the grid at 156 pt: 9 columns of white cards 72 pt, radius 16, gap 10; sliding sideways; the part taken 35 %
     y = a.y + 156 * s;
     const float cgap = 10 * s, cw = std::floor((d.x - 2 * M - 8 * cgap) / 9), ch = 72 * s;
@@ -924,12 +870,12 @@ void BrickApp::ipadDrawer() {
     const int cols = ((int)parts.size() + rows - 1) / rows;
     const ImVec2 ca(M, y), cb(d.x - M, d.y);
     swipeRow(0, ca, cb, m_cardsScroll, m_cardsVel, std::max(0.0f, cols * (cw + cgap) - cgap - (cb.x - ca.x)), true);
-    const ImU32 tint = kitCol(m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)]);
+    const ImU32 tint = T_PIECE;
     const double now = ImGui::GetTime();
     const int taken = m_libPress >= 0 ? m_libPress : (m_holding ? m_libSel : -1);
     u.dl->PushClipRect(ca, cb, true);
     if (parts.empty())
-        kTextC(u.dl, ca.x + 4 * s, ca.y + 24 * s, 15 * s, T_BRUN_PALE, m_searchOpen ? "Aucune pièce pour cette recherche" : m_fam == "recent" ? "Les pièces que tu poses apparaîtront ici" : m_fam == "fav" ? "Aucun favori pour l'instant" : "Aucune pièce ici");
+        kTextC(u.dl, ca.x + 4 * s, ca.y + 24 * s, 15 * s, T_BRUN_PALE, m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici" : m_stFam == "fav" ? "Aucun favori pour l'instant" : "Aucune pièce ici");
     for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / rows, r = k % rows;
         const ImVec2 pa(ca.x + c * (cw + cgap) - m_cardsScroll, y + r * (ch + cgap)), pb(pa.x + cw, pa.y + ch);
@@ -1104,7 +1050,7 @@ void BrickApp::ipadHomeMenu() {
             case 4: if (m_reading) stopReading(); else if (hasSteps()) startReading(1); else openDialog(); break;
             case 5: shareImage(); break;
             case 7: sendReport(); break;
-            case 6: m_ipadCreme = false; m_homeOpen = false; savePrefs(); return;   // back to the Studio interface (Réglages › Thème)
+            case 6: m_themeId = "brique"; m_homeOpen = false; savePrefs(); return;   // back to the Studio interface (Réglages › Thème)
             }
         }
         y += 50 * s;

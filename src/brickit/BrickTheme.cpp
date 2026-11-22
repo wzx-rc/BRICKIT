@@ -60,8 +60,8 @@ const std::vector<Def>& themes() {
          {{"Jaune", 0xffc93c}, {"Orange", 0xff9f1c}, {"Bleu", 0x5b8def}, {"Vert", 0x3dd68c}}},
         // Crème (Wzx 22/11/2026): the cream touch kit of the iPad, rebuilt on the layout of Brique (all its functions, the
         // library of today); Galet, the same a little less cream (warm greys)
-        {"creme", "Crème", "Le kit crème de l'iPad : galets clairs, brun espresso, police ronde.", 0,
-         {{"creme", "Crème", 0, 0, 0xf1e7d8}, {"galet", "Galet", 0, 0, 0xe6e4df}},
+        {"creme", "Crème", "Le kit crème de l'iPad : galets, bulles brunes autour de la brique, dock, tiroir.", 0,
+         {{"creme", "Crème", 0, 0, 0xf1e7d8}},
          {{"Espresso", 0x4a3b30}, {"Jaune", 0xe2a300}, {"Terracotta", 0xc0603a}, {"Sauge", 0x5c8a68}, {"Bleu", 0x3d6fb6}}},
     };
     static bool swatches = false;
@@ -143,7 +143,7 @@ Tokens resolve(const std::string& id, bool dark, int tint, int accent) {
     if (t.id == "creme") {   // the cream of the iPad kit (Crème) or warm greys (Galet), on the layout of Brique
         const bool galet = d.tints[std::clamp(tint, 0, (int)d.tints.size() - 1)].id == std::string("galet");
         t.dark = false;
-        t.brique = true;
+        t.brique = false;   // (its own interface: the kit, BrickUiIpad.inl)
         if (!galet) {
             t.bg = IM_COL32(0xf4, 0xed, 0xe3, 255);
             t.panel = IM_COL32(0xfb, 0xf7, 0xf1, 250);
