@@ -1134,7 +1134,8 @@ private:
     float m_hqSSSStrength = 1.0f;     // Réglages › Lumière › SSS (HQ): strength 0..2 (0 = off)
     bool m_softGIHold = true;   // Réglages › Lumière › Figer la GI pendant le déplacement: the probes held while a brick is carried
     bool m_giLookdev = false;
-    bool m_ptLook = false;                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
+    bool m_ptLook = false;
+    bool m_lightDragged = false;              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
     float3 m_softLo{0, 0, 0}, m_softHi{0, 0, 0};

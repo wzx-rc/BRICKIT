@@ -551,7 +551,7 @@ bool BrickApp::applyTheme() {
         changed = true;
     }
     m_darkUi = m_th.dark;
-    g_studTex = m_th.brickSwatch ? themeTex(m_th.brique && m_themeId != "brique" ? "brique/swatch.png" : "glass/stud1x1.png") : 0;   // (the Atelier: a 2x2 brick, Wzx 15/11/2026; Ardoise: the 1-stud of Studio, Wzx 23/11/2026)
+    g_studTex = m_th.brickSwatch ? themeTex("glass/stud1x1.png") : 0;   // (the Atelier: a 2x2 brick, Wzx 15/11/2026; Ardoise: the 1-stud of Studio, Wzx 23/11/2026)
     setTheme(m_th);
     return changed;
 }
@@ -2346,7 +2346,7 @@ void BrickApp::drawUi() {
             if (mp.x >= r.x && mp.y >= r.y && mp.x < r.z && mp.y < r.w) m_overUi = true;
         return;
     }
-    if (m_ipad) m_studioUi = true;   // iPad: Studio or the cream kit, never the Classique interface of the PC
+    m_studioUi = true;     // iPad: Studio or the cream kit, never the Classique interface of the PC
     if (m_studioUi) drawUiStudio();   // the Studio interface (Maquette 4.0, BrickUiStudio.inl)
     else {
     uiHeader();      // m_uiRects[0]
@@ -3719,8 +3719,8 @@ void BrickApp::uiSettings() {
         row("Interface scale", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
         {   // Wzx 23/11/2026: « simplifier les noms pour bien faire la distinction »: two settings only, the DISPOSITION (where
             // things are, how they work) and the COULEURS (the theme), with names that never overlap
-            const int cur = !m_studioUi ? 3 : m_ux == 2 ? 0 : m_ux == 0 ? 1 : 2;
-            const int ku = m_ipad ? seg("Layout", {"Pebbles", "Workshop", "Studio"}, cur) : seg("Layout", {"Pebbles", "Workshop", "Studio", "Legacy"}, cur);
+            const int cur = m_ux == 2 ? 0 : m_ux == 0 ? 1 : 2;
+            const int ku = seg("Layout", {"Pebbles", "Workshop", "Studio"}, cur);   // (Legacy, the old PC interface, removed 23/11/2026)
             if (ku >= 0 && ku != cur) {
                 m_studioUi = ku != 3;
                 if (ku < 3) m_ux = ku == 0 ? 2 : ku == 1 ? 0 : 1;

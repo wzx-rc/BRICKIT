@@ -1121,6 +1121,17 @@ void BrickApp::cameraInput() {
     // Maya navigation (Wzx 10/11/2026): the camera moves only with Alt. Alt + left: orbit, Alt + middle: pan,
     // Alt + right: dolly; the wheel zooms. Without Alt the mouse never moves the camera.
     const bool alt = io.KeyAlt;
+    if (!alt && io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {   // Shift + right drag: the light turns (Substance Painter)
+        if (io.MouseDelta.x != 0) {
+            m_hdriRotDeg = std::fmod(m_hdriRotDeg + io.MouseDelta.x * 0.35f + 360.0f, 360.0f);
+            m_scene.env.hdriRotation = radians(m_hdriRotDeg);
+            if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
+            m_renderer->resetAccumulation();
+            m_lightDragged = true;
+        }
+        return;
+    }
+    if (m_lightDragged && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) { m_lightDragged = false; savePrefs(); }
     const bool orbit = alt && ImGui::IsMouseDown(ImGuiMouseButton_Left);
     if (!orbit) m_orbitCentred = false;
     const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
@@ -1162,6 +1173,20 @@ void BrickApp::frame() {
     QueryPerformanceCounter(&t0);
     if (m_last.QuadPart) m_frameMs = m_frameMs * 0.9 + 0.1 * (t0.QuadPart - m_last.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_last = t0;
+    if (m_renderer && m_frame > 2 && (m_frame % 30) == 0 && m_renderer->deviceRemoved() != 0) {
+        // the graphics card was reset by Windows (a GPU job too long: TDR) or lost: nothing draws or loads any more
+        // (empty thumbnails, a theme that does not apply, Wzx 23/11/2026). The scene kept, a report, BrickIt again
+        crumb("GPU perdu (0x%08lX) : scène enregistrée, redémarrage", (unsigned long)m_renderer->deviceRemoved());
+        autosave();
+        crashWriteReport("gpu");
+#ifdef _WIN32
+        STARTUPINFOW si = {sizeof(si)};
+        PROCESS_INFORMATION pi = {};
+        if (CreateProcessW(nullptr, GetCommandLineW(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) { CloseHandle(pi.hThread); CloseHandle(pi.hProcess); }
+#endif
+        m_running = false;
+        return;
+    }
     if (m_teSave) saveThumbOverride();   // (Edit thumbnail: before anything is drawn this frame)
     bacRenderPending();                  // (the thumbnails of the tray, likewise)
 

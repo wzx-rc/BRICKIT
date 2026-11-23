@@ -249,7 +249,7 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libH"].type == app::Json::Number) m_libH = std::max(0.0f, (float)tj["libH"].n);
         if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
-        if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
+        if (tj["studioUi"].type == app::Json::Bool) m_studioUi = true;   // (Legacy removed 23/11/2026: always the Studio interfaces)
         else m_themeId = "brique";   // (the first launch of the Studio interface: Brique)
         if (p["brique01"].type != app::Json::Bool) { m_themeId = "brique"; m_studioUi = true; m_libDock = 1; m_libW = 0; m_pGroups.visible = true; }   // (Wzx 15/11/2026: the Brique interface, once)
         for (const auto& [id, v] : p["uiBoxes"].o) {
