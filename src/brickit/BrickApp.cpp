@@ -139,6 +139,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.libClassic >= 0) m_libClassic = opt.libClassic != 0;
     if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
     if (opt.stGroups) m_pGroups.visible = true;
+    if (opt.colorsMin) m_pColors.collapsed = true;
     if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
     if (opt.stPopup > 0) { m_popup = opt.stPopup; m_popupAt = ImVec2(10 * m_ui, 52 * m_ui); }
     if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
@@ -1574,6 +1575,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
         if (a == L"--st-paint") { opt.stPaint = true; continue; }
         if (a == L"--st-groups") { opt.stGroups = true; continue; }
+        if (a == L"--colors-min") { opt.colorsMin = true; continue; }
         if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }
         if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
         if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }

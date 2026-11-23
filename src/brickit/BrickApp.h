@@ -94,7 +94,7 @@ struct Options {
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
-    bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    bool stPaint = false, stGroups = false, colorsMin = false;   // (--colors-min: the panel Couleur reduced)   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
@@ -395,6 +395,7 @@ private:
     // apart from the Thème (Classique, Brique, Crème: the colours), each theme on each interface. Réglages › Interface,
     // the hub of the kit. 0 Grey (the layout of Brique), 1 Black (the layout of Classique), 2 Crème (the touch kit)
     int m_ux = 0;
+    bool m_clsBarDrag = false, m_cardsBarDrag = false;   // the scroll bars of the library taken
     double m_perfInput = 0, m_perfAnim = 0;   // --perf-trace: ms of the input (camera, edit) and of the animations
     float m_kitLibFrac = 0.36f;   // the height of the drawer of the kit (its grip), part of the screen
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components

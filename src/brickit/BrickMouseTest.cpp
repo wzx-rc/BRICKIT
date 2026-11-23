@@ -39,8 +39,17 @@ void BrickApp::mouseTestFrame() {
             m_mouseScript.push_back({12, a.x, a.y, -1});
             m_mouseScript.push_back({13, a.x, a.y, 0});
             for (int k = 1; k <= 60; ++k) m_mouseScript.push_back({13 + k, a.x + (b.x - a.x) * k / 60.0f, a.y + (b.y - a.y) * k / 60.0f, -1});
-        } else if (t == "marquee") {
-            m_mode = 0;
+        } else if (t == "hold") {   // a press held still on a brick (Studio): the ring of the colours
+            m_mode = 1;
+            select(-1);
+            const Box bx = m_build.aabbOf(m_bricks[3].part, m_bricks[3].rot, m_bricks[3].pos);
+            float x, y;
+            v.project((bx.mn + bx.mx) * 0.5f, x, y);
+            m_mouseScript.push_back({12, x, y, -1});
+            m_mouseScript.push_back({13, x, y, 0});
+            for (int k = 1; k <= 70; ++k) m_mouseScript.push_back({13 + k, x, y, -1});
+        } else if (t == "marquee" || t == "marquee1") {
+            m_mode = t == "marquee" ? 0 : 1;
             select(-1);
             dragScript(m_mouseScript, 12, ImVec2(m_stage.x + sw * 0.08f, m_stage.y + sh * 0.12f), ImVec2(m_stage.x + sw * 0.92f, m_stage.y + sh * 0.9f));
         } else if (t == "gizmo" || t == "ring") {
@@ -248,10 +257,11 @@ void BrickApp::mouseTestFrame() {
                    " mouse=" + std::to_string((int)ImGui::GetIO().MousePos.x) + "," + std::to_string((int)ImGui::GetIO().MousePos.y) + " down=" + std::to_string(ImGui::IsMouseDown(0)) +
                    " overUi=" + std::to_string(m_overUi) + " swipe=" + std::to_string(m_swipe.id) + "/" + std::to_string(m_swipe.dir) + " libPress=" + std::to_string(m_libPress) + " tray=" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].y : -1)) + "-" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].w : -1)) + " cardsMax?scroll=" + std::to_string(m_cardsScroll);
     }
-    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
+    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : t == "hold" ? 80 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
         FILE* f = nullptr;
         if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") != 0 || !f) return;
-        if (t == "marquee") fprintf(f, "marquee: selected=%zu of %zu bricks (expected all)\n", selection().size(), m_bricks.size());
+        if (t == "hold") fprintf(f, "hold: ring of colours open=%d (expected 1), marking menu=%d (expected 0)\n", m_crRing, m_stMenu);
+        if (t == "marquee" || t == "marquee1") fprintf(f, "marquee: selected=%zu of %zu bricks (expected all)\n", selection().size(), m_bricks.size());
         else if (t == "swipe") fprintf(f, "swipe: cards scroll %.0f -> %.0f at release, %.0f now (inertia: further), velocity %.0f, brick in hand=%d (expected 0)\n", m_mtScroll0, m_mtScrollRel, m_cardsScroll, m_cardsVel, m_holding);
         else if (t == "swipediag") fprintf(f, "swipe diagonal (56 deg from up): brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);
         else if (t == "swipeup") fprintf(f, "swipe up: brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);

@@ -607,10 +607,9 @@ void BrickApp::stTools() {
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     struct T { const char* icon; const char* tip; const char* key; bool on; int id; };
     std::vector<T> ts = {
-        {ST_SEL, "Sélection : clic sur une brique, rectangle pour plusieurs (Q)", "Q", m_mode == 0 && !m_paintTool && !m_pipette, 0},
+        {ST_BUILD, "Construire : glisse une brique pour la déplacer, rectangle dans le vide pour en sélectionner plusieurs (A)", "A", (m_mode == 1 || m_mode == 0) && !m_paintTool && !m_pipette, 1},
         {ST_MOVE, "Déplacer : flèches et équerres sur la sélection (W)", "W", m_mode == 2 && !m_paintTool && !m_pipette, 4},
         {ST_ROT, "Tourner : anneaux sur la sélection (E)", "E", m_mode == 3 && !m_paintTool && !m_pipette, 5},
-        {ST_BUILD, "Construire : glisse une brique pour la déplacer (2)", "2", m_mode == 1 && !m_paintTool && !m_pipette, 1},
         {ST_PICK, "Pipette : clic sur une brique pour prendre sa couleur (4)", "4", m_pipette, 3},
         {ST_PAINT, "Pinceau : clic sur une brique pour la peindre (3)", "3", m_paintTool, 2},
         {ST_EYE, "Isoler : la sélection reste claire, le reste à 50 % (F)", "F", m_focusDim, 7}};
@@ -1454,7 +1453,7 @@ void BrickApp::stGroups() {
     u.dl->PopClipRect();
     if (contentH > listH) {   // a thin scroll bar
         const float bh = listH * listH / contentH, by = la.y + (listH - bh) * (m_groupsScroll / (contentH - listH));
-        u.dl->AddRectFilled(ImVec2(b.x - 5 * s, by), ImVec2(b.x - 3 * s, by + bh), stW(50), 1 * s);
+        u.dl->AddRectFilled(ImVec2(b.x - 9 * s, by), ImVec2(b.x - 3 * s, by + bh), stW(55), 3 * s);
     }
     // the foot: the loose pieces, the shortcuts
     u.dl->AddLine(ImVec2(a.x + pad, lb.y + 6 * s), ImVec2(b.x - pad, lb.y + 6 * s), stW(18), 1.0f);
@@ -1576,8 +1575,17 @@ void BrickApp::stColors() {
     auto colOf0 = [](const Color& c, int alpha = 255) { return IM_COL32((int)(std::clamp(c.srgb.x, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.y, 0.0f, 1.0f) * 255), (int)(std::clamp(c.srgb.z, 0.0f, 1.0f) * 255), alpha); };
     if (m_pColors.collapsed) {   // reduced (Wzx 14/11/2026): the big swatch of the current colour alone; a click unfolds it
         const float bs = 44 * s;
-        const ImVec2 ca(d.x - 14 * s - m_dockR - bs - 2 * pad, top), cb(d.x - 14 * s - m_dockR, top + bs + 2 * pad);
+        ImVec2 ca(d.x - 14 * s - m_dockR - bs - 2 * pad, top), cb(d.x - 14 * s - m_dockR, top + bs + 2 * pad);
+        if (g_brique) {   // the Atelier: at the top of its column, under Scène, its width, the name beside (Wzx 23/11/2026: it was hidden under the cube)
+            ca = ImVec2(m_bqColX, m_bqGroupsY + 12 * s);
+            cb = ImVec2(ca.x + m_bqColW, ca.y + bs + 2 * pad);
+        }
         stGlass(u.dl, ca, cb, 16 * s, s);
+        if (g_brique) {
+            const Color& cc = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
+            u.text(ImVec2(ca.x + pad + bs + 12 * s, (ca.y + cb.y) * 0.5f - u.fs(13) * 0.62f), 13, C_TEXT, colorFr(cc.name), true);
+            u.text(ImVec2(ca.x + pad + bs + 12 * s, (ca.y + cb.y) * 0.5f + u.fs(13) * 0.2f), 9.5f, C_DIM, "clic : déplier les couleurs");
+        }
         m_uiRects.push_back(ImVec4(ca.x, ca.y, cb.x, cb.y));
         m_colPanelX = ca.x;
         const Color& c = m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)];
@@ -1978,7 +1986,16 @@ void BrickApp::stDrawerClassic() {
         y += 30 * s + 10 * s;
     }
     // ---- the tree: Récentes, Favoris, the families of the tab, their categories
-    const float treeW = studio ? 0.0f : bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
+    float treeW = studio ? 0.0f : bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
+    if (!studio) {   // as wide as its longest line, no wider (Wzx 23/11/2026: « trop d'espace vide » between the tree and the cards)
+        float need = 0;
+        for (const StFam& f : fams) {
+            need = std::max(need, 22 * s + u.textW(11, f.label));
+            if (m_clsOpen.count(f.key))
+                for (const StSub& q : f.subs) need = std::max(need, 22 * s + u.textW(10.5f, q.label));
+        }
+        treeW = std::clamp(need + 8 * s, 120 * s, treeW);
+    }
     if (studio) {   // the families: pictograms with their name, as many per line as fit
         const int nc = std::max(3, (int)((x1 - x0) / (78 * s)));
         const float cw = (x1 - x0) / nc, chh = 52 * s;
@@ -2198,7 +2215,11 @@ void BrickApp::stDrawerClassic() {
     u.dl->PopClipRect();
     if (contentH > viewH) {   // a thin scroll bar
         const float bh = viewH * viewH / contentH, by = ga.y + (viewH - bh) * (m_clsGridScroll / (contentH - viewH));
-        u.dl->AddRectFilled(ImVec2(gb.x + 3 * s, by), ImVec2(gb.x + 5 * s, by + bh), stW(40), 2 * s);
+        u.dl->AddRectFilled(ImVec2(gb.x + 2 * s, by), ImVec2(gb.x + 8 * s, by + bh), stW(m_clsBarDrag ? 90 : 55), 3 * s);   // (x 3, Wzx 23/11/2026; taken and dragged)
+        const ImVec2 ka(gb.x, ga.y), kb(gb.x + 12 * s, ga.y + viewH);
+        if (live && u.pressed && u.hover(ka, kb)) m_clsBarDrag = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_clsBarDrag = false;
+        if (m_clsBarDrag) m_clsGridScroll = std::clamp((u.mouse.y - ga.y - bh * 0.5f) / std::max(1.0f, viewH - bh), 0.0f, 1.0f) * (contentH - viewH);
     }
     if (!hovered || m_libPress >= 0 || ImGui::IsMouseDown(ImGuiMouseButton_Left)) { if (!hovered) m_stHov = -1; }
     else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
@@ -2621,7 +2642,11 @@ void BrickApp::stDrawer() {
     else if (m_stHov >= 0 && now - m_stHovT > 0.5) { stCardSheet(m_stHov, m_stHovA, m_stHovB, (float)(now - m_stHovT - 0.5)); m_stSheetSeen = now; }
     if (contentW > viewW) {   // a thin scroll bar
         const float bw = viewW * viewW / contentW, bx = ca.x + (viewW - bw) * (m_cardsScroll / (contentW - viewW));
-        u.dl->AddRectFilled(ImVec2(bx, cb.y + 3 * s), ImVec2(bx + bw, cb.y + 5 * s), stW(40), 2 * s);
+        u.dl->AddRectFilled(ImVec2(bx, cb.y + 2 * s), ImVec2(bx + bw, cb.y + 8 * s), stW(m_cardsBarDrag ? 90 : 55), 3 * s);   // (x 3, Wzx 23/11/2026; taken and dragged)
+        const ImVec2 ka(ca.x, cb.y), kb(ca.x + viewW, cb.y + 12 * s);
+        if (u.pressed && u.hover(ka, kb)) m_cardsBarDrag = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_cardsBarDrag = false;
+        if (m_cardsBarDrag) m_cardsScroll = std::clamp((u.mouse.x - ca.x - bw * 0.5f) / std::max(1.0f, viewW - bw), 0.0f, 1.0f) * (contentW - viewW);
     }
     stLibPressEnd(u, p0, p1);
 }
@@ -3015,6 +3040,12 @@ void BrickApp::drawUiStudio() {
     uiThumbEditor();
     uiVoxelEditor();
     uiCtxMenu();
+    if (m_crRing) {   // the ring of the colours of the iPad (a press held on a brick, Wzx 23/11/2026)
+        kitPalette(m_themeId);
+        g_kf = m_gui->fontKit;
+        g_kfm = m_gui->fontKitMed ? m_gui->fontKitMed : m_gui->fontKit;
+        ipadColorRing();
+    }
     uiDevReview();
     uiManualBig();
     drawDropzone();

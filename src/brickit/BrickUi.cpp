@@ -3742,7 +3742,6 @@ void BrickApp::uiSettings() {
                 note("Éditer : déplace, redimensionne ou masque chaque bloc (les fonctions sont en pause).");
             }
         }
-        row("Icône de l'app", {"A : viseur", "B : brique seule"}, m_appIcon, 25);
         group("Aides");
         yesNo("HUD de sélection", m_selHud, 16);
         if (m_ipad) yesNo("Anneau de la main gauche (tourner, basculer)", m_touchHud, 14);

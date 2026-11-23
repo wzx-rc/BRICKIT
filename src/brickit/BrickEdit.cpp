@@ -584,11 +584,12 @@ void BrickApp::editInput() {
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_R)) rotateSelected(1);
         // Q, W, E: Sélection, Déplacer, Tourner, as Maya (Wzx 15/11/2026; Q and E turned the brick before)
         if (m_studioUi && !ctrl && !m_holding) {
-            if (ImGui::IsKeyPressed(ImGuiKey_Q)) stTool(0);
+            if (ImGui::IsKeyPressed(ImGuiKey_A)) stTool(1);   // (A: Construire, first of the tools; Q turns the other way of S, Wzx 23/11/2026)
             if (ImGui::IsKeyPressed(ImGuiKey_W)) stTool(4);
             if (ImGui::IsKeyPressed(ImGuiKey_E)) stTool(5);
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) rotateSelected(1);   // (Q / S: Wzx 09/11/2026)
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_Q)) rotateSelected(-1);
         if (!m_reading && !m_holding) {   // the arrows: the selection moves by a stud, along the view; Page up / down: a plate
             int ax = 0, az = 0, ay = 0;
             if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
@@ -613,7 +614,7 @@ void BrickApp::editInput() {
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_C)) cycleGrab();
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;
+        if (!ctrl && !m_studioUi && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;   // (Studio: A is Construire; the animations in Réglages)
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) frameSelection();   // F: the view framed on the selection (as Maya; nothing selected: everything)
         if (ImGui::IsKeyPressed(ImGuiKey_Space)) pickUpSelected();
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_T) && m_holding) {   // tilt towards the viewer
@@ -775,8 +776,10 @@ void BrickApp::editInput() {
         m_pressPos = mp;
         m_pressT = ImGui::GetTime();
         m_pressBrick = pickBrick(mp.x, mp.y, &m_pressPoint);
-        if (m_mode == 0 && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
-        if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
+        // the empty space: the selection rectangle, in Sélection and in Construire (Wzx 23/11/2026: the tool Sélection gone,
+        // Construire on A does its rectangle; the camera: the right button or Alt); the iPad: a finger orbits (BrickTouch.cpp)
+        if ((m_mode == 0 || (m_mode == 1 && !m_ipad)) && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
+        else if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
     }
     if (m_marquee && m_tg.type != TG_MARQUEE) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds (a finger / the Pencil: BrickTouch.cpp)
         m_marquee1 = mp;
@@ -790,13 +793,12 @@ void BrickApp::editInput() {
     }
     if (m_studioUi && !m_ipad && m_pressed && m_pressBrick >= 0 && !m_dragStarted && ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
         (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) <= 6 && ImGui::GetTime() - m_pressT > 0.26) {
-        m_pressed = false;   // Studio: a press held still on a brick opens the marking menu where it is held
-        if (m_selected != m_pressBrick) select(m_pressBrick);
-        m_stMenu = true;
-        m_stMenuT0 = ImGui::GetTime();
-        m_stMenuAt = m_pressPos;
-        m_stMenuBtn = 0;
-        m_stMenuSticky = false;
+        m_pressed = false;   // Studio: a press held still on a brick opens the ring of the colours where it is held, as on
+        { const std::vector<int> sel = selection(); if (std::find(sel.begin(), sel.end(), m_pressBrick) == sel.end()) select(m_pressBrick); }   // the iPad (Wzx 23/11/2026: « le clic maintenu ouvre uniquement la roue des matériaux »)
+        m_crRing = true;
+        m_crRingSticky = false;
+        m_crRingT0 = ImGui::GetTime();
+        m_crRingAt = m_pressPos;
         return;
     }
     if (m_pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && m_pressBrick >= 0 && unitGroup(m_pressBrick) >= 0) {

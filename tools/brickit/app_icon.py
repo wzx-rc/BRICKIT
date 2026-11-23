@@ -11,7 +11,8 @@ import os
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC = {"a": os.path.join(ROOT, "ios", "icons", "source", "brickit_v1_viseur_1024.png"),
+# Wzx 23/11/2026: « l'icône sans les 4 encarts blancs, que la brique jaune »: A is the brick alone too (the viewfinder retired)
+SRC = {"a": os.path.join(ROOT, "ios", "icons", "source", "brickit_v1_sans_viseur_1024.png"),
        "b": os.path.join(ROOT, "ios", "icons", "source", "brickit_v1_sans_viseur_1024.png")}
 
 def rounded(im, size, margin):
