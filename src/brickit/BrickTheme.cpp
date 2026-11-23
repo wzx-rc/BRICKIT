@@ -50,17 +50,17 @@ static const std::vector<Accent> kLego = {
 
 const std::vector<Def>& themes() {
     static std::vector<Def> d = {
-        {"classic", "Classic", "L'interface sombre d'origine, accents LEGO.", 1,
+        {"classic", "Noir", "Noir, jaune LEGO et blanc.", 1,
          {{"anthracite", "Anthracite", 0, 0, 0x25262b}},
          {{"Jaune", 0xf7c51e}, {"Orange", 0xfe8a18}, {"Rouge", 0xc91a09}, {"Bleu", 0x0055bf}, {"Vert", 0x237841}, {"Azur", 0x36aebf}}},
         // the « Brique » interface (Wzx 15/11/2026, canvas JBtw2wBYiTVRTg7JuzaXc5): slate panels in relief, the yellow of
         // the brick in gradient on what is active, round type (Fredoka); its own layout (BrickUiBrique.inl)
-        {"brique", "Brique", "Ardoise en relief, boutons jaunes, police ronde : Hub et Construire.", 1,
+        {"brique", "Ardoise", "Ardoise bleutée et jaune brique.", 1,
          {{"ardoise", "Ardoise", 0, 0, 0x282d37}},
          {{"Jaune", 0xffc93c}, {"Orange", 0xff9f1c}, {"Bleu", 0x5b8def}, {"Vert", 0x3dd68c}}},
         // Crème (Wzx 22/11/2026): the cream touch kit of the iPad, rebuilt on the layout of Brique (all its functions, the
         // library of today); Galet, the same a little less cream (warm greys)
-        {"creme", "Crème", "Le kit crème de l'iPad : galets, bulles brunes autour de la brique, dock, tiroir.", 0,
+        {"creme", "Crème", "Crème chaud et brun doux.", 0,
          {{"creme", "Crème", 0, 0, 0xf1e7d8}},
          {{"Espresso", 0x4a3b30}, {"Jaune", 0xe2a300}, {"Terracotta", 0xc0603a}, {"Sauge", 0x5c8a68}, {"Bleu", 0x3d6fb6}}},
     };

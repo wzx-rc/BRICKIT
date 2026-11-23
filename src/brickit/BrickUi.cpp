@@ -3577,7 +3577,7 @@ void BrickApp::uiSettings() {
         {"Rendu", "Moteur, qualité et image", true},
         {"Caméra", "Profondeur de champ et mise au point", true},
         {"Lumière", "HDRI, illumination globale, grille", true},
-        {"Thème", "Couleurs et style de l'application", false},   // (iPad too: the Crème iPad kit is one of its themes)
+        {"Couleurs", "Le thème de couleurs et ses nuances", false},   // (iPad too: the Crème iPad kit is one of its themes)
         {"Fichiers", "Sauvegarde et réglages par défaut", false},
         {"Cloud", "Tes scènes entre l'iPad et le PC", false},
     };
@@ -3717,18 +3717,26 @@ void BrickApp::uiSettings() {
         int sc = 2;
         for (int i = 0; i < 6; ++i) if (std::fabs(m_uiScaleUser - kScales[i]) < 0.01f) sc = i;
         row("Échelle de l'interface", {"75 %", "85 %", "100 %", "110 %", "125 %", "150 %"}, sc, 0);
-        row("Style de l'interface", {"Studio", "Classique"}, m_studioUi ? 0 : 1, 18);
-        if (m_studioUi) {   // (Wzx 22/11/2026): the UX, apart from the theme (the colours: Réglages › Thème)
-            const int ku = seg("Interface", {"Grey", "Black", "Crème"}, m_ux);
-            if (ku >= 0 && ku != m_ux) {
-                m_ux = ku;
+        {   // Wzx 23/11/2026: « simplifier les noms pour bien faire la distinction »: two settings only, the DISPOSITION (where
+            // things are, how they work) and the COULEURS (the theme), with names that never overlap
+            const int cur = !m_studioUi ? 3 : m_ux == 2 ? 0 : m_ux == 0 ? 1 : 2;
+            const int ku = m_ipad ? seg("Disposition", {"Galets", "Atelier", "Studio"}, cur) : seg("Disposition", {"Galets", "Atelier", "Studio", "Ancienne"}, cur);
+            if (ku >= 0 && ku != cur) {
+                m_studioUi = ku != 3;
+                if (ku < 3) m_ux = ku == 0 ? 2 : ku == 1 ? 0 : 1;
                 m_popup = 0;
-                if (ku == 0) { m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; }   // (the layout of Brique)
+                if (ku == 1) { m_libDock = 1; m_pGroups.visible = true; if (m_libW <= 0 || m_libW > 420 * s) m_libW = 300 * s; }   // (the layout of Atelier)
                 savePrefs();
             }
-            note("Grey : la disposition Brique. Black : la disposition Classique. Crème : galets, bulles, dock. Les 3 thèmes de couleur vont aux trois.");
+            note("Galets : tactile, bulles, dock. Atelier : pilules, Hub en page. Studio : barre plate.");
+            const int tc = m_themeId == "brique" ? 1 : m_themeId == "classic" ? 2 : 0;
+            const int kc = seg("Couleurs", {"Crème", "Ardoise", "Noir"}, tc);
+            if (kc >= 0 && kc != tc) { m_themeId = kc == 0 ? "creme" : kc == 1 ? "brique" : "classic"; savePrefs(); }
+            note("Pour chaque disposition. Les nuances : section Couleurs.");
+        }
+        if (m_studioUi) {
             if (m_th.brique) {
-                const int ke = seg("Disposition", {"Éditer l'interface", "Par défaut"}, -1);
+                const int ke = seg("Personnaliser", {"Éditer l'interface", "Par défaut"}, -1);
                 if (ke == 0) { m_editUi = true; m_popup = 0; }
                 if (ke == 1) { m_boxes.clear(); savePrefs(); toast("Disposition par défaut"); }
                 note("Éditer : déplace, redimensionne ou masque chaque bloc (les fonctions sont en pause).");

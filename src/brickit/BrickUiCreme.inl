@@ -781,8 +781,8 @@ void BrickApp::ipadHub() {
         const int thm = m_themeId == "brique" ? 1 : m_themeId == "classic" ? 2 : 0;
         struct Sg { const char* label; std::vector<const char*> opts; int cur; int id; };
         std::vector<Sg> sgs = {{"Qualité", {"Économie", "Normale", "Belle"}, qi, 0}, {"Lumière", {"Matin", "Midi", "Soir"}, m_lightPreset, 1},
-                               {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Thème", {"Crème", "Brique", "Classique"}, thm, 3},
-                               {"Interface", {"Crème", "Grey", "Black"}, 0, 5}};
+                               {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Couleurs", {"Crème", "Ardoise", "Noir"}, thm, 3},
+                               {"Disposition", {"Galets", "Atelier", "Studio"}, 0, 5}};
         if (m_ipad) sgs.push_back({"Stylet seul", {"Oui", "Auto"}, m_pencilOnly ? 0 : 1, 4});
         for (const Sg& sg : sgs) {
             kTextC(dl, X, ry + 14 * s, 14 * s, T_BRUN, sg.label);
