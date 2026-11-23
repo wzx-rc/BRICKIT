@@ -74,17 +74,17 @@ void BrickApp::saveDefaultPrefs() {
     if (u.empty()) return;
     CreateDirectoryW(u.substr(0, u.find_last_of(L'\\')).c_str(), nullptr);
     writeText(u, prefsJson());
-    toast("Réglages enregistrés comme réglages par défaut");
+    toast("Settings saved as defaults");
 }
 
 void BrickApp::resetToDefaultPrefs() {
     std::string t;
-    if (!readDefaultPrefs(t)) { toast("Pas de réglages par défaut"); return; }
+    if (!readDefaultPrefs(t)) { toast("No default settings"); return; }
     applyPrefs(t);
     applyLook();
     m_renderer->resetAccumulation();
     savePrefs();
-    toast("Réglages par défaut rétablis");
+    toast("Default settings restored");
 }
 
 void BrickApp::savePrefs() {
@@ -324,7 +324,7 @@ bool BrickApp::restoreAutosave() {
         m_autosaveGuard = true;
         writeText(m_exeDir + L"\\brickit_scene.v3d.json.complet.bak", t);
         char b[200];
-        snprintf(b, sizeof(b), "%d pièces de la dernière scène introuvables (bibliothèque complète absente ?) : la scène enregistrée n'est pas écrasée", m_build.lastSkipped);
+        snprintf(b, sizeof(b), "%d parts of the last scene not found (full library missing?): the saved scene is not overwritten", m_build.lastSkipped);
         toast(b);
     }
     return true;
@@ -361,7 +361,7 @@ void BrickApp::writeStartLog() {
              (int)m_bricks.size(), m_autosaveGuard ? " (incomplete: autosave kept)" : "");
     o = b;
     writeText(m_exeDir + L"\\brickit_start.log", o);
-    if (m_lib.fullDir.empty()) toast("Bibliothèque complète introuvable (dossier utilisateur \\BrickIt\\full) : seules les pièces de base sont là");
+    if (m_lib.fullDir.empty()) toast("Full library not found (user folder \\BrickIt\\full): only the base parts are available");
 }
 
 // The scene of a first launch (sampleScene of the web).
@@ -434,7 +434,7 @@ void BrickApp::cycleGrab() {
         updateHeld(mp.x, mp.y);
     }
     char t[96];
-    snprintf(t, sizeof(t), "Pivot d'accroche : voxel %d / %d", g + 1, (int)p.voxels.size());
+    snprintf(t, sizeof(t), "Grab pivot: voxel %d / %d", g + 1, (int)p.voxels.size());
     toast(t);
     autosave();
 }

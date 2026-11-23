@@ -69,7 +69,7 @@ void BrickApp::enterGroup(int brick) {
     m_groupCtx.push_back(g);
     select(brick);
     char t[160];
-    snprintf(t, sizeof(t), "Dans le groupe « %s » : clic = une pièce ou un sous-groupe, Échap pour sortir", m_build.groups[g].name.c_str());
+    snprintf(t, sizeof(t), "In group “%s”: click = a part or a subgroup, Esc to leave", m_build.groups[g].name.c_str());
     toast(t);
 }
 
@@ -77,7 +77,7 @@ bool BrickApp::leaveGroup() {
     if (m_groupCtx.empty()) return false;
     m_groupCtx.pop_back();
     if (m_selected >= 0) select(m_selected);
-    toast(m_groupCtx.empty() ? "Sorti du groupe" : "Groupe parent");
+    toast(m_groupCtx.empty() ? "Left the group" : "Parent group");
     return true;
 }
 
@@ -99,7 +99,7 @@ void BrickApp::groupSelected() {
     const int id = (int)m_build.groups.size();
     Group g;
     char nm[32];
-    snprintf(nm, sizeof(nm), "Groupe %d", id + 1);
+    snprintf(nm, sizeof(nm), "Group %d", id + 1);
     g.name = nm;
     m_build.groups.push_back(g);
     for (int i : s) {
@@ -110,14 +110,14 @@ void BrickApp::groupSelected() {
     m_pGroups.visible = true;   // the outliner shows the new group
     select(s[0]);
     char t[96];
-    snprintf(t, sizeof(t), "%s : %d pièces (Ctrl+Maj+G pour dégrouper)", nm, (int)s.size());
+    snprintf(t, sizeof(t), "%s: %d parts (Ctrl+Shift+G to ungroup)", nm, (int)s.size());
     toast(t);
 }
 
 // Ctrl+Shift+G: the group of the selection (at the level entered) dissolves; its sub-groups stay.
 void BrickApp::ungroupSelected() {
     const int g = unitGroup(m_selected);
-    if (g < 0) { toast("La sélection n'est pas un groupe"); return; }
+    if (g < 0) { toast("The selection is not a group"); return; }
     pushUndo();
     for (int i : groupMembers(g)) {
         std::vector<int>& p = m_bricks[i].path;
@@ -125,7 +125,7 @@ void BrickApp::ungroupSelected() {
     }
     if (m_isolateGroup == g) m_isolateGroup = -1;
     select(m_selected);
-    toast("Groupe dissous");
+    toast("Group dissolved");
 }
 
 // a group turns as one block, 90 degrees around Y through the stud lattice point nearest to its centre
@@ -164,7 +164,7 @@ bool BrickApp::duplicateGroup(const std::vector<int>& s) {
     auto copyOf = [&](int g) {
         for (auto& r : remap) if (r.first == g) return r.second;
         Group c = m_build.groups[g];
-        c.name += " (copie)";
+        c.name += " (copy)";
         c.hidden = false;
         m_build.groups.push_back(c);
         remap.push_back({g, (int)m_build.groups.size() - 1});
@@ -434,11 +434,11 @@ bool BrickApp::savePreset(int group, const std::vector<int>& members) {
     std::wstring path = presetsDir() + L"\\" + plat::fromUtf8(file) + L".brick";
     for (int n = 2; GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES; ++n) path = presetsDir() + L"\\" + plat::fromUtf8(file + " " + std::to_string(n)) + L".brick";
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Preset : impossible d'écrire le fichier"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Preset: cannot write the file"); return false; }
     fwrite(json.data(), 1, json.size(), f);
     fclose(f);
     m_presetsKey.clear();   // (the list read again)
-    toast("Preset enregistré : « " + name + " » (Scène › Presets)");
+    toast("Preset saved: “" + name + "” (Scene › Presets)");
     return true;
 }
 
@@ -462,7 +462,7 @@ std::vector<std::pair<std::string, std::wstring>> BrickApp::listPresets() {
 bool BrickApp::placePreset(const std::wstring& path, const std::string& name) {
     std::string text;
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("Preset introuvable"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("Preset not found"); return false; }
     char buf[65536];
     size_t n;
     while ((n = fread(buf, 1, sizeof(buf), f)) > 0) text.append(buf, n);
@@ -475,7 +475,7 @@ bool BrickApp::placePreset(const std::wstring& path, const std::string& name) {
     std::vector<Group> subG = m_build.groups;
     m_build.bricks = keep;
     m_build.groups = keepG;
-    if (!ok || sub.empty()) { toast(ok ? std::string("Preset vide") : msg); return false; }
+    if (!ok || sub.empty()) { toast(ok ? std::string("Empty preset") : msg); return false; }
     pushUndo();
     const int top = (int)m_build.groups.size();
     Group g;
@@ -498,7 +498,7 @@ bool BrickApp::placePreset(const std::wstring& path, const std::string& name) {
     rebuildScene();
     select((int)first);
     autosave();
-    toast("Preset « " + name + " » posé (" + std::to_string(sub.size()) + " pièces)");
+    toast("Preset “" + name + "” placed (" + std::to_string(sub.size()) + " parts)");
     return true;
 }
 

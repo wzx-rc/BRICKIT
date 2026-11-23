@@ -510,8 +510,8 @@ void BrickApp::touchUp(const TouchEvent& e) {
     case TG_TWO:
         if (dist2(t.x, t.y, t.sx, t.sy) / std::max(0.5f, m_dpi) > 10) g.still = false;
         if (m_touches.empty() && g.still && !cancelled && now - g.t0 < 0.35) {   // a quick tap of the fingers
-            if (g.fingers >= 3) { redo(); toast("Rétablir"); }
-            else { undo(); toast("Annuler"); }
+            if (g.fingers >= 3) { redo(); toast("Redo"); }
+            else { undo(); toast("Undo"); }
         }
         break;
     default: break;

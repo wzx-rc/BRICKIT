@@ -278,7 +278,7 @@ void BrickApp::drawGizmo() {
             // how far it moved: in studs on the floor, in plates upwards
             const float3 dd = m_bricks[m_gz.brick].pos - m_gz.startPos;
             char t[96];
-            snprintf(t, sizeof(t), "%+d · %+d tenons · %+d plaques", (int)std::lround(dd.x / kPitch), (int)std::lround(dd.z / kPitch), (int)std::lround(dd.y / kPlate));
+            snprintf(t, sizeof(t), "%+d · %+d studs · %+d plates", (int)std::lround(dd.x / kPitch), (int)std::lround(dd.z / kPitch), (int)std::lround(dd.y / kPlate));
             const ImVec2 tp(cx + 0.6f * px, cy - 0.9f * px);
             const ImVec2 ts = ImGui::CalcTextSize(t);
             dl->AddRectFilled(ImVec2(tp.x - 6, tp.y - 3), ImVec2(tp.x + ts.x + 6, tp.y + ts.y + 3), IM_COL32(16, 17, 19, 200), 6);

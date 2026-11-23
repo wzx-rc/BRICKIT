@@ -149,7 +149,7 @@ void setAppIcon(int which) {   // the resources 1 (A) and 2 (B) of brickit.rc, o
 HttpReply http(const char* method, const std::string& url, const std::vector<std::string>& headers, const std::string& body) {
     HttpReply r;
     static HINTERNET session = WinHttpOpen(L"BrickIt/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!session) { r.error = "WinHTTP indisponible"; return r; }
+    if (!session) { r.error = "WinHTTP unavailable"; return r; }
     const std::wstring wurl = fromUtf8(url);
     URL_COMPONENTS uc = {};
     uc.dwStructSize = sizeof(uc);
@@ -161,13 +161,13 @@ HttpReply http(const char* method, const std::string& url, const std::vector<std
     uc.dwUrlPathLength = 4096;
     uc.lpszExtraInfo = extra;
     uc.dwExtraInfoLength = 4096;
-    if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) { r.error = "adresse invalide"; return r; }
+    if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) { r.error = "invalid address"; return r; }
     HINTERNET con = WinHttpConnect(session, host, uc.nPort, 0);
-    if (!con) { r.error = "connexion impossible"; return r; }
+    if (!con) { r.error = "cannot connect"; return r; }
     const std::wstring target = std::wstring(path) + extra;
     HINTERNET req = WinHttpOpenRequest(con, fromUtf8(method).c_str(), target.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                        uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
-    if (!req) { WinHttpCloseHandle(con); r.error = "requête impossible"; return r; }
+    if (!req) { WinHttpCloseHandle(con); r.error = "request failed"; return r; }
     WinHttpSetTimeouts(req, 10000, 10000, 20000, 30000);
     std::wstring hs;
     for (const std::string& hd : headers) hs += fromUtf8(hd) + L"\r\n";
@@ -176,7 +176,7 @@ HttpReply http(const char* method, const std::string& url, const std::vector<std
     if (ok) ok = WinHttpReceiveResponse(req, nullptr);
     if (!ok) {
         char b[64];
-        snprintf(b, sizeof(b), "pas de réponse (erreur %lu)", GetLastError());
+        snprintf(b, sizeof(b), "no response (error %lu)", GetLastError());
         r.error = b;
     } else {
         DWORD st = 0, sz = sizeof(st);

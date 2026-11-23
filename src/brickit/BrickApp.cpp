@@ -56,7 +56,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
             ImDrawList* dl = ImGui::GetBackgroundDrawList();
             const ImVec2 ds = ImGui::GetIO().DisplaySize;
             dl->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
-            const char* t = "Chargement de la bibliothèque BrickIt…";
+            const char* t = "Loading the BrickIt library…";
             const float px = 14 * m_ui * 1.22f;
             const ImVec2 sz = ImGui::GetFont()->CalcTextSizeA(px, 1e9f, 0, t);
             dl->AddText(ImGui::GetFont(), px, ImVec2((ds.x - sz.x) * 0.5f, (ds.y - sz.y) * 0.5f), IM_COL32(0x9a, 0x9c, 0xa4, 255), t);
@@ -74,11 +74,11 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     crashSetState([this]() {   // what a crash report says of the app
         char b[1200];
         const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
-        snprintf(b, sizeof(b), "Image %d · briques %d · sélection %d · en main %d\nInterface %s · popup %d · bibliothèque dock %d %s · HD %d · DEV %d\n"
-                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n"
-                 "Textures BrickIt : %d (limite 170) · miniatures chargées %d · textures ImGui %d · atlas de police %dx%d\n",
-                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classique", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
-                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "fermé", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
+        snprintf(b, sizeof(b), "Frame %d · bricks %d · selection %d · in hand %d\nInterface %s · popup %d · library dock %d %s · HD %d · DEV %d\n"
+                 "Voxel Editor: %s · thumbnail (DEV) %d · mechanics %d · paint %d\nRender: %s · quality %d · soft GI %d\nLast message: %s\n"
+                 "BrickIt textures: %d (limit 170) · thumbnails loaded %d · ImGui textures %d · font atlas %dx%d\n",
+                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classic", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
+                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "closed", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
                  m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str(),
                  m_gui ? m_gui->liveTextures() : -1, (int)m_lazyThumbs.size(), ImGui::GetCurrentContext() ? ImGui::GetPlatformIO().Textures.Size : -1,
                  ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Width : 0,
@@ -506,14 +506,14 @@ void BrickApp::setLookdev(bool on) {
 
 void BrickApp::openOfficialHouse() {   // Dossier › Ouvrir la maison officielle (31153)
     const std::wstring path = m_exeDir + L"\\..\\..\\docs\\brickit\\tests\\maison_officielle_31153.v3d.json";
-    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Maison officielle introuvable (docs\\brickit\\tests)"); return; }
+    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Official house not found (docs\\brickit\\tests)"); return; }
     openScene(path);
 }
 
 void BrickApp::openTestHouse() {
     const std::wstring dir = m_exeDir;   // build\bin
     const std::wstring path = dir + L"\\..\\..\\docs\\brickit\\tests\\maison_gi.v3d.json";
-    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Maison test introuvable (docs\\brickit\\tests\\maison_gi.v3d.json)"); return; }
+    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Test house not found (docs\\brickit\\tests\\maison_gi.v3d.json)"); return; }
     openScene(path);
 }
 
@@ -556,7 +556,7 @@ void BrickApp::setHdri(const std::wstring& path) {
         auto e = std::make_shared<EnvImage>();
         std::string err;
         if (path.empty() || m_opt.noHdri || !fileExists(path) || !loadEnvImage(path, *e, &err)) {
-            if (!path.empty()) m_status = "HDRI illisible, ciel procédural : " + err;
+            if (!path.empty()) m_status = "Unreadable HDRI, procedural sky: " + err;
             makeProceduralSky(*e);
         }
         img = e;
@@ -591,7 +591,7 @@ void BrickApp::loadHdriDialog() {
         if (std::find(m_hdriCustom.begin(), m_hdriCustom.end(), p) == m_hdriCustom.end()) m_hdriCustom.push_back(p);
         buildHdriList();
         setHdri(p);
-        toast("HDRI chargée");
+        toast("HDRI loaded");
         savePrefs();
     });
 }
@@ -690,7 +690,7 @@ void BrickApp::applyLook() {
 void BrickApp::setHighPoly(bool on) {
     crumb("HD : %d", on ? 1 : 0);
     m_highPoly = on;
-    if (!m_lib.hasHd) { if (on) toast("Pas encore de pièces HD : la bibliothèque HD n'est pas construite"); return; }
+    if (!m_lib.hasHd) { if (on) toast("No HD parts yet: the HD library is not built"); return; }
     m_lib.setHighPoly(on);
     for (int i = 0; i < (int)m_partMesh.size(); ++i) {
         const int mesh = m_partMesh[i];
@@ -937,13 +937,13 @@ void BrickApp::buildDemo() {
     add("6541", 14, 19 * P, 0, 8 * P);
     add("60483", 71, 21 * P, 0, 8 * P);
     char buf[64];
-    snprintf(buf, sizeof(buf), "Demo : %d briques", (int)m_bricks.size());
+    snprintf(buf, sizeof(buf), "Demo: %d bricks", (int)m_bricks.size());
     m_status = buf;
 }
 
 // F (Wzx 10/11/2026, as Maya): the camera framed on the selection, its direction kept; nothing selected: the whole scene
 void BrickApp::frameSelection() {
-    crumb("F : cadrer la sélection");
+    crumb("F: frame the selection");
     const std::vector<int> sel = selection();
     if (sel.empty()) { frameAll(); return; }
     float3 mn(1e30f), mx(-1e30f);
@@ -1441,18 +1441,18 @@ void BrickApp::frame() {
     m_perfA = pA; m_perfB = pB; m_perfT1 = t1; m_perfF = pF; m_perfT0 = t0;
     ++m_frame;
     crashHeartbeat();
-    if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
+    if (m_opt.crashTest && m_frame == 30) { crumb("Test: deliberate crash"); volatile int* nul = nullptr; *nul = 1; }
     if (m_frame == 2 && !m_ipad && m_appIcon == 1) plat::setAppIcon(1);   // PC: the icon B on the window (the .exe keeps A)
     if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
         const std::wstring p = crashLastUnseen();
         if (!p.empty() && m_ipad)   // the iPad: no folder to look into, the report is sent from here (Mail, AirDrop, Fichiers)
-            plat::confirm(L"BrickIt s'est arrêté", L"La dernière session s'est terminée brutalement. Envoyer le rapport ?\n(il reste aussi dans Fichiers › BrickIt › Rapports)",
+            plat::confirm(L"BrickIt stopped", L"The last session ended abruptly. Send the report?\n(it also stays in Files › BrickIt › Rapports)",
                           [p]() { plat::shareFile(p); });
-        else if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + plat::toUtf8(p));
+        else if (!p.empty()) toast("BrickIt crashed last time: report in " + plat::toUtf8(p));
     }
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
-        const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");
-        toast("Rapport écrit : " + std::string(p.begin(), p.end()));
+        const std::wstring p = crashWriteReport("REPORT (Ctrl+Shift+F12)");
+        toast("Report written: " + std::string(p.begin(), p.end()));
     }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();

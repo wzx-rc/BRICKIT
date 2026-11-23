@@ -156,8 +156,8 @@ void BrickApp::saveThumbOverride() {
         auto it = m_thumbOverride.find(m_teditPart);
         if (it != m_thumbOverride.end()) m_gui->releaseTexture(it->second);
         m_thumbOverride[m_teditPart] = overrideTexture(rgba, px, px);
-        toast("Miniature enregistrée (thumb_overrides)");
-    } else toast("Miniature non enregistrée");
+        toast("Thumbnail saved (thumb_overrides)");
+    } else toast("Thumbnail not saved");
 }
 
 } // namespace brickit

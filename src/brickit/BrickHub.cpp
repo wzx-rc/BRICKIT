@@ -43,7 +43,7 @@ static std::string hubFileName(const std::string& name) {
     for (char c : name) f += (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|' || (unsigned char)c < 32) ? '_' : c;
     while (!f.empty() && (f.back() == ' ' || f.back() == '.')) f.pop_back();
     while (!f.empty() && f.front() == ' ') f.erase(f.begin());
-    return f.empty() ? std::string("Ma scène") : f;
+    return f.empty() ? std::string("My scene") : f;
 }
 
 static bool hubInDir(const std::wstring& path, const std::wstring& dir) {
@@ -96,7 +96,7 @@ void BrickApp::hubRefresh() {
 void BrickApp::hubSaveHere() {
     const std::wstring dir = scenesDir();
     if (!m_scenePath.empty() && hubInDir(m_scenePath, dir)) { saveScene(m_scenePath); return; }
-    const std::string name = hubFileName(m_modelName.empty() ? std::string("Ma scène") : m_modelName);
+    const std::string name = hubFileName(m_modelName.empty() ? std::string("My scene") : m_modelName);
     const std::wstring p = hubFreePath(dir, name);
     if (saveScene(p)) m_modelName = hubStem(p);
 }
@@ -115,35 +115,35 @@ bool BrickApp::hubRename(int i, const std::string& name0) {
     if (!path.empty()) {
         const std::wstring to = hubFreePath(dir, name, path);
         if (to != path) {
-            if (!hubMove(path, to)) { toast("Renommer : impossible (le fichier est-il ouvert ailleurs ?)"); return false; }
+            if (!hubMove(path, to)) { toast("Rename failed (is the file open elsewhere?)"); return false; }
             hubMove(path + L".png", to + L".png");
             if (path == m_scenePath) { m_scenePath = to; m_modelName = hubStem(to); }
         }
     }
     m_hubStale = true;
-    toast("Scène renommée : « " + name + " »");
+    toast("Scene renamed: “" + name + "”");
     return true;
 }
 
 void BrickApp::hubDuplicate(int i) {
     if (i < 0 || i >= (int)m_hubLocal.size()) return;
     const HubScene sc = m_hubLocal[i];
-    const std::wstring to = hubFreePath(scenesDir(), sc.name + " (copie)");
-    if (!CopyFileW(sc.path.c_str(), to.c_str(), TRUE)) { toast("Dupliquer : impossible d'écrire la copie"); return; }
+    const std::wstring to = hubFreePath(scenesDir(), sc.name + " (copy)");
+    if (!CopyFileW(sc.path.c_str(), to.c_str(), TRUE)) { toast("Duplicate: cannot write the copy"); return; }
     CopyFileW((sc.path + L".png").c_str(), (to + L".png").c_str(), TRUE);
     m_hubStale = true;
-    toast("Copie : « " + hubStem(to) + " »");
+    toast("Copy: “" + hubStem(to) + "”");
 }
 
 void BrickApp::hubDelete(int i) {
     if (i < 0 || i >= (int)m_hubLocal.size()) return;
     const HubScene sc = m_hubLocal[i];
-    plat::confirm(L"Supprimer la scène", plat::fromUtf8("Supprimer « " + sc.name + " » de cet appareil ? (Sa copie dans le cloud, s'il y en a une, reste.)"), [this, sc] {
+    plat::confirm(L"Delete the scene", plat::fromUtf8("Delete “" + sc.name + "” from this device? (Its cloud copy, if any, stays.)"), [this, sc] {
         DeleteFileW(sc.path.c_str());
         DeleteFileW((sc.path + L".png").c_str());
         if (sc.path == m_scenePath) m_scenePath.clear();
         m_hubStale = true;
-        toast("« " + sc.name + " » supprimée");
+        toast("“" + sc.name + "” deleted");
     });
 }
 

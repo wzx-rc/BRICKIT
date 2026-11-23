@@ -623,7 +623,7 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
     for (int k : order) {
         int a = tfind(joints[k].a), b = tfind(joints[k].b);
         if (a != b) { tf[a] = b; inTree[k] = true; }
-        else if (joints[k].type == 1) M.warnings.push_back("Vérin dans une boucle : non piloté");
+        else if (joints[k].type == 1) M.warnings.push_back("Cylinder in a loop: not driven");
         else M.closures.push_back(joints[k]);
     }
     std::vector<std::vector<int>> adj(nb);
@@ -708,7 +708,7 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
                 continue;
             }
             MechCmd c;
-            c.name = "Moteur";
+            c.name = "Motor";
             c.qi = tjOf[M.gears[master].body];
             M.qmode[c.qi] = {1, -1, 0, (int)M.cmds.size()};
             M.cmds.push_back(c);
@@ -721,7 +721,7 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
             for (auto& ms : M.meshes) meshed |= M.gears[ms.first].body == M.tree[qi].child || M.gears[ms.second].body == M.tree[qi].child;
             if (meshed) continue;
             MechCmd c;
-            c.name = "Axe";
+            c.name = "Axle";
             c.qi = qi;
             M.qmode[qi] = {1, -1, 0, (int)M.cmds.size()};
             M.cmds.push_back(c);
@@ -732,7 +732,7 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
             const MechTreeJ& t = M.tree[qi];
             if (t.j.type != 1 || M.qmode[qi].kind != 0 || hasGear[t.child]) continue;
             MechCmd c;
-            c.name = "Vérin " + std::to_string(++k);
+            c.name = "Cylinder " + std::to_string(++k);
             c.qi = qi;
             c.type = 1;
             c.lo = t.j.lo;
@@ -743,12 +743,12 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
         }
     }
     int motors = 0;
-    for (MechCmd& c : M.cmds) if (c.name == "Moteur") ++motors;
+    for (MechCmd& c : M.cmds) if (c.name == "Motor") ++motors;
     int k = 0;
     static const ImGuiKey kp[8] = {ImGuiKey_A, ImGuiKey_Z, ImGuiKey_E, ImGuiKey_R, ImGuiKey_T, ImGuiKey_Y, ImGuiKey_U, ImGuiKey_I};
     static const ImGuiKey km_[8] = {ImGuiKey_Q, ImGuiKey_S, ImGuiKey_D, ImGuiKey_F, ImGuiKey_G, ImGuiKey_H, ImGuiKey_J, ImGuiKey_K};
     for (MechCmd& c : M.cmds) {
-        if (motors > 1 && c.name == "Moteur") c.name = "Moteur " + std::to_string(k + 1);
+        if (motors > 1 && c.name == "Motor") c.name = "Motor " + std::to_string(k + 1);
         c.keyPlus = k < 8 ? (int)kp[k] : 0;
         c.keyMinus = k < 8 ? (int)km_[k] : 0;
         ++k;
@@ -763,7 +763,7 @@ bool Mech::build(const std::vector<Brick>& bricks, MechModel& M) {
         const float dv = 0.02f;
         t.cmds[ci].value = dv;
         if (!solve(t)) {
-            M.warnings.push_back("Train d'engrenages bloqué (rapports incompatibles) : " + M.cmds[ci].name);
+            M.warnings.push_back("Gear train locked (incompatible ratios): " + M.cmds[ci].name);
             continue;
         }
         for (int qi = 0; qi < nq; ++qi) {

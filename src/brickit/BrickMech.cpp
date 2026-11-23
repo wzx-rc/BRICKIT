@@ -20,10 +20,10 @@ void BrickApp::mechEnter() {
     m_mechOn = m_mech.build(m_bricks, m_mm);
     QueryPerformanceCounter(&t1);
     m_mm.buildMs = (t1.QuadPart - t0.QuadPart) * 1000.0 / m_qpf.QuadPart;
-    if (!m_mechOn) { toast("Scène vide : construis un mécanisme avec des pièces Technic, puis repasse en mode Mécanique (M)"); return; }
+    if (!m_mechOn) { toast("Empty scene: build a mechanism with Technic parts, then go back to Mechanics mode (M)"); return; }
     syncObjects();
     mechApplyPose();
-    toast("Mode Mécanique : A/Q, Z/S… pilotent les moteurs, M ou Échap pour sortir");
+    toast("Mechanics mode: A/Q, Z/S… drive the motors, M or Esc to leave");
 }
 
 void BrickApp::mechExit() {
@@ -145,7 +145,7 @@ void BrickApp::mechUpdate(float dt) {
             else ok = false;
         }
         for (size_t k = 0; k < m_mm.cmds.size(); ++k) m_mm.cmds[k].value = good[k];
-        if (!ok) { m_mechFlash = "Butée : le mécanisme ne peut pas aller plus loin"; m_mechFlashTime = ImGui::GetTime(); }
+        if (!ok) { m_mechFlash = "Limit: the mechanism cannot go further"; m_mechFlashTime = ImGui::GetTime(); }
     }
     for (size_t k = 0; k < m_mm.cmds.size(); ++k) lastSlider[k] = m_mm.cmds[k].value;
     mechApplyPose();
@@ -240,7 +240,7 @@ void BrickApp::buildMechDemo() {
     auto partOf = [&](const char* name) { int i = m_lib.find(name); return i >= 0 && m_lib.get(name) ? i : -1; };
     const int gear24 = partOf("3648b");   // Technic Gear 24 Tooth with Single Axle Hole
     const int frame = partOf("3008"), hole = partOf("6541"), axle = partOf("3705"), g16 = partOf("94925"), g8 = partOf("3647");
-    if (frame < 0 || hole < 0 || axle < 0 || g16 < 0 || g8 < 0) { toast("Pièces Technic manquantes pour la démo"); return; }
+    if (frame < 0 || hole < 0 || axle < 0 || g16 < 0 || g8 < 0) { toast("Technic parts missing for the demo"); return; }
     const float4 id(0, 0, 0, 1), alongZ = qAxisAngle(float3(0, 1, 0), -kPi * 0.5f);   // axle: local X -> world Z
     auto add = [&](int part, int color, const float3& pos, const float4& rot) {
         Brick b;
@@ -270,7 +270,7 @@ void BrickApp::buildMechDemo() {
         if (k == 2) addGear(g8, 4, float3(hc.x, hc.y, 2.4f));
         if (k == 3 && gear24 >= 0) addGear(gear24, 1, float3(hc.x, hc.y, 2.4f));
     }
-    m_status = "Démo mécanique : train d'engrenages";
+    m_status = "Mechanics demo: gear train";
 }
 
 // Scène › Démo : une petite pelleteuse et le train d'engrenages de la démo mécanique (Wzx 12/11/2026). The excavator:
@@ -349,7 +349,7 @@ void BrickApp::buildExcavatorDemo() {
         }
     }
     buildMechShowcase(6.0f);   // the mechanical demo, new (Wzx 12/11/2026), on the right of the excavator
-    m_status = "Démo : pelleteuse et mécanismes (Mécanique pour les faire bouger)";
+    m_status = "Demo: excavator and mechanisms (Mechanics to move them)";
 }
 
 } // namespace brickit

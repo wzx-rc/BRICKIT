@@ -110,7 +110,7 @@ void BrickApp::spawn(int part, float sx, float sy) {
     m_held.vpos = m_held.target + float3(0, 1.2f, 0);
     m_held.vrot = m_held.rot;
     m_held.squash = 0.55f;
-    toast("Brique en main : clic pour poser, R tourner, T basculer, clic droit annuler");
+    toast("Brick in hand: click to place, R rotate, T tilt, right click cancel");
 }
 
 void BrickApp::beginMove(int brick, float sx, float sy) {
@@ -156,7 +156,7 @@ void BrickApp::updateHeld(float sx, float sy) {
 void BrickApp::dropHeld(bool keepCopy) {
     if (!m_holding) return;
     if (m_held.blocked) {
-        toast("Placement impossible : plus de 50 % de la brique est dans une autre");
+        toast("Cannot place: more than 50 % of the brick is inside another");
         return;
     }
     if (m_held.dropping) return;
@@ -221,7 +221,7 @@ void BrickApp::resetRotation() {
     }
     syncObjects();
     autosave();
-    toast("Rotation remise droite (90°)");
+    toast("Rotation straightened (90°)");
 }
 
 void BrickApp::select(int brick, bool add) {
@@ -274,7 +274,7 @@ void BrickApp::duplicateSelected() {
         int c = m_build.stackedCopy(i);
         if (c >= 0) last = c;
     }
-    if (last < 0) { m_undo.pop_back(); toast("Pas de place libre au-dessus de cette brique"); return; }
+    if (last < 0) { m_undo.pop_back(); toast("No free space above this brick"); return; }
     m_selected = last;
     m_multi.clear();
     rebuildScene();
@@ -350,7 +350,7 @@ void BrickApp::turnSelectedFree(int dir) {
         if (worst > 0.5f) {
             m_bricks = m_undo.back();
             m_undo.pop_back();
-            toast("Rotation refusée : la brique entrerait dans une autre (Sécurité)");
+            toast("Rotation refused: the brick would go into another (Safety)");
             return;
         }
     }
@@ -448,7 +448,7 @@ void BrickApp::noteRecent(int part) {
 bool BrickApp::saveScene(const std::wstring& path) {
     std::string text = m_build.toJson(m_scene.camera);
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Impossible d'écrire le fichier"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Cannot write the file"); return false; }
     fwrite(text.data(), 1, text.size(), f);
     fclose(f);
     m_scenePath = path;
@@ -462,7 +462,7 @@ bool BrickApp::saveScene(const std::wstring& path) {
         }
         m_hubStale = true;
     }
-    toast("Scène enregistrée");
+    toast("Scene saved");
     return true;
 }
 
@@ -471,7 +471,7 @@ bool BrickApp::openScene(const std::wstring& path) {
     for (auto& c : ext) c = (wchar_t)towlower(c);
     if (ext == L".ldr" || ext == L".mpd" || ext == L".dat") return importLDraw(path);   // an LDraw model (OMR)
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("Fichier introuvable"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("File not found"); return false; }
     std::string text;
     char buf[65536];
     size_t n;
@@ -503,12 +503,12 @@ void BrickApp::saveDialog() {
     // .brick (Wzx 10/11/2026): the scene of BrickIt between the apps (PC, iPad, Fichiers, AirDrop); the same JSON as the
     // .v3d.json of the editor, which still opens. A scene opened as .v3d.json is saved again as .brick.
     if (suggested.size() > 9 && suggested.compare(suggested.size() - 9, 9, L".v3d.json") == 0) suggested = suggested.substr(0, suggested.size() - 9) + L".brick";
-    plat::saveFileDialog(L"Scène BrickIt (*.brick)\0*.brick\0Scène de l'éditeur (*.v3d.json)\0*.v3d.json;*.json\0", L"brick", suggested,
+    plat::saveFileDialog(L"BrickIt scene (*.brick)\0*.brick\0Editor scene (*.v3d.json)\0*.v3d.json;*.json\0", L"brick", suggested,
                          [this](const std::wstring& p) { if (!p.empty()) saveScene(p); });
 }
 
 void BrickApp::openDialog() {
-    plat::openFileDialog(L"Scène BrickIt ou modèle LDraw (*.brick, *.v3d.json, *.ldr, *.mpd)\0*.brick;*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0",
+    plat::openFileDialog(L"BrickIt scene or LDraw model (*.brick, *.v3d.json, *.ldr, *.mpd)\0*.brick;*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0All files\0*.*\0",
                          L"brick", [this](const std::wstring& p) { if (!p.empty()) openScene(p); }, m_scenePath);
 }
 
@@ -525,11 +525,11 @@ void BrickApp::shareScene() {
 // (Rapports/report_<date>.txt), then the share sheet (Mail, AirDrop, Fichiers)
 void BrickApp::sendReport() {
     m_popup = 0;
-    crumb("Rapport demandé");
-    const std::wstring p = crashWriteReport("RAPPORT (envoyé depuis l'app)");
-    if (p.empty()) { toast("Rapport impossible : le journal n'est pas actif"); return; }
+    crumb("Report requested");
+    const std::wstring p = crashWriteReport("REPORT (sent from the app)");
+    if (p.empty()) { toast("Cannot report: the log is not active"); return; }
     if (m_ipad) plat::shareFile(p);
-    else toast("Rapport écrit : " + plat::toUtf8(p));
+    else toast("Report written: " + plat::toUtf8(p));
 }
 
 // --------------------------------------------------------------------------- input
@@ -553,7 +553,7 @@ void BrickApp::finishMarquee(bool add) {
     m_multi.assign(all.size() > 1 ? all.begin() + 1 : all.end(), all.end());
     syncObjects();
     char t[64];
-    snprintf(t, sizeof(t), "%d briques sélectionnées", (int)all.size());
+    snprintf(t, sizeof(t), "%d bricks selected", (int)all.size());
     if (!all.empty()) toast(t);
 }
 
@@ -612,7 +612,7 @@ void BrickApp::editInput() {
             }
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_C)) cycleGrab();
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels: shown (yellow studs, cyan pins, magenta axles)" : "Voxels: hidden"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
         if (!ctrl && !m_studioUi && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;   // (Studio: A is Construire; the animations in Réglages)
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) frameSelection();   // F: the view framed on the selection (as Maya; nothing selected: everything)
@@ -633,7 +633,7 @@ void BrickApp::editInput() {
             if (m_holding) cancelHeld();
             else if (!leaveGroup()) select(-1);   // inside a group: Échap leaves it first
         }
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grille : oui" : "Grille : non"); }
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grid: on" : "Grid: off"); }
         if (m_studioUi && !m_ipad && !ctrl) {   // Studio: the tools on 1 to 6 (Sélection, Construire, Pinceau, Pipette, Déplacer, Tourner)
             static const ImGuiKey kKeys[6] = {ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5, ImGuiKey_6};
             for (int k = 0; k < 6; ++k) if (ImGui::IsKeyPressed(kKeys[k])) stTool(k);
@@ -724,7 +724,7 @@ void BrickApp::editInput() {
             m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});   // (a ring, a drop to the active colour)
             m_paintSwatchPop = ImGui::GetTime() + 0.58;
             m_paintTool = true;   // (back to the Pinceau with the colour taken, Wzx 14/11/2026: also from the toolbar)
-            if (!m_paintMode) toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
+            if (!m_paintMode) toast(std::string("Colour picked: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (brush to apply it)");
         }
         return;
     }

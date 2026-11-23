@@ -46,7 +46,7 @@ void errorBox(const std::string& title, const std::string& text) {
 void confirm(const std::wstring& title, const std::wstring& text, std::function<void()> onOk) {
     UIAlertController* a = [UIAlertController alertControllerWithTitle:ns(title) message:ns(text)
                                                         preferredStyle:UIAlertControllerStyleAlert];
-    [a addAction:[UIAlertAction actionWithTitle:@"Annuler" style:UIAlertActionStyleCancel handler:nil]];
+    [a addAction:[UIAlertAction actionWithTitle:@"Undo" style:UIAlertActionStyleCancel handler:nil]];
     [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction*) {
            if (onOk) onOk();
        }]];
@@ -109,7 +109,7 @@ void setAppIcon(int which) {
 HttpReply http(const char* method, const std::string& url, const std::vector<std::string>& headers, const std::string& body) {
     __block HttpReply r;
     NSURL* u = [NSURL URLWithString:[NSString stringWithUTF8String:url.c_str()]];
-    if (!u) { r.error = "adresse invalide"; return r; }
+    if (!u) { r.error = "invalid address"; return r; }
     NSMutableURLRequest* q = [NSMutableURLRequest requestWithURL:u cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:30];
     q.HTTPMethod = [NSString stringWithUTF8String:method];
     for (const std::string& h : headers) {
@@ -122,7 +122,7 @@ HttpReply http(const char* method, const std::string& url, const std::vector<std
     if (!body.empty()) q.HTTPBody = [NSData dataWithBytes:body.data() length:body.size()];
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     NSURLSessionDataTask* t = [[NSURLSession sharedSession] dataTaskWithRequest:q completionHandler:^(NSData* data, NSURLResponse* resp, NSError* err) {
-        if (err) r.error = err.localizedDescription.UTF8String ? err.localizedDescription.UTF8String : "erreur réseau";
+        if (err) r.error = err.localizedDescription.UTF8String ? err.localizedDescription.UTF8String : "network error";
         if ([resp isKindOfClass:[NSHTTPURLResponse class]]) r.status = (int)((NSHTTPURLResponse*)resp).statusCode;
         if (data) r.body.assign((const char*)data.bytes, data.length);
         dispatch_semaphore_signal(done);

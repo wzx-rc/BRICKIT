@@ -118,7 +118,7 @@ bool BrickApp::importLDraw(const std::wstring& path) {
             sections[cur].push_back(line);
         }
     }
-    if (order.empty()) { toast("Modèle LDraw vide"); return false; }
+    if (order.empty()) { toast("Empty LDraw model"); return false; }
 
     const std::map<int, float3> ldc = ldrawColours(m_lib.fullDir);
     auto colourIndex = [&](int code) {
@@ -208,7 +208,7 @@ bool BrickApp::importLDraw(const std::wstring& path) {
     };
     LMat I;
     expand(mainName, I, 16, {}, true);
-    if (out.empty()) { toast("Aucune pièce reconnue dans ce modèle"); return false; }
+    if (out.empty()) { toast("No known part in this model"); return false; }
 
     pushUndo();
     m_bricks.swap(out);
@@ -224,8 +224,8 @@ bool BrickApp::importLDraw(const std::wstring& path) {
     rebuildScene();
     frameAll();
     char t[200];
-    snprintf(t, sizeof(t), "%s : %d pièces, %d étapes, %d sous-modèles%s", m_modelName.c_str(), (int)m_bricks.size(), m_readSteps,
-             (int)sections.size() - 1, missing ? " (des pièces inconnues ignorées)" : "");
+    snprintf(t, sizeof(t), "%s: %d parts, %d steps, %d submodels%s", m_modelName.c_str(), (int)m_bricks.size(), m_readSteps,
+             (int)sections.size() - 1, missing ? " (unknown parts skipped)" : "");
     toast(t);
     m_importReport.clear();
     {

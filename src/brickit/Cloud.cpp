@@ -40,14 +40,14 @@ static std::string errorOf(int status, const std::string& body, const std::strin
         code = j["error_code"].str(j["code"].str(j["error"].str()));
         msg = j["msg"].str(j["message"].str(j["error_description"].str()));
     }
-    if (code == "invalid_credentials" || msg == "Invalid login credentials") return "e-mail ou mot de passe incorrect";
-    if (code == "email_not_confirmed") return "e-mail pas encore confirmé : clique sur le lien reçu par e-mail";
-    if (code == "user_already_exists") return "ce compte existe déjà : connecte-toi";
-    if (code == "weak_password") return "mot de passe trop court (6 caractères au moins)";
-    if (code == "over_email_send_rate_limit") return "trop d'e-mails envoyés : réessaie dans un moment";
+    if (code == "invalid_credentials" || msg == "Invalid login credentials") return "wrong e-mail or password";
+    if (code == "email_not_confirmed") return "e-mail not confirmed yet: click the link you received";
+    if (code == "user_already_exists") return "this account already exists: sign in";
+    if (code == "weak_password") return "password too short (at least 6 characters)";
+    if (code == "over_email_send_rate_limit") return "too many e-mails sent: try again later";
     if (code == "42P01" || msg.find("does not exist") != std::string::npos || msg.find("schema cache") != std::string::npos)
-        return "la table des scènes n'existe pas encore (le SQL de supabase/migrations à coller dans Supabase)";
-    if (msg.find("Bucket not found") != std::string::npos) return "le bucket « scenes » n'existe pas encore (le SQL de supabase/migrations)";
+        return "the scenes table does not exist yet (paste the SQL of supabase/migrations into Supabase)";
+    if (msg.find("Bucket not found") != std::string::npos) return "the bucket “scenes” does not exist yet (the SQL of supabase/migrations)";
     char b[48];
     snprintf(b, sizeof(b), "erreur %d", status);
     return msg.empty() ? std::string(b) : std::string(b) + " : " + msg;
@@ -157,11 +157,11 @@ bool Cloud::tokenRequest(const std::string& grant, const std::string& body, std:
                                          {std::string("apikey: ") + kKey, "Content-Type: application/json"}, body);
     if (r.status != 200) {
         err = errorOf(r.status, r.body, r.error);
-        if (grant == "refresh_token" && r.status >= 400 && r.status < 500) { m_s = Session{}; saveSession(); err = "session expirée : reconnecte-toi"; }
+        if (grant == "refresh_token" && r.status >= 400 && r.status < 500) { m_s = Session{}; saveSession(); err = "session expired: sign in again"; }
         return false;
     }
     app::Json j;
-    if (!app::Json::parse(r.body, j) || j["access_token"].str().empty()) { err = "réponse inattendue"; return false; }
+    if (!app::Json::parse(r.body, j) || j["access_token"].str().empty()) { err = "unexpected response"; return false; }
     m_s.access = j["access_token"].str();
     m_s.refresh = j["refresh_token"].str();
     m_s.expires = nowSec() + j["expires_in"].num(3600);
@@ -173,7 +173,7 @@ bool Cloud::tokenRequest(const std::string& grant, const std::string& body, std:
 }
 
 bool Cloud::ensureToken(std::string& err) {
-    if (m_s.uid.empty() || m_s.refresh.empty()) { err = "pas connecté"; return false; }
+    if (m_s.uid.empty() || m_s.refresh.empty()) { err = "not signed in"; return false; }
     if (!m_s.access.empty() && nowSec() < m_s.expires - 60) return true;
     return tokenRequest("refresh_token", "{\"refresh_token\": " + q(m_s.refresh) + "}", err);
 }
@@ -199,7 +199,7 @@ void Cloud::signIn(const std::string& email, const std::string& password, std::f
     post([this, email, password, done] {
         std::string err;
         const bool ok = tokenRequest("password", "{\"email\": " + q(email) + ", \"password\": " + q(password) + "}", err);
-        answer([done, ok, err] { done(ok, ok ? std::string("connecté") : err); });
+        answer([done, ok, err] { done(ok, ok ? std::string("signed in") : err); });
     });
 }
 
@@ -216,8 +216,8 @@ void Cloud::signUp(const std::string& email, const std::string& password, std::f
             if (!j["access_token"].str().empty()) {   // (no confirmation asked by the project: signed in at once)
                 std::string err;
                 ok = tokenRequest("password", "{\"email\": " + q(email) + ", \"password\": " + q(password) + "}", err);
-                msg = ok ? "compte créé, connecté" : err;
-            } else msg = "compte créé : confirme ton e-mail (lien reçu), puis connecte-toi";
+                msg = ok ? "account created, signed in" : err;
+            } else msg = "account created: confirm your e-mail (link received), then sign in";
         }
         answer([done, ok, msg] { done(ok, msg); });
     });

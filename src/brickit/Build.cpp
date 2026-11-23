@@ -432,7 +432,7 @@ std::string Builder::toJson(const Camera& c) const {
 bool Builder::fromJson(const std::string& text, Camera* cam, std::string* message) {
     app::Json j;
     if (!app::Json::parse(text, j)) { if (message) *message = "JSON invalide"; return false; }
-    if (j["format"].str() != "vp3d-scene") { if (message) *message = "Ce fichier n'est pas une scène vp3d-scene"; return false; }
+    if (j["format"].str() != "vp3d-scene") { if (message) *message = "This file is not a vp3d-scene"; return false; }
     std::vector<Brick> out;
     int skipped = 0;
     for (const app::Json& s : j["bricks"].a) {
@@ -482,7 +482,7 @@ bool Builder::fromJson(const std::string& text, Camera* cam, std::string* messag
     }
     if (message) {
         char buf[160];
-        snprintf(buf, sizeof(buf), "Scène chargée : %d pièces%s", (int)bricks.size(), skipped ? " (des pièces hors bibliothèque ignorées)" : "");
+        snprintf(buf, sizeof(buf), "Scene loaded: %d parts%s", (int)bricks.size(), skipped ? " (parts outside the library skipped)" : "");
         *message = buf;
     }
     return true;

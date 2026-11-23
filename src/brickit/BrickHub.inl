@@ -29,8 +29,8 @@ static std::string hubDate(long long t) {
 #endif
     char b[48];
     const int days = (n.tm_year - a.tm_year) * 366 + (n.tm_yday - a.tm_yday);
-    if (days == 0) snprintf(b, sizeof(b), "aujourd'hui %02d:%02d", a.tm_hour, a.tm_min);
-    else if (days == 1) snprintf(b, sizeof(b), "hier %02d:%02d", a.tm_hour, a.tm_min);
+    if (days == 0) snprintf(b, sizeof(b), "today %02d:%02d", a.tm_hour, a.tm_min);
+    else if (days == 1) snprintf(b, sizeof(b), "yesterday %02d:%02d", a.tm_hour, a.tm_min);
     else snprintf(b, sizeof(b), "%02d/%02d/%02d", a.tm_mday, a.tm_mon + 1, a.tm_year % 100);
     return b;
 }
@@ -59,11 +59,11 @@ void BrickApp::stHub() {
     dl->AddRect(a, b, IM_COL32(255, 255, 255, 22), 20 * s, 0, 1.0f);
     const float pad = 24 * s;
     // ---- header: MES SCÈNES, the close button
-    stTrack(u, ImVec2(a.x + pad, a.y + 22 * s), 12, C_TEXT, "MES SCÈNES", 2.4f * s);
+    stTrack(u, ImVec2(a.x + pad, a.y + 22 * s), 12, C_TEXT, "MY SCENES", 2.4f * s);
     {
         char sub[96];
-        snprintf(sub, sizeof(sub), "%d sur cet appareil%s", (int)m_hubLocal.size(), m_cloud.signedIn() ? (" · " + std::to_string(m_cloudList.size()) + " dans le cloud").c_str() : "");
-        u.text(ImVec2(a.x + pad + stTrackW(u, 12, "MES SCÈNES", 2.4f * s, true) + 14 * s, a.y + 23 * s), 10.5f, C_DIM, sub);
+        snprintf(sub, sizeof(sub), "%d on this device%s", (int)m_hubLocal.size(), m_cloud.signedIn() ? (" · " + std::to_string(m_cloudList.size()) + " in the cloud").c_str() : "");
+        u.text(ImVec2(a.x + pad + stTrackW(u, 12, "MY SCENES", 2.4f * s, true) + 14 * s, a.y + 23 * s), 10.5f, C_DIM, sub);
     }
     {
         const ImVec2 c(b.x - pad - 14 * s, a.y + 30 * s);
@@ -71,7 +71,7 @@ void BrickApp::stHub() {
         dl->AddCircleFilled(c, 17 * s, IM_COL32(255, 255, 255, h ? 26 : 10), 32);
         stIcon(dl, ST_CLOSE, c, 16 * s, h ? C_TEXT : C_DIM, 1.6f * s);
         if (h && u.pressed) { clicked = close = true; }
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Fermer (Échap)");
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Close (Esc)");
     }
     const float top = a.y + 62 * s;
     dl->AddLine(ImVec2(a.x + pad, top - 4 * s), ImVec2(b.x - pad, top - 4 * s), IM_COL32(255, 255, 255, 14), 1.0f);
@@ -141,7 +141,7 @@ void BrickApp::stHub() {
     const float LW = std::clamp(W * 0.3f, 280 * s, 360 * s);
     const float lx = a.x + pad;
     float y = top + 10 * s;
-    stTrack(u, ImVec2(lx, y), 7.5f, C_DIM, "SCÈNE OUVERTE", 1.6f * s);
+    stTrack(u, ImVec2(lx, y), 7.5f, C_DIM, "OPEN SCENE", 1.6f * s);
     y += 18 * s;
     const std::wstring dir = scenesDir();
     const bool inLib = !m_scenePath.empty() && m_scenePath.size() > dir.size() && m_scenePath.compare(0, dir.size(), dir) == 0;
@@ -152,20 +152,20 @@ void BrickApp::stHub() {
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 14 * s);
         else {
             noThumb(ta, tb, 14 * s, 0, nullptr);
-            const char* t = "Pas encore de vignette";
+            const char* t = "No thumbnail yet";
             u.text(ImVec2((ta.x + tb.x - u.textW(10, t)) * 0.5f, tb.y - 30 * s), 10, C_FAINT, t);
         }
         dl->AddRect(ta, tb, IM_COL32(255, 255, 255, 26), 14 * s, 0, 1.0f);
         if (!m_thumbReq.empty()) dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, (int)(60 * (0.5f + 0.5f * std::sin(now * 8)))), 14 * s);
         // « Vignette »: the 3D view of now becomes its thumbnail (saved first if needed)
-        const char* lab = "VIGNETTE";
+        const char* lab = "THUMBNAIL";
         const float bw = stTrackW(u, 7.5f, lab, 1.2f * s, true) + 40 * s, bh = 28 * s;
         const ImVec2 ba(tb.x - bw - 10 * s, tb.y - bh - 10 * s), bb(tb.x - 10 * s, tb.y - 10 * s);
         const bool h = u.hover(ba, bb);
         dl->AddRectFilled(ba, bb, h ? IM_COL32(246, 196, 0, 255) : IM_COL32(12, 13, 15, 210), bh * 0.5f);
         stIcon(dl, ST_SNAP, ImVec2(ba.x + 16 * s, (ba.y + bb.y) * 0.5f), 14 * s, h ? C_INK : C_TEXT, 1.4f * s);
         stTrack(u, ImVec2(ba.x + 28 * s, (ba.y + bb.y) * 0.5f - u.fs(7.5f) * 0.52f), 7.5f, h ? C_INK : C_TEXT, lab, 1.2f * s);
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("La vue 3D actuelle devient la vignette de la scène");
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("The current 3D view becomes the scene thumbnail");
         if (h && u.pressed) {
             clicked = true;
             if (inLib) m_thumbReq = m_scenePath;
@@ -174,7 +174,7 @@ void BrickApp::stHub() {
         y += th + 14 * s;
     }
     {   // its name: a click renames it (its file, its copy in the cloud)
-        const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+        const std::string nm = m_modelName.empty() ? std::string("My scene") : m_modelName;
         const ImVec2 na(lx - 6 * s, y), nb(lx + LW, y + 34 * s);
         if (m_hubEdit == -2) {
             const int r = editField(na, nb, 16);
@@ -184,14 +184,14 @@ void BrickApp::stHub() {
             if (h) dl->AddRectFilled(na, nb, IM_COL32(255, 255, 255, 10), 8 * s);
             u.text(ImVec2(lx, y + 17 * s - u.fs(16) * 0.55f), 16, C_TEXT, stFit(u, 16, nm, LW - 30 * s, true).c_str(), true);
             stIcon(dl, ST_PEN, ImVec2(nb.x - 14 * s, y + 17 * s), 15 * s, h ? C_ACCENT : C_FAINT, 1.4f * s);
-            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Renommer la scène");
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Rename the scene");
             if (h && u.pressed) { clicked = true; startEdit(-2, nm); }
         }
         y += 38 * s;
-        std::string info = std::to_string(m_bricks.size()) + (m_bricks.size() > 1 ? " pièces" : " pièce");
-        if (inLib) info += " · enregistrée " + hubDate(hubFileTime(m_scenePath));
+        std::string info = std::to_string(m_bricks.size()) + (m_bricks.size() > 1 ? " parts" : " part");
+        if (inLib) info += " · saved " + hubDate(hubFileTime(m_scenePath));
         else if (!m_scenePath.empty()) { std::string f = plat::toUtf8(m_scenePath); const size_t k = f.find_last_of("\\/"); info += " · " + (k != std::string::npos ? f.substr(k + 1) : f); }
-        else info += " · pas encore enregistrée";
+        else info += " · not saved yet";
         u.text(ImVec2(lx, y), 10.5f, C_DIM, stFit(u, 10.5f, info, LW, false).c_str());
         y += 26 * s;
     }
@@ -204,19 +204,19 @@ void BrickApp::stHub() {
         stIcon(dl, ST_CLOUD, ImVec2(ca.x + 22 * s, ca.y + 22 * s), 18 * s, C_DIM, 1.4f * s);
         ImU32 dot = IM_COL32(120, 124, 132, 255);
         std::string st;
-        if (!in) st = "Cloud : non connecté";
-        else if (m_cloudSending) { st = "Envoi en cours…"; dot = C_ACCENT; }
-        else if (m_cloudMsg.rfind("envoi impossible", 0) == 0) { st = "Envoi impossible, nouvel essai bientôt"; dot = IM_COL32(229, 72, 60, 255); }
-        else if (m_cloudDirty) { st = "Modifiée : envoyée dans la minute"; dot = C_ACCENT; }
-        else if (!m_cloudId.empty()) { st = "À jour dans le cloud"; dot = IM_COL32(76, 190, 110, 255); }
-        else st = "Pas encore dans le cloud";
+        if (!in) st = "Cloud: not signed in";
+        else if (m_cloudSending) { st = "Uploading…"; dot = C_ACCENT; }
+        else if (m_cloudMsg.rfind("upload failed", 0) == 0) { st = "Upload failed, retrying soon"; dot = IM_COL32(229, 72, 60, 255); }
+        else if (m_cloudDirty) { st = "Modified: uploaded within a minute"; dot = C_ACCENT; }
+        else if (!m_cloudId.empty()) { st = "Up to date in the cloud"; dot = IM_COL32(76, 190, 110, 255); }
+        else st = "Not in the cloud yet";
         if (m_cloudSending) dot = stA(dot, 0.5f + 0.5f * (float)std::sin(now * 6));
         dl->AddCircleFilled(ImVec2(ca.x + 44 * s, ca.y + 22 * s), 4 * s, dot, 12);
         u.text(ImVec2(ca.x + 56 * s, ca.y + 22 * s - u.fs(11.5f) * 0.55f), 11.5f, C_TEXT, st.c_str(), true);
         if (!in) {
-            u.text(ImVec2(ca.x + 14 * s, ca.y + 42 * s), 10, C_DIM, "Retrouve tes scènes sur l'iPad et le PC");
+            u.text(ImVec2(ca.x + 14 * s, ca.y + 42 * s), 10, C_DIM, "Find your scenes on iPad and PC");
             float bw = 0;
-            const char* lab = "Se connecter";
+            const char* lab = "Sign in";
             const float lw = u.textW(11, lab, true) + 20 * s;
             if (webButton(u, ImVec2(cb.x - lw - 10 * s, ca.y + 36 * s), lab, bw, true, C_ACCENT, C_INK, false, 26, 11)) {
                 clicked = true;
@@ -226,22 +226,22 @@ void BrickApp::stHub() {
             u.text(ImVec2(ca.x + 14 * s, ca.y + 42 * s), 10, C_DIM, stFit(u, 10, m_cloud.email(), LW - 28 * s, false).c_str());
             // Synchro auto: oui / non
             const float sy = ca.y + 62 * s;
-            u.text(ImVec2(ca.x + 14 * s, sy + 4 * s), 10, C_DIM, "Synchro auto");
-            const float tx = ca.x + 14 * s + u.textW(10, "Synchro auto") + 10 * s;
+            u.text(ImVec2(ca.x + 14 * s, sy + 4 * s), 10, C_DIM, "Auto sync");
+            const float tx = ca.x + 14 * s + u.textW(10, "Auto sync") + 10 * s;
             const ImVec2 ta(tx, sy + 2 * s), tb(tx + 34 * s, sy + 20 * s);
             const bool ht = u.hover(ta, tb);
             dl->AddRectFilled(ta, tb, m_cloudAuto ? C_ACCENT : IM_COL32(255, 255, 255, ht ? 40 : 26), 9 * s);
             dl->AddCircleFilled(ImVec2(m_cloudAuto ? tb.x - 9 * s : ta.x + 9 * s, (ta.y + tb.y) * 0.5f), 7 * s, m_cloudAuto ? C_INK : C_TEXT, 16);
             if (ht && u.pressed) { clicked = true; m_cloudAuto = !m_cloudAuto; savePrefs(); }
             // Synchroniser maintenant
-            const char* lab = "Synchroniser";
+            const char* lab = "Sync";
             const float bw2 = u.textW(11, lab, true) + 40 * s;
             const ImVec2 ba(cb.x - bw2 - 10 * s, sy - 2 * s), bb(cb.x - 10 * s, sy + 24 * s);
             const bool hb = u.hover(ba, bb) && !m_cloudSending;
             dl->AddRectFilled(ba, bb, hb ? C_CARD_HI : C_CARD, 13 * s);
             stIcon(dl, ST_SYNC, ImVec2(ba.x + 16 * s, (ba.y + bb.y) * 0.5f), 13 * s, m_cloudSending ? C_ACCENT : C_TEXT, 1.4f * s);
             u.text(ImVec2(ba.x + 28 * s, (ba.y + bb.y) * 0.5f - u.fs(11) * 0.55f), 11, m_cloudSending ? C_DIM : C_TEXT, lab, true);
-            if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Envoyer la scène au cloud maintenant");
+            if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Upload the scene to the cloud now");
             if (hb && u.pressed) {
                 clicked = true;
                 m_cloudSentKey.clear();   // (sent even when only its name changed)
@@ -253,13 +253,13 @@ void BrickApp::stHub() {
     }
     {   // the actions
         struct Act { const char* ico; const char* label; const char* key; int id; bool primary; };
-        std::vector<Act> acts = {{ST_SAVE, "Enregistrer", m_ipad ? "" : "Ctrl+S", 0, true}};
-        if (m_ipad) acts.push_back({ST_SHARE, "Partager (AirDrop, Mail, PC)", "", 4, false});
-        else acts.push_back({ST_SAVE, "Enregistrer sous…", "Ctrl+Maj+S", 3, false});
-        acts.push_back({ST_NEW, "Nouvelle scène", m_ipad ? "" : "Ctrl+N", 1, false});
-        acts.push_back({ST_OPEN, m_ipad ? "Ouvrir (Fichiers)…" : "Ouvrir un fichier…", m_ipad ? "" : "Ctrl+O", 2, false});
+        std::vector<Act> acts = {{ST_SAVE, "Save", m_ipad ? "" : "Ctrl+S", 0, true}};
+        if (m_ipad) acts.push_back({ST_SHARE, "Share (AirDrop, Mail, PC)", "", 4, false});
+        else acts.push_back({ST_SAVE, "Save as…", "Ctrl+Shift+S", 3, false});
+        acts.push_back({ST_NEW, "New scene", m_ipad ? "" : "Ctrl+N", 1, false});
+        acts.push_back({ST_OPEN, m_ipad ? "Open (Files)…" : "Open a file…", m_ipad ? "" : "Ctrl+O", 2, false});
         acts.push_back({ST_PRESET, "Presets…", "", 5, false});
-        if (m_ipad) acts.push_back({ST_INFO, "Envoyer un rapport (bug)", "", 6, false});
+        if (m_ipad) acts.push_back({ST_INFO, "Send a report (bug)", "", 6, false});
         const float ih = 36 * s, room = b.y - pad - y;
         const int fit = std::max(1, (int)(room / (ih + 4 * s)));
         for (int k = 0; k < (int)acts.size() && k < fit; ++k) {
@@ -294,9 +294,9 @@ void BrickApp::stHub() {
     y = top + 4 * s;
     {   // the tabs
         const int nCloud = m_cloud.signedIn() ? (int)m_cloudList.size() : -1;
-        const std::string t0 = "SUR CET APPAREIL  " + std::to_string(m_hubLocal.size());
+        const std::string t0 = "ON THIS DEVICE  " + std::to_string(m_hubLocal.size());
         const std::string t1 = nCloud >= 0 ? "CLOUD  " + std::to_string(nCloud) : std::string("CLOUD");
-        const char* labs[3] = {t0.c_str(), t1.c_str(), "DÉMOS"};
+        const char* labs[3] = {t0.c_str(), t1.c_str(), "DEMOS"};
         float x = rx0;
         for (int k = 0; k < 3; ++k) {
             const float tw = stTrackW(u, 8.5f, labs[k], 1.5f * s, true) + 28 * s;
@@ -319,7 +319,7 @@ void BrickApp::stHub() {
             const bool h = u.hover(ImVec2(c.x - 16 * s, c.y - 16 * s), ImVec2(c.x + 16 * s, c.y + 16 * s));
             dl->AddCircleFilled(c, 15 * s, IM_COL32(255, 255, 255, h ? 22 : 8), 24);
             stIcon(dl, ST_SYNC, c, 15 * s, m_cloudListBusy ? C_ACCENT : C_DIM, 1.4f * s);
-            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Rafraîchir");
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Refresh");
             if (h && u.pressed) { clicked = true; cloudRefreshList(); }
         }
         y += 32 * s + 16 * s;
@@ -371,7 +371,7 @@ void BrickApp::stHub() {
             const ImVec2 c((ca.x + cb.x) * 0.5f, (ca.y + cb.y) * 0.5f - 10 * s);
             dl->AddCircleFilled(c, 22 * s, h ? C_ACCENT : IM_COL32(255, 255, 255, 18), 32);
             stIcon(dl, ST_NEW, c, 20 * s, h ? C_INK : C_TEXT, 1.8f * s);
-            const char* t = "NOUVELLE SCÈNE";
+            const char* t = "NEW SCENE";
             stTrack(u, ImVec2(c.x - stTrackW(u, 8.5f, t, 1.4f * s, true) * 0.5f, c.y + 32 * s), 8.5f, h ? C_TEXT : C_DIM, t, 1.4f * s);
             if (h && u.pressed) { clicked = true; keepOpen(); newScene(); close = true; }
             continue;
@@ -383,19 +383,19 @@ void BrickApp::stHub() {
         if (cd.kind == 0) {
             const HubScene& sc = m_hubLocal[cd.i];
             name = sc.name;
-            sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " pièces";
+            sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " parts";
             tex = hubThumb(sc.path);
             cur = sc.path == m_scenePath;
             cloudMark = cur && !m_cloudId.empty();
         } else if (cd.kind == 1) {
             const CloudScene& c = m_cloudList[cd.i];
-            name = c.name.empty() ? std::string("Ma scène") : c.name;
-            sub = (c.device.empty() ? std::string() : c.device + " · ") + Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces";
+            name = c.name.empty() ? std::string("My scene") : c.name;
+            sub = (c.device.empty() ? std::string() : c.device + " · ") + Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " parts";
             cur = c.id == m_cloudId;
             ico = ST_CLOUD;
         } else {
-            name = cd.i == 0 ? "Maison (démo)" : "Pelleteuse et mécanismes";
-            sub = cd.i == 0 ? "Le set 31153 et ses figurines" : "4 moteurs, 2 vérins : passe en Mécanique";
+            name = cd.i == 0 ? "House (demo)" : "Excavator and mechanisms";
+            sub = cd.i == 0 ? "Set 31153 and its figures" : "4 motors, 2 cylinders: switch to Mechanics";
             ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
         }
         // the card
@@ -405,7 +405,7 @@ void BrickApp::stHub() {
         if (h && tex) dl->AddRectFilled(ta, tb, IM_COL32(255, 255, 255, 12), 14 * s, ImDrawFlags_RoundCornersTop);
         dl->AddRect(ca, cb, cur ? IM_COL32(246, 196, 0, 200) : IM_COL32(255, 255, 255, h ? 40 : 18), 14 * s, 0, cur ? 1.5f * s : 1.0f);
         if (cur) {   // OUVERTE
-            const char* t = "OUVERTE";
+            const char* t = "OPEN";
             const float w = stTrackW(u, 7, t, 1.2f * s, true) + 16 * s;
             const ImVec2 pa(ta.x + 10 * s, ta.y + 10 * s), pb(pa.x + w, pa.y + 20 * s);
             dl->AddRectFilled(pa, pb, C_ACCENT, 10 * s);
@@ -429,21 +429,21 @@ void BrickApp::stHub() {
         if (acts && cd.kind == 0) {
             float bx = tb.x - 20 * s;
             const float by = ta.y + 20 * s, r = 14 * s;
-            if (roundBtn(ImVec2(bx, by), r, ST_DEL, "Supprimer", true)) { act = true; hubDelete(cd.i); }
+            if (roundBtn(ImVec2(bx, by), r, ST_DEL, "Delete", true)) { act = true; hubDelete(cd.i); }
             bx -= 2 * r + 6 * s;
-            if (roundBtn(ImVec2(bx, by), r, ST_DUP, "Dupliquer")) { act = true; hubDuplicate(cd.i); }
+            if (roundBtn(ImVec2(bx, by), r, ST_DUP, "Duplicate")) { act = true; hubDuplicate(cd.i); }
             bx -= 2 * r + 6 * s;
-            if (roundBtn(ImVec2(bx, by), r, ST_PEN, "Renommer")) { act = true; startEdit(cd.i, name); }
+            if (roundBtn(ImVec2(bx, by), r, ST_PEN, "Rename")) { act = true; startEdit(cd.i, name); }
         } else if (acts && cd.kind == 1) {
-            if (roundBtn(ImVec2(tb.x - 20 * s, ta.y + 20 * s), 14 * s, ST_DEL, "Supprimer du cloud", true)) {
+            if (roundBtn(ImVec2(tb.x - 20 * s, ta.y + 20 * s), 14 * s, ST_DEL, "Delete from the cloud", true)) {
                 act = true;
                 const CloudScene cs = m_cloudList[cd.i];
-                plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Supprimer « " + (cs.name.empty() ? std::string("Ma scène") : cs.name) + " » du cloud ? (Sur cet appareil, rien ne change.)"),
+                plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Delete “" + (cs.name.empty() ? std::string("My scene") : cs.name) + "” from the cloud? (Nothing changes on this device.)"),
                               [this, cs] {
                                   m_cloud.remove(cs.id, [this, cs](bool ok, const std::string& err) {
-                                      if (!ok) { toast("Cloud : " + err); return; }
+                                      if (!ok) { toast("Cloud: " + err); return; }
                                       if (cs.id == m_cloudId) cloudForget();
-                                      toast("Cloud : « " + cs.name + " » supprimée");
+                                      toast("Cloud: “" + cs.name + "” deleted");
                                       cloudRefreshList();
                                   });
                               });
@@ -465,16 +465,16 @@ void BrickApp::stHub() {
             } else {
                 keepOpen();
                 if (cd.i == 0) openOfficialHouse();
-                else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; toast("Démo : pelleteuse et mécanismes (passe en Mécanique : 4 moteurs, 2 vérins)"); }
+                else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Excavator and mechanisms"; toast("Demo: excavator and mechanisms (switch to Mechanics: 4 motors, 2 cylinders)"); }
                 close = true;
             }
         }
     }
     dl->PopClipRect();
     if (cards.size() <= 1 && m_hubTab != 2) {   // nothing yet
-        const char* t = m_hubTab == 0 ? "Aucune scène enregistrée ici pour l'instant. « Enregistrer » range la scène ouverte dans Mes scènes, avec sa vignette."
-                      : !m_cloud.signedIn() ? "Connecte-toi (à gauche) pour retrouver tes scènes de l'iPad et du PC."
-                      : m_cloudListBusy ? "Chargement…" : !m_cloudListErr.empty() ? m_cloudListErr.c_str() : "Aucune scène dans le cloud pour l'instant : la tienne y sera après ta prochaine modification.";
+        const char* t = m_hubTab == 0 ? "No scene saved here yet. “Save” stores the open scene in My scenes, with its thumbnail."
+                      : !m_cloud.signedIn() ? "Sign in (on the left) to find your scenes from iPad and PC."
+                      : m_cloudListBusy ? "Loading…" : !m_cloudListErr.empty() ? m_cloudListErr.c_str() : "No scene in the cloud yet: yours will be there after your next change.";
         const float ty = m_hubTab == 0 ? ga.y + cH + gap + 10 * s : ga.y + 10 * s;
         u.text(ImVec2(ga.x + 4 * s, ty), 11, C_DIM, t);
     }
