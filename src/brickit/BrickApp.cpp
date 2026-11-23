@@ -72,17 +72,18 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
     loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
     crashSetState([this]() {   // what a crash report says of the app
-        char b[1200];
+        char b[1600];
         const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
         snprintf(b, sizeof(b), "Frame %d · bricks %d · selection %d · in hand %d\nInterface %s · popup %d · library dock %d %s · HD %d · DEV %d\n"
                  "Voxel Editor: %s · thumbnail (DEV) %d · mechanics %d · paint %d\nRender: %s · quality %d · soft GI %d\nLast message: %s\n"
-                 "BrickIt textures: %d (limit 170) · thumbnails loaded %d · ImGui textures %d · font atlas %dx%d\n",
+                 "BrickIt textures: %d (1024 slots) · thumbnails loaded %d · ImGui textures %d · font atlas %dx%d\nGPU device: 0x%08lX (0 = OK; 887A0005 removed, 887A0006 hung, 887A0007 reset, 887A0020 driver error, 8007000E out of memory)\nWindow: %ux%u · UI scale %.2f\n",
                  m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classic", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
                  m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "closed", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
                  m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str(),
                  m_gui ? m_gui->liveTextures() : -1, (int)m_lazyThumbs.size(), ImGui::GetCurrentContext() ? ImGui::GetPlatformIO().Textures.Size : -1,
                  ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Width : 0,
-                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0);
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0,
+                 (unsigned long)(m_renderer ? m_renderer->deviceRemoved() : 0), m_renderer ? m_renderer->width() : 0u, m_renderer ? m_renderer->height() : 0u, m_ui);
         return std::string(b);
     });
     if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;

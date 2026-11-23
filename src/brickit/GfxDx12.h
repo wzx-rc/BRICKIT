@@ -35,6 +35,7 @@ public:
     float giUpdateMs() const override { return r.giUpdateMs(); }
     float giBlendMs() const override { return r.giBlendMs(); }
     bool pathTracing() const override { return true; }
+    long deviceRemoved() const override { return r.device() ? (long)r.device()->GetDeviceRemovedReason() : 0; }
 };
 
 class GfxGuiDx12 final : public GfxGui {
