@@ -253,7 +253,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         }
     }
 
-    if (opt.mechTests) { runMechTests(); return false; }   // (quits: the results are in mech_tests.txt)
+    if (opt.mechTests) { runMechTests(); return false; }
+    if (!opt.partsTest.empty()) { partsTest(opt.partsTest); return false; }   // (quits: the results are in mech_tests.txt)
     return true;
 }
 
@@ -1021,11 +1022,25 @@ void BrickApp::updateFocus(float dt) {
     float aim = m_focusAim > 0 ? m_focusAim : cam.distance;
     if (m_focusMode == 2) aim = m_focusManual;
     else if (m_focusMode == 0) {
-        float3 o, d;
-        const ImVec4 st = m_stage;
-        view().ray((st.x + st.z) * 0.5f, (st.y + st.w) * 0.5f, o, d);
-        const PickResult r = pick(m_scene, o, d);
-        if (r.object >= 0 && r.t < 1e20f) aim = r.t;
+        // (the ray through the middle of the view hits the whole scene: 2.6 ms a frame on the house 31153, 947 parts;
+        // only with the depth of field on, and only when the view or the scene changed, 23/11/2026)
+        static float lastKey[6] = {0, 0, 0, 0, 0, 0};
+        static uint64_t lastVer = ~0ull;
+        static float lastAim = -1;
+        const float key[6] = {cam.yaw, cam.pitch, cam.distance, cam.target.x, cam.target.y, cam.target.z};
+        const bool same = lastVer == (uint64_t)m_scene.objectsVersion && std::equal(key, key + 6, lastKey);
+        if (m_rs.dof <= 0 && !cam.dof) aim = cam.distance;   // (no depth of field: no focus to aim)
+        else if (same && lastAim > 0) aim = lastAim;
+        else {
+            float3 o, d;
+            const ImVec4 st = m_stage;
+            view().ray((st.x + st.z) * 0.5f, (st.y + st.w) * 0.5f, o, d);
+            const PickResult r = pick(m_scene, o, d);
+            if (r.object >= 0 && r.t < 1e20f) aim = r.t;
+            std::copy(key, key + 6, lastKey);
+            lastVer = (uint64_t)m_scene.objectsVersion;
+            lastAim = aim;
+        }
     } else {
         aim = cam.distance;
         std::vector<int> s = selection();
@@ -1225,11 +1240,17 @@ void BrickApp::frame() {
     LARGE_INTEGER pB;
     QueryPerformanceCounter(&pB);
     if (m_opt.perfOrbit && m_frame > 30) { m_scene.camera.yaw += 0.01f; m_renderer->resetAccumulation(); m_lastMove = ImGui::GetTime(); }   // (--perf-orbit: the view turns)
+    LARGE_INTEGER pI0, pI1, pI2;   // (--perf-trace: the input, the animations)
+    QueryPerformanceCounter(&pI0);
     cameraInput();
     if (m_mechOn) mechUpdate((float)ImGui::GetIO().DeltaTime);
     else editInput();
+    QueryPerformanceCounter(&pI1);
     updateAnim(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
     updateFocus(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
+    QueryPerformanceCounter(&pI2);
+    m_perfInput = (double)(pI1.QuadPart - pI0.QuadPart) * 1000.0 / m_qpf.QuadPart;
+    m_perfAnim = (double)(pI2.QuadPart - pI1.QuadPart) * 1000.0 / m_qpf.QuadPart;
     if (ImGui::IsKeyPressed(ImGuiKey_M) && !ImGui::GetIO().WantTextInput && !ImGui::GetIO().KeyCtrl) { if (m_mechOn) mechExit(); else mechEnter(); }
 
     ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -1526,12 +1547,12 @@ void BrickApp::frame() {
     m_renderer->present(m_opt.shotPath.empty());
     if (!m_opt.perfTrace.empty()) {   // --perf-trace: ms of each part of the frame (UI, render submit, ImGui, present / vsync), GPU
         static FILE* pf = nullptr;
-        if (!pf) { _wfopen_s(&pf, m_opt.perfTrace.c_str(), L"w"); if (pf) fprintf(pf, "frame total pre ui logic render overlays imgui present gpu\n"); }
+        if (!pf) { _wfopen_s(&pf, m_opt.perfTrace.c_str(), L"w"); if (pf) fprintf(pf, "frame total pre ui logic render overlays imgui present gpu input anim\n"); }
         LARGE_INTEGER pG;
         QueryPerformanceCounter(&pG);
         auto ms = [&](const LARGE_INTEGER& a, const LARGE_INTEGER& b) { return (b.QuadPart - a.QuadPart) * 1000.0 / m_qpf.QuadPart; };
         const bool r = m_perfD.QuadPart > m_perfT0.QuadPart;
-        if (pf) fprintf(pf, "%d %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n", m_frame, ms(m_perfT0, pG), ms(m_perfT0, m_perfA), ms(m_perfA, m_perfB), r ? ms(m_perfB, m_perfD) : ms(m_perfB, m_perfT1), r ? ms(m_perfD, m_perfE) : 0.0, r ? ms(m_perfE, m_perfT1) : 0.0, ms(m_perfT1, m_perfF), ms(m_perfF, pG), m_renderer->gpuFrameMs());
+        if (pf) fprintf(pf, "%d %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n", m_frame, ms(m_perfT0, pG), ms(m_perfT0, m_perfA), ms(m_perfA, m_perfB), r ? ms(m_perfB, m_perfD) : ms(m_perfB, m_perfT1), r ? ms(m_perfD, m_perfE) : 0.0, r ? ms(m_perfE, m_perfT1) : 0.0, ms(m_perfT1, m_perfF), ms(m_perfF, pG), m_renderer->gpuFrameMs(), m_perfInput, m_perfAnim);
         if (m_frame >= m_opt.perfFrames) { if (pf) fclose(pf); pf = nullptr; m_running = false; }
     }
     if (!m_opt.ptTrace.empty()) {   // convergence: samples accumulated and the cost of each frame
@@ -1671,7 +1692,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--float-tray") { opt.floatTray = true; opt.floatX = (float)_wtof(next().c_str()); opt.floatY = (float)_wtof(next().c_str()); }
         else if (a == L"--opts-right") opt.optsRight = true;
         else if (a == L"--cornell") opt.cornell = true;
-        else if (a == L"--mechtests") opt.mechTests = true;   // the Cornell box of WZX Engine (comparison of the renderers)
+        else if (a == L"--mechtests") opt.mechTests = true;
+        else if (a == L"--parts-test") opt.partsTest = next();   // the Cornell box of WZX Engine (comparison of the renderers)
         else if (a == L"--perf-trace") { opt.perfTrace = next(); opt.perfFrames = _wtoi(next().c_str()); }
         else if (a == L"--perf-orbit") opt.perfOrbit = 1;
         else if (a == L"--cloud-selftest") opt.cloudSelfTest = next();

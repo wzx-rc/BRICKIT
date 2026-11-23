@@ -114,8 +114,11 @@ void BrickApp::stHeaderBrique() {
                      {BQ_PAINT, "Peindre", !hubOn && m_paintMode && !m_mechOn, 2}, {BQ_MECH, "Mécanique", !hubOn && m_mechOn, 3}, {BQ_BOOK, "Notice", !hubOn && notice && !m_mechOn, 4}};
     float x = LW + 16 * s;
     const float ph = 44 * s;
+    // a narrow screen (an iPad 11", 23/11/2026: « Mécanique » ran into undo / redo): the label of the active pill only
+    const bool compact = d.x < 1400 * s;
     for (const P& p : ps) {
-        const float lw = u.textW(14, p.label, true), w = 22 * s + 22 * s + 8 * s + lw;
+        const bool label = !compact || p.on;
+        const float lw = u.textW(14, p.label, true), w = label ? 22 * s + 22 * s + 8 * s + lw : 44 * s;
         const ImVec2 o = bqEl(std::string("hdr") + std::to_string(p.id), p.label, ImVec4(x, cy - ph * 0.5f, x + w, cy + ph * 0.5f));
         const ImVec2 a(x + o.x, cy - ph * 0.5f + o.y), b(a.x + w, a.y + ph);
         const float pcy = (a.y + b.y) * 0.5f;
@@ -123,8 +126,9 @@ void BrickApp::stHeaderBrique() {
         if (p.on) bqYellow(dl, a, b, 13 * s, s, h);
         else if (h) dl->AddRectFilled(a, b, g_bq.hover, 13 * s);
         const ImU32 fg = p.on ? C_INK : C_TEXT;
-        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, pcy), 21 * s, p.on ? C_INK : g_bq.navIdle, 2.0f * s);
-        u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
+        stIcon(dl, p.ico, ImVec2(label ? a.x + 22 * s : (a.x + b.x) * 0.5f, pcy), 21 * s, p.on ? C_INK : g_bq.navIdle, 2.0f * s);
+        if (label) u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
+        else if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", p.label);
         if (h && u.pressed) {
             switch (p.id) {
             case 0: m_popup = hubOn ? 0 : 8; m_hubStale = true; if (m_popup == 8) cloudRefreshList(); break;
@@ -265,8 +269,9 @@ void BrickApp::stBriqueCorners() {
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Mes scènes : enregistrer, renommer, ouvrir, cloud");
         if (h && u.pressed) { m_popup = 8; m_hubStale = true; cloudRefreshList(); }
         m_bqSceneY = b.y;
+        g_bqSceneR = b.x;
         bqReg("scene", "Scène", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
-    } else m_bqSceneY = st.y;
+    } else { m_bqSceneY = st.y; g_bqSceneR = st.x; }
     // ---- the render: Rapide / HQ / Ray tracing, HD (PC)
     if (!m_ipad && !bqHidden("render")) {
         const float k = bqK("render"), s = m_ui * k;
@@ -314,7 +319,8 @@ void BrickApp::stBriqueCorners() {
         const ImVec2 off = bqOff("save");
         const char* lab = "Enregistrer";
         const float W = u.textW(15, lab, true) + 64 * s, Hh = 48 * s;
-        const ImVec2 a0(st.z - 14 * m_ui - W, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
+        const float navW = st.z - st.x < 900 * s ? 70 * s : 0;   // (a narrow stage: left of the navigation column, 23/11/2026)
+        const ImVec2 a0(st.z - 14 * m_ui - W - navW, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
         const bool h = u.hover(a, b);
         bqYellow(u.dl, a, b, 14 * s, s, h);
         stIcon(u.dl, BQ_SAVE, ImVec2(a.x + 24 * s, (a.y + b.y) * 0.5f - 1 * s), 20 * s, C_INK, 2.0f * s);

@@ -149,6 +149,7 @@ struct Options {
     float floatX = 0, floatY = 0;
     std::string ttBase, ttTop;
     std::string mouseTest;
+    std::wstring partsTest;     // --parts-test <file>: every part of the drawer built for real (BrickUiCreme.inl), then quit
     bool mechTests = false;     // --mechtests: the battery of mechanics tests, then quit
     int quality = -1;
     bool settings = false;
@@ -394,6 +395,7 @@ private:
     // apart from the Thème (Classique, Brique, Crème: the colours), each theme on each interface. Réglages › Interface,
     // the hub of the kit. 0 Grey (the layout of Brique), 1 Black (the layout of Classique), 2 Crème (the touch kit)
     int m_ux = 0;
+    double m_perfInput = 0, m_perfAnim = 0;   // --perf-trace: ms of the input (camera, edit) and of the animations
     float m_kitLibFrac = 0.36f;   // the height of the drawer of the kit (its grip), part of the screen
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
     struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
@@ -946,7 +948,8 @@ private:
     void ipadTools();
     bool ipadAngles(ImVec2 above);
     void crTurn(int dir = 1);
-    void crFrame();                // Recadrer: the selection in the middle, closer (all the scene without one)
+    void crFrame();
+    void partsTest(const std::wstring& outPath);                // Recadrer: the selection in the middle, closer (all the scene without one)
     void ipadColorRing();          // a long press on a brick: all the colours in rings around it
     void crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool current, float alpha);
     bool m_crRing = false, m_crRingSticky = false;

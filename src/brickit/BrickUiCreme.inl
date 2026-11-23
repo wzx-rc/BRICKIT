@@ -855,3 +855,119 @@ void BrickApp::ipadHub() {
     if (m_crHubRename < 0 && m_crCardMenu < 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) close = true;
     if (close) { m_homeOpen = false; m_newSceneOpen = false; m_crCardMenu = -1; m_crHubRename = -1; }
 }
+
+// ------------------------------------------------------------------ --parts-test: every part of the drawer built for real
+// (Wzx 23/11/2026: « test des constructions pour voir si des briques ne fonctionnent pas »). For each part of the
+// families of the library: A, taken from the drawer over a 2 x 4 brick (3001), does it snap onto its studs? B, a 1 x 1
+// brick (3005) taken over it, does it snap onto its studs? The same code as a finger or the mouse (spawn, updateHeld:
+// the snap of the Builder, the overlap refusal). Parts without studs nor anti-studs (Technic) are only counted.
+void BrickApp::partsTest(const std::wstring& outPath) {
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, outPath.c_str(), L"w") != 0 || !f) return;
+    const int base = m_lib.find("3001"), top = m_lib.find("3005");
+    if (base < 0 || top < 0 || !m_lib.get("3001") || !m_lib.get("3005")) { fprintf(f, "3001 / 3005 missing\n"); fclose(f); return; }
+    m_animOn = false;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    m_stage = ImVec4(0, 0, std::max(800.0f, d.x), std::max(600.0f, d.y));
+    Camera& cam = m_scene.camera;
+    auto setCam = [&](float3 at) { cam.target = at; cam.distance = 14; cam.pitch = radians(42.0f); cam.yaw = radians(35.0f); cam.ortho = false; };
+    // the parts of the drawer, family by family (as crLibParts: available, no decoration, no Duplo)
+    struct Item { const char* fam; int part; };
+    std::vector<Item> items;
+    std::vector<char> seen(m_lib.parts.size(), 0);
+    for (const StFam& fam : stFams()) {
+        if (std::string(fam.key) == "recent" || std::string(fam.key) == "fav") continue;
+        for (int i = 0; i < (int)m_lib.parts.size(); ++i) {
+            const Part& p = m_lib.parts[i];
+            if (seen[i] || !p.available() || partDeco(p) || partDuplo(p)) continue;
+            const std::string& c = partCat(i);
+            bool in = false;
+            for (const StSub& q : fam.subs) if (stInSub(q, c, p.sub)) { in = true; break; }
+            if (in) { items.push_back({fam.label, i}); seen[i] = 1; }
+        }
+    }
+    fprintf(f, "# %zu parts\n# famille;pièce;titre;voxels;tenons;anti-tenons;A posée sur 3001;B 3005 posée dessus\n", items.size());
+    struct Count { int n = 0, aOk = 0, aFail = 0, bOk = 0, bFail = 0, none = 0, noMesh = 0; };
+    std::map<std::string, Count> counts;
+    std::vector<std::string> fails;
+    auto studs = [&](const Part& p, int type, std::vector<float3>& out) {
+        out.clear();
+        for (size_t k = 0; k < p.voxels.size() && k < p.conn.size(); ++k) if (p.conn[k] == type) out.push_back(p.voxels[k]);
+    };
+    for (size_t it = 0; it < items.size(); ++it) {
+        const int pi = items[it].part;
+        Count& cn = counts[items[it].fam];
+        ++cn.n;
+        Part* pp = m_lib.get(m_lib.parts[pi].name);
+        if (!pp || pp->mesh.indices.empty()) { ++cn.noMesh; fails.push_back(std::string(items[it].fam) + ";" + m_lib.parts[pi].name + ";" + m_lib.parts[pi].label + ";pas de maillage"); continue; }
+        const Part& p = *pp;
+        std::vector<float3> st, an;
+        studs(p, CONN_STUD, st);
+        studs(p, CONN_ANTISTUD, an);
+        std::string a = "-", b = "-";
+        // A: the part over the 2 x 4 brick, aimed at its middle studs
+        if (!an.empty()) {
+            m_bricks.clear();
+            Brick bb;
+            bb.part = base;
+            bb.color = m_color;
+            m_bricks.push_back(bb);
+            rebuildScene();
+            const Part& bp = m_lib.parts[base];
+            std::vector<float3> bs;
+            studs(bp, CONN_STUD, bs);
+            float3 aim = (bp.bmin + bp.bmax) * 0.5f;
+            aim.y = bp.bmax.y - 0.1f;
+            float best = 1e30f;
+            for (const float3& v : bs) if (length(v - aim) < best) { best = length(v - aim); aim = v; }
+            setCam(aim);
+            float sx, sy;
+            view().project(aim + float3(0, 0.05f, 0), sx, sy);
+            spawn(pi, sx, sy);
+            if (m_holding) {
+                const Box bx = m_build.aabbOf(pi, m_held.rot, m_held.target);
+                const bool onTop = std::fabs(m_held.snapVoxel.y - aim.y) < 0.2f && bx.mn.y > bp.bmax.y - 0.45f;
+                a = m_held.blocked ? "REFUSÉE" : onTop ? "ok" : "PAS ACCROCHÉE";
+                if (a != "ok") { char e[160]; snprintf(e, sizeof(e), " (visé %.2f %.2f %.2f, accroché %.2f %.2f %.2f, bas %.2f)", aim.x, aim.y, aim.z, m_held.snapVoxel.x, m_held.snapVoxel.y, m_held.snapVoxel.z, bx.mn.y); a += e; }
+                cancelHeld();
+            } else a = "PAS EN MAIN";
+            (a == "ok" ? cn.aOk : cn.aFail)++;
+        }
+        // B: a 1 x 1 brick over the part, aimed at its highest stud
+        if (!st.empty()) {
+            m_bricks.clear();
+            Brick pb;
+            pb.part = pi;
+            pb.color = m_color;
+            pb.pos = float3(-(p.bmin.x + p.bmax.x) * 0.5f, -p.bmin.y, -(p.bmin.z + p.bmax.z) * 0.5f);
+            m_bricks.push_back(pb);
+            rebuildScene();
+            float3 aim = st[0];
+            for (const float3& v : st) if (v.y > aim.y + 1e-3f || (std::fabs(v.y - aim.y) < 1e-3f && length(v - (p.bmin + p.bmax) * 0.5f) < length(aim - (p.bmin + p.bmax) * 0.5f))) aim = v;
+            aim = aim + pb.pos;
+            setCam(aim);
+            float sx, sy;
+            view().project(aim + float3(0, 0.05f, 0), sx, sy);
+            spawn(top, sx, sy);
+            if (m_holding) {
+                const bool onIt = length(m_held.snapVoxel - aim) < 0.85f;
+                b = m_held.blocked ? "REFUSÉE" : onIt ? "ok" : "PAS ACCROCHÉE";
+                if (b != "ok") { char e[160]; snprintf(e, sizeof(e), " (visé %.2f %.2f %.2f, accroché %.2f %.2f %.2f)", aim.x, aim.y, aim.z, m_held.snapVoxel.x, m_held.snapVoxel.y, m_held.snapVoxel.z); b += e; }
+                cancelHeld();
+            } else b = "PAS EN MAIN";
+            (b == "ok" ? cn.bOk : cn.bFail)++;
+        }
+        if (an.empty() && st.empty()) ++cn.none;
+        fprintf(f, "%s;%s;%s;%zu;%zu;%zu;%s;%s\n", items[it].fam, p.name.c_str(), p.label.c_str(), p.voxels.size(), st.size(), an.size(), a.c_str(), b.c_str());
+        if ((a != "-" && a != "ok") || (b != "-" && b != "ok"))
+            fails.push_back(std::string(items[it].fam) + ";" + p.name + ";" + p.label + ";A " + a + ";B " + b);
+        if (it % 200 == 0) fflush(f);
+    }
+    fprintf(f, "\n# par famille : pièces, A ok / échec, B ok / échec, sans tenon ni anti-tenon, sans maillage\n");
+    for (auto& [fam, c] : counts) fprintf(f, "# %s : %d pièces, A %d / %d, B %d / %d, sans connecteur %d, sans maillage %d\n", fam.c_str(), c.n, c.aOk, c.aFail, c.bOk, c.bFail, c.none, c.noMesh);
+    fprintf(f, "\n# %zu échecs\n", fails.size());
+    for (const std::string& s : fails) fprintf(f, "! %s\n", s.c_str());
+    fclose(f);
+    m_bricks.clear();
+    rebuildScene();
+}

@@ -17,6 +17,7 @@ static ImU32 bqMixC(ImU32 a, ImU32 b, float t) {
     return ch(0) | ch(8) | ch(16) | ch(24);
 }
 static bool g_brique = false;   // the layout of Brique (Brique, Crème)
+static float g_bqSceneR = 0;   // the right edge of the scene card of Atelier (the tools go right of it on a narrow stage)
 static bool g_hubPage = false;  // the hub as a page (Brique, Crème, Classic: Wzx 22/11/2026)
 // the colours of that layout, per theme (Wzx 22/11/2026: Classic, Brique, Crème / Galet)
 struct BqSkin {
@@ -606,7 +607,11 @@ void BrickApp::stTools() {
     const float rowW = pad * 2 + ts.size() * (bw + 2 * s) - 2 * s;
     ImVec2 a = row ? ImVec2(std::floor(ImGui::GetIO().DisplaySize.x * 0.5f - rowW * 0.5f), top) : ImVec2(14 * s + m_dockL, top);
     ImVec2 a0 = a;
-    if (g_brique) { a0 = ImVec2(std::floor((m_stageB.x + m_stageB.z) * 0.5f - rowW * 0.5f), m_stageB.y + 14 * m_ui); const ImVec2 o = bqOff("tools"); a = ImVec2(a0.x + o.x, a0.y + o.y); }
+    if (g_brique) {   // (right of the scene card when the stage is narrow, 23/11/2026)
+        a0 = ImVec2(std::floor(std::max((m_stageB.x + m_stageB.z) * 0.5f - rowW * 0.5f, g_bqSceneR + 12 * m_ui)), m_stageB.y + 14 * m_ui);
+        const ImVec2 o = bqOff("tools");
+        a = ImVec2(a0.x + o.x, a0.y + o.y);
+    }
     const ImVec2 b = row ? ImVec2(a.x + rowW, a.y + bh + pad * 2) : ImVec2(a.x + W, top + pad * 2 + ts.size() * (bh + 2 * s) - 2 * s);
     stGlass(u.dl, a, b, 18 * s, s);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
@@ -1720,9 +1725,9 @@ void BrickApp::colorDrag(Ui& u, ImVec2 a, ImVec2 b, bool filter, int fpart) {
 // pour l'avoir en Classic BrickIt UX style »: LEGO / TECHNIC, the tree of the families, a grid of big thumbnails)
 
 // STUDIO | CLASSIC, right aligned at `right`; returns true when it changed
-static float stStyleSwitchW(Ui& u, float s) { return stTrackW(u, 7.6f, "STUDIO", 1.2f * s, true) + stTrackW(u, 7.6f, "CLASSIC", 1.2f * s, true) + 38 * s; }
+static float stStyleSwitchW(Ui& u, float s) { return stTrackW(u, 7.6f, "FAMILLES", 1.2f * s, true) + stTrackW(u, 7.6f, "ARBRE", 1.2f * s, true) + 38 * s; }
 static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, bool live, float s) {
-    static const char* kL[2] = {"STUDIO", "CLASSIC"};
+    static const char* kL[2] = {"FAMILLES", "ARBRE"};   // (renamed 23/11/2026: « Studio » is a Disposition now)
     float w[2];
     for (int k = 0; k < 2; ++k) w[k] = stTrackW(u, 7.6f, kL[k], 1.2f * s, true) + 16 * s;
     const ImVec2 a(right - w[0] - w[1] - 6 * s, y), b(right, y + h);
@@ -1737,7 +1742,7 @@ static bool stStyleSwitch(Ui& u, bool& classic, float right, float y, float h, b
         else if (hv) u.dl->AddRectFilled(ka, kb, stW(14), (kb.y - ka.y) * 0.5f);
         stTrack(u, ImVec2(ka.x + 8 * s, (ka.y + kb.y) * 0.5f - u.fs(7.6f) * 0.52f), 7.6f, on ? C_INK : C_DIM, kL[k], 1.2f * s);
         if (hv && u.pressed && !on) { classic = k == 1; changed = true; }
-        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(k ? "Bibliothèque Classic : LEGO / TECHNIC, arbre des familles, grande grille" : "Bibliothèque Studio : familles en pictos, cartes en bandeau");
+        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip(k ? "Bibliothèque en arbre : LEGO / TECHNIC, arbre des familles, grande grille" : "Bibliothèque en familles : pictos, cartes en bandeau");
         x += w[k];
     }
     return changed;
@@ -3039,12 +3044,14 @@ void BrickApp::stRing() {
     const float s = m_ui;
     // (Wzx 15/11/2026): three big round buttons, floating on their own, in the white look of the bar of the groups:
     // Dupliquer (Poser while a brick is in hand), Tourner, Basculer
-    const float D = 92 * s, gap = 16 * s;
+    // (23/11/2026: on an iPad 11" in Atelier they covered the scene card and the grid badge: under them, smaller if need be)
+    const float gap = 16 * s, topLimit = g_brique ? m_bqSceneY + 44 * s : m_stage.y + 10 * s;
+    const float D = std::max(56 * s, std::min(92 * s, (m_stage.w - 10 * s - topLimit - 2 * gap) / 3));
     static const int kParts[3] = {4, 1, 2};
     static const char* kIco[3] = {ST_DUP, ST_ROT, "M7 10l5 5 5-5"};
     static const char* kTip[3] = {"Dupliquer la sélection", "Tourner de 90°", "Basculer"};
     const float H = 3 * D + 2 * gap;
-    const float x = m_dockL + 22 * s + D * 0.5f, y0 = std::floor((m_stage.y + m_stage.w) * 0.5f - H * 0.5f + D * 0.5f);
+    const float x = m_dockL + 22 * s + D * 0.5f, y0 = std::floor(std::max((m_stage.y + m_stage.w) * 0.5f - H * 0.5f, topLimit) + D * 0.5f);
     m_ringC = ImVec2(x, y0 + D + gap);
     m_ringR = H * 0.5f;
     for (int i = 0; i < 5; ++i) m_ringBtn[i] = ImVec4(0, 0, -1, -1);
@@ -3346,7 +3353,7 @@ void BrickApp::stNavHud() {
     ImVec2 nav0(0, 0);
     if (g_brique) { right = m_stageB.z - 14 * m_ui; top = m_stageB.y + 14 * m_ui; nav0 = ImVec2(right, top); const ImVec2 o = bqOff("nav"); right += o.x; top += o.y; }
     // ---- the brick of the views
-    const float cs = 120 * s;   // (a bit bigger, Wzx 15/11/2026)
+    const float cs = (g_brique && m_stageB.z - m_stageB.x < 900 * s ? 84 : 120) * s;   // (a bit bigger, Wzx 15/11/2026; a narrow stage, an iPad 11": smaller)
     const ImVec2 cc(right - cs * 0.5f, top + cs * 0.5f);
     if (g_brique) bqRaise(u.dl, ImVec2(cc.x - cs * 0.5f, cc.y - cs * 0.5f), ImVec2(cc.x + cs * 0.5f, cc.y + cs * 0.5f), 22 * s, s, C_HUD, 50);
     {
