@@ -939,12 +939,12 @@ void BrickApp::stHubClassic() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImDrawList* dl = u.dl;
-    const ImU32 Y = IM_COL32(0xf7, 0xc5, 0x1e, 255), INK = IM_COL32(0x17, 0x17, 0x1a, 255), W = IM_COL32(0xec, 0xec, 0xee, 255), DIM = IM_COL32(0x8a, 0x8d, 0x95, 255);
+    const ImU32 Y = IM_COL32(0xf7, 0xc5, 0x1e, 255), INK = stSlate(IM_COL32(0x17, 0x17, 0x1a, 255)), W = IM_COL32(0xec, 0xec, 0xee, 255), DIM = IM_COL32(0x8a, 0x8d, 0x95, 255);
     const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
     const bool editing = m_hubEdit != -1;
     bool close = false;
     m_uiRects.push_back(ImVec4(0, top, d.x, d.y));
-    dl->AddRectFilled(ImVec2(0, top), d, IM_COL32(0x13, 0x14, 0x17, 255));
+    dl->AddRectFilled(ImVec2(0, top), d, stSlate(IM_COL32(0x13, 0x14, 0x17, 255)));
     const std::wstring dir = scenesDir();
     const bool inLib = !m_scenePath.empty() && m_scenePath.size() > dir.size() && m_scenePath.compare(0, dir.size(), dir) == 0;
     auto keepOpen = [&] {
@@ -961,10 +961,10 @@ void BrickApp::stHubClassic() {
         const float v0 = std::clamp(0.55f - vh * 0.5f, 0.0f, std::max(0.0f, 1 - vh));
         dl->AddImage(bt, ba, bb, ImVec2(0, v0), ImVec2(1, std::min(1.0f, v0 + vh)));
     }
-    const ImU32 B0 = IM_COL32(0x13, 0x14, 0x17, 250), B1 = IM_COL32(0x13, 0x14, 0x17, 0);
-    dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, IM_COL32(0x13, 0x14, 0x17, 190), IM_COL32(0x13, 0x14, 0x17, 190), B0);
-    dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), IM_COL32(0x13, 0x14, 0x17, 190), B1, B1, IM_COL32(0x13, 0x14, 0x17, 190));
-    dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, IM_COL32(0x13, 0x14, 0x17, 255), IM_COL32(0x13, 0x14, 0x17, 255));
+    const ImU32 B0 = stSlate(IM_COL32(0x13, 0x14, 0x17, 250)), B1 = stSlate(IM_COL32(0x13, 0x14, 0x17, 0));
+    dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), B0);
+    dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), B1, B1, stSlate(IM_COL32(0x13, 0x14, 0x17, 190)));
+    dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, stSlate(IM_COL32(0x13, 0x14, 0x17, 255)), stSlate(IM_COL32(0x13, 0x14, 0x17, 255)));
     stTrack(u, ImVec2(X0, ba.y + 40 * s), 9, Y, "BRICKIT · BUILDER", 2.6f * s);
     stTrack(u, ImVec2(X0, ba.y + 58 * s), 30, W, "MES SCÈNES", 3.2f * s);
     stTrack(u, ImVec2(X0, ba.y + 58 * s + u.fs(30) * 1.3f), 10, IM_COL32(0xc4, 0xc6, 0xcc, 255), "CONSTRUIRE · ASSEMBLER · RENDRE", 2.4f * s);
@@ -976,7 +976,7 @@ void BrickApp::stHubClassic() {
             const ImVec2 qa(X0 + k * (tw + 10 * s), ty), qb(qa.x + tw, ty + th);
             const bool h = u.hover(qa, qb) && !editing;
             const bool main = k == 0;
-            dl->AddRectFilled(qa, qb, main ? (h ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y) : IM_COL32(0x13, 0x14, 0x17, h ? 235 : 190), 6 * s);
+            dl->AddRectFilled(qa, qb, main ? (h ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y) : stSlate(IM_COL32(0x13, 0x14, 0x17, h ? 235 : 190)), 6 * s);
             dl->AddRect(qa, qb, main ? Y : (h ? stA(Y, 0.8f) : IM_COL32(255, 255, 255, 26)), 6 * s, 0, 1.0f);
             stIcon(dl, ts[k].ico, ImVec2(qa.x + 26 * s, qa.y + 26 * s), 22 * s, main ? INK : Y, (main ? 2.4f : 1.7f) * s);
             stTrack(u, ImVec2(qa.x + 14 * s, qb.y - 26 * s), 8.5f, main ? INK : W, ts[k].label, 1.8f * s);
@@ -993,12 +993,12 @@ void BrickApp::stHubClassic() {
     {   // the scene open, on the banner
         const float cw = 340 * s, ch = 100 * s;
         const ImVec2 ca(d.x - 28 * s - cw, bb.y - 24 * s - ch), cb(ca.x + cw, ca.y + ch);
-        dl->AddRectFilled(ca, cb, IM_COL32(0x13, 0x14, 0x17, 215), 6 * s);
+        dl->AddRectFilled(ca, cb, stSlate(IM_COL32(0x13, 0x14, 0x17, 215)), 6 * s);
         dl->AddRect(ca, cb, IM_COL32(255, 255, 255, 30), 6 * s, 0, 1.0f);
         const ImVec2 ta(ca.x + 12 * s, ca.y + 12 * s), tb(ta.x + 112 * s, cb.y - 12 * s);
         ImTextureID tex = inLib ? hubThumb(m_scenePath) : 0;
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0.05f, 0), ImVec2(0.95f, 1), IM_COL32_WHITE, 4 * s);
-        else { dl->AddRectFilled(ta, tb, IM_COL32(0x26, 0x28, 0x2d, 255), 4 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, DIM, 1.2f * s); }
+        else { dl->AddRectFilled(ta, tb, stSlate(IM_COL32(0x26, 0x28, 0x2d, 255)), 4 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, DIM, 1.2f * s); }
         const float tx = tb.x + 14 * s;
         stTrack(u, ImVec2(tx, ca.y + 14 * s), 7.5f, DIM, "SCÈNE OUVERTE", 2.0f * s);
         const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
@@ -1083,14 +1083,14 @@ void BrickApp::stHubClassic() {
             name = cd.i == 0 ? "Maison (démo)" : "Pelleteuse et mécanismes"; sub = cd.i == 0 ? "Le set 31153" : "4 moteurs, 2 vérins"; ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
         }
         const ImVec2 ta(ca.x, ca.y), tb(cb.x, ca.y + thH);
-        dl->AddRectFilled(ca, cb, h ? IM_COL32(0x24, 0x25, 0x2a, 255) : IM_COL32(0x1c, 0x1d, 0x21, 255), 6 * s);
+        dl->AddRectFilled(ca, cb, h ? stSlate(IM_COL32(0x24, 0x25, 0x2a, 255)) : stSlate(IM_COL32(0x1c, 0x1d, 0x21, 255)), 6 * s);
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0.05f), ImVec2(1, 0.95f), IM_COL32_WHITE, 6 * s, ImDrawFlags_RoundCornersTop);
         else {
-            dl->AddRectFilled(ta, tb, IM_COL32(0x22, 0x23, 0x28, 255), 6 * s, ImDrawFlags_RoundCornersTop);
+            dl->AddRectFilled(ta, tb, stSlate(IM_COL32(0x22, 0x23, 0x28, 255)), 6 * s, ImDrawFlags_RoundCornersTop);
             if (ico) stIcon(dl, ico, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.34f, DIM, 1.5f * s);
             else stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.42f, DIM, 1.2f * s);
         }
-        dl->AddRectFilled(ImVec2(ca.x, tb.y), ImVec2(cb.x, tb.y + 3 * s), cur ? Y : IM_COL32(0x3a, 0x3c, 0x42, 255));
+        dl->AddRectFilled(ImVec2(ca.x, tb.y), ImVec2(cb.x, tb.y + 3 * s), cur ? Y : stSlate(IM_COL32(0x3a, 0x3c, 0x42, 255)));
         dl->AddRect(ca, cb, cur ? Y : IM_COL32(255, 255, 255, h ? 40 : 20), 6 * s, 0, cur ? 1.5f * s : 1.0f);
         if (cur) {
             const float w = stTrackW(u, 6.5f, "OUVERTE", 1.6f * s, true) + 14 * s;
@@ -1109,7 +1109,7 @@ void BrickApp::stHubClassic() {
             auto rb = [&](const char* icon, const char* tip, bool danger) {
                 const ImVec2 c(bx, by);
                 const bool hb = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) < r * r && !editing;
-                dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : IM_COL32(0x3a, 0x3c, 0x42, 245)) : IM_COL32(10, 11, 13, 215), 24);
+                dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : stSlate(IM_COL32(0x3a, 0x3c, 0x42, 245))) : stSlate(IM_COL32(10, 11, 13, 215)), 24);
                 stIcon(dl, icon, c, r * 1.05f, W, 1.5f * s);
                 if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
                 bx -= 2 * r + 6 * s;

@@ -30,7 +30,21 @@ struct BqSkin {
 static BqSkin g_bq = {};
 // a light theme (Crème, Galet): the dark fills and the white veils of the Studio interface turned into their light equivalents
 static bool g_light = false;
+// Ardoise (Wzx 23/11/2026: « certains panneaux sont noirs, les fonds de vignettes… »): the near-black neutral fills of the
+// Studio interface turned into the blue-grey slate of the theme, their darkness kept (8 -> #1d2029, 18 -> #262a34,
+// 30 -> #313641); a colour (accent, red) or a light grey is left as it is
+static bool g_slate = false;
+static ImU32 stSlate(ImU32 c) {
+    if (!g_slate) return c;
+    const int r = (int)(c & 255), g = (int)((c >> 8) & 255), b = (int)((c >> 16) & 255);
+    const int mx = std::max(r, std::max(g, b)), mn = std::min(r, std::min(g, b));
+    if (mx > 72 || mx - mn > 14) return c;
+    const float f = std::clamp(((r + g + b) / 3.0f - 6.0f) / 34.0f, 0.0f, 1.3f);
+    auto ch = [&](int lo, int hi) { return (ImU32)std::clamp((int)(lo + (hi - lo) * f + 0.5f), 0, 255); };
+    return ch(0x1d, 0x3a) | (ch(0x20, 0x40) << 8) | (ch(0x29, 0x4d) << 16) | (c & 0xFF000000);
+}
 static ImU32 stD(ImU32 c) {   // a dark fill (its alpha kept): the light ground of the theme
+    if (g_slate) return stSlate(c);
     if (!g_light) return c;
     const int a = (int)((c >> 24) & 255);
     return (C_HUD & 0x00FFFFFF) | ((ImU32)std::min(255, a + 30) << 24);
@@ -2964,6 +2978,7 @@ void BrickApp::drawUiStudio() {
     g_brique = m_th.brique;
     g_hubPage = g_brique || m_ux == 1;   // (Black: the hub of Classique)
     g_light = !m_th.dark;
+    g_slate = m_th.id == "brique";   // (Ardoise: slate everywhere, the Studio layout too)
     bqSkinOf(m_th, m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId].tint : 0);
     g_uiBlock = m_editUi;   // (the header answers over the hub page)
     if (g_brique) stHeaderBrique();
