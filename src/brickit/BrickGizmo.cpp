@@ -8,6 +8,11 @@
 namespace brickit {
 
 static const ImU32 kGz[3] = {IM_COL32(0xc9, 0x1a, 0x09, 242), IM_COL32(0xf2, 0xcd, 0x37, 242), IM_COL32(0x00, 0x55, 0xbf, 242)};
+// Wzx 23/11/2026: Déplacer in three greys (white, grey, anthracite), each with an outline that keeps it on any floor;
+// the one under the mouse in the accent yellow. Tourner: white rings.
+static const ImU32 kGzMove[3] = {IM_COL32(0xf4, 0xf4, 0xf6, 245), IM_COL32(0x9a, 0x9d, 0xa4, 245), IM_COL32(0x3a, 0x3c, 0x42, 245)};
+static const ImU32 kGzOutline[3] = {IM_COL32(0, 0, 0, 120), IM_COL32(0, 0, 0, 120), IM_COL32(255, 255, 255, 110)};
+static const ImU32 kGzHot = IM_COL32(0xf7, 0xc5, 0x1e, 255);
 static float4 qNorm(const float4& q) { const float l = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w); return l > 0 ? float4(q.x / l, q.y / l, q.z / l, q.w / l) : float4(0, 0, 0, 1); }
 static float3 axisOf(int a) { return float3(a == 0 ? 1.0f : 0.0f, a == 1 ? 1.0f : 0.0f, a == 2 ? 1.0f : 0.0f); }
 // two unit vectors spanning the plane of a ring around axis a
@@ -26,7 +31,7 @@ static float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
 bool BrickApp::gizmoVisible() const {
     // (+ Réglages › Gizmo de rotation permanent: the rings, light, on any selected brick in Sélection and Construire)
     return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette &&
-           (m_mode == 2 || m_mode == 3 || (m_permRotate && !m_ipadCreme && (m_mode == 0 || m_mode == 1)));   // (the kit: only when asked, its Tourner / Déplacer pebbles, Wzx 22/11/2026)
+           (m_mode == 2 || m_mode == 3);   // (only when asked: the tools Déplacer and Tourner, no rings in Sélection / Construire, Wzx 23/11/2026)
 }
 float3 BrickApp::gizmoPivot(int b) const { return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b])); }
 float BrickApp::gizmoScale(const float3& piv) const {
@@ -51,7 +56,9 @@ BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
     v.project(piv + r * k, ex, ey);
     const float px = std::max(1.0f, std::fabs(ex - cx));   // pixels per gizmo unit
     const ImVec2 m(sx, sy);
-    // (no centre sphere any more, Wzx 14/11/2026: the plane handles, two axes at once, instead)
+    // the centre sphere of Déplacer (back, Wzx 23/11/2026: « un peu plus grosse et sélectionnable pour le free mode »):
+    // the brick in hand, free; it wins over the arrows
+    if (m_mode == 2 && std::hypot(sx - cx, sy - cy) < std::max(9.0f, 0.13f * px) + 5) return GizmoHandle{2, -1};
     float best = 1e30f;
     GizmoHandle bh;
     if (m_mode == 2)
@@ -224,10 +231,11 @@ void BrickApp::drawGizmo() {
         int order[3] = {0, 1, 2};
         std::sort(order, order + 3, [&](int a, int b) { return dot(axisOf(a), f) > dot(axisOf(b), f); });
         for (int a : order) {
-            const ImU32 col = (hov.kind == 0 && hov.axis == a) ? white : kGz[a];
+            const ImU32 col = (hov.kind == 0 && hov.axis == a) ? kGzHot : kGzMove[a];
             ImVec2 p0, p1, tip;
             const float3 d = axisOf(a);
             if (!v.project(piv + d * (0.05f * k), p0.x, p0.y) || !v.project(piv + d * (1.03f * k), p1.x, p1.y) || !v.project(piv + d * (1.21f * k), tip.x, tip.y)) continue;
+            dl->AddLine(p0, p1, kGzOutline[a], std::max(1.5f, 0.036f * px) + 2.0f);   // (its outline)
             dl->AddLine(p0, p1, col, std::max(1.5f, 0.036f * px));
             // cone (radius 0.06, length 0.18) seen from the camera: triangle from its base to the tip
             float3 side = cross(d, f);
@@ -251,14 +259,21 @@ void BrickApp::drawGizmo() {
             ok &= v.project(piv + e1 * hi + e2 * hi, c1.x, c1.y);
             if (!ok) continue;
             const bool on = hov.kind == 3 && hov.axis == a;
-            const ImU32 base = kGz[a] & 0x00ffffffu;
-            dl->AddQuadFilled(q[0], q[1], q[2], q[3], on ? IM_COL32(255, 255, 255, 90) : (base | (60u << 24)));
+            const ImU32 base = kGzMove[a] & 0x00ffffffu;
+            dl->AddQuadFilled(q[0], q[1], q[2], q[3], on ? (kGzHot & 0x00ffffffu) | (90u << 24) : (base | (60u << 24)));
             // the L: along the far edges of the square, from one axis to the other
             const ImVec2 L[3] = {q[1], q[2], q[3]};
-            dl->AddPolyline(L, 3, on ? white : (base | (230u << 24)), 0, std::max(1.5f, 0.03f * px));
+            dl->AddPolyline(L, 3, kGzOutline[a], 0, std::max(1.5f, 0.03f * px) + 2.0f);
+            dl->AddPolyline(L, 3, on ? kGzHot : (base | (230u << 24)), 0, std::max(1.5f, 0.03f * px));
             (void)c2;
         }
-        dl->AddCircleFilled(ImVec2(cx, cy), std::max(2.5f, 0.05f * px), IM_COL32(255, 255, 255, 220), 16);   // (the pivot, a small dot)
+        {   // the centre sphere: free move (bigger, taken by the mouse or a finger)
+            const bool on = hov.kind == 2;
+            const float rr = std::max(7.0f, 0.11f * px);
+            dl->AddCircleFilled(ImVec2(cx, cy + 1.5f), rr + 1.5f, IM_COL32(0, 0, 0, 90), 32);
+            dl->AddCircleFilled(ImVec2(cx, cy), rr, on ? kGzHot : IM_COL32(255, 255, 255, 235), 32);
+            dl->AddCircleFilled(ImVec2(cx - rr * 0.3f, cy - rr * 0.3f), rr * 0.35f, IM_COL32(255, 255, 255, on ? 120 : 0), 16);
+        }
         if (m_gizmoDragging && (m_gz.h.kind == 0 || m_gz.h.kind == 3) && m_gz.brick >= 0 && m_gz.brick < (int)m_bricks.size()) {
             // how far it moved: in studs on the floor, in plates upwards
             const float3 dd = m_bricks[m_gz.brick].pos - m_gz.startPos;
@@ -273,7 +288,7 @@ void BrickApp::drawGizmo() {
         for (int a = 0; a < 3; ++a) {
             // (Wzx 15/11/2026: in the style of the arrows of Déplacer, no ticks; the permanent rings: white, light)
             const bool hot = hov.kind == 1 && hov.axis == a, light = m_mode != 3;
-            const ImU32 col = hot ? white : light ? IM_COL32(255, 255, 255, 75) : kGz[a];
+            const ImU32 col = hot ? kGzHot : light ? IM_COL32(255, 255, 255, 75) : IM_COL32(255, 255, 255, 215);   // (white rings, Wzx 23/11/2026)
             float3 ru, rv;
             ringBasis(a, ru, rv);
             std::vector<ImVec2> pts;
@@ -282,7 +297,11 @@ void BrickApp::drawGizmo() {
                 ImVec2 q;
                 if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) pts.push_back(q);
             }
-            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, light && !hot ? std::max(1.5f, 0.03f * px) : std::max(2.0f, 0.045f * px));
+            if (pts.size() > 1) {
+                const float w = light && !hot ? std::max(1.5f, 0.03f * px) : std::max(2.0f, 0.045f * px);
+                if (!light) dl->AddPolyline(pts.data(), (int)pts.size(), IM_COL32(0, 0, 0, 90), 0, w + 2.0f);   // (an outline: white on a light floor)
+                dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, w);
+            }
         }
     }
 }

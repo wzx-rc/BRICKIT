@@ -3765,10 +3765,7 @@ void BrickApp::uiSettings() {
             slider(106, "Contour de sélection", m_selOutline, 0.0f, 1.0f, "%.2f", m_selOutline);
             slider(107, "Voile de sélection", m_selFill, 0.0f, 0.5f, "%.2f", m_selFill);
         }
-        {   // (Wzx 15/11/2026): the rings of Tourner, light, on any selected brick
-            const int k = seg("Gizmo de rotation permanent", {"Oui", "Non"}, m_permRotate ? 0 : 1);
-            if (k >= 0 && (k == 0) != m_permRotate) { m_permRotate = k == 0; savePrefs(); }
-        }
+        // (no permanent rotation gizmo any more, Wzx 23/11/2026: the gizmo only with the tools Déplacer and Tourner)
         group("Connecteurs");
         row("Voxels (V)", {"Affichés", "Masqués"}, m_showVox ? 0 : 1, 6);
         note("Tenons jaunes, pins cyan, axes magenta.");

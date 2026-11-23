@@ -600,6 +600,8 @@ uint32_t BrickApp::gridLineValue() const {
     return b(m_gridRgb.x) | (b(m_gridRgb.y) << 8) | (b(m_gridRgb.z) << 16) | (std::max(1u, b(m_gridAlpha)) << 24);
 }
 
+static const float kPtExposure = 1.0f, kPtHdri = 0.55f;   // (path tracing / raster HQ, measured 23/11/2026)
+
 void BrickApp::applyLook() {
     if (m_cornell) { m_renderer->resetAccumulation(); return; }   // (the scene keeps its own look)
     auto lin = [](int hex) { return float3(srgbToLinear(((hex >> 16) & 255) / 255.0f), srgbToLinear(((hex >> 8) & 255) / 255.0f), srgbToLinear((hex & 255) / 255.0f)); };
@@ -666,6 +668,13 @@ void BrickApp::applyLook() {
         m_gridAlpha = 0.07f;     // a grid you barely see
         m_rs.exposure = 1.2f;
         m_scene.gridLine = gridLineValue();
+    }
+    // the path tracer: the same stage as the raster HQ, but every bounce and the whole HDRI light the scene: brighter,
+    // the yellows paler in the tone curve (Wzx 23/11/2026: « plus jaune et délavé en raytracing »): its exposure lowered
+    // to match the HQ
+    if (!m_rs.raster && !m_rcMode) {
+        m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
+        m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
     }
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
@@ -1635,6 +1644,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--tonemap") opt.tonemapper = _wtoi(next().c_str());
         else if (a == L"--clean") opt.cleanGround = true;
         else if (a == L"--exposure") opt.exposure = (float)_wtof(next().c_str());
+        else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
+        else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
         else if (a == L"--yaw") opt.yaw = (float)_wtof(next().c_str());
         else if (a == L"--pitch") opt.pitch = (float)_wtof(next().c_str());
         else if (a == L"--no-hdri") opt.noHdri = true;
