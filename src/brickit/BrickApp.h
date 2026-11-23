@@ -91,6 +91,7 @@ struct Options {
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
+    float ptSss = -1;   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)

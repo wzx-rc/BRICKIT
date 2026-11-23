@@ -677,7 +677,11 @@ void BrickApp::applyLook() {
     if (!m_rs.raster && !m_rcMode) {
         m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
         m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
-    }
+        // the plastic as the HQ shades it (Wzx 23/11/2026: « les couleurs ne sont toujours pas bonnes, ça vient de la
+        // réponse du shading, peut-être le SSS »): no random walk under the surface, which paled and greened the yellows
+        // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
+        m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 0.0f;
+    } else m_rs.sssScale = 1.0f;
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -1669,6 +1673,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--exposure") opt.exposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
         else if (a == L"--yaw") opt.yaw = (float)_wtof(next().c_str());
         else if (a == L"--pitch") opt.pitch = (float)_wtof(next().c_str());
         else if (a == L"--no-hdri") opt.noHdri = true;
