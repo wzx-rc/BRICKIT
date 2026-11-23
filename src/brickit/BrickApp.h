@@ -91,7 +91,11 @@ struct Options {
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
-    float ptSss = -1;   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
+    float ptSss = -1;
+    float ptSun = -1;
+    float ptEnvSpec = -1;
+    float ptSky = -1;   // --pt-sky: without HDRI, the sky of the path tracer (the HQ hemisphere light) x this   // --pt-envspec: the HDRI in the sharp reflections of the path tracer (x)   // --pt-sun: the sun of the path tracer against the HQ one
+    float ptCoat = -1, ptCoatRough = -1, ptRough = -1, ptSpec = -1;   // --pt-coat, --pt-coatr, --pt-rough, --pt-spec: the ABS of the path tracer (calibration)   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
@@ -1129,7 +1133,8 @@ private:
     float m_lumColumnH = 0.0f;        // Réglages: height of the Lumière column drawn last frame
     float m_hqSSSStrength = 1.0f;     // Réglages › Lumière › SSS (HQ): strength 0..2 (0 = off)
     bool m_softGIHold = true;   // Réglages › Lumière › Figer la GI pendant le déplacement: the probes held while a brick is carried
-    bool m_giLookdev = false;                 // (not saved: a test view, off at the next launch)
+    bool m_giLookdev = false;
+    bool m_ptLook = false;                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
     float3 m_softLo{0, 0, 0}, m_softHi{0, 0, 0};

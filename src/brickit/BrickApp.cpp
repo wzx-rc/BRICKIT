@@ -473,6 +473,9 @@ void BrickApp::buildHouse() {
 // GI look development (--gi-lookdev, Réglages › Lumière › Lookdev GI): every colour the same light grey, rough, no
 // specular and no coat, a light SSS (the lighting alone, in HQ, RC and PT); off: the palette materials back. The
 // dimmed copies (focus mode) follow.
+static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / raster HQ, measured 23/11/2026)
+static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
+static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
 void BrickApp::setLookdev(bool on) {
     m_giLookdev = on;
     for (size_t i = 0; i < m_colorMaterial.size() && i < m_colorMaterialOrig.size(); ++i) {
@@ -490,6 +493,13 @@ void BrickApp::setLookdev(bool on) {
             m.transmission = 0.0f;
             m.subsurface = 0.12f;
             m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+        } else if (m_ptLook && m.transmission < 0.5f && m.metallic < 0.5f) {
+            // the path tracer (Wzx 23/11/2026: « pas le dynamisme et l'impact lumineux du HQ »): the ABS of a real brick, a
+            // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
+            m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
+            m.coatRoughness = m_opt.ptCoatRough >= 0 ? m_opt.ptCoatRough : kPtCoatRough;
+            if (m_opt.ptRough >= 0) m.roughness = m_opt.ptRough;
+            if (m_opt.ptSpec >= 0) m.specular = m_opt.ptSpec;
         }
         m_scene.materials[m_colorMaterial[i]] = m;
         if (i < m_dimMaterial.size()) {
@@ -603,7 +613,6 @@ uint32_t BrickApp::gridLineValue() const {
     return b(m_gridRgb.x) | (b(m_gridRgb.y) << 8) | (b(m_gridRgb.z) << 16) | (std::max(1u, b(m_gridAlpha)) << 24);
 }
 
-static const float kPtExposure = 1.0f, kPtHdri = 0.55f;   // (path tracing / raster HQ, measured 23/11/2026)
 
 void BrickApp::applyLook() {
     if (m_cornell) { m_renderer->resetAccumulation(); return; }   // (the scene keeps its own look)
@@ -682,7 +691,20 @@ void BrickApp::applyLook() {
         // réponse du shading, peut-être le SSS »): no random walk under the surface, which paled and greened the yellows
         // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
         m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 0.0f;
-    } else m_rs.sssScale = 1.0f;
+        m_scene.sun.intensity *= m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun;
+        const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
+        m_rs.envSpecBoost = m_opt.ptEnvSpec >= 0 ? m_opt.ptEnvSpec : 1.0f / std::max(hf, 0.05f);   // (the reflections at the full HDRI, as in the HQ)
+        if (m_hdriPath.empty()) {   // the procedural sky: the HQ lights the bricks with its hemisphere (sky above, ground below) and
+            // sees it in their varnish; the path tracer gets it as its sky, the background staying the dark of the stage
+            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtSky) * m_scene.env.hemiIntensity * 4.0f;
+            m_rs.bgOverride = m_scene.env.top;
+            m_scene.env.top = m_scene.env.hemiSky * k;
+            m_scene.env.horizon = (m_scene.env.hemiSky + m_scene.env.hemiGround) * (0.5f * k);
+            m_scene.env.bottom = m_scene.env.hemiGround * k;
+        } else m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f);
+    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f); }
+    const bool ptLook = !m_rs.raster && !m_rcMode;
+    if (ptLook != m_ptLook) { m_ptLook = ptLook; setLookdev(m_giLookdev); }
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -1675,6 +1697,13 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
         else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sky") opt.ptSky = (float)_wtof(next().c_str());
+        else if (a == L"--pt-envspec") opt.ptEnvSpec = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun") opt.ptSun = (float)_wtof(next().c_str());
+        else if (a == L"--pt-coat") opt.ptCoat = (float)_wtof(next().c_str());
+        else if (a == L"--pt-coatr") opt.ptCoatRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-rough") opt.ptRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-spec") opt.ptSpec = (float)_wtof(next().c_str());
         else if (a == L"--yaw") opt.yaw = (float)_wtof(next().c_str());
         else if (a == L"--pitch") opt.pitch = (float)_wtof(next().c_str());
         else if (a == L"--no-hdri") opt.noHdri = true;
