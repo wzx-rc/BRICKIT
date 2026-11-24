@@ -112,10 +112,17 @@ void BrickApp::stHeaderBrique() {
     struct P { const char* ico; const char* label; bool on; int id; };
     const P ps[5] = {{BQ_HOME, "Hub", hubOn, 0}, {BQ_BUILD, "Build", !hubOn && !m_mechOn && !m_paintMode && !notice, 1},
                      {BQ_PAINT, "Paint", !hubOn && m_paintMode && !m_mechOn, 2}, {BQ_MECH, "Mechanics", !hubOn && m_mechOn, 3}, {BQ_BOOK, "Instructions", !hubOn && notice && !m_mechOn, 4}};
-    float x = LW + 16 * s;
     const float ph = 44 * s;
     // a narrow screen (an iPad 11", 23/11/2026: « Mécanique » ran into undo / redo): the label of the active pill only
     const bool compact = d.x < 1400 * s;
+    float x = LW + 16 * s;
+    {   // centred on the view (Wzx 24/11/2026), never over the logo nor the buttons of the right
+        float total = 0;
+        for (const P& p : ps) total += (!compact || p.on ? 22 * s + 22 * s + 8 * s + u.textW(14, p.label, true) : 44 * s) + 6 * s;
+        total -= 6 * s;
+        const float vmid = m_stageB.z > m_stageB.x + 100 ? (m_stageB.x + m_stageB.z) * 0.5f : d.x * 0.5f;
+        x = std::clamp(vmid - total * 0.5f, LW + 16 * s, std::max(LW + 16 * s, d.x - 420 * s - total));
+    }
     for (const P& p : ps) {
         const bool label = !compact || p.on;
         const float lw = u.textW(14, p.label, true), w = label ? 22 * s + 22 * s + 8 * s + lw : 44 * s;

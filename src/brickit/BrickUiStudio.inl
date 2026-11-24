@@ -2029,13 +2029,14 @@ void BrickApp::stDrawerClassic() {
         y += 30 * s + 10 * s;
     }
     // ---- the tree: Récentes, Favoris, the families of the tab, their categories
+    const float treeFs = g_brique ? 13.5f : 11.0f;   // (Workshop: bigger, Wzx 24/11/2026)
     float treeW = studio ? 0.0f : bottom ? std::clamp((x1 - x0) * 0.2f, 150 * s, 230 * s) : std::clamp((x1 - x0) * 0.34f, 140 * s, 190 * s);
     if (!studio) {   // as wide as its longest line, no wider (Wzx 23/11/2026: « trop d'espace vide » between the tree and the cards)
         float need = 0;
         for (const StFam& f : fams) {
-            need = std::max(need, 22 * s + u.textW(11, f.label));
+            need = std::max(need, 22 * s + u.textW(treeFs, f.label));
             if (m_clsOpen.count(f.key))
-                for (const StSub& q : f.subs) need = std::max(need, 22 * s + u.textW(10.5f, q.label));
+                for (const StSub& q : f.subs) need = std::max(need, 22 * s + u.textW(treeFs - 0.5f, q.label));
         }
         treeW = std::clamp(need + 8 * s, 120 * s, treeW);
     }
@@ -2102,7 +2103,7 @@ void BrickApp::stDrawerClassic() {
             if (m_clsOpen.count(f.key))
                 for (int q = 0; q < (int)f.subs.size(); ++q) rows.push_back({&f, q});
         }
-        const float rh = 23 * s, viewH = tb.y - ta.y;
+        const float rh = (g_brique ? 28 : 23) * s, viewH = tb.y - ta.y;
         const float maxS = std::max(0.0f, rows.size() * rh - viewH);
         if (live && u.hover(ta, tb) && ImGui::GetIO().MouseWheel != 0) m_clsTreeScroll -= ImGui::GetIO().MouseWheel * rh * 3;
         m_clsTreeScroll = std::clamp(m_clsTreeScroll, 0.0f, maxS);
@@ -2125,13 +2126,13 @@ void BrickApp::stDrawerClassic() {
                     if (!open) u.dl->AddLine(ImVec2(tx + 4 * s, cy - 4 * s), ImVec2(tx + 4 * s, cy + 4 * s), C_DIM, 1.2f * s);
                 }
                 tx += 16 * s;
-                u.text(ImVec2(tx, cy - u.fs(11) * 0.55f), 11, sel ? C_ACCENT_TXT : C_TEXT, r.f->label);
+                u.text(ImVec2(tx, cy - u.fs(treeFs) * 0.55f), treeFs, sel ? C_ACCENT_TXT : C_TEXT, r.f->label);
             } else {
                 const float lx = ra.x + 10 * s;   // the tree line
                 const bool last = r.sub == (int)r.f->subs.size() - 1;
                 u.dl->AddLine(ImVec2(lx, ry), ImVec2(lx, last ? cy : ry + rh), stW(50), 1.0f);
                 u.dl->AddLine(ImVec2(lx, cy), ImVec2(lx + 8 * s, cy), stW(50), 1.0f);
-                u.text(ImVec2(lx + 12 * s, cy - u.fs(10.5f) * 0.55f), 10.5f, sel ? C_ACCENT_TXT : C_DIM, r.f->subs[r.sub].label);
+                u.text(ImVec2(lx + 12 * s, cy - u.fs(treeFs - 0.5f) * 0.55f), treeFs - 0.5f, sel ? C_ACCENT_TXT : C_DIM, r.f->subs[r.sub].label);
             }
             if (h && u.pressed) {
                 if (famRow && !leaf) { if (m_clsOpen.count(r.f->key) && m_stFam == r.f->key) m_clsOpen.erase(r.f->key); else m_clsOpen.insert(r.f->key); }
@@ -3458,7 +3459,7 @@ void BrickApp::stNavHud() {
     // ---- the brick of the views
     const float cs = (g_brique && m_stageB.z - m_stageB.x < 900 * s ? 84 : 120) * s;   // (a bit bigger, Wzx 15/11/2026; a narrow stage, an iPad 11": smaller)
     const ImVec2 cc(right - cs * 0.5f, top + cs * 0.5f);
-    if (g_brique) bqRaise(u.dl, ImVec2(cc.x - cs * 0.5f, cc.y - cs * 0.5f), ImVec2(cc.x + cs * 0.5f, cc.y + cs * 0.5f), 22 * s, s, C_HUD, 50);
+    if (g_brique) bqRaise(u.dl, ImVec2(cc.x - cs * 0.5f, cc.y - cs * 0.5f), ImVec2(cc.x + cs * 0.5f, cc.y + cs * 0.5f), 22 * s, s, g_bq.btn, 50);   // (lighter: the ground of the buttons, Wzx 24/11/2026)
     {
         float3 R, U, F;
         cam.basis(R, U, F);
