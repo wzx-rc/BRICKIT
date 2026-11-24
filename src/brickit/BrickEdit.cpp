@@ -767,7 +767,12 @@ void BrickApp::editInput() {
                         if (d < best) { best = d; m_bricks[hit].grab = (int)v; }
                     }
                 }
-                select(hit);
+                select(hit, io.KeyShift || io.KeyCtrl);   // (Shift / Ctrl: added to the selection, Wzx 24/11/2026)
+            } else if (!m_ipad) {   // the empty space: the selection rectangle, as in Construire (A) (Wzx 24/11/2026)
+                m_marquee = true;
+                m_marquee0 = m_marquee1 = mp;
+                m_pressed = false;
+                return;
             }
             m_leftOrbit = true;
             return;
