@@ -171,6 +171,7 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    std::wstring wzxOut;        // --wzx-export <WZX Engine project>: the model as a WZX Engine scene (OBJ + .wzx) then quit
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
     int libCategory = -1;     // --cat N
     bool focusDim = false;    // --focus
@@ -568,6 +569,7 @@ private:
     struct MayaStats { int bricks = 0, parts = 0, bodies = 0, joints = 0, cmds = 0; std::vector<std::string> fails; double coupling = 0; };
     bool mayaExportScript(std::string& py, MayaStats& st, std::string& err);
     void mayaExportScene(const std::wstring& forcedPath = std::wstring());
+    bool wzxExport(const std::wstring& projectDir, const std::string& name, std::string& report);   // BrickWzxExport.cpp
     void mayaWriteZip(const std::wstring& path, const std::wstring& forcedPath, const std::string& zip, const std::string& py,
                       const std::string& nm, const MayaStats& st);   // (after the file dialog)
 

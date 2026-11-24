@@ -1302,6 +1302,12 @@ void BrickApp::frame() {
         }
     }
     if (m_frame == 3 && !m_opt.mayaOut.empty()) mayaExportScene(m_opt.mayaOut);   // scripted test: Maya export
+    if (m_frame == 6 && !m_opt.wzxOut.empty()) {   // the model as a WZX Engine scene (after an --import at frame 3)
+        std::string rep;
+        const bool ok = wzxExport(m_opt.wzxOut, m_modelName.empty() ? std::string("brickit") : m_modelName, rep);
+        toast(ok ? "WZX Engine: " + rep : "WZX Engine export failed: " + rep);
+        OutputDebugStringA(rep.c_str());
+    }
     if (m_frame == 3 && !m_opt.devRoundtrip.empty()) {   // self-test: OBJ export of a part, re-import, fit (offset and scale must be identity)
         int pi = m_lib.find(m_opt.devRoundtrip);
         Part* pp = pi >= 0 ? m_lib.get(m_opt.devRoundtrip) : nullptr;
@@ -1815,6 +1821,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--mouse-test") { std::wstring w = next(); opt.mouseTest.assign(w.begin(), w.end()); }
         else if (a == L"--turntable-test") { std::wstring w1 = next(), w2 = next(); opt.ttBase.assign(w1.begin(), w1.end()); opt.ttTop.assign(w2.begin(), w2.end()); }
         else if (a == L"--maya") opt.mayaOut = next();
+        else if (a == L"--wzx-export") opt.wzxOut = next();
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());
         else if (a == L"--focus") opt.focusDim = true;
