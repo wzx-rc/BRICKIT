@@ -173,6 +173,9 @@ function loadPart(name) {
     if (!f) { console.warn("missing", fname); return; }
     const rel = f.rel;
     const lines = readLines(f.full);
+    // the embossed text of some parts (the tyres 70695, 15413: « 3D Text "LEGO Group ..." » subparts, Wzx 24/11/2026:
+    // « enlever ce texte-là sur les pneus »): left out of the geometry; the printed patterns (stickers) stay
+    if (depth > 0 && process.env.KEEP_TEXT !== "1" && /^0\s+~?.*3D Text/i.test(lines[0] || "")) return [];   // (KEEP_TEXT=1: as before)
     const sh = shadowOf(rel);
     // snaps of this file (shadow) + its includes
     const mySnaps = [];
