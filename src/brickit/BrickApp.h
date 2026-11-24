@@ -100,6 +100,8 @@ struct Options {
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptGlassRough = -1, ptGlassTrans = -1;   // --pt-glass-rough r, --pt-glass-trans t: the glass of the path tracer (calibration)
     float ptGround = -1;   // --pt-ground g: the light from below under the procedural sky (g x the horizon), calibration
+    bool matRubber = false;   // --mat-rubber: the Material panel on the rubber (captures)
+    float ptSssAll = -1;   // --pt-sss-all k: the subsurface of every plastic in path tracing, x k (calibration; default: the SSS setting of Réglages › Lumière)
     float ptSunSky = -1;   // --pt-sun-sky k: the sun of the path tracer under the procedural sky (calibration)
     float ptFloor = -1; // --pt-floor k: the floor's albedo in path tracing with the procedural sky (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
@@ -782,7 +784,7 @@ private:
     std::vector<int> m_colorMaterial;  // palette index -> scene material
     std::vector<int> m_dimMaterial;    // palette index -> same material at 50 % (focus mode)
     std::vector<int> m_rubberMaterial, m_rubberDim;   // palette index -> the rubber of the tyres (and its 50 % copy)
-    std::vector<Material> m_rubberOrig;
+    std::vector<Material> m_rubberOrig, m_rubberFactory;   // (factory: as Stage.cpp makes them, the Reset of the Material panel)
     std::vector<int8_t> m_partRubber;  // part -> 1 rubber, 0 not, -1 not known yet
     std::vector<int> m_tintMaterial;   // Mechanical mode: one material per body (Couleurs par corps)
     int m_blockedMaterial = -1;        // brick in hand that cannot be dropped (red ghost)
@@ -1229,6 +1231,9 @@ private:
     struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; };   // sss < 0: the factory subsurface (none in path tracing)
     std::map<int, MatEdit> m_matEdits;
     int m_matDrag = -1;
+    bool m_matRubber = false;   // the Material panel edits the rubber of the colour (tyres), not its plastic
+    static constexpr int kRubberKey = 100000;   // m_matEdits: the rubber of colour id is at kRubberKey + id
+    int matKey(int colorIndex) const { return m_lib.palette[colorIndex].id + (m_matRubber ? kRubberKey : 0); }
     void applyMatEdits();                    // m_matEdits over the factory materials, then the lookdev / path tracer looks
     MatEdit matEditOf(int colorIndex) const; // the edit of a colour, or its factory values
     void setMatEdit(int colorIndex, const MatEdit& e);

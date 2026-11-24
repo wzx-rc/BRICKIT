@@ -1,5 +1,6 @@
 // BrickIt - viewport editing: the brick in hand (typed snap), selection, duplicate, rotate, colours, undo, files.
 #include "BrickApp.h"
+#include "Stage.h"
 #include "CrashLog.h"
 #include <algorithm>
 #include "Platform.h"
@@ -726,8 +727,9 @@ void BrickApp::editInput() {
         if (b >= 0) {
             m_color = m_bricks[b].color;
             m_matPick = false;
+            m_matRubber = isRubberPart(m_lib.parts[m_bricks[b].part]);   // (a tyre: its rubber, not the plastic of its colour)
             m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});
-            toast(std::string("Material: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name);
+            toast(std::string("Material: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + (m_matRubber ? " rubber (tyres)" : ""));
         }
         return;
     }

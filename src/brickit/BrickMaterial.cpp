@@ -16,10 +16,11 @@ static float linToSrgb(float c) {
 BrickApp::MatEdit BrickApp::matEditOf(int ci) const {
     MatEdit e;
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return e;
-    auto it = m_matEdits.find(m_lib.palette[ci].id);
+    auto it = m_matEdits.find(matKey(ci));
     if (it != m_matEdits.end()) return it->second;
-    if (ci < (int)m_colorMaterialFactory.size()) {
-        const Material& m = m_colorMaterialFactory[ci];
+    const std::vector<Material>& fac = m_matRubber ? m_rubberFactory : m_colorMaterialFactory;
+    if (ci < (int)fac.size()) {
+        const Material& m = fac[ci];
         e.srgb = float3(linToSrgb(m.baseColor.x), linToSrgb(m.baseColor.y), linToSrgb(m.baseColor.z));
         e.metal = m.metallic;
         e.trans = m.transmission;
@@ -48,18 +49,36 @@ void BrickApp::applyMatEdits() {
         }
         m_colorMaterialOrig[i] = m;
     }
+    // the rubber of the tyres (its own material per colour, kRubberKey + id): matte, never a varnish
+    for (size_t i = 0; i < m_rubberFactory.size() && i < m_rubberOrig.size() && i < m_lib.palette.size(); ++i) {
+        Material m = m_rubberFactory[i];
+        auto it = m_matEdits.find(kRubberKey + m_lib.palette[i].id);
+        if (it != m_matEdits.end()) {
+            const MatEdit& e = it->second;
+            m.baseColor = float3(srgbToLinear(e.srgb.x), srgbToLinear(e.srgb.y), srgbToLinear(e.srgb.z));
+            m.metallic = e.metal;
+            m.transmission = e.trans;
+            m.roughness = e.rough;
+            if (e.sss >= 0) {
+                m.subsurface = e.sss;
+                m.sssRadius = (m.baseColor * 0.5f + float3(0.5f)) * (0.12f * std::max(0.05f, e.sssScale));
+            }
+            if (e.metal > 0.5f || e.trans > 0.5f) m.subsurface = 0.0f;
+        }
+        m_rubberOrig[i] = m;
+    }
     setLookdev(m_giLookdev);   // (the materials of the scene from these: the lookdev grey or the varnish of the path tracer over them)
 }
 
 void BrickApp::setMatEdit(int ci, const MatEdit& e) {
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return;
-    m_matEdits[m_lib.palette[ci].id] = e;
+    m_matEdits[matKey(ci)] = e;
     applyMatEdits();
 }
 
 void BrickApp::resetMatEdit(int ci) {
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return;
-    m_matEdits.erase(m_lib.palette[ci].id);
+    m_matEdits.erase(matKey(ci));
     applyMatEdits();
     savePrefs();
 }

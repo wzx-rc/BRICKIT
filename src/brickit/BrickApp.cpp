@@ -315,9 +315,11 @@ void BrickApp::setupStage() {
     }
     m_rubberMaterial = addRubberMaterials(m_scene, m_lib, m_opt.sss);
     m_rubberOrig.clear();
+    m_rubberFactory.clear();
     m_rubberDim.clear();
     for (int ci : m_rubberMaterial) {
         m_rubberOrig.push_back(m_scene.materials[ci]);
+        m_rubberFactory.push_back(m_scene.materials[ci]);
         Material d = m_scene.materials[ci];
         d.name += " (dim)";
         d.baseColor = d.baseColor * 0.5f;
@@ -331,6 +333,7 @@ void BrickApp::setupStage() {
         const int n = sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough, &e.sss, &e.sssScale);
         if (n >= 7) m_matEdits[id] = e;
     }
+    if (m_opt.matRubber) { m_matRubber = true; m_color = 0; }   // (captures: the Material panel on the rubber of the black tyres)
     if (!m_lights.empty()) syncLights();
     if (!m_matEdits.empty()) applyMatEdits();   // (the Material panel's edits, from the preferences)
     if (m_opt.giLookdev) setLookdev(true);
@@ -505,13 +508,13 @@ static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / rast
 // filled; the path tracer at x0.5 was a third darker in the shadows (model 0.55 against 0.72, shadows 0.15 against 0.42,
 // measured on the tractor). x1.8 brings the model and its shadows to the HQ (0.72 / 0.37); the floor, which then gets
 // too much sky, keeps its HQ brightness with its albedo lowered.
-static const float kPtHdriSky = 1.8f, kPtFloorSky = 0.6f;   // (kPtFloorSky: the floor's albedo and sheen under that sky: it bounces onto the sides of the bricks)
+static const float kPtHdriSky = 1.8f, kPtFloorSky = 0.5f;   // (kPtFloorSky: the floor's albedo and sheen under that sky: it bounces onto the sides of the bricks)
 // Second measure (colour, the same tractor): the whole image x1.8 also multiplies the sun drawn in the procedural sky, so
 // the faces in the sun were 3 x too bright (turquoise 107 / 191 / 194 against 18 / 151 / 154 in the HQ) while the
 // shadows only reached the HQ. Under the procedural sky the path tracer now lights with the sky as a gradient (the
 // colours of the procedural sky, x kPtGradSky, no image, no second sun) and the scene sun alone (x kPtSunSky).
 // Measured on the tractor (24/11/2026, colour): model 0.43 against 0.45 in the HQ, shadows and floor at the HQ's level.
-static const float kPtGradSky = 3.2f, kPtSunSky = 1.0f, kPtGroundSky = 1.0f;
+static const float kPtGradSky = 4.0f, kPtSunSky = 1.2f, kPtGroundSky = 1.0f;   // (second pass, clay, two views, bloom on: model 0.79 / 0.77 against 0.80 / 0.72 in the HQ)
 static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
 static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
 static const float kPtGlassTrans = 0.85f, kPtGlassRough = 0.08f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
@@ -538,9 +541,11 @@ void BrickApp::setLookdev(bool on) {
         } else if (m_ptLook && m.transmission < 0.5f && m.metallic < 0.5f) {
             // the path tracer (Wzx 23/11/2026: « pas le dynamisme et l'impact lumineux du HQ »): the ABS of a real brick, a
             // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
-            {   // no random walk under the surface unless the Material panel asked for it (it paled and greened the yellows)
+            {   // the light under the surface (the new random walk: the colour of the brick, soft): the strength of
+                // Réglages › Lumière › SSS, as the HQ; a colour set in the Material panel keeps its own value
                 auto it = i < m_lib.palette.size() ? m_matEdits.find(m_lib.palette[i].id) : m_matEdits.end();
-                if (it == m_matEdits.end() || it->second.sss < 0) m.subsurface = 0.0f;
+                if (it == m_matEdits.end() || it->second.sss < 0)
+                    m.subsurface = std::clamp(m.subsurface * (m_opt.ptSssAll >= 0 ? m_opt.ptSssAll : (m_opt.hqSSS >= 0 ? m_opt.hqSSS : m_hqSSSStrength)), 0.0f, 0.85f);
             }
             m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
             m.coatRoughness = m_opt.ptCoatRough >= 0 ? m_opt.ptCoatRough : kPtCoatRough;
@@ -1654,7 +1659,7 @@ void BrickApp::frame() {
         importLDraw(m_opt.importPath);
         const auto ms = GetTickCount64() - t0;
         if (m_opt.readStep > 0) readStepTo(m_opt.readStep);
-        else if (m_opt.readStep == 0) { stopReading(); frameAll(); }
+        else if (m_opt.readStep == 0) { stopReading(); frameAll(); m_scene.camera.distance *= m_opt.zoom; }   // (--zoom: closer captures of an imported model)
         if (!m_opt.importReport.empty()) {
             FILE* rf = nullptr;
             if (_wfopen_s(&rf, m_opt.importReport.c_str(), L"wb") == 0 && rf) { fprintf(rf, "import_ms=%llu\n%s", (unsigned long long)ms, m_importReport.c_str()); fclose(rf); }
@@ -1844,6 +1849,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
         else if (a == L"--pt-floor") opt.ptFloor = (float)_wtof(next().c_str());
         else if (a == L"--pt-sun-sky") opt.ptSunSky = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sss-all") opt.ptSssAll = (float)_wtof(next().c_str());
+        else if (a == L"--mat-rubber") opt.matRubber = true;
         else if (a == L"--pt-ground") opt.ptGround = (float)_wtof(next().c_str());
         else if (a == L"--pt-glass-rough") opt.ptGlassRough = (float)_wtof(next().c_str());
         else if (a == L"--pt-glass-trans") opt.ptGlassTrans = (float)_wtof(next().c_str());

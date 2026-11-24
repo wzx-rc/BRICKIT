@@ -1698,7 +1698,7 @@ void BrickApp::stColors() {
         y += 22 * s;
     }
     // the swatches scroll with the wheel when the panel is shorter than them (Workshop: Groups under it, 24/11/2026)
-    const float matH = (b.y - y < 262 * s + 60 * s) ? 0.0f : 262 * s;   // the Material section at the bottom (the swatches scroll above it)
+    const float matH = (b.y - y < 288 * s + 60 * s) ? 0.0f : 288 * s;   // the Material section at the bottom (the swatches scroll above it)
     const float listTop = y, listBot = b.y - 6 * s - matH;
     if (u.hover(ImVec2(a.x, listTop), ImVec2(b.x, listBot)) && ImGui::GetIO().MouseWheel != 0) m_colScroll -= ImGui::GetIO().MouseWheel * 40 * s;
     m_colScroll = std::clamp(m_colScroll, 0.0f, std::max(0.0f, m_colContentH - (listBot - listTop)));
@@ -1749,7 +1749,7 @@ float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
     const float s = m_ui, pad = 14 * s;
     const int ci = std::clamp(m_color, 0, (int)m_lib.palette.size() - 1);
     MatEdit e = matEditOf(ci);
-    const bool edited = m_matEdits.count(m_lib.palette[ci].id) > 0;
+    const bool edited = m_matEdits.count(matKey(ci)) > 0;
     float y = a.y + 4 * s;
     u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(b.x - pad, y), stW(26), 1.0f);
     y += 10 * s;
@@ -1775,7 +1775,21 @@ float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
         if (h && u.pressed) { resetMatEdit(ci); e = matEditOf(ci); }
         if (edited) u.dl->AddCircleFilled(ImVec2(ra.x - 8 * s, ra.y + bh * 0.5f), 3 * s, C_ACCENT, 12);
     }
-    y += 22 * s;
+    y += 24 * s;
+    {   // which material of the colour: its plastic (the bricks) or its rubber (the tyres; the pipette on a tyre picks it)
+        static const char* kKind[2] = {"PLASTIC", "RUBBER · TYRES"};
+        float x = a.x + pad;
+        for (int k = 0; k < 2; ++k) {
+            const float w = stTrackW(u, 8, kKind[k], 1.4f * s, true) + 18 * s;
+            const ImVec2 ka(x, y), kb(x + w, y + 18 * s);
+            const bool on = (k == 1) == m_matRubber, h = u.hover(ka, kb);
+            u.dl->AddRectFilled(ka, kb, on ? C_ACCENT : (h ? stW(30) : stW(12)), 9 * s);
+            stTrack(u, ImVec2(ka.x + 9 * s, ka.y + (18 * s - u.fs(8)) * 0.5f - 1 * s), 8, on ? C_INK : C_DIM, kKind[k], 1.4f * s);
+            if (h && u.pressed && !on) { m_matRubber = k == 1; e = matEditOf(ci); }
+            x += w + 6 * s;
+        }
+        y += 26 * s;
+    }
     // the colour: hue, saturation, brightness (the hue kept while the saturation is 0)
     static float hueKeep = 0;
     float hh, ss, vv;
