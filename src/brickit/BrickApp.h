@@ -788,7 +788,7 @@ private:
     struct UserLight {
         std::string name = "Area light";
         float3 pos{0, 30, 0};
-        float yaw = 0, pitch = -1.0f;   // where it shines (radians), when it has no target
+        float4 rot{0, 0, 0, 1};         // its frame without target: x the width edge, y the height edge, z where it shines
         float w = 12, h = 12;           // cm
         float3 color{1, 1, 1};          // sRGB
         float intensity = 25;           // radiance
@@ -796,6 +796,7 @@ private:
         bool targetOn = false;
         float3 target{0, 0, 0};
         float3 dir() const;
+        float3 upv() const;
     };
     struct UserCam {
         std::string name = "Camera";
@@ -810,7 +811,7 @@ private:
     bool m_lightPanel = false, m_camPanel = false;
     int m_inCam = -1;             // the view looks through this camera
     Camera m_perspSave;           // the perspective view, back when the camera is left
-    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0, axv, hit0; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0; };
+    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0, axv, hit0; float4 rot0{0, 0, 0, 1}; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0, c0; };
     ObjDrag m_od, m_odHover;
     bool m_odDragging = false;
     int m_lcRename = -1, m_lcRenameKind = 0;   // the row renamed (kind 0 light, 1 camera)

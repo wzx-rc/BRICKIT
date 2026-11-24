@@ -6,6 +6,7 @@ static const char* ST_CAM = "M3 8h12v9H3zM15 11l6-3v9l-6-3z";
 static const char* ST_LOCK = "M7 11h10v9H7zM9 11V8a3 3 0 0 1 6 0v3";
 static const char* ST_ENTER = "M4 12h10M10 8l4 4-4 4M14 4h6v16h-6";
 static const char* ST_TRASH = "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13";
+float4 lightLookRot(const float3& n);   // (BrickLights.cpp: the frame of a light shining along n)
 static ImVec2 g_lcAnchor(0, 0);   // (the right edge and top of the panels: left of the navigation buttons)
 static float g_lcLightLeft = 0;   // (the left edge of the Lighting panel: the Camera panel beside it when it does not fit under)
 
@@ -297,8 +298,7 @@ void BrickApp::stLightPanel() {
             if (lcPill(u, ImVec2(x1 - bw2, y), ImVec2(x1, y + 24 * s), nullptr, "Off", !l.targetOn, s) && l.targetOn) {
                 l.targetOn = false;   // (it keeps shining where the target was)
                 const float3 d = normalize(l.target - l.pos);
-                l.yaw = std::atan2(d.x, d.z);
-                l.pitch = std::asin(std::clamp(d.y, -1.0f, 1.0f));
+                l.rot = lightLookRot(d);
                 ch = true;
             }
             y += 30 * s;

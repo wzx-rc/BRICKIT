@@ -40,7 +40,17 @@ bool rayPlane(const float3& o, const float3& d, const float3& p, const float3& n
 float3 lin3(const float3& c) { return float3(srgbToLinear(c.x), srgbToLinear(c.y), srgbToLinear(c.z)); }
 }
 
-float3 BrickApp::UserLight::dir() const { return float3(std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)); }
+float3 BrickApp::UserLight::dir() const { return qRot(rot, float3(0, 0, 1)); }
+float3 BrickApp::UserLight::upv() const { return qRot(rot, float3(0, 1, 0)); }
+
+// the frame of a light shining along N, its height edge as close to the world up as it can (as AreaLight::basis)
+static float4 lookRot(const float3& n) {
+    const float3 N = normalize(n);
+    const float3 ref = std::fabs(N.y) > 0.99f ? float3(0, 0, 1) : float3(0, 1, 0);
+    const float3 U = normalize(cross(ref, N)), V = cross(N, U);
+    return qNormalize(qFromBasis(U, V, N));
+}
+float4 lightLookRot(const float3& n) { return lookRot(n); }
 
 // ------------------------------------------------------------------ create, delete, the scene
 
@@ -69,8 +79,7 @@ void BrickApp::addLight() {
     m_scene.camera.basis(r3, u3, f3);   // (above the model, a little to the left of the view)
     l.pos = c + normalize(float3(0, 1.0f, 0) - r3 * 0.8f - f3 * 0.5f) * (r * 1.7f);
     const float3 d = normalize(c - l.pos);
-    l.yaw = std::atan2(d.x, d.z);
-    l.pitch = std::asin(std::clamp(d.y, -1.0f, 1.0f));
+    l.rot = lookRot(d);
     l.target = c;
     l.w = l.h = std::round(std::max(8.0f, r * 0.6f));
     const float dist = length(c - l.pos);
@@ -119,6 +128,7 @@ void BrickApp::syncLights() {
         a.position = l.pos;
         a.target = l.targetOn ? l.target : l.pos + l.dir();
         if (length(a.target - a.position) < 1e-3f) a.target = a.position + float3(0, -1, 0);
+        a.up = l.targetOn ? float3(0) : l.upv();   // (turned freely: its roll too)
         a.width = std::max(0.2f, l.w);
         a.height = std::max(0.2f, l.h);
         a.color = lin3(l.color);
@@ -216,6 +226,7 @@ void BrickApp::lcAxes(int kind, int i, float3& o, float3 ax[3]) const {
         AreaLight a;
         a.position = l.pos;
         a.target = l.targetOn ? l.target : l.pos + l.dir();
+        a.up = l.targetOn ? float3(0) : l.upv();
         a.basis(ax[0], ax[1], ax[2]);
         o = l.pos;
     } else {
@@ -258,6 +269,7 @@ BrickApp::ObjDrag BrickApp::pickObj(float sx, float sy) const {
                 float tx, ty;
                 if (v.project(tgt, tx, ty) && std::hypot(sx - tx, sy - ty) < 10) { ObjDrag d; d.kind = 5; return d; }
             }
+            if (std::hypot(sx - cx, sy - cy) < 11) { ObjDrag d; d.kind = 6; return d; }   // the centre: free move
             if (kind == 0) {
                 const UserLight& l = m_lights[sel];
                 const float3 hp[4] = {l.pos + ax[0] * (l.w * 0.5f), l.pos - ax[0] * (l.w * 0.5f), l.pos + ax[1] * (l.h * 0.5f), l.pos - ax[1] * (l.h * 0.5f)};
@@ -288,7 +300,7 @@ BrickApp::ObjDrag BrickApp::pickObj(float sx, float sy) const {
                 if (dd < best && std::hypot(sx - cx, sy - cy) > 6) { best = dd; bh.kind = 0; bh.axis = a; }
             }
             if (!targetOn)
-                for (int ra = 0; ra < 2; ++ra) {   // ring around axis 0 (tilt) and axis 1 (turn)
+                for (int ra = 0; ra < (kind == 0 ? 3 : 2); ++ra) {   // rings around the local axes (a camera has no roll)
                     const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
                     ImVec2 prev;
                     bool havePrev = false;
@@ -306,6 +318,15 @@ BrickApp::ObjDrag BrickApp::pickObj(float sx, float sy) const {
                 }
             if (bh.kind >= 0) return bh;
         }
+    }
+    // the targets of the lights and cameras aimed at a point, selected or not
+    for (int i = 0; i < (int)m_lights.size(); ++i) {
+        float x, y;
+        if (m_lights[i].targetOn && v.project(m_lights[i].target, x, y) && std::hypot(sx - x, sy - y) < 10) { ObjDrag d; d.kind = 11; d.axis = i; return d; }
+    }
+    for (int i = 0; i < (int)m_cams.size(); ++i) {
+        float x, y;
+        if (i != m_inCam && m_cams[i].targetOn && v.project(m_cams[i].cam.target, x, y) && std::hypot(sx - x, sy - y) < 10) { ObjDrag d; d.kind = 12; d.axis = i; return d; }
     }
     // the icons
     float best = 13;
@@ -340,22 +361,23 @@ bool BrickApp::objInput(ImVec2 mp) {
         if (g.kind == 0) {   // along a local axis
             const float t = lineParam(o, d, g.p0, g.axv);
             moveTo(g.p0 + g.axv * (t - g.w0));
+        } else if (g.kind == 6) {   // the centre: free, in the plane facing the view
+            float3 hit;
+            if (rayPlane(o, d, g.p0, g.axv, hit)) moveTo(g.p0 + (hit - g.hit0));
         } else if (g.kind == 3) {   // in a local plane
             float3 hit;
             if (rayPlane(o, d, g.p0, g.axv, hit)) moveTo(g.p0 + (hit - g.hit0));
-        } else if (g.kind == 1) {   // a ring: around the local right axis (tilt) or the local up axis (turn)
-            const float dx = mp.x - g.m0.x, dy = mp.y - g.m0.y;
-            float yaw = g.yaw0, pitch = g.pitch0;
-            if (g.axis == 1) yaw = g.yaw0 - dx * 0.01f;
-            else pitch = std::clamp(g.pitch0 + (kind == 0 ? -dy : dy) * 0.01f, -1.55f, 1.55f);
-            if (kind == 0) { m_lights[sel].yaw = yaw; m_lights[sel].pitch = pitch; syncLights(); }
+        } else if (g.kind == 1) {   // a ring: the angle the pointer turned around the centre, about the local axis taken
+            const float a0 = std::atan2(g.m0.y - g.c0.y, g.m0.x - g.c0.x), a1 = std::atan2(mp.y - g.c0.y, mp.x - g.c0.x);
+            float th = a1 - a0;
+            float3 vr, vu, vf;
+            m_scene.camera.basis(vr, vu, vf);
+            if (dot(g.axv, vf) < 0) th = -th;   // (the axis towards the viewer: a turn to the left on screen is positive)
+            const float4 dq = qAxisAngle(g.axv, th);
+            if (kind == 0) { m_lights[sel].rot = qNormalize(qMul(dq, g.rot0)); syncLights(); }
             else {
-                Camera& c = m_cams[sel].cam;
-                c.yaw = yaw;
-                c.pitch = pitch;
-                float3 r, u, f;
-                c.basis(r, u, f);
-                c.target = g.p0 + f * c.distance;   // (it turns around its eye)
+                const float3 f0 = normalize(g.q0 - g.p0);
+                camAim(m_cams[sel].cam, g.p0, g.p0 + qRot(dq, f0) * length(g.q0 - g.p0));   // (it turns around its eye)
             }
         } else if (g.kind == 4 && kind == 0) {   // the edge of a light: its width or height
             UserLight& l = m_lights[sel];
@@ -366,10 +388,13 @@ bool BrickApp::objInput(ImVec2 mp) {
                 else l.h = std::clamp(2.0f * std::fabs(dot(hit - l.pos, ax[1])), 0.5f, 400.0f);
                 syncLights();
             }
-        } else if (g.kind == 5) {   // the target, in the plane facing the view
+        } else if (g.kind == 5) {   // the target: on the brick under the pointer (continuous), else the floor, else the plane facing the view
             float3 r, u, f, hit;
             m_scene.camera.basis(r, u, f);
-            if (rayPlane(o, d, g.p0, f, hit)) {
+            bool ok = pickBrick(mp.x, mp.y, &hit) >= 0;
+            if (!ok) ok = rayPlane(o, d, float3(0), float3(0, 1, 0), hit) && length(hit - g.p0) < 400.0f;
+            if (!ok) ok = rayPlane(o, d, g.p0, f, hit);
+            if (ok) {
                 if (kind == 0) { m_lights[sel].target = hit; syncLights(); }
                 else camAim(m_cams[sel].cam, g.q0, hit);
             }
@@ -382,25 +407,33 @@ bool BrickApp::objInput(ImVec2 mp) {
     if (h.kind == 9) { m_selLight = h.axis; m_selCam = -1; m_lightPanel = true; return true; }
     if (h.kind == 10) { m_selCam = h.axis; m_selLight = -1; m_camPanel = true; return true; }
     if (h.kind < 0) { m_selLight = m_selCam = -1; return false; }   // (a click elsewhere: the light / camera let go)
+    ObjDrag hh = h;
+    if (h.kind == 11) { m_selLight = h.axis; m_selCam = -1; hh.kind = 5; }   // (the target of another light: taken at once)
+    if (h.kind == 12) { m_selCam = h.axis; m_selLight = -1; hh.kind = 5; }
     const int kind = m_selLight >= 0 ? 0 : 1, sel = kind == 0 ? m_selLight : m_selCam;
-    m_od = h;
+    m_od = hh;
     m_od.m0 = mp;
     float3 lo, ax[3];
     lcAxes(kind, sel, lo, ax);
     m_od.p0 = lo;
+    v.project(lo, m_od.c0.x, m_od.c0.y);
     if (kind == 0) {
-        m_od.yaw0 = m_lights[sel].yaw;
-        m_od.pitch0 = m_lights[sel].pitch;
-        if (h.kind == 5) m_od.p0 = m_lights[sel].target;
+        m_od.rot0 = m_lights[sel].rot;
+        if (hh.kind == 5) m_od.p0 = m_lights[sel].target;
     } else {
-        m_od.yaw0 = m_cams[sel].cam.yaw;
-        m_od.pitch0 = m_cams[sel].cam.pitch;
         m_od.q0 = m_cams[sel].cam.target;
-        if (h.kind == 5) { m_od.q0 = lo; m_od.p0 = m_cams[sel].cam.target; }   // (the target moves, the eye stays)
+        if (hh.kind == 5) { m_od.q0 = lo; m_od.p0 = m_cams[sel].cam.target; }   // (the target moves, the eye stays)
     }
+    if (hh.kind == 1) m_od.axv = ax[hh.axis];
     float3 o, d;
     v.ray(mp.x, mp.y, o, d);
     if (h.kind == 0) { m_od.axv = ax[h.axis]; m_od.w0 = lineParam(o, d, m_od.p0, m_od.axv); }   // (where the arrow was taken)
+    if (hh.kind == 6) {
+        float3 vr, vu, vf;
+        m_scene.camera.basis(vr, vu, vf);
+        m_od.axv = vf;
+        if (!rayPlane(o, d, m_od.p0, m_od.axv, m_od.hit0)) m_od.hit0 = m_od.p0;
+    }
     if (h.kind == 3) { m_od.axv = ax[h.axis]; if (!rayPlane(o, d, m_od.p0, m_od.axv, m_od.hit0)) m_od.hit0 = m_od.p0; }
     m_odDragging = true;
     return true;
@@ -515,7 +548,7 @@ void BrickApp::drawObjOverlay() {
     const ImU32 kShade = IM_COL32(10, 11, 14, 120);
     const bool targetOn = kind == 0 ? m_lights[sel].targetOn : m_cams[sel].targetOn;
     if (!targetOn)
-        for (int ra = 0; ra < 2; ++ra) {   // the rings (behind)
+        for (int ra = 0; ra < (kind == 0 ? 3 : 2); ++ra) {   // the rings (behind)
             const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
             const bool hh = hov.kind == 1 && hov.axis == ra;
             std::vector<ImVec2> pts;
@@ -553,8 +586,13 @@ void BrickApp::drawObjOverlay() {
         dl->AddTriangleFilled(ImVec2(t0.x + n.x, t0.y + n.y), ImVec2(t1.x + pn.x, t1.y + pn.y), ImVec2(t2.x - pn.x, t2.y - pn.y), kShade);
         dl->AddTriangleFilled(t0, t1, t2, col);
     }
-    dl->AddCircleFilled(c, 5.5f, kShade, 16);
-    dl->AddCircleFilled(c, 4.0f, kLv[0], 16);
+    {   // the centre: a sphere taken to move it freely (as the target point)
+        const bool hc = hov.kind == 6;
+        const float r = hc ? 10.0f : 8.5f;
+        dl->AddCircleFilled(c, r + 1.8f, kShade, 24);
+        dl->AddCircleFilled(c, r, hc ? kHot : kLv[0], 24);
+        dl->AddCircleFilled(ImVec2(c.x - r * 0.3f, c.y - r * 0.32f), r * 0.32f, IM_COL32(255, 255, 255, hc ? 150 : 200), 12);   // (a small highlight: a sphere)
+    }
     (void)s;
 }
 

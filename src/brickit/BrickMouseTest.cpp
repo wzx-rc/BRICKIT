@@ -50,6 +50,79 @@ void BrickApp::mouseTestFrame() {
         }
         return;
     }
+    if (t == "lcgizmo") {   // the gizmo of a light (with --lc-test 1): its three rings, its centre, then its target taken unselected
+        static std::string rep;
+        static float4 r0;
+        static float3 p0, t0;
+        auto quat = [](const float4& q) { char b[96]; snprintf(b, sizeof(b), "(%.3f %.3f %.3f %.3f)", q.x, q.y, q.z, q.w); return std::string(b); };
+        if (m_lights.empty()) return;
+        UserLight& l = m_lights[0];
+        const int ringStart[3] = {20, 40, 60};
+        for (int ra = 0; ra < 3; ++ra) {
+            if (m_frame == ringStart[ra]) {
+                m_selLight = 0; m_selCam = -1;
+                float3 o, ax[3];
+                lcAxes(0, 0, o, ax);
+                const float k = gizmoScale(o) * 0.82f;
+                const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
+                ImVec2 best(0, 0), bestT(0, 0);
+                float farD = -1;
+                for (int j = 0; j < 24; ++j) {   // the point of the ring farthest from the centre on screen (no other handle there)
+                    const float tt = j * 6.2831853f / 24;
+                    float x, y, x2, y2, cx, cy;
+                    if (!v.project(o + (eu * std::cos(tt) + ev * std::sin(tt)) * k, x, y) || !v.project(o + (eu * std::cos(tt + 0.25f) + ev * std::sin(tt + 0.25f)) * k, x2, y2) || !v.project(o, cx, cy)) continue;
+                    const float dd = std::hypot(x - cx, y - cy);
+                    if (dd > farD) { farD = dd; best = ImVec2(x, y); bestT = ImVec2(x2, y2); }
+                }
+                r0 = l.rot;
+                m_mouseScript.clear();
+                dragScript(m_mouseScript, m_frame + 1, best, ImVec2(best.x + (bestT.x - best.x) * 3, best.y + (bestT.y - best.y) * 3));
+            }
+            if (m_frame == ringStart[ra] + 17) {
+                float3 o, ax[3];
+                lcAxes(0, 0, o, ax);
+                const float4 d = l.rot;
+                const float dot4 = std::fabs(d.x * r0.x + d.y * r0.y + d.z * r0.z + d.w * r0.w);
+                char b[200];
+                snprintf(b, sizeof(b), "ring %d: turned %.1f deg %s -> %s\n", ra, 2 * std::acos(std::min(1.0f, dot4)) * 57.29578f, quat(r0).c_str(), quat(d).c_str());
+                rep += b;
+            }
+        }
+        if (m_frame == 80) {   // the centre: dragged 80 px to the right
+            float cx, cy;
+            v.project(l.pos, cx, cy);
+            p0 = l.pos;
+            m_mouseScript.clear();
+            dragScript(m_mouseScript, 81, ImVec2(cx, cy), ImVec2(cx + 80, cy));
+        }
+        if (m_frame == 97) { char b[160]; snprintf(b, sizeof(b), "centre: moved %.2f cm\n", length(l.pos - p0)); rep += b; }
+        if (m_frame == 100) {   // the target on, the light let go, its point taken and dropped on the model (its middle on screen)
+            l.targetOn = true;
+            float3 mn(1e30f), mx(-1e30f);
+            for (const Brick& br : m_bricks) { const Part& pp = m_lib.parts[br.part]; if (pp.loaded) { mn = minv(mn, br.pos + pp.bmin); mx = maxv(mx, br.pos + pp.bmax); } }
+            l.target = float3((mn.x + mx.x) * 0.5f, 0.0f, mx.z + 20.0f);   // (on the floor beside the model)
+            syncLights();
+            m_selLight = -1;
+            t0 = l.target;
+            float tx, ty, mx2, my2;
+            v.project(l.target, tx, ty);
+            v.project((mn + mx) * 0.5f, mx2, my2);
+            m_mouseScript.clear();
+            dragScript(m_mouseScript, 101, ImVec2(tx, ty), ImVec2(mx2, my2));
+        }
+        if (m_frame == 118) {
+            float sx, sy;
+            v.project(l.target, sx, sy);
+            float3 hp;
+            const int hit = pickBrick(sx, sy, &hp);
+            char b[240];
+            snprintf(b, sizeof(b), "target: selected light %d, moved %.2f cm, on a brick %s (%.2f cm from the brick surface)\n", m_selLight, length(l.target - t0), hit >= 0 ? "yes" : "no", hit >= 0 ? length(hp - l.target) : -1.0f);
+            rep += b;
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") == 0 && f) { fputs(rep.c_str(), f); fclose(f); }
+        }
+        return;
+    }
     const bool swipeTest = t.rfind("swipe", 0) == 0;
     if (m_frame == (swipeTest ? 22 : 10)) {
         m_mouseScript.clear();
