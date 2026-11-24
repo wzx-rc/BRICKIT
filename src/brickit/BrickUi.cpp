@@ -548,6 +548,11 @@ bool BrickApp::applyTheme() {
         m_thKey = key;
         m_th = theme::resolve(m_themeId, dark, lk.tint, lk.accent);
         m_th.brique = m_ux == 0;   // the layout of Brique: the Interface Grey, whatever the colours (Wzx 22/11/2026)
+        if (m_th.id == "classic" && !m_th.brique) {   // Studio Black (Wzx 24/11/2026): his yellow, his bar grey
+            m_th.accent = m_th.progress = m_th.accentTxt = IM_COL32(0xee, 0xb7, 0x0e, 255);
+            m_th.panel = m_th.panelSolid = IM_COL32(0x19, 0x19, 0x19, 255);
+            m_th.hud = IM_COL32(0x19, 0x19, 0x19, 255);
+        }
         changed = true;
     }
     m_darkUi = m_th.dark;

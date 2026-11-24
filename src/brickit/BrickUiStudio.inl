@@ -34,16 +34,14 @@ static bool g_light = false;
 // Studio interface turned into the blue-grey slate of the theme, their darkness kept (8 -> #1d2029, 18 -> #262a34,
 // 30 -> #313641); a colour (accent, red) or a light grey is left as it is
 static bool g_slate = false;
-static bool g_blackConcept = false;   // Studio Black (Wzx 24/11/2026: « les couleurs exactes du concept »)
+// Studio Black (Wzx 24/11/2026, his exact colours): the top bar #0e0e0e, the bars and boxes (Groups, COLOUR, the modes,
+// the tools, the navigation) #191919, the left and right panels #0c0c0c, the ground of the brick cards #111111, the
+// yellow #eeb70e. Workshop Black keeps its own (bq skin).
+static bool g_studioBlack = false;
+static const ImU32 SBK_TOP = IM_COL32(0x0e, 0x0e, 0x0e, 255), SBK_BAR = IM_COL32(0x19, 0x19, 0x19, 255), SBK_SIDE = IM_COL32(0x0c, 0x0c, 0x0c, 255),
+                   SBK_CARD = IM_COL32(0x11, 0x11, 0x11, 255), SBK_CARD_HI = IM_COL32(0x1c, 0x1c, 0x1c, 255), SBK_YELLOW = IM_COL32(0xee, 0xb7, 0x0e, 255);
+static ImU32 sbOr(ImU32 c, ImU32 exact) { return g_studioBlack ? exact : c; }
 static ImU32 stSlate(ImU32 c) {
-    if (g_blackConcept) {   // the near-black neutral fills on the neutral greys of the concept: 8 -> #0c0d0f, 20 -> #1c1d21
-        const int r = (int)(c & 255), g = (int)((c >> 8) & 255), b = (int)((c >> 16) & 255);
-        const int mx = std::max(r, std::max(g, b)), mn = std::min(r, std::min(g, b));
-        if (mx > 72 || mx - mn > 14) return c;
-        const float f = std::clamp(((r + g + b) / 3.0f - 6.0f) / 34.0f, 0.0f, 1.3f);
-        auto ch = [&](int lo, int hi) { return (ImU32)std::clamp((int)(lo + (hi - lo) * f + 0.5f), 0, 255); };
-        return ch(0x0a, 0x36) | (ch(0x0b, 0x37) << 8) | (ch(0x0d, 0x3c) << 16) | (c & 0xFF000000);
-    }
     if (!g_slate) return c;
     const int r = (int)(c & 255), g = (int)((c >> 8) & 255), b = (int)((c >> 16) & 255);
     const int mx = std::max(r, std::max(g, b)), mn = std::min(r, std::min(g, b));
@@ -53,13 +51,13 @@ static ImU32 stSlate(ImU32 c) {
     return ch(0x1d, 0x3a) | (ch(0x20, 0x40) << 8) | (ch(0x29, 0x4d) << 16) | (c & 0xFF000000);
 }
 static ImU32 stD(ImU32 c) {   // a dark fill (its alpha kept): the light ground of the theme
-    if (g_slate || g_blackConcept) return stSlate(c);
+    if (g_slate) return stSlate(c);
     if (!g_light) return c;
     const int a = (int)((c >> 24) & 255);
     return (C_HUD & 0x00FFFFFF) | ((ImU32)std::min(255, a + 30) << 24);
 }
 static ImU32 stT(ImU32 c) { return g_light ? ((C_DIM & 0x00FFFFFF) | (c & 0xFF000000)) : c; }   // a light grey text or icon: the dim ink of a light theme
-static ImU32 stY(int a) { return g_light ? ((C_ACCENT_TXT & 0x00FFFFFF) | ((ImU32)a << 24)) : IM_COL32(246, 196, 0, a); }   // the yellow of what is chosen
+static ImU32 stY(int a) { return g_light ? ((C_ACCENT_TXT & 0x00FFFFFF) | ((ImU32)a << 24)) : g_studioBlack ? ((SBK_YELLOW & 0x00FFFFFF) | ((ImU32)a << 24)) : IM_COL32(246, 196, 0, a); }   // the yellow of what is chosen
 static ImU32 stThumb() { return g_light ? C_THUMB : IM_COL32(232, 234, 238, 255); }   // the tint of the thumbnails of the parts (Crème: warm, as the kit)
 static ImU32 stW(int a) { return g_light ? IM_COL32(70, 55, 40, std::min(255, (int)(a * 0.75f))) : IM_COL32(255, 255, 255, a); }   // a white veil (hover, line)
 static ImU32 bqA0(ImU32 c) { return c & 0x00FFFFFF; }
@@ -127,7 +125,7 @@ static void bqRaise(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, float s, ImU32 
 static void stGlass(ImDrawList* dl, ImVec2 a, ImVec2 b, float r, float s) {
     if (g_brique) { bqRaise(dl, a, b, r * 1.1f, s, C_PANEL, 70); return; }
     dl->AddRectFilled(ImVec2(a.x, a.y + 6 * s), ImVec2(b.x, b.y + 8 * s), IM_COL32(0, 0, 0, 40), r + 2 * s);
-    dl->AddRectFilled(a, b, C_PANEL, r);
+    dl->AddRectFilled(a, b, sbOr(C_PANEL, SBK_BAR), r);
     dl->AddRectFilledMultiColor(ImVec2(a.x + r * 0.3f, a.y + 1), ImVec2(b.x - r * 0.3f, a.y + 2 * s), stW(14), stW(14), stW(0), stW(0));
     dl->AddRect(a, b, C_LINE, r, 0, 1.0f);
 }
@@ -463,7 +461,8 @@ void BrickApp::stHeader() {
     // notifications, Control Centre) lands without pressing Exporter (BrickTouch ignores the touches that start there)
     const float T = m_ipad ? kIpadTopStrip * s : 0;
     const float H = 46 * s + T;
-    u.dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, H), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(12, 13, 15, 200)), stD(IM_COL32(12, 13, 15, 200)));
+    if (g_studioBlack) u.dl->AddRectFilled(ImVec2(0, 0), ImVec2(d.x, H), SBK_TOP);
+    else u.dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, H), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(8, 9, 11, 235)), stD(IM_COL32(12, 13, 15, 200)), stD(IM_COL32(12, 13, 15, 200)));
     u.dl->AddLine(ImVec2(0, H - 0.5f), ImVec2(d.x, H - 0.5f), stW(20), 1.0f);
     m_uiRects.push_back(ImVec4(0, 0, d.x, H));
     const float cy = T + 23 * s;
@@ -514,7 +513,7 @@ void BrickApp::stHeader() {
     const float sh = 30 * s;
     const float vmid = m_stage.z > m_stage.x + 100 ? (m_stage.x + m_stage.z) * 0.5f : d.x * 0.5f;   // (the middle of the view: last frame's)
     ImVec2 a(std::clamp(vmid - total * 0.5f, 330 * s, std::max(330 * s, d.x - 460 * s - total)), cy - sh * 0.5f), b(a.x + total, cy + sh * 0.5f);
-    u.dl->AddRectFilled(a, b, stW(10), sh * 0.5f);
+    u.dl->AddRectFilled(a, b, sbOr(stW(10), SBK_BAR), sh * 0.5f);
     u.dl->AddRect(a, b, stW(34), sh * 0.5f, 0, 1.0f);
     float mx = a.x + 3 * s;
     for (const Seg& m : modes) {
@@ -1331,7 +1330,7 @@ void BrickApp::stGroups() {
     const ImVec2 base = g_brique ? ImVec2(m_stageB.x + 14 * s, m_stageB.y + 56 * s) : ImVec2((m_paintMode ? 14 : 74) * s + m_dockL, top + (m_paintMode ? 52 * s : 0));
     const ImVec2 a(base.x + m_pGroups.x * s, base.y + m_pGroups.y * s), b(a.x + W, a.y + 12 * s + pad + headH + listH + footH + pad);
     stGlass(u.dl, a, b, 18 * s, s);
-    if (!g_brique) u.dl->AddRectFilled(a, b, stD(IM_COL32(14, 15, 17, 120)), 18 * s);
+    if (!g_brique && !g_studioBlack) u.dl->AddRectFilled(a, b, stD(IM_COL32(14, 15, 17, 120)), 18 * s);
     {   // the grip on top: two rows of small dots; dragged, the panel follows (kept in the preferences)
         const ImVec2 ga((a.x + b.x) * 0.5f - 24 * s, a.y), gb((a.x + b.x) * 0.5f + 24 * s, a.y + 16 * s);
         const bool hg = u.hover(ga, gb);
@@ -1625,7 +1624,7 @@ void BrickApp::stColors() {
     if (!bqCol && m_stColCol > 0) {   // Studio: its own column at the right, closed (Wzx 24/11/2026)
         const float cx0 = d.x - m_stColCol, cy0 = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
         const float cy1 = m_libDock == 0 && m_uiRects.size() > 1 ? m_uiRects[1].y : d.y;
-        u.dl->AddRectFilled(ImVec2(cx0, cy0), ImVec2(d.x, cy1), stD(IM_COL32(10, 11, 13, 255)));
+        u.dl->AddRectFilled(ImVec2(cx0, cy0), ImVec2(d.x, cy1), sbOr(stD(IM_COL32(10, 11, 13, 255)), SBK_SIDE));
         u.dl->AddLine(ImVec2(cx0 + 0.5f, cy0), ImVec2(cx0 + 0.5f, cy1), stW(16), 1.0f);
         m_uiRects.push_back(ImVec4(cx0, cy0, d.x, cy1));
         a = ImVec2(cx0 + 14 * s, cy0 + 12 * s);
@@ -1956,6 +1955,7 @@ void BrickApp::stDrawerClassic() {
     }
     const float alpha = m_mechOn ? 0.45f : 1.0f;
     if (g_brique) u.dl->AddRectFilledMultiColor(p0, p1, g_bq.sideA, g_bq.sideB, g_bq.sideB, g_bq.sideA);
+    else if (g_studioBlack) u.dl->AddRectFilled(p0, p1, SBK_SIDE);
     else u.dl->AddRectFilledMultiColor(p0, p1, stD(IM_COL32(10, 11, 13, 240)), stD(IM_COL32(10, 11, 13, 240)), stD(IM_COL32(14, 15, 17, 248)), stD(IM_COL32(14, 15, 17, 248)));
     if (bottom) u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), stW(28), 1.0f);
     else u.dl->AddLine(ImVec2(m_libDock == 1 ? p1.x : p0.x, p0.y), ImVec2(m_libDock == 1 ? p1.x : p0.x, p1.y), stW(28), 1.0f);
@@ -2231,10 +2231,10 @@ void BrickApp::stDrawerClassic() {
         const bool on = part == taken;
         const float rr = (studio ? 12 : 4) * s;   // (Studio: the cards of the drawer, Classic: flat cells)
         if (studio) {
-            u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(18, 19, 24, 255)), alpha), rr);
+            u.dl->AddRectFilled(a, b, stA(sbOr(stD(IM_COL32(18, 19, 24, 255)), SBK_CARD), alpha), rr);
             u.dl->AddRect(a, b, stA(on ? C_ACCENT : stW(h ? 102 : 41), alpha), rr, 0, on ? 1.5f * s : 1.0f);
         } else {
-            u.dl->AddRectFilled(a, b, stA(h ? stD(IM_COL32(30, 31, 36, 255)) : stD(IM_COL32(22, 23, 27, 255)), alpha), rr);
+            u.dl->AddRectFilled(a, b, stA(h ? sbOr(stD(IM_COL32(30, 31, 36, 255)), SBK_CARD_HI) : sbOr(stD(IM_COL32(22, 23, 27, 255)), SBK_CARD), alpha), rr);
             if (on) u.dl->AddRect(a, b, C_ACCENT, rr, 0, 1.5f * s);
         }
         if (m_dev && P.connSrc) u.dl->AddRect(a, b, stConnCol(P.connSrc), 4 * s, 0, 2.0f * s);
@@ -2298,7 +2298,8 @@ void BrickApp::stDrawer() {
     const float H = m_pTray.collapsed ? 30 * s : 12 * s + famH + 8 * s + subH + 10 * s + bodyH + 12 * s;
     const ImVec2 p0(0, d.y - H), p1(d.x, d.y);
     const float alpha = m_mechOn ? 0.45f : 1.0f;
-    u.dl->AddRectFilledMultiColor(p0, p1, stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(14, 15, 17, 245)), stD(IM_COL32(14, 15, 17, 245)));
+    if (g_studioBlack) u.dl->AddRectFilled(p0, p1, SBK_SIDE);
+    else u.dl->AddRectFilledMultiColor(p0, p1, stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(10, 11, 13, 235)), stD(IM_COL32(14, 15, 17, 245)), stD(IM_COL32(14, 15, 17, 245)));
     u.dl->AddLine(ImVec2(0, p0.y), ImVec2(d.x, p0.y), stW(28), 1.0f);
     for (float x = 96 * s; x < d.x; x += 96 * s) u.dl->AddLine(ImVec2(x, p0.y + 1), ImVec2(x, p1.y), stW(5), 1.0f);   // the faint ribs
     m_uiRects.push_back(ImVec4(0, p0.y, d.x, d.y));
@@ -2566,7 +2567,7 @@ void BrickApp::stDrawer() {
     if (!sizable) m_stSizeDrag = false;
     // the ground of a card or a tile: the grey of the maquette (the thumbnails are transparent PNG), a hairline
     auto cardBg = [&](ImVec2 a, ImVec2 b, bool h, bool on) {
-        u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(18, 19, 24, 255)), alpha), 12 * s);
+        u.dl->AddRectFilled(a, b, stA(sbOr(stD(IM_COL32(18, 19, 24, 255)), SBK_CARD), alpha), 12 * s);
         u.dl->AddRectFilledMultiColor(ImVec2(a.x + 6 * s, (a.y + b.y) * 0.5f), ImVec2(b.x - 6 * s, b.y - 6 * s), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 14), IM_COL32(0, 0, 0, 14));
         u.dl->AddRect(a, b, stA(on ? C_ACCENT : stW(h ? 102 : 41), alpha), 12 * s, 0, on ? 1.5f * s : 1.0f);
     };
@@ -2712,7 +2713,7 @@ void BrickApp::stCardSheet(int part, ImVec2 ca, ImVec2 cb, float t) {
     u.dl->AddRectFilled(a, b, stA(stD(IM_COL32(24, 25, 28, 240)), ease), 16 * s);
     u.dl->AddRect(a, b, stA(stW(46), ease), 16 * s, 0, 1.0f);
     const ImVec2 ia(a.x + pad, a.y + pad), ib(b.x - pad, a.y + pad + 168 * s);
-    u.dl->AddRectFilled(ia, ib, stA(stD(IM_COL32(18, 19, 24, 255)), ease), 12 * s);   // the ground of the cards
+    u.dl->AddRectFilled(ia, ib, stA(sbOr(stD(IM_COL32(18, 19, 24, 255)), SBK_CARD), ease), 12 * s);   // the ground of the cards
     u.dl->AddRect(ia, ib, stA(stW(30), ease), 12 * s, 0, 1.0f);
     ImTextureID tex = 0;
     ImVec2 uv0, uv1;
@@ -3059,7 +3060,7 @@ void BrickApp::drawUiStudio() {
     g_hubPage = g_brique || m_ux == 1;   // (Black: the hub of Classique)
     g_light = !m_th.dark;
     g_slate = m_th.id == "brique";   // (Ardoise: slate everywhere, the Studio layout too)
-    g_blackConcept = m_th.id == "classic" && !m_th.brique;   // (Studio Black: the greys of the concept)
+    g_studioBlack = m_th.id == "classic" && !m_th.brique;   // (Studio Black: the exact colours of Wzx)
     bqSkinOf(m_th, m_themeLooks.count(m_themeId) ? m_themeLooks[m_themeId].tint : 0);
     g_uiBlock = m_editUi;   // (the header answers over the hub page)
     if (g_brique) stHeaderBrique();
