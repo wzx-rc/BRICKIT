@@ -926,7 +926,8 @@ private:
     UiBox m_editB0;
     int m_hubSection = 0;                          // the hub page: 0 Mes scènes, 1 Récentes, 2 Cloud, 3 Démos
     float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0, m_bqGroupsTop = 0;
-    float m_colScroll = 0, m_colContentH = 0;   // the swatches of Colour scrolled
+    float m_colScroll = 0, m_colContentH = 0;
+    float m_stColCol = 0;   // Studio: the width of the right column of Colour (0: none)   // the swatches of Colour scrolled
     bool m_grpDrag = false;   // Studio: the grip of Groups held
     ImVec2 m_grpDrag0{0, 0}, m_grpDragP{0, 0};
     ImVec4 m_stageB{0, 0, 0, 0};                    // the 3D view inset in its frame (this frame)
