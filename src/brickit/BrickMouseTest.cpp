@@ -76,9 +76,9 @@ void BrickApp::mouseTestFrame() {
             if (t == "pivot") {   // the sphere held still (long press), then a voxel clicked
                 m_mouseScript.push_back({12, x, y, -1});
                 m_mouseScript.push_back({13, x, y, 0});
-                for (int k = 14; k < 60; ++k) m_mouseScript.push_back({k, x, y, -1});   // (held still: the choice opens)
-                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({60 + k, x + (tx - x) * k / 10.0f, y + (ty - y) * k / 10.0f, -1});   // glided, still held
-                m_mouseScript.push_back({74, tx, ty, 1});   // released on the voxel: set, and out
+                for (int k = 14; k < 120; ++k) m_mouseScript.push_back({k, x, y, -1});   // (held still: the choice opens; 0.35 s even at 300 fps)
+                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({120 + k, x + (tx - x) * k / 10.0f, y + (ty - y) * k / 10.0f, -1});   // glided, still held
+                m_mouseScript.push_back({134, tx, ty, 1});   // released on the voxel: set, and out
             } else if (t == "sphdrag") {   // the sphere dragged: the free move, the gizmo kept
                 m_mouseScript.push_back({12, x, y, -1});
                 m_mouseScript.push_back({13, x, y, 0});
@@ -309,7 +309,7 @@ void BrickApp::mouseTestFrame() {
                    " mouse=" + std::to_string((int)ImGui::GetIO().MousePos.x) + "," + std::to_string((int)ImGui::GetIO().MousePos.y) + " down=" + std::to_string(ImGui::IsMouseDown(0)) +
                    " overUi=" + std::to_string(m_overUi) + " swipe=" + std::to_string(m_swipe.id) + "/" + std::to_string(m_swipe.dir) + " libPress=" + std::to_string(m_libPress) + " tray=" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].y : -1)) + "-" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].w : -1)) + " cardsMax?scroll=" + std::to_string(m_cardsScroll);
     }
-    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : t == "hold" ? 80 : t == "pivot" ? 100 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
+    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : t == "hold" ? 80 : t == "pivot" ? 160 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
         FILE* f = nullptr;
         if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") != 0 || !f) return;
         if (t == "pivot") fprintf(f, "pivot: grab %d -> %d (expected %d), choosing %d (expected 0)\n", m_mtGrab0, m_bricks[3].grab, m_mtGrabWant, m_pivotPick ? 1 : 0);

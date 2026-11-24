@@ -834,7 +834,7 @@ static ImU32 stSrgb(const Color& c, int alpha) {
 // « Groupe entier »; around it every colour on an arc (stPaintColors), out one by one like the marking menu
 void BrickApp::stPaintPanel() {
     const bool small = m_ipad;   // iPad (Wzx 10/11/2026): twice smaller, the icons without their labels
-    const float s = m_ui * (small ? 0.5f : 0.6f);   // (PC: 40 % smaller, Wzx 24/11/2026)
+    const float s = m_ui * (small ? 0.5f : 0.78f);   // (PC: 40 % smaller, then 30 % bigger again, Wzx 24/11/2026)
     Ui u = ui(small ? m_ui : s);   // (the iPad: its text as before, the labels are hidden)
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
@@ -3624,7 +3624,8 @@ void BrickApp::stSideTabs() {
     Ui u = ui(m_ui);
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    const float w = 16 * s, h = 52 * s, cy = (m_stage.y + m_stage.w) * 0.5f;
+    // at the bottom of the panels, just above the render bar and Save (Wzx 24/11/2026)
+    const float w = 16 * s, h = 52 * s, cy = m_stage.w - (14 + 48 + 12) * s - h * 0.5f;
     auto tab = [&](float x0, bool left, bool folded) {
         // left: the tab of the left panel (its rounded side to the right); the chevron points where the panel will go
         const ImVec2 a(x0, cy - h * 0.5f), b(x0 + w, cy + h * 0.5f);

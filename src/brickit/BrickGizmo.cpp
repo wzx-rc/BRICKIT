@@ -41,7 +41,7 @@ float BrickApp::gizmoScale(const float3& piv) const {
     float3 r, u, f;
     m_scene.camera.basis(r, u, f);
     float3 eye = m_scene.camera.target - f * m_scene.camera.distance;
-    return length(eye - piv) * 0.07f;
+    return length(eye - piv) * (m_ipad ? 0.07f : 0.049f);   // (PC: 30 % smaller, Wzx 24/11/2026; the iPad keeps it for the finger)
 }
 
 // Screen-space version of the web's invisible hit meshes (cylinders 0.11, tori 0.07, sphere 0.3); the sphere wins.
