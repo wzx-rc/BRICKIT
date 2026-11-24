@@ -109,14 +109,16 @@ static bool lcPill(Ui& u, ImVec2 a, ImVec2 b, const char* icon, const char* text
     return h && u.pressed;
 }
 
-// the two buttons under the navigation: Lighting, Cameras (their panels open / closed)
+static const char* ST_RENDER = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM7.5 10.5a5 5 0 0 1 4-4M3.2 13.5h17.6";
+// the three buttons beside the navigation: Lighting, Cameras, Render Settings (their panels open / closed)
 void BrickApp::stLcButtons(Ui& u, ImVec2 a, float bw, float s) {
     const float pad = 6 * s;
-    const ImVec2 ga(a.x, a.y), gb(a.x + bw + 2 * pad, a.y + 2 * bw + 2 * pad);
+    const ImVec2 ga(a.x, a.y), gb(a.x + bw + 2 * pad, a.y + 3 * bw + 2 * pad);
     stGlass(u.dl, ga, gb, 14 * s, s);
     m_uiRects.push_back(ImVec4(ga.x, ga.y, gb.x, gb.y));
     struct B { const char* ico; const char* tip; bool* on; };
-    const B bs[2] = {{ST_ALIGHT, "Lighting: area lights", &m_lightPanel}, {ST_CAM, "Cameras", &m_camPanel}};
+    const B bs[3] = {{ST_ALIGHT, "Lighting: area lights", &m_lightPanel}, {ST_CAM, "Cameras", &m_camPanel},
+                     {ST_RENDER, "Render Settings: engine, image, environment, materials, GI, camera", &m_renderPanel}};
     float y = ga.y + pad;
     for (const B& t : bs) {
         const ImVec2 ba(ga.x + pad, y), bb(ba.x + bw, y + bw);
@@ -126,7 +128,7 @@ void BrickApp::stLcButtons(Ui& u, ImVec2 a, float bw, float s) {
         else if (h) u.dl->AddRectFilled(ba, bb, stW(16), 10 * s);
         stIcon(u.dl, t.ico, ImVec2((ba.x + bb.x) * 0.5f, (ba.y + bb.y) * 0.5f), 22 * s, on && g_brique ? C_INK : C_TEXT, (g_brique ? 1.9f : 1.5f) * s);
         if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", t.tip);
-        if (h && u.pressed) *t.on = !*t.on;
+        if (h && u.pressed) { *t.on = !*t.on; if (t.on == &m_renderPanel) savePrefs(); }
         y += bw;
     }
     g_lcAnchor = ImVec2(ga.x - 10 * s, m_stage.y + 14 * s);

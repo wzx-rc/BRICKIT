@@ -151,6 +151,8 @@ std::string BrickApp::prefsJson() {
         j += m_paintGroup ? "true" : "false";
         j += std::string(", \"bevel\": ") + (m_rs.bevel ? "true" : "false");
         j += ", \"bevelRadius\": " + std::to_string(m_bevelUser);
+        j += std::string(", \"renderPanel\": ") + (m_renderPanel ? "true" : "false") + ", \"rsX\": " + std::to_string(m_rsPos.x) + ", \"rsY\": " + std::to_string(m_rsPos.y) + ", \"rsFold\": " + std::to_string(m_rsFold);
+        j += ", \"bloomPT\": " + std::to_string(m_bloomPT) + ", \"glare\": " + std::to_string(m_glare) + std::string(", \"glassAbsorb\": ") + (m_glassAbsorb ? "true" : "false");
         j += ", \"appIcon\": " + std::to_string(m_appIcon);
         j += ", \"ghostCol\": " + std::to_string(m_ghostCol) + ", \"ghostAlpha\": " + std::to_string(m_ghostAlphaPref) + ", \"ghostGlow\": " + std::to_string(m_ghostGlow);
         j += ", \"hideDeco\": ";
@@ -272,6 +274,12 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
         if (tj["bevel"].type == app::Json::Bool) m_rs.bevel = tj["bevel"].b;
+        if (tj["renderPanel"].type == app::Json::Bool) m_renderPanel = tj["renderPanel"].b;
+        if (tj["rsX"].type == app::Json::Number && tj["rsY"].type == app::Json::Number) m_rsPos = ImVec2((float)tj["rsX"].n, (float)tj["rsY"].n);
+        if (tj["rsFold"].type == app::Json::Number) m_rsFold = (unsigned)tj["rsFold"].n;
+        if (tj["bloomPT"].type == app::Json::Number) m_bloomPT = std::clamp((float)tj["bloomPT"].n, 0.0f, 1.0f);
+        if (tj["glare"].type == app::Json::Number) m_glare = std::clamp((float)tj["glare"].n, 0.0f, 1.0f);
+        if (tj["glassAbsorb"].type == app::Json::Bool) m_glassAbsorb = tj["glassAbsorb"].b;
         if (tj["bevelRadius"].type == app::Json::Number) { m_bevelUser = std::clamp((float)tj["bevelRadius"].n, 0.0f, 5.0f); m_rs.bevelScale = m_bevelUser / 0.5f; }
         if (tj["ghostCol"].type == app::Json::Number) m_ghostCol = std::clamp((int)tj["ghostCol"].n, 0, 5);
         if (tj["ghostAlpha"].type == app::Json::Number) m_ghostAlphaPref = std::clamp((float)tj["ghostAlpha"].n, 0.05f, 1.0f);

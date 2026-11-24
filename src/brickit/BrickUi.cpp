@@ -245,7 +245,7 @@ void BrickApp::uiHeader() {
     // buttons, right aligned, in the order of the web
     struct B { int kind; svg::Icon icon; const char* label; const char* tip; bool on, enabled; int id; };   // kind 0 icon, 1 select, 2 icon+text, 3 text, 4 sep
     const bool sel = m_selected >= 0 || !m_multi.empty();
-    const char* tmNames[4] = {"ACES", "AgX", "AgX", "Std"};
+    const char* tmNames[5] = {"ACES", "AgX", "AgX", "Std", "Filmic"};
     std::vector<B> bs = {
         {0, svg::I_UNDO, nullptr, "Undo (Ctrl+Z)", false, !m_undo.empty() || m_holding, 1},
         {0, svg::I_REDO, nullptr, "Redo", false, !m_redo.empty(), 2},
@@ -264,7 +264,7 @@ void BrickApp::uiHeader() {
         {0, svg::I_VOXELS, nullptr, "Show voxels: yellow studs, cyan pins, magenta axles (V)", m_showVox, true, 12},
         {0, svg::I_DELETE, nullptr, "Delete the selection", false, sel && !m_holding, 13},
         {1, svg::I_UNDO, m_rcMode ? "Radiance C." : !m_rs.raster ? "Path tracing" : m_quality ? "HQ" : "Fast", "Quality", false, true, 14},
-        {1, svg::I_UNDO, tmNames[std::clamp(m_rs.tonemapper, 0, 3)], "View transform", false, true, 15},
+        {1, svg::I_UNDO, tmNames[std::clamp(m_rs.tonemapper, 0, 4)], "View transform", false, true, 15},
         {4, svg::I_UNDO, nullptr, nullptr, false, true, 0},
         {2, svg::I_MECH, "Mechanics", "Mechanics mode: animate pivots, gears and axles (kinematics)", m_mechOn, true, 16},
         {3, svg::I_UNDO, "DEV", "Developer mode: LDraw connectors, Maya export / reimport of parts", m_dev, true, 17},
@@ -1934,7 +1934,7 @@ void BrickApp::uiPopups() {
     struct Item { const char* label; bool on; int id; };
     std::vector<Item> items;
     if (m_popup == 1) items = {{"Fast", m_rs.raster && m_quality == 0, 0}, {"HQ", m_rs.raster && m_quality == 1, 1}, {"Path tracing", pathTraced(), 2}, {"Radiance Cascades", m_rcMode, 3}};
-    else if (m_popup == 2) items = {{"ACES", m_rs.tonemapper == 0, 0}, {"AgX", m_rs.tonemapper == 1, 1}, {"Std", m_rs.tonemapper == 3, 3}};
+    else if (m_popup == 2) items = {{"ACES", m_rs.tonemapper == 0, 0}, {"AgX", m_rs.tonemapper == 1, 1}, {"Filmic", m_rs.tonemapper == 4, 4}, {"Std", m_rs.tonemapper == 3, 3}};
     else if (m_popup == 3) items = {{"Library", m_pTray.visible, 0}, {"Instruction manual", m_pManual.visible, 4}, {"Info (parts, fps)", m_pHud.visible, 3},
                                     {"Colours", m_pColors.visible, 2}, {"Brick actions", m_pOpts.visible, 1}, {"Groups", m_pGroups.visible, 6},
                                     {"Reset the layout", false, 5}};
@@ -3623,16 +3623,14 @@ void BrickApp::uiSettings() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float pad = 14 * s, rowH = 30 * s, gap = 10 * s;
-    enum { S_UI, S_LIB, S_BUILD, S_RENDER, S_CAM, S_LIGHT, S_THEME, S_FILES, S_CLOUD, S_N };
+    // (Render, Camera and Light left for the floating Render Settings panel, Wzx 24/11/2026: BrickUiRender.inl)
+    enum { S_UI, S_LIB, S_BUILD, S_THEME, S_FILES, S_CLOUD, S_N };
     static_assert(S_CLOUD == kSetCloud, "Settings › Cloud");
     struct Sec { const char* name; const char* desc; bool pcOnly; };
     static const Sec kSec[S_N] = {
         {"Interface", "Size, style and on-screen helpers", false},
         {"Library", "Part cards and their thumbnails", false},
         {"Construction", "The brick in hand and the selection", false},
-        {"Render", "Engine, quality and image", true},
-        {"Camera", "Depth of field and focus", true},
-        {"Light", "HDRI, global illumination, grid", true},
         {"Colours", "The colour theme and its shades", false},   // (iPad too: the Crème iPad kit is one of its themes)
         {"Files", "Backup and default settings", false},
         {"Cloud", "Your scenes between iPad and PC", false},
@@ -3645,7 +3643,7 @@ void BrickApp::uiSettings() {
     // the height: the sections column, or the content of the active one as drawn last frame (scrolled when taller)
     int nSec = 0;
     for (int i = 0; i < S_N; ++i) if (!(m_ipad && kSec[i].pcOnly)) ++nSec;
-    const float itemH = 34 * s, sideH = pad + 24 * s + gap + nSec * (itemH + 2 * s) + pad;
+    const float itemH = 34 * s, sideH = pad + 24 * s + gap + nSec * (itemH + 2 * s) + (m_ipad ? 0.0f : itemH + 16 * s) + pad;
     const float maxH = d.y - 8 * s - m_popupAt.y;
     const float contentH = m_setSecH[sec] > 0 ? m_setSecH[sec] : 420 * s;
     const float H = std::min(maxH, std::max(sideH, contentH));
@@ -3670,6 +3668,17 @@ void BrickApp::uiSettings() {
             u.text(ImVec2(a.x + 16 * s, a.y + (itemH - u.fs(12.5f)) * 0.5f), 12.5f, on ? C_TEXT : C_DIM, kSec[i].name, on);
             if (hv && u.pressed && !on) { m_setSec = i; m_setScroll = 0; m_tabClicked = true; }
             y += itemH + 2 * s;
+        }
+        if (!m_ipad) {   // the render and the lighting: their own floating panel
+            y += 6 * s;
+            u.dl->AddLine(ImVec2(p0.x + 14 * s, y), ImVec2(p0.x + sideW - 14 * s, y), C_LINE, 1.0f);
+            y += 8 * s;
+            const ImVec2 a(p0.x + 8 * s, y), b(p0.x + sideW - 8 * s, y + itemH);
+            const bool hv = u.hover(a, b);
+            if (hv) u.dl->AddRectFilled(a, b, C_CARD, rb(8 * s, itemH));
+            u.text(ImVec2(a.x + 16 * s, a.y + (itemH - u.fs(12.5f)) * 0.5f), 12.5f, hv ? C_TEXT : C_DIM, "Render Settings  \xe2\x80\xba");
+            if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Engine, image, lighting, materials: the floating Render Settings panel");
+            if (hv && u.pressed) { m_renderPanel = true; m_popup = 0; m_tabClicked = true; savePrefs(); }
         }
         u.dl->AddLine(ImVec2(p0.x + sideW, p0.y), ImVec2(p0.x + sideW, p1.y), C_LINE, 1.0f);
     }
@@ -3834,141 +3843,6 @@ void BrickApp::uiSettings() {
         group("Connectors");
         row("Voxels (V)", {"Shown", "Hidden"}, m_showVox ? 0 : 1, 6);
         note("Yellow studs, cyan pins, magenta axles.");
-        break;
-    }
-    case S_RENDER: {
-        group("Engine");
-        row("Render", {"Fast", "HQ", "PT", "RC"}, m_rcMode ? 3 : pathTraced() ? 2 : m_quality == 1 ? 1 : 0, 2);
-        note("Fast: simple raster · HQ: GI, SSS · PT: path tracing · RC: Radiance Cascades");
-        group("Quality");
-        const int rs = m_renderScale > 0.95f ? 0 : std::fabs(m_renderScale - 0.85f) < 0.01f ? 1 : std::fabs(m_renderScale - 0.75f) < 0.01f ? 2 : 3;
-        row("Render scale", {"100 %", "85 %", "75 %", "67 %"}, rs, 11);
-        yesNo("Still anti-aliasing (HQ)", m_stillAA, 12);
-        yesNo("HDRI occlusion (HQ)", m_ssaoOn, 3);
-        yesNo("Rounded edges (bevel)", m_rs.bevel, 24);
-        if (m_rs.bevel && slider(111, "Bevel radius (Ray tracing, HQ)", m_bevelUser, 0.0f, 5.0f, "%.2f", m_bevelUser)) {   // (Wzx 24/11/2026: 0.5 as it was, up to 5)
-            m_rs.bevelScale = m_bevelUser / 0.5f;
-            m_renderer->resetAccumulation();
-        }
-        group("Radiance Cascades");
-        row("Anti-aliasing", {"MSAA 4x", "MSAA 8x", "AAA"}, m_rs.aaQuality, 9);
-        row("Shadows", {"Low", "Medium", "High", "AAA"}, m_rs.shadowQuality <= 1 ? 0 : m_rs.shadowQuality - 1, 10);
-        group("Image");
-        row("View transform", {"ACES", "AgX", "Std"}, m_rs.tonemapper == 3 ? 2 : m_rs.tonemapper, 4);
-        slider(109, "Bloom", m_bloom, 0.0f, 1.0f, "%.2f", m_bloom);
-        break;
-    }
-    case S_CAM: {
-        group("Lens (HQ)");
-        slider(108, "Depth of field", m_dof, 0.0f, 1.0f, "%.2f", m_dof);
-        const int k = seg("Focus", {"Auto (reticle)", "Selection", "Manual"}, m_focusMode, 11);
-        if (k >= 0 && k != m_focusMode) {
-            m_focusMode = k;
-            if (k == 2) m_focusManual = std::clamp(m_focusCur > 0 ? m_focusCur : m_scene.camera.distance, 2.0f, 400.0f);
-            savePrefs();
-        }
-        if (m_focusMode == 2) slider(110, "Focus distance", m_focusManual, 2.0f, 400.0f, "%.0f cm", m_focusManual);
-        if (m_focusMode == 0) {
-            const int r = seg("Focus reticle", {"Shown", "Hidden"}, m_focusReticle ? 0 : 1);
-            if (r >= 0 && (r == 0) != m_focusReticle) { m_focusReticle = r == 0; savePrefs(); }
-        }
-        break;
-    }
-    case S_LIGHT: {
-        group("Environment");
-        u.text(ImVec2(x0 + pad, y), 11, C_DIM, "HDRI");
-        y += 16 * s;
-        const float bw = (IW - 4 * s) / 2;
-        for (size_t i = 0; i < m_hdriPaths.size(); ++i) {
-            const float bx = x0 + pad + (i % 2) * (bw + 4 * s);
-            ImVec2 a(bx, y), b(bx + bw, y + rowH);
-            const bool on = m_hdriPaths[i] == m_hdriPath, h = hov(a, b);
-            u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-            std::string name = "Procedural sky";
-            if (!m_hdriPaths[i].empty()) {
-                std::wstring f = m_hdriPaths[i].substr(m_hdriPaths[i].find_last_of(L"\\/") + 1);
-                const size_t dot = f.find_last_of(L'.');
-                std::wstring ext = dot != std::wstring::npos ? f.substr(dot + 1) : L"";
-                if (dot != std::wstring::npos) f = f.substr(0, dot);
-                for (const wchar_t* cut : {L"_2k", L"_4k", L"_1k", L"_8k"}) { const size_t k = f.find(cut); if (k != std::wstring::npos) f = f.substr(0, k); }
-                for (auto& c : f) if (c == L'_') c = L' ';
-                if (f.size() > 18) f = f.substr(0, 18);
-                if (ext == L"exr") f += L" (exr)";
-                name.assign(f.begin(), f.end());   // (file names of the HDRI: plain ASCII)
-            }
-            const float tw = u.textW(11, name.c_str(), on);
-            u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(11)) * 0.5f), 11, on ? C_INK : C_TEXT, name.c_str(), on);
-            if (h && u.pressed && !on) { setHdri(m_hdriPaths[i]); savePrefs(); }
-            if (i % 2 == 1 || i + 1 == m_hdriPaths.size()) y += rowH + 4 * s;
-        }
-        y += gap - 4 * s;
-        {   // load a custom HDRI
-            ImVec2 a(x0 + pad, y), b(x1 - pad, y + rowH);
-            const bool h = hov(a, b);
-            u.dl->AddRectFilled(a, b, h ? C_CARD_HI : C_CARD, rb(7 * s, rowH));
-            const char* lab = "Load an HDRI…  (.hdr, .exr)";
-            const float tw = u.textW(12, lab, false);
-            u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(12)) * 0.5f), 12, C_TEXT, lab);
-            if (h && u.pressed) loadHdriDialog();
-            y += rowH + gap;
-        }
-        if (slider(101, "HDRI rotation", m_hdriRotDeg, 0.0f, 360.0f, "%.0f°", m_hdriRotDeg)) lookChanged = true;
-        if (slider(102, "HDRI intensity", m_hdriInt, 0.0f, 3.0f, "%.2f", m_hdriInt)) lookChanged = true;
-        {
-            char ib[96];
-            snprintf(ib, sizeof(ib), "The sun follows the HDRI · loaded in %.0f ms", m_hdriLoadMs);
-            note(ib);
-        }
-        group("Global illumination (HQ)");
-        {
-            const int k = seg("Soft GI", {"Yes", "No"}, m_softGI ? 0 : 1);
-            if (k >= 0 && (k == 0) != m_softGI) { m_softGI = k == 0; m_renderer->resetAccumulation(); savePrefs(); }
-        }
-        if (m_softGI) {
-            slider(104, "GI intensity", m_softGIStrength, 0.0f, 2.0f, "%.2f", m_softGIStrength);   // (live, probes kept)
-            static const int kBudgets[3] = {4096, 8192, 16384};   // (16384 at most: lit::placeProbeGrid)
-            const int cur = m_softGIProbes == kBudgets[0] ? 0 : m_softGIProbes == kBudgets[1] ? 1 : m_softGIProbes == kBudgets[2] ? 2 : -1;
-            const int k = seg("Probe quality", {"Low", "Medium", "High"}, cur);
-            if (k >= 0 && k != cur) { m_softGIProbes = kBudgets[k]; m_renderer->resetAccumulation(); savePrefs(); }
-            const int f = seg("Freeze GI while moving", {"Yes", "No"}, m_softGIHold ? 0 : 1);
-            if (f >= 0 && (f == 0) != m_softGIHold) { m_softGIHold = f == 0; savePrefs(); }
-            const int sp = seg("Show the probes", {"Yes", "No"}, m_showProbes ? 0 : 1);
-            if (sp >= 0 && (sp == 0) != m_showProbes) { m_showProbes = sp == 0; savePrefs(); }
-        }
-        {
-            const int k = seg("Lookdev GI (plain grey)", {"Yes", "No"}, m_giLookdev ? 0 : 1);
-            if (k >= 0 && (k == 0) != m_giLookdev) setLookdev(k == 0);
-        }
-        group("Material");
-        slider(105, "SSS (light under the surface) · 0 = off", m_hqSSSStrength, 0.0f, 2.0f, "%.2f", m_hqSSSStrength);
-        group("Floor grid");
-        u.text(ImVec2(x0 + pad, y), 11, C_DIM, "Colour");
-        y += 16 * s;
-        {
-            static const uint32_t sw[7] = {0x9aa3b8, 0xffffff, 0xf2c230, 0x4fc3f7, 0xe53935, 0x43a047, 0x7e57c2};
-            const float cw = (IW - 7 * 4 * s) / 8;
-            for (int k = 0; k < 8; ++k) {
-                const float bx = x0 + pad + k * (cw + 4 * s);
-                ImVec2 a(bx, y), b(bx + cw, y + rowH);
-                const bool h = hov(a, b);
-                if (k == 0) {
-                    const bool on = m_gridAlpha <= 0;
-                    u.dl->AddRectFilled(a, b, on ? C_ACCENT : (h ? C_CARD_HI : C_CARD), rb(7 * s, rowH));
-                    const float tw = u.textW(10, "Default", on);
-                    u.text(ImVec2((a.x + b.x) * 0.5f - tw * 0.5f, a.y + (rowH - u.fs(10)) * 0.5f), 10, on ? C_INK : C_TEXT, "Default", on);
-                    if (h && u.pressed) { m_gridAlpha = 0; lookChanged = true; savePrefs(); }
-                } else {
-                    const uint32_t c = sw[k - 1];
-                    const float3 rgb(((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f);
-                    const bool on = m_gridAlpha > 0 && length(rgb - m_gridRgb) < 0.01f;
-                    u.dl->AddRectFilled(a, b, IM_COL32((c >> 16) & 255, (c >> 8) & 255, c & 255, 255), rb(7 * s, rowH));
-                    if (on || h) u.dl->AddRect(a, b, on ? C_ACCENT : C_TEXT, 7 * s, 0, (on ? 3.0f : 1.5f) * s);
-                    if (h && u.pressed) { m_gridRgb = rgb; if (m_gridAlpha <= 0) m_gridAlpha = 0.6f; lookChanged = true; savePrefs(); }
-                }
-            }
-            y += rowH + gap;
-        }
-        if (slider(103, "Grid opacity", m_gridAlpha, 0.0f, 1.0f, "%.0f %%", m_gridAlpha * 100.0f)) lookChanged = true;
         break;
     }
     case S_CLOUD: {   // the account of the cloud and the sync of the scenes (BrickCloud.cpp)
@@ -4247,6 +4121,7 @@ void BrickApp::uiThumbEditor() {
 #include "BrickUiIpad.inl"
 #include "BrickUiStudio.inl"
 #include "BrickUiLights.inl"
+#include "BrickUiRender.inl"
 #include "BrickHub.inl"
 #include "BrickUiBrique.inl"
 #include "BrickUiCreme.inl"

@@ -557,7 +557,7 @@ void BrickApp::stHeader() {
         rx -= 2 * r + 6 * s;
         return h && u.pressed;
     };
-    if (roundBtn(ST_SET, "Settings (scale, render, light) and Theme", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
+    if (roundBtn(ST_SET, "Settings (interface, library, construction, files, cloud) and Theme", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
     if (roundBtn(ST_MORE, "More: grid, auto pivot, safety, animations, voxels, windows, DEV, tray", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
     if (!m_ipad) {   // the render: Rapide / HQ / Ray tracing (iPad: none, Wzx 10/11/2026)
         struct R { const char* label; bool on; int id; const char* tip; };
@@ -3217,6 +3217,7 @@ void BrickApp::drawUiStudio() {
     stNavHud();
     stLightPanel();
     stCamPanel();
+    stRenderPanel();
     stSelHud();
     stRing();
     stPaintFx();

@@ -99,6 +99,11 @@ struct Options {
     float ptCoat = -1, ptCoatRough = -1, ptRough = -1, ptSpec = -1;   // --pt-coat, --pt-coatr, --pt-rough, --pt-spec: the ABS of the path tracer (calibration)   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptGlassRough = -1, ptGlassTrans = -1;   // --pt-glass-rough r, --pt-glass-trans t: the glass of the path tracer (calibration)
+    float ptSunR = -1, ptSunB = -1;   // --pt-sun-tint r,b: the sun of the path tracer under the procedural sky, its red and blue x (calibration)
+    float ptSkySat = -1, ptFloorSpec = -1;   // --pt-sky-sat k: the saturation of the gradient sky of the path tracer; --pt-floor-spec k: the sheen of its floor (calibration)
+    float glare = -1, bloomPt = -1;   // --glare g, --bloom-pt b: the glare, the bloom of the Ray tracing (captures)
+    int glassAbsorb = -1;   // --glass-absorb 0/1: the glass absorbed by its thickness (Ray tracing)
+    int renderPanel = 0;    // --render-panel 1: the Render Settings panel open (captures); 2: its sections folded
     float ptGround = -1;   // --pt-ground g: the light from below under the procedural sky (g x the horizon), calibration
     bool matRubber = false;   // --mat-rubber: the Material panel on the rubber (captures)
     float ptSssAll = -1;   // --pt-sss-all k: the subsurface of every plastic in path tracing, x k (calibration; default: the SSS setting of Réglages › Lumière)
@@ -828,6 +833,12 @@ private:
     double m_pipT = 0;
     std::string m_pipKey;
     int m_lcDrag = -1;            // slider of the panels being dragged
+    // Render Settings (Wzx 24/11/2026): a floating panel with every setting of the render and the lighting
+    bool m_renderPanel = false, m_rsMove = false;
+    ImVec2 m_rsPos{-1, -1}, m_rsGrab;   // its right edge from the right of the window and its top, interface units (x < 0: its default place)
+    float m_rsScroll = 0, m_rsH = 0;
+    unsigned m_rsFold = 1u << 6;       // its folded sections (bit = section; Radiance Cascades folded at first)
+    int m_rsDrag = -1;
     void addLight();
     void addCamera();
     void deleteLight(int i);
@@ -847,6 +858,7 @@ private:
     void pipRender();             // the preview of the selected camera (offscreen, a few times a second)
     void stLightPanel();
     void stCamPanel();
+    void stRenderPanel();   // the floating Render Settings panel (BrickUiRender.inl)
     void stLcButtons(Ui& u, ImVec2 a, float bw, float s);
     bool m_startMaximized = false;
     bool m_cornell = false;
@@ -938,7 +950,7 @@ private:
     LARGE_INTEGER m_perfT0{}, m_perfA{}, m_perfB{}, m_perfD{}, m_perfE{}, m_perfT1{}, m_perfF{};   // (--perf-trace)
     float m_setScroll = 0;
     // ---- the cloud (BrickCloud.cpp, Cloud.h; Wzx 14/11/2026: the scenes between the iPad and the PC)
-    static constexpr int kSetCloud = 8;   // Réglages › Cloud (its section)
+    static constexpr int kSetCloud = 5;   // Réglages › Cloud (its section)
     Cloud m_cloud;
     std::string m_cloudId, m_cloudSentKey, m_cloudMsg, m_cloudAuthMsg, m_cloudListErr;
     int m_cloudVer = 0, m_cloudChanges = 0;
@@ -1206,6 +1218,8 @@ private:
     int m_arcPage = 0;
     ImVec2 m_arcPress;
     bool m_stillAA = false;           // Réglages › Anti-aliasing au repos (HQ: jittered frames accumulated while still)
+    float m_bloomPT = 0.24f, m_glare = 0.0f;   // Render Settings: the bloom of the Ray tracing (its own, Wzx 24/11/2026), the glare
+    bool m_glassAbsorb = false;   // Render Settings: the glass absorbed by its thickness (Ray tracing)
     float m_dof = 0.0f, m_bloom = 0.0f;   // Réglages › Lumière › Profondeur de champ / Bloom (0 = off)
     int m_focusMode = 0;              // Réglages › Lumière › Mise au point: 0 auto (the selection / held brick), 1 centre of the screen, 2 manual
     float m_focusManual = 40.0f;      // manual focus distance (cm)

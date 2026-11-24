@@ -515,6 +515,14 @@ static const float kPtHdriSky = 1.8f, kPtFloorSky = 0.5f;   // (kPtFloorSky: the
 // colours of the procedural sky, x kPtGradSky, no image, no second sun) and the scene sun alone (x kPtSunSky).
 // Measured on the tractor (24/11/2026, colour): model 0.43 against 0.45 in the HQ, shadows and floor at the HQ's level.
 static const float kPtGradSky = 4.0f, kPtSunSky = 1.2f, kPtGroundSky = 1.0f;   // (second pass, clay, two views, bloom on: model 0.79 / 0.77 against 0.80 / 0.72 in the HQ)
+// Third pass (Wzx 24/11/2026: « le grading global semble plus bleu que le HQ, sur le render clay c'est visible »): the
+// zenith of the gradient (0.18, 0.32, 0.72) lit the clay blue (model b/g 1.078, r/g 0.974 against 1.027 and 1.000 in
+// the HQ, whose ambient holds the warm sun of the sky image). The sky keeps part of its blue (kPtSkySat, towards its
+// grey at the same luminance: the shadows stay cool as in the HQ) and the sun is warmed (kPtSunR, kPtSunB). Measured on
+// the clay tractor: model r/g 1.000, b/g 1.035. The far floor (the background and the sheen of the floor at grazing
+// angles: 38 against 23 in the HQ) is lowered (kPtBgSky, kPtFloorSpecSky).
+static const float kPtSkySat = 0.6f, kPtSunR = 1.10f, kPtSunB = 0.84f, kPtBgSky = 0.7f, kPtFloorSpecSky = 0.4f;
+static const float kPtGlassDepth = 0.2f;   // (the glass absorbed by its thickness: the palette colour at 2 mm, a pane of a cab)
 static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
 static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
 static const float kPtGlassTrans = 0.85f, kPtGlassRough = 0.08f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
@@ -705,7 +713,7 @@ void BrickApp::applyLook() {
         m_scene.env.hemiIntensity = 0.25f;
         if (m_rimLight >= 0) m_scene.lights[m_rimLight].enabled = true;
         m_rs.exposure = 1.0f;
-        m_rs.tonemapper = 0;
+        // (the view transform stays the one chosen in Render Settings: it was forced back to ACES here at every change of mode)
         // the background behind the floor: the colour the lit floor shows far away, so the horizon disappears
         m_rs.bgOverride = m_opt.bgLin >= 0 ? float3(m_opt.bgLin) : float3(kBgLin);
     }
@@ -766,19 +774,24 @@ void BrickApp::applyLook() {
     if (!m_rs.raster && !m_rcMode) {
         m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
         const bool procSky = m_hdriPath.empty();
+        const float userInt = m_scene.env.hdriIntensity;   // (Render Settings: HDRI intensity)
         m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
         if (procSky && m_hdriImg && !m_opt.noEnv) {   // the sky as a gradient (its colours), the sun of the scene alone
             m_scene.env.hdri = nullptr;
-            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtGradSky) * 0.9f;
-            m_scene.env.top = float3(0.18f, 0.32f, 0.72f) * k;
-            m_scene.env.horizon = float3(0.85f, 0.82f, 0.78f) * k;
-            m_scene.env.bottom = float3(0.85f, 0.82f, 0.78f) * (k * (m_opt.ptGround >= 0 ? m_opt.ptGround : kPtGroundSky));
+            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtGradSky) * 0.9f * (userInt / 1.294f);   // (calibrated at the intensity 1.294; it follows the slider as the HQ does)
+            const float sat = m_opt.ptSkySat >= 0 ? m_opt.ptSkySat : kPtSkySat;
+            auto sky = [&](float3 c) { const float l = 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; return (float3(l) + (c - float3(l)) * sat) * k; };
+            m_scene.env.top = sky(float3(0.18f, 0.32f, 0.72f));
+            m_scene.env.horizon = sky(float3(0.85f, 0.82f, 0.78f));
+            m_scene.env.bottom = sky(float3(0.85f, 0.82f, 0.78f)) * (m_opt.ptGround >= 0 ? m_opt.ptGround : kPtGroundSky);
             m_scene.env.intensity = 1.0f;
         }
         if (procSky && !kitStage) {   // the floor under 1.8 x the sky: its albedo and its sheen lowered, so it reads as in the HQ
             const float kf = m_opt.ptFloor >= 0 ? m_opt.ptFloor : kPtFloorSky;
             g.baseColor = g.baseColor * kf;
-            g.specular = 0.5f * kf;
+            const bool grad = m_hdriImg && !m_opt.noEnv;   // (the gradient sky above)
+            g.specular = m_opt.ptFloorSpec >= 0 ? m_opt.ptFloorSpec : (grad ? kPtFloorSpecSky : 0.5f) * kf;
+            if (grad && m_opt.bgLin < 0 && !m_th.stage.light && m_rs.bgOverride.x >= 0) m_rs.bgOverride = m_rs.bgOverride * kPtBgSky;
             g.roughness = 0.95f;
         }
         // the plastic as the HQ shades it (Wzx 23/11/2026: « les couleurs ne sont toujours pas bonnes, ça vient de la
@@ -786,6 +799,7 @@ void BrickApp::applyLook() {
         // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
         m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 1.0f;   // (the random walk runs for the colours given an SSS in the Material panel; the others carry none, below)
         m_scene.sun.intensity *= procSky && m_hdriImg ? (m_opt.ptSunSky > 0 ? m_opt.ptSunSky : kPtSunSky) : (m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun);
+        if (procSky && m_hdriImg && !m_opt.noEnv) m_scene.sun.color = m_scene.sun.color * float3(m_opt.ptSunR > 0 ? m_opt.ptSunR : kPtSunR, 1.0f, m_opt.ptSunB > 0 ? m_opt.ptSunB : kPtSunB);
         const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
         m_rs.envSpecBoost = m_opt.ptEnvSpec >= 0 ? m_opt.ptEnvSpec : 1.0f / std::max(hf, 0.05f);   // (the reflections at the full HDRI, as in the HQ)
         if (m_hdriPath.empty() && !m_hdriImg) {   // (no image at all: the hemisphere of the HQ as the sky)
@@ -1356,6 +1370,7 @@ void BrickApp::frame() {
         }
     }
     if (m_frame == 3 && !m_opt.mayaOut.empty()) mayaExportScene(m_opt.mayaOut);   // scripted test: Maya export
+    if (m_frame == 8 && m_opt.renderPanel > 0) { m_renderPanel = true; m_rsPos = ImVec2(-1, -1); m_rsFold = m_opt.renderPanel == 2 ? 0xfcu : m_opt.renderPanel == 3 ? 0x0fu : 0u; }   // (captures: the Render Settings panel)
     if (m_frame == 8 && m_opt.lcTest > 0) {   // (captures: the Lighting and Camera panels)
         m_lightPanel = m_camPanel = true;
         addLight();
@@ -1506,7 +1521,9 @@ void BrickApp::frame() {
     m_rs.sharpen = (!pathTraced() && scale < 0.99f) ? std::min(0.6f, (1.0f - scale) * 1.1f) : 0.0f;
     // Réglages › Lumière: depth of field (HQ, RC) and bloom (the raster views); the path tracer has its own lens
     m_rs.dof = m_ipad ? 0.0f : (m_quality == 1 || m_rcMode) ? (m_opt.dof >= 0 ? m_opt.dof : m_dof) : 0.0f;
-    m_rs.bloom = m_opt.bloom >= 0 ? m_opt.bloom : m_bloom;
+    m_rs.bloom = pathTraced() ? (m_opt.bloomPt >= 0 ? m_opt.bloomPt : m_opt.bloom >= 0 ? m_opt.bloom : m_bloomPT) : (m_opt.bloom >= 0 ? m_opt.bloom : m_bloom);
+    m_rs.glare = m_ipad ? 0.0f : (m_opt.glare >= 0 ? m_opt.glare : m_glare);
+    m_rs.glassDepth = (m_opt.glassAbsorb >= 0 ? m_opt.glassAbsorb != 0 : m_glassAbsorb) ? kPtGlassDepth : 0.0f;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
     const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
@@ -1852,6 +1869,13 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--pt-sss-all") opt.ptSssAll = (float)_wtof(next().c_str());
         else if (a == L"--mat-rubber") opt.matRubber = true;
         else if (a == L"--pt-ground") opt.ptGround = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sky-sat") opt.ptSkySat = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun-tint") { std::wstring v = next(); swscanf_s(v.c_str(), L"%f,%f", &opt.ptSunR, &opt.ptSunB); }
+        else if (a == L"--pt-floor-spec") opt.ptFloorSpec = (float)_wtof(next().c_str());
+        else if (a == L"--glare") opt.glare = (float)_wtof(next().c_str());
+        else if (a == L"--bloom-pt") opt.bloomPt = (float)_wtof(next().c_str());
+        else if (a == L"--glass-absorb") opt.glassAbsorb = _wtoi(next().c_str());
+        else if (a == L"--render-panel") opt.renderPanel = _wtoi(next().c_str());
         else if (a == L"--pt-glass-rough") opt.ptGlassRough = (float)_wtof(next().c_str());
         else if (a == L"--pt-glass-trans") opt.ptGlassTrans = (float)_wtof(next().c_str());
         else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
