@@ -30,6 +30,26 @@ void BrickApp::mouseTestFrame() {
     if (t.empty()) return;
     const float sw = m_stage.z - m_stage.x, sh = m_stage.w - m_stage.y;
     View v = view();
+    if (t == "browse") {   // the library browsed category after category (the thumbnails must keep coming, 24/11/2026)
+        static const char* fams[] = {"basique", "formes", "technic", "mecanique", "vehicules", "batiment"};
+        static int shown = 0;
+        if (m_frame >= 10 && m_frame < 610 && m_frame % 8 == 0) {
+            const int k = (m_frame - 10) / 8;
+            m_stFam = fams[(k / 12) % 6];
+            m_stSub = k % 12 - 1;
+            m_clsGridScroll = 0;
+            m_cardsScroll = 0;
+        }
+        if (m_frame > 10) shown = std::max(shown, (int)m_lazyThumbs.size());
+        if (m_frame == 640) {
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") == 0 && f) {
+                fprintf(f, "browse: BrickIt textures %d, thumbnails in memory %zu (max seen %d), category %s / %d\n", m_gui->liveTextures(), m_lazyThumbs.size(), shown, m_stFam.c_str(), m_stSub);
+                fclose(f);
+            }
+        }
+        return;
+    }
     const bool swipeTest = t.rfind("swipe", 0) == 0;
     if (m_frame == (swipeTest ? 22 : 10)) {
         m_mouseScript.clear();
