@@ -189,7 +189,7 @@ void BrickApp::stHeaderBrique() {
 float BrickApp::bqLeftW() const {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    if (m_libDock == 1 && !m_mechOn) return std::clamp(m_libW > 0 ? m_libW : 300 * s, 260 * s, d.x * 0.5f);
+    if (m_libDock == 1 && !m_mechOn && !m_sideLFold) return std::clamp(m_libW > 0 ? m_libW : 300 * s, 260 * s, d.x * 0.5f);
     return 250 * s;
 }
 
@@ -204,7 +204,7 @@ void BrickApp::stBriqueStage() {
     ImDrawList* dl = u.dl;
     // the right column (Scène, Couleurs), gaps around the view, its rounded corners
     auto inCol = [&](const char* id) { auto it = m_boxes.find(id); return it == m_boxes.end() || (it->second.x < 0 && (!it->second.hidden || m_editUi)); };   // (still in the column: not moved, not hidden)
-    const bool col = !m_mechOn && ((m_pColors.visible && inCol("colors")) || (m_pGroups.visible && inCol("groups")));
+    const bool col = !m_mechOn && !m_sideRFold && ((m_pColors.visible && inCol("colors")) || (m_pGroups.visible && inCol("groups")));
     const float RW = col ? 296 * s : g;
     m_bqColX = d.x - RW + g * 0.5f;
     m_bqColW = RW - g * 1.5f;

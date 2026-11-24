@@ -1574,7 +1574,7 @@ int BrickApp::stFamFirst(const std::string& key) {
 }
 
 void BrickApp::stColors() {
-    if (!m_pColors.visible || m_mechOn) return;
+    if (!m_pColors.visible || m_mechOn || m_sideRFold) return;
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
@@ -2276,10 +2276,11 @@ void BrickApp::stDrawer() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     m_dockL = m_dockR = 0;
-    m_stColCol = (!g_brique && !m_ipad && m_pColors.visible && !m_pColors.collapsed && !m_mechOn && m_vePart < 0) ? 242 * s : 0.0f;
+    m_stColCol = (!g_brique && !m_ipad && m_pColors.visible && !m_pColors.collapsed && !m_sideRFold && !m_mechOn && m_vePart < 0) ? 242 * s : 0.0f;
     m_dockR = m_stColCol;   // (the right column of Colour, Wzx 24/11/2026)
     if (g_hubPage && m_popup == 8) { const ImVec2 dd = ImGui::GetIO().DisplaySize; m_uiRects.push_back(ImVec4(0, dd.y, dd.x, dd.y)); return; }   // (the hub page over the whole screen)
     if (!m_pTray.visible) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }
+    if (m_libDock == 1 && m_sideLFold) { m_uiRects.push_back(ImVec4(0, d.y, 0, d.y)); return; }   // (folded by its arrow, Wzx 24/11/2026)
     if (m_libDock != 0 || m_libClassic) { stDrawerClassic(); return; }   // (Classic, or docked on a side)
     const bool sheet = m_stCardMode == 1;   // Réglages › Bibliothèque: Image (the image alone) / Fiche (image, size, name, id)
     // the cards at the size of the slider of the drawer (Wzx 09/11/2026); the drawer keeps its height: as many rows as fit
@@ -3050,7 +3051,7 @@ void BrickApp::drawUiStudio() {
     {   // the library as the user leaves it: remembered (Wzx 24/11/2026)
         std::string k = m_stFam + "|" + std::to_string(m_stSub) + "|" + (m_clsTechnic ? "T" : "L") + "|" + std::to_string((int)m_libH) + "|" + std::to_string((int)m_libW) + "|" +
                          std::to_string((int)(m_stCardScale * 100)) + "|" + std::to_string(m_libDock) + "|" + (m_pTray.collapsed ? "c" : "o") + "|" + (m_libClassic ? "cl" : "st") + "|" +
-                         std::to_string((int)(m_kitLibFrac * 100)) + "|" + std::to_string(m_stCardMode);
+                         std::to_string((int)(m_kitLibFrac * 100)) + "|" + std::to_string(m_stCardMode) + (m_sideLFold ? "|L" : "|l") + (m_sideRFold ? "R" : "r");
         for (const std::string& f : m_clsOpen) k += "|" + f;
         if (k != m_libStateKey && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             if (!m_libStateKey.empty() && m_opt.shotPath.empty()) savePrefs();
@@ -3108,6 +3109,7 @@ void BrickApp::drawUiStudio() {
     uiManualBig();
     drawDropzone();
     g_uiBlock = false;
+    stSideTabs();   // (the arrows that fold the side panels, Wzx 24/11/2026)
     stEditUi();   // Réglages › Interface › Éditer l'interface (Brique)
     stHub();   // the hub of the scenes (Wzx 15/11/2026), over everything
 }
@@ -3452,7 +3454,7 @@ void BrickApp::stNavHud() {
         if (t >= 1) m_viewAnim = false;
     }
     if (g_brique && (bqHidden("nav") || m_popup == 8)) return;
-    float right = (m_pColors.visible && !m_mechOn ? m_colPanelX : d.x - m_dockR) - 12 * s;
+    float right = (m_pColors.visible && !m_mechOn && !m_sideRFold ? m_colPanelX : d.x - m_dockR) - 12 * s;
     float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     ImVec2 nav0(0, 0);
     if (g_brique) { right = m_stageB.z - 14 * m_ui; top = m_stageB.y + 14 * m_ui; nav0 = ImVec2(right, top); const ImVec2 o = bqOff("nav"); right += o.x; top += o.y; }
@@ -3610,5 +3612,39 @@ void BrickApp::stNavHud() {
             }
             ImGui::SetMouseCursor(m_navDrag == 1 ? ImGuiMouseCursor_ResizeAll : ImGuiMouseCursor_Hand);
         }
+    }
+}
+
+
+// ------------------------------------------------------------------ the arrows of the side panels (Wzx 24/11/2026)
+// A small tab on the inner edge of the left panel (the library docked on the left) and of the right column (Colour):
+// a click folds it to the edge of the window, the view takes the room; folded, the tab stays at the edge to unfold it.
+void BrickApp::stSideTabs() {
+    if (m_popup != 0 || m_mechOn || m_vePart >= 0 || m_editUi) return;
+    Ui u = ui(m_ui);
+    const float s = m_ui;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const float w = 16 * s, h = 52 * s, cy = (m_stage.y + m_stage.w) * 0.5f;
+    auto tab = [&](float x0, bool left, bool folded) {
+        // left: the tab of the left panel (its rounded side to the right); the chevron points where the panel will go
+        const ImVec2 a(x0, cy - h * 0.5f), b(x0 + w, cy + h * 0.5f);
+        const bool hv = u.hover(ImVec2(a.x - 4 * s, a.y), ImVec2(b.x + 4 * s, b.y));
+        const ImDrawFlags fl = left ? ImDrawFlags_RoundCornersRight : ImDrawFlags_RoundCornersLeft;
+        u.dl->AddRectFilled(a, b, hv ? C_ACCENT : sbOr(C_PANEL, SBK_BAR), 8 * s, fl);
+        u.dl->AddRect(a, b, stW(30), 8 * s, fl, 1.0f);
+        const bool pointLeft = left != folded;   // (open on the left: fold to the left; folded on the left: open to the right)
+        const float cx = (a.x + b.x) * 0.5f, q = 4 * s, dx = pointLeft ? -1.0f : 1.0f;
+        const ImU32 fg = hv ? C_INK : C_TEXT;
+        u.dl->AddLine(ImVec2(cx - dx * q * 0.5f, cy - q), ImVec2(cx + dx * q * 0.5f, cy), fg, 1.8f * s);
+        u.dl->AddLine(ImVec2(cx + dx * q * 0.5f, cy), ImVec2(cx - dx * q * 0.5f, cy + q), fg, 1.8f * s);
+        m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
+        if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", folded ? "Show the panel" : "Hide the panel");
+        return hv && u.pressed;
+    };
+    if (m_libDock == 1 && m_pTray.visible) {   // the library on the left
+        if (tab(m_sideLFold ? 0.0f : m_stage.x, true, m_sideLFold)) m_sideLFold = !m_sideLFold;
+    }
+    if (m_pColors.visible) {   // the right column (Colour)
+        if (tab(m_sideRFold ? d.x - w : m_stage.z - w, false, m_sideRFold)) m_sideRFold = !m_sideRFold;
     }
 }

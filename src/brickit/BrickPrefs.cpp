@@ -139,6 +139,7 @@ std::string BrickApp::prefsJson() {
         j += ", \"libDock\": " + std::to_string(m_libDock) + ", \"libH\": " + std::to_string(m_libH) + ", \"libW\": " + std::to_string(m_libW);
         j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
         j += std::string(", \"swatchFlat\": ") + (m_swatchFlat ? "true" : "false");
+        j += std::string(", \"sideLFold\": ") + (m_sideLFold ? "true" : "false") + ", \"sideRFold\": " + (m_sideRFold ? "true" : "false");
         {   // the library as left (Wzx 24/11/2026: « auto mémorise le choix user du panneau Library »)
             std::string open;
             for (const std::string& f : m_clsOpen) open += (open.empty() ? "" : ",") + f;
@@ -258,6 +259,8 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
         if (tj["swatchFlat"].type == app::Json::Bool) m_swatchFlat = tj["swatchFlat"].b;
+        if (tj["sideLFold"].type == app::Json::Bool) m_sideLFold = tj["sideLFold"].b;
+        if (tj["sideRFold"].type == app::Json::Bool) m_sideRFold = tj["sideRFold"].b;
         if (tj["stFam"].type == app::Json::String && !tj["stFam"].str().empty()) m_stFam = tj["stFam"].str();
         if (tj["stSub"].type == app::Json::Number) m_stSub = (int)tj["stSub"].n;
         if (tj["clsTechnic"].type == app::Json::Bool) m_clsTechnic = tj["clsTechnic"].b;

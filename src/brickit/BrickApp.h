@@ -99,7 +99,8 @@ struct Options {
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
-    bool stPaint = false, stGroups = false, colorsMin = false;   // (--colors-min: the panel Couleur reduced)   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    bool stPaint = false, stGroups = false, colorsMin = false;
+    int sideFold = -1;   // --side-fold: 1 the left panel folded, 2 the right column, 3 both (captures)   // (--colors-min: the panel Couleur reduced)   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
@@ -1142,7 +1143,9 @@ private:
     bool m_giLookdev = false;
     bool m_ptLook = false;
     bool m_lightDragged = false;
-    bool m_swatchFlat = false;                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
+    bool m_swatchFlat = false;
+    bool m_sideLFold = false, m_sideRFold = false;   // the left panel (the library docked on the left) / the right column folded (its arrow)
+    void stSideTabs();                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
     std::string m_libStateKey;                // the library as the user left it (saved when it changes)              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
