@@ -169,13 +169,19 @@ void BrickApp::stRenderPanel() {
                                          "Filmic: vivid colours, a long soft shoulder", "Standard: no curve, the colours as they are"};
         note(kTmWhat[cur]);
         y += 2 * s;
+        if (toggle("Wide gamut (ACEScg)", m_wideGamut, "The scene rendered in ACEScg primaries, as Arnold or Octane do: the saturated colours (deep yellows, oranges) keep their saturation in the highlights")) { m_wideGamut = !m_wideGamut; syncLights(); applyLook(); reset = true; }
         sl(201, "Bloom · HQ", m_bloom, 0.0f, 1.0f, "%.2f", m_bloom, "The glow of the bright parts in the real time views (0 = off)");
         sl(202, "Bloom · Ray tracing", m_bloomPT, 0.0f, 1.0f, "%.2f", m_bloomPT, "The glow of the bright parts in Ray tracing (0 = off)");
         sl(203, "Glare", m_glare, 0.0f, 1.0f, "%.2f", m_glare, "A wide, soft halo around the highlights, as a lens gives (0 = off)");
         endSection();
     }
     // ================================================================== ENVIRONMENT
-    if (section(R_ENV, "ENVIRONMENT", "HDRI, sun")) {
+    if (section(R_ENV, "ENVIRONMENT", "stage, HDRI")) {
+        {
+            const int k = seg("Stage", {"BrickIt (floor, sun)", "Studio (cyclo, softboxes)"}, m_studio ? 1 : 0);
+            if (k >= 0) { setStudio(k == 1); reset = true; }
+            if (m_studio) note("No sun: the HDRI and the lights of the Lighting panel");
+        }
         const float rh = 24 * s, bw = (x1 - x0 - 3 * s) / 2;
         for (size_t i = 0; i < m_hdriPaths.size(); ++i) {
             const float bx = x0 + (i % 2) * (bw + 3 * s);
@@ -221,6 +227,7 @@ void BrickApp::stRenderPanel() {
             reset = true;
         }
         if (toggle("Glass absorption (thickness) · RT", m_glassAbsorb, "Ray tracing: the colour of a transparent part deepens with its thickness (a thin pane paler, a thick part richer)")) { m_glassAbsorb = !m_glassAbsorb; reset = true; savePrefs(); }
+        if (toggle("Studio plastic (fingerprints, no varnish)", m_studioShader, "The plastic of a lookdev scene: a specular whose roughness is a fingerprints map, half of the light under the surface, no varnish")) { m_studioShader = !m_studioShader; applyLook(); reset = true; }
         if (toggle("Clay render (plain grey)", m_giLookdev, "Every part the same matte grey: the lighting alone")) setLookdev(!m_giLookdev);
         endSection();
     }

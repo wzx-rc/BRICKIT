@@ -447,7 +447,7 @@ void BrickApp::noteRecent(int part) {
 // --------------------------------------------------------------------------- files
 
 bool BrickApp::saveScene(const std::wstring& path) {
-    std::string text = m_build.toJson(m_scene.camera);
+    std::string text = sceneJson();   // (the bricks and the look of the scene: BrickStudio.cpp)
     FILE* f = nullptr;
     if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Cannot write the file"); return false; }
     fwrite(text.data(), 1, text.size(), f);
@@ -488,6 +488,7 @@ bool BrickApp::openScene(const std::wstring& path) {
     m_scenePath = path;
     cloudForget();   // (a scene of a file: a new scene of the cloud)
     rebuildScene();
+    applySceneLook(text);   // (its lights, cameras, stage)
     toast(msg);
     return true;
 }

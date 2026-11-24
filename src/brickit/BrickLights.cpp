@@ -161,7 +161,7 @@ void BrickApp::syncLights() {
         a.up = l.targetOn ? float3(0) : l.upv();   // (turned freely: its roll too)
         a.width = std::max(0.2f, l.w);
         a.height = std::max(0.2f, l.h);
-        a.color = lin3(l.color);
+        a.color = gamut(lin3(l.color));
         a.intensity = std::max(0.0f, l.intensity);
         a.visibleToCamera = false;   // (as a studio light: it lights, it does not show)
         a.enabled = l.visible;
@@ -470,7 +470,7 @@ bool BrickApp::objInput(ImVec2 mp) {
 }
 
 void BrickApp::drawObjOverlay() {
-    if (m_lights.empty() && m_cams.empty()) return;
+    if ((m_lights.empty() && m_cams.empty()) || m_opt.noUi) return;   // (a capture without interface: no gizmo either)
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     const View v = view();
     const float s = m_ui;

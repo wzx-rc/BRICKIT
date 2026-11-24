@@ -128,6 +128,7 @@ bool BrickApp::loadSceneText(const std::string& text, const std::string& name, b
         m_scenePath.clear();
         m_modelName = name == "My scene" ? std::string() : name;
         rebuildScene();
+        applySceneLook(text);
         autosave();
     }
     m_cloudLoading = false;

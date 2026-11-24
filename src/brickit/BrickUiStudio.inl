@@ -1749,7 +1749,7 @@ float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
     const float s = m_ui, pad = 14 * s;
     const int ci = std::clamp(m_color, 0, (int)m_lib.palette.size() - 1);
     MatEdit e = matEditOf(ci);
-    const bool edited = m_matEdits.count(matKey(ci)) > 0;
+    const bool edited = editOf(matKey(ci)) != nullptr;
     float y = a.y + 4 * s;
     u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(b.x - pad, y), stW(26), 1.0f);
     y += 10 * s;

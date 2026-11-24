@@ -2,6 +2,8 @@
 #include "vp3d/MeshGen.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace brickit {
 
@@ -20,6 +22,51 @@ int addGround(Scene& scene, float size, bool grid, bool visible) {
     o.material = scene.addMaterial(g);
     o.selectable = false;
     o.visible = visible;
+    return scene.addObject(o);
+}
+
+// The cyclorama of the studio stage (BrickIt 24/11/2026, after the lookdev scene of Wzx in Maya: its Background, 49.6 cm
+// wide, 27.4 deep, 23.5 high, the model near the middle of the floor): the floor at y = 0 from z = 13.5 to the corner,
+// a quarter of a circle, the wall at z = -13.9. One unit mesh (scaled by the stage for bigger models), smooth normals.
+int addCyclo(Scene& scene) {
+    const float W = 24.8f, zFront = 13.5f, zWall = -13.9f, H = 23.5f, Rc = 6.0f;
+    struct P { float z, y, nz, ny; };
+    std::vector<P> prof;
+    prof.push_back({zFront, 0, 0, 1});
+    const int N = 24;
+    for (int i = 0; i <= N; ++i) {
+        const float a = (float)i / N * 1.5707963f;
+        prof.push_back({zWall + Rc - Rc * std::sin(a), Rc - Rc * std::cos(a), std::sin(a), std::cos(a)});
+    }
+    prof.push_back({zWall, H, 1, 0});
+    MeshData m;
+    for (const P& p : prof)
+        for (int s = 0; s < 2; ++s) {
+            Vertex v;
+            v.pos = float3(s ? W : -W, p.y, p.z);
+            v.nrm = float3(0, p.ny, p.nz);
+            v.uv = float2(0, 0);
+            m.vertices.push_back(v);
+        }
+    for (uint32_t i = 0; i + 1 < (uint32_t)prof.size(); ++i) {
+        const uint32_t a = i * 2, b = a + 1, c = a + 2, d = a + 3;   // a (-W, i), b (+W, i), c (-W, i + 1), d (+W, i + 1)
+        m.addTri(a, b, d);
+        m.addTri(a, d, c);
+    }
+    m.quadEdges();
+    Material g;
+    g.name = "Cyclo";
+    g.baseColor = float3(0.365f);   // (its Arnold shader: base 0.73 x a grey of 0.5)
+    g.roughness = 0.2f;
+    g.specular = 0.5f;
+    g.flags = 16u;   // MAT_FLAG_FRESNEL
+    Object o;
+    o.name = "Cyclo";
+    o.part = "GROUND";
+    o.mesh = scene.addMesh("cyclo", m);
+    o.material = scene.addMaterial(g);
+    o.selectable = false;
+    o.visible = false;
     return scene.addObject(o);
 }
 

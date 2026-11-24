@@ -16,8 +16,7 @@ static float linToSrgb(float c) {
 BrickApp::MatEdit BrickApp::matEditOf(int ci) const {
     MatEdit e;
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return e;
-    auto it = m_matEdits.find(matKey(ci));
-    if (it != m_matEdits.end()) return it->second;
+    if (const MatEdit* se = editOf(matKey(ci))) return *se;
     const std::vector<Material>& fac = m_matRubber ? m_rubberFactory : m_colorMaterialFactory;
     if (ci < (int)fac.size()) {
         const Material& m = fac[ci];
@@ -33,10 +32,11 @@ BrickApp::MatEdit BrickApp::matEditOf(int ci) const {
 void BrickApp::applyMatEdits() {
     for (size_t i = 0; i < m_colorMaterialFactory.size() && i < m_colorMaterialOrig.size() && i < m_lib.palette.size(); ++i) {
         Material m = m_colorMaterialFactory[i];
-        auto it = m_matEdits.find(m_lib.palette[i].id);
-        if (it != m_matEdits.end()) {
-            const MatEdit& e = it->second;
+        if (const MatEdit* ep = editOf(m_lib.palette[i].id)) {   // (the scene's own edit first, then the one of the preferences)
+            const MatEdit& e = *ep;
             m.baseColor = float3(srgbToLinear(e.srgb.x), srgbToLinear(e.srgb.y), srgbToLinear(e.srgb.z));
+            if (e.ap1.x >= 0)   // a colour given in ACEScg: in sRGB primaries, out of their gamut where it is (gamut() brings it back)
+                m.baseColor = float3(1.70505f * e.ap1.x - 0.62179f * e.ap1.y - 0.08326f * e.ap1.z, -0.13026f * e.ap1.x + 1.14080f * e.ap1.y - 0.01055f * e.ap1.z, -0.02400f * e.ap1.x - 0.12897f * e.ap1.y + 1.15297f * e.ap1.z);
             m.metallic = e.metal;
             m.transmission = e.trans;
             m.roughness = e.rough;
@@ -52,9 +52,8 @@ void BrickApp::applyMatEdits() {
     // the rubber of the tyres (its own material per colour, kRubberKey + id): matte, never a varnish
     for (size_t i = 0; i < m_rubberFactory.size() && i < m_rubberOrig.size() && i < m_lib.palette.size(); ++i) {
         Material m = m_rubberFactory[i];
-        auto it = m_matEdits.find(kRubberKey + m_lib.palette[i].id);
-        if (it != m_matEdits.end()) {
-            const MatEdit& e = it->second;
+        if (const MatEdit* ep = editOf(kRubberKey + m_lib.palette[i].id)) {
+            const MatEdit& e = *ep;
             m.baseColor = float3(srgbToLinear(e.srgb.x), srgbToLinear(e.srgb.y), srgbToLinear(e.srgb.z));
             m.metallic = e.metal;
             m.transmission = e.trans;
@@ -72,13 +71,17 @@ void BrickApp::applyMatEdits() {
 
 void BrickApp::setMatEdit(int ci, const MatEdit& e) {
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return;
-    m_matEdits[matKey(ci)] = e;
+    MatEdit n = e;
+    if (const MatEdit* was = editOf(matKey(ci))) { if (length(was->srgb - e.srgb) > 1e-4f) n.ap1 = float3(-1.0f); }   // (its colour changed by hand: no ACEScg value any more)
+    if (m_sceneMats.count(matKey(ci))) m_sceneMats[matKey(ci)] = n;   // (a colour the scene edits: its edit, saved with the scene)
+    else m_matEdits[matKey(ci)] = n;
     applyMatEdits();
 }
 
 void BrickApp::resetMatEdit(int ci) {
     if (ci < 0 || ci >= (int)m_lib.palette.size()) return;
-    m_matEdits.erase(matKey(ci));
+    if (m_sceneMats.count(matKey(ci))) m_sceneMats.erase(matKey(ci));
+    else m_matEdits.erase(matKey(ci));
     applyMatEdits();
     savePrefs();
 }

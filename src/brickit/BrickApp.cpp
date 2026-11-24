@@ -292,6 +292,8 @@ void BrickApp::setupStage() {
     m_partMesh.assign(m_lib.parts.size(), -1);
 
     addGround(m_scene, m_opt.groundSize, !m_opt.cleanGround, !m_opt.noGround);
+    m_cycloObj = addCyclo(m_scene);   // (the studio stage, hidden until it is on)
+    m_fpTex = -1;
     m_firstBrickObject = (int)m_scene.objects.size();
     m_rimLight = addRimLight(m_scene);
     m_firstUserLight = (int)m_scene.lights.size();   // (the user's area lights after it, BrickLights.cpp)
@@ -543,6 +545,10 @@ void BrickApp::setLookdev(bool on) {
             m.transmission = 0.0f;
             m.subsurface = 0.12f;
             m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+            if (m_opt.clayAlbedo >= 0) { m.baseColor = float3(m_opt.clayAlbedo); m.subsurface = 0.0f; m.roughness = 1.0f; }
+        } else if (m_studioShader && m.transmission < 0.5f && m.metallic < 0.5f) {   // the studio plastic (BrickStudio.cpp)
+            const MatEdit* e = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr;
+            studioPlastic(m, e && e->sss >= 0);
         } else if (m_ptLook && m.transmission > 0.5f) {   // the glass of the path tracer (Wzx 24/11/2026: « le verre est moins joli en raytraced »)
             m.roughness = m_opt.ptGlassRough >= 0 ? m_opt.ptGlassRough : kPtGlassRough;
             m.transmission = m_opt.ptGlassTrans >= 0 ? m_opt.ptGlassTrans : kPtGlassTrans;
@@ -551,8 +557,8 @@ void BrickApp::setLookdev(bool on) {
             // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
             {   // the light under the surface (the new random walk: the colour of the brick, soft): the strength of
                 // Réglages › Lumière › SSS, as the HQ; a colour set in the Material panel keeps its own value
-                auto it = i < m_lib.palette.size() ? m_matEdits.find(m_lib.palette[i].id) : m_matEdits.end();
-                if (it == m_matEdits.end() || it->second.sss < 0)
+                const MatEdit* e = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr;
+                if (!e || e->sss < 0)
                     m.subsurface = std::clamp(m.subsurface * (m_opt.ptSssAll >= 0 ? m_opt.ptSssAll : (m_opt.hqSSS >= 0 ? m_opt.hqSSS : m_hqSSSStrength)), 0.0f, 0.85f);
             }
             m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
@@ -560,6 +566,7 @@ void BrickApp::setLookdev(bool on) {
             if (m_opt.ptRough >= 0) m.roughness = m_opt.ptRough;
             if (m_opt.ptSpec >= 0) m.specular = m_opt.ptSpec;
         }
+        m.baseColor = gamut(m.baseColor);
         m_scene.materials[m_colorMaterial[i]] = m;
         if (i < m_dimMaterial.size()) {
             Material d = m;
@@ -580,6 +587,7 @@ void BrickApp::setLookdev(bool on) {
             m.subsurface = 0.12f;
             m.sssRadius = float3(0.06f, 0.06f, 0.06f);
         }
+        m.baseColor = gamut(m.baseColor);
         m_scene.materials[m_rubberMaterial[i]] = m;
         if (i < m_rubberDim.size()) {
             Material d = m;
@@ -811,8 +819,11 @@ void BrickApp::applyLook() {
             m_scene.env.bottom = m_scene.env.hemiGround * k;
         }
     } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; if (m_hdriImg && !m_opt.noEnv) m_scene.env.hdri = m_hdriImg; }
+    studioLook();   // (the studio stage over all this, BrickStudio.cpp)
+    m_rs.wideGamut = m_wideGamut;
+    m_scene.sun.color = gamut(m_scene.sun.color);
     const bool ptLook = !m_rs.raster && !m_rcMode;
-    if (ptLook != m_ptLook || ptLook) { m_ptLook = ptLook; setLookdev(m_giLookdev); }   // (path tracing: its materials again, the flags of a capture included)
+    if (ptLook != m_ptLook || ptLook || m_studioShader) { m_ptLook = ptLook; setLookdev(m_giLookdev); }   // (path tracing: its materials again, the flags of a capture included)
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -1370,6 +1381,17 @@ void BrickApp::frame() {
         }
     }
     if (m_frame == 3 && !m_opt.mayaOut.empty()) mayaExportScene(m_opt.mayaOut);   // scripted test: Maya export
+    if (!m_pendingLook.empty() && m_frame >= 2) { const std::string t = std::move(m_pendingLook); m_pendingLook.clear(); applySceneLook(t); }
+    if (m_sceneLook && m_bricks.empty() && !m_holding && m_frame > 4) applySceneLook(std::string());   // (a new scene: the look of the last one goes)
+    if (m_frame == 4 && m_opt.studioBrick) studioBrickScene();
+    if (m_frame == 6 && (m_opt.studio >= 0 || m_opt.studioShader >= 0 || m_opt.noUserLights || m_opt.wideGamut >= 0)) {
+        if (m_opt.studioShader >= 0) m_studioShader = m_opt.studioShader != 0;
+        if (m_opt.wideGamut >= 0) { m_wideGamut = m_opt.wideGamut != 0; syncLights(); }
+        if (m_opt.noUserLights) { for (UserLight& l : m_lights) l.visible = false; syncLights(); }
+        if (m_opt.studio >= 0) setStudio(m_opt.studio != 0);
+        applyLook();
+    }
+    if (m_frame == 12 && !m_opt.studioSave.empty()) { saveScene(m_opt.studioSave); }
     if (m_frame == 8 && m_opt.renderPanel > 0) { m_renderPanel = true; m_rsPos = ImVec2(-1, -1); m_rsFold = m_opt.renderPanel == 2 ? 0xfcu : m_opt.renderPanel == 3 ? 0x0fu : 0u; }   // (captures: the Render Settings panel)
     if (m_frame == 8 && m_opt.lcTest > 0) {   // (captures: the Lighting and Camera panels)
         m_lightPanel = m_camPanel = true;
@@ -1523,6 +1545,7 @@ void BrickApp::frame() {
     m_rs.dof = m_ipad ? 0.0f : (m_quality == 1 || m_rcMode) ? (m_opt.dof >= 0 ? m_opt.dof : m_dof) : 0.0f;
     m_rs.bloom = pathTraced() ? (m_opt.bloomPt >= 0 ? m_opt.bloomPt : m_opt.bloom >= 0 ? m_opt.bloom : m_bloomPT) : (m_opt.bloom >= 0 ? m_opt.bloom : m_bloom);
     m_rs.glare = m_ipad ? 0.0f : (m_opt.glare >= 0 ? m_opt.glare : m_glare);
+    if (m_studio) m_rs.bloom = m_opt.bloomPt >= 0 ? m_opt.bloomPt : 0.0f;   // (the studio stage: a bright background, everything would glow; the glare stays)
     m_rs.glassDepth = (m_opt.glassAbsorb >= 0 ? m_opt.glassAbsorb != 0 : m_glassAbsorb) ? kPtGlassDepth : 0.0f;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
@@ -1876,6 +1899,15 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--bloom-pt") opt.bloomPt = (float)_wtof(next().c_str());
         else if (a == L"--glass-absorb") opt.glassAbsorb = _wtoi(next().c_str());
         else if (a == L"--render-panel") opt.renderPanel = _wtoi(next().c_str());
+        else if (a == L"--studio") opt.studio = _wtoi(next().c_str());
+        else if (a == L"--studio-plastic") opt.studioShader = _wtoi(next().c_str());
+        else if (a == L"--studio-brick") opt.studioBrick = true;
+        else if (a == L"--studio-save") opt.studioSave = next();
+        else if (a == L"--studio-fp") opt.studioFp = (float)_wtof(next().c_str());
+        else if (a == L"--studio-base") opt.studioBase = (float)_wtof(next().c_str());
+        else if (a == L"--wide-gamut") opt.wideGamut = _wtoi(next().c_str());
+        else if (a == L"--clay-albedo") opt.clayAlbedo = (float)_wtof(next().c_str());
+        else if (a == L"--no-user-lights") opt.noUserLights = true;
         else if (a == L"--pt-glass-rough") opt.ptGlassRough = (float)_wtof(next().c_str());
         else if (a == L"--pt-glass-trans") opt.ptGlassTrans = (float)_wtof(next().c_str());
         else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());

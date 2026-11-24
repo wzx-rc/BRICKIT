@@ -103,6 +103,13 @@ struct Options {
     float ptSkySat = -1, ptFloorSpec = -1;   // --pt-sky-sat k: the saturation of the gradient sky of the path tracer; --pt-floor-spec k: the sheen of its floor (calibration)
     float glare = -1, bloomPt = -1;   // --glare g, --bloom-pt b: the glare, the bloom of the Ray tracing (captures)
     int glassAbsorb = -1;   // --glass-absorb 0/1: the glass absorbed by its thickness (Ray tracing)
+    int studio = -1, studioShader = -1;   // --studio 0/1, --studio-plastic 0/1: the studio stage, the studio plastic (captures)
+    bool studioBrick = false;             // --studio-brick: the lookdev scene of the yellow brick (BrickStudio.cpp)
+    std::wstring studioSave;              // --studio-save <file>: that scene written to this file (frame 12)
+    float studioBase = -1;   // --studio-base g: the studio plastic with this grey as its colour and no SSS (calibration: 0 = its reflections alone)
+    int wideGamut = -1;      // --wide-gamut 0/1
+    float studioFp = -1, clayAlbedo = -1; // --studio-fp k: the strength of the fingerprints map; --clay-albedo a: the grey of the clay render, linear, no SSS (calibration)
+    bool noUserLights = false;            // --no-user-lights: the lights of the Lighting panel off (calibration)
     int renderPanel = 0;    // --render-panel 1: the Render Settings panel open (captures); 2: its sections folded
     float ptGround = -1;   // --pt-ground g: the light from below under the procedural sky (g x the horizon), calibration
     bool matRubber = false;   // --mat-rubber: the Material panel on the rubber (captures)
@@ -839,6 +846,33 @@ private:
     float m_rsScroll = 0, m_rsH = 0;
     unsigned m_rsFold = 1u << 6;       // its folded sections (bit = section; Radiance Cascades folded at first)
     int m_rsDrag = -1;
+    // the studio stage and the look a scene keeps (BrickStudio.cpp)
+    bool m_wideGamut = false;   // the scene rendered in ACEScg primaries (Render Settings › Image; RenderSettings::wideGamut)
+    float3 gamut(const float3& linSrgb) const;   // a colour of the scene: as it is, or in ACEScg when m_wideGamut
+    bool m_studio = false, m_studioShader = false;   // the cyclo stage; the studio plastic (fingerprints, no varnish)
+    bool m_sceneLook = false;                         // the open scene came with a lookdev block (its lights, cameras, materials)
+    int m_cycloObj = -1, m_fpTex = -1;
+    bool m_fpLoaded = false;
+    vp3d::Texture m_fpImage;
+    float3 m_studioCyclo{0, 0, 0};
+    float m_studioCycloK = 1.0f;
+    float m_studioFloorY = -1e30f;                    // (> -1e20: the scene says where its cyclo is, m_studioCyclo)
+    struct EnvKeep { std::wstring hdri; float rot = 0, intensity = 0.55f; int tonemapper = 0, engine = 1; } m_keep;
+    bool m_envKept = false;                           // the environment of the user kept aside while a studio scene is open
+    std::string m_pendingLook;                        // the scene text whose lookdev block is applied once the stage is up
+    std::wstring studioFile(const wchar_t* name) const;
+    void ensureStudioTex();
+    void studioPlastic(vp3d::Material& m, bool sssFromEdit);
+    void setStudio(bool on);
+    float studioScale(float3* centre) const;
+    void studioRig(const float3& c, float k);
+    bool m_studioAuto = false;   // the softboxes came with the stage switch (they go with it)
+    void studioLook();
+    bool hasSceneLook() const;
+    std::string sceneLookJson() const;
+    std::string sceneJson() const;
+    void applySceneLook(const std::string& text);
+    void studioBrickScene();
     void addLight();
     void addCamera();
     void deleteLight(int i);
@@ -1242,8 +1276,10 @@ private:
     std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
     // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
     // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
-    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; };   // sss < 0: the factory subsurface (none in path tracing)
+    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; float3 ap1{-1, -1, -1}; };   // (ap1.x >= 0: the colour given in ACEScg, linear; srgb is then its nearest sRGB)   // sss < 0: the factory subsurface (none in path tracing)
     std::map<int, MatEdit> m_matEdits;
+    std::map<int, MatEdit> m_sceneMats;               // the materials edited for this scene only (over m_matEdits)
+    const MatEdit* editOf(int colourKey) const { auto s = m_sceneMats.find(colourKey); if (s != m_sceneMats.end()) return &s->second; auto p = m_matEdits.find(colourKey); return p != m_matEdits.end() ? &p->second : nullptr; }
     int m_matDrag = -1;
     bool m_matRubber = false;   // the Material panel edits the rubber of the colour (tyres), not its plastic
     static constexpr int kRubberKey = 100000;   // m_matEdits: the rubber of colour id is at kRubberKey + id

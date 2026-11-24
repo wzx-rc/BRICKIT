@@ -363,7 +363,7 @@ void BrickApp::autosave() {
     if (m_cornell) return;
     manualDirty();   // the steps change with the scene
     cloudNoteChange();   // (sent to the cloud a few seconds later)
-    if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", m_build.toJson(m_scene.camera));
+    if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", sceneJson());
 }
 
 bool BrickApp::restoreAutosave() {
@@ -371,6 +371,7 @@ bool BrickApp::restoreAutosave() {
     // no scene of a last session: the default scene (assets\\brickit\\default_scene.v3d.json, the official house 31153)
     if (!readText(m_exeDir + L"\\brickit_scene.v3d.json", t) && !readText(m_exeDir + L"\\assets\\brickit\\default_scene.v3d.json", t)) return false;
     if (!m_build.fromJson(t, &m_scene.camera, &msg) || m_bricks.empty()) return false;
+    m_pendingLook = t;   // (its lookdev block, once the stage is up)
     toast(msg);
     // parts of the last session not found (the full library missing, 06/11/2026: the autosave was rewritten without
     // them): the file is kept as it is, a copy made, and the autosave stays off for this session
