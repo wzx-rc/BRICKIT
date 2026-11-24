@@ -309,6 +309,18 @@ void BrickApp::setupStage() {
         d.coat *= 0.5f;
         m_dimMaterial.push_back(m_scene.addMaterial(d));
     }
+    m_rubberMaterial = addRubberMaterials(m_scene, m_lib, m_opt.sss);
+    m_rubberOrig.clear();
+    m_rubberDim.clear();
+    for (int ci : m_rubberMaterial) {
+        m_rubberOrig.push_back(m_scene.materials[ci]);
+        Material d = m_scene.materials[ci];
+        d.name += " (dim)";
+        d.baseColor = d.baseColor * 0.5f;
+        d.specular *= 0.5f;
+        m_rubberDim.push_back(m_scene.addMaterial(d));
+    }
+    m_partRubber.assign(m_lib.parts.size(), -1);
     if (m_opt.giLookdev) setLookdev(true);
     {
         Material gm;   // ghostMat of the web: 0xffe08a, emissive 0x6b5a1a
@@ -511,6 +523,25 @@ void BrickApp::setLookdev(bool on) {
             d.specular *= 0.5f;
             d.coat *= 0.5f;
             m_scene.materials[m_dimMaterial[i]] = d;
+        }
+    }
+    for (size_t i = 0; i < m_rubberMaterial.size() && i < m_rubberOrig.size(); ++i) {   // the rubber: the lookdev grey too,
+        Material m = m_rubberOrig[i];                                                     // never the varnish of the path tracer
+        if (on) {
+            m.flags &= ~4u;
+            m.baseColor = float3(srgbToLinear(0.78f), srgbToLinear(0.79f), srgbToLinear(0.80f));
+            m.roughness = 0.9f;
+            m.specular = 0.0f;
+            m.subsurface = 0.12f;
+            m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+        }
+        m_scene.materials[m_rubberMaterial[i]] = m;
+        if (i < m_rubberDim.size()) {
+            Material d = m;
+            d.name += " (dim)";
+            d.baseColor = d.baseColor * 0.5f;
+            d.specular *= 0.5f;
+            m_scene.materials[m_rubberDim[i]] = d;
         }
     }
     ++m_scene.objectsVersion;   // (the materials are uploaded again, the accumulations restart)
@@ -803,6 +834,11 @@ void BrickApp::syncObjects() {
         const bool focus = (int)i == m_selected || (m_holding && (int)i == m_held.brick) ||
                            std::find(m_multi.begin(), m_multi.end(), (int)i) != m_multi.end();
         o.material = dim && !focus ? m_dimMaterial[c] : m_colorMaterial[c];
+        if (b.part >= 0 && b.part < (int)m_partRubber.size() && c < (int)m_rubberMaterial.size()) {   // the tyres: rubber
+            int8_t& r = m_partRubber[b.part];
+            if (r < 0) r = isRubberPart(m_lib.parts[b.part]) ? 1 : 0;
+            if (r) o.material = dim && !focus ? m_rubberDim[c] : m_rubberMaterial[c];
+        }
         if (m_mechOn && m_mechTint && i < m_mm.brickBody.size()) {   // Mechanical mode: one colour per body (golden angle hues)
             const int body = m_mm.brickBody[i];
             while ((int)m_tintMaterial.size() <= body) {

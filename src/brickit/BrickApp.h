@@ -771,6 +771,9 @@ private:
     std::vector<int> m_partMesh;       // part -> scene mesh (-1 = not uploaded)
     std::vector<int> m_colorMaterial;  // palette index -> scene material
     std::vector<int> m_dimMaterial;    // palette index -> same material at 50 % (focus mode)
+    std::vector<int> m_rubberMaterial, m_rubberDim;   // palette index -> the rubber of the tyres (and its 50 % copy)
+    std::vector<Material> m_rubberOrig;
+    std::vector<int8_t> m_partRubber;  // part -> 1 rubber, 0 not, -1 not known yet
     std::vector<int> m_tintMaterial;   // Mechanical mode: one material per body (Couleurs par corps)
     int m_blockedMaterial = -1;        // brick in hand that cannot be dropped (red ghost)
     int m_ghostMaterial = -1, m_ghostBlockedMaterial = -1;

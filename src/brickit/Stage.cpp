@@ -77,4 +77,34 @@ std::vector<int> addPaletteMaterials(Scene& scene, const Library& lib, bool sss)
     return out;
 }
 
+// Tyres (Wzx 24/11/2026: « un shader plus mat et SSS pour les pneus »): rubber has no varnish and a wide dull highlight;
+// light goes a little into it, which softens the tread and the sidewall. The black of LDraw (#1B2A34) is bluish: the
+// rubber black is a neutral dark grey; the other colours a little less saturated (the rubber is never as vivid as ABS).
+std::vector<int> addRubberMaterials(Scene& scene, const Library& lib, bool sss) {
+    std::vector<int> out;
+    for (const Color& c : lib.palette) {
+        Material m;
+        m.name = c.name + " (rubber)";
+        float3 lin(srgbToLinear(c.srgb.x), srgbToLinear(c.srgb.y), srgbToLinear(c.srgb.z));
+        const float lum = 0.2126f * lin.x + 0.7152f * lin.y + 0.0722f * lin.z;
+        m.baseColor = lum < 0.04f ? float3(0.021f, 0.021f, 0.022f) : lin * 0.75f + float3(lum * 0.25f);
+        m.roughness = 0.8f;
+        m.specular = 0.3f;
+        m.coat = 0.0f;
+        m.bevelRadius = 0.0245f;
+        m.flags |= 4u;   // (MAT_FLAG_VCOLOR: printed tyres)
+        if (sss) {
+            m.subsurface = 0.45f;
+            m.sssRadius = (m.baseColor * 0.5f + float3(0.5f)) * 0.12f;
+        }
+        out.push_back(scene.addMaterial(m));
+    }
+    return out;
+}
+
+bool isRubberPart(const Part& p) {
+    auto starts = [&](const char* w) { return p.label.rfind(w, 0) == 0; };
+    return p.category == "Tyre" || starts("Tyre") || starts("Tire") || p.label.find("Rubber") != std::string::npos;
+}
+
 } // namespace brickit
