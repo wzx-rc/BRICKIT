@@ -76,11 +76,9 @@ void BrickApp::mouseTestFrame() {
             if (t == "pivot") {   // the sphere held still (long press), then a voxel clicked
                 m_mouseScript.push_back({12, x, y, -1});
                 m_mouseScript.push_back({13, x, y, 0});
-                for (int k = 14; k < 74; ++k) m_mouseScript.push_back({k, x, y, -1});
-                m_mouseScript.push_back({74, x, y, 1});
-                m_mouseScript.push_back({80, tx, ty, -1});
-                m_mouseScript.push_back({88, tx, ty, 0});
-                m_mouseScript.push_back({89, tx, ty, 1});
+                for (int k = 14; k < 60; ++k) m_mouseScript.push_back({k, x, y, -1});   // (held still: the choice opens)
+                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({60 + k, x + (tx - x) * k / 10.0f, y + (ty - y) * k / 10.0f, -1});   // glided, still held
+                m_mouseScript.push_back({74, tx, ty, 1});   // released on the voxel: set, and out
             } else if (t == "sphdrag") {   // the sphere dragged: the free move, the gizmo kept
                 m_mouseScript.push_back({12, x, y, -1});
                 m_mouseScript.push_back({13, x, y, 0});

@@ -673,7 +673,11 @@ void BrickApp::editInput() {
             m_autoPivot = ap;
             m_dragStarted = true;
             m_freeFromSphere = true;
-        } else if (ImGui::GetTime() - m_sphPressT > 0.35) { m_sphPress = false; pivotPickBegin(); }   // held still: the pivot
+        } else if (ImGui::GetTime() - m_sphPressT > 0.35) {   // held still: the pivot; the same press glides over the voxels and its
+            m_sphPress = false;                                // release sets the pivot and leaves (Wzx 24/11/2026)
+            pivotPickBegin();
+            m_pivotPickPressed = true;
+        }
         m_pressed = false;
         if (m_sphPress || m_pivotPick) return;
     }

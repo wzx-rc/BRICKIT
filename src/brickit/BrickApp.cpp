@@ -474,6 +474,7 @@ void BrickApp::buildHouse() {
 // GI look development (--gi-lookdev, Réglages › Lumière › Lookdev GI): every colour the same light grey, rough, no
 // specular and no coat, a light SSS (the lighting alone, in HQ, RC and PT); off: the palette materials back. The
 // dimmed copies (focus mode) follow.
+static const float kBgLin = 0.03f, kBgFloorK = 1.2f;   // the background, linear: the dark floor as it shows in the distance (measured)
 static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / raster HQ, measured 23/11/2026)
 static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
 static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
@@ -636,6 +637,8 @@ void BrickApp::applyLook() {
         if (m_rimLight >= 0) m_scene.lights[m_rimLight].enabled = true;
         m_rs.exposure = 1.0f;
         m_rs.tonemapper = 0;
+        // the background behind the floor: the colour the lit floor shows far away, so the horizon disappears
+        m_rs.bgOverride = m_opt.bgLin >= 0 ? float3(m_opt.bgLin) : float3(kBgLin);
     }
     const bool kitStage = m_ipadCreme && m_themeId == "creme";
     if (m_ipad && !kitStage && !m_th.stage.light) {   // iPad, dark stage (Wzx 15/11/2026: « le ciel au loin est tout noir »): a
@@ -685,6 +688,12 @@ void BrickApp::applyLook() {
     // the path tracer: the same stage as the raster HQ, but every bounce and the whole HDRI light the scene: brighter,
     // the yellows paler in the tone curve (Wzx 23/11/2026: « plus jaune et délavé en raytracing »): its exposure lowered
     // to match the HQ
+    if (kitStage) m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f);   // (the stage of the kit keeps its sky, validated 08/11)
+    else if (m_th.stage.light) {   // a light theme: its floor as it reads far away, lit (greyer, a little brighter: measured on Ardoise)
+        const float3 f = lin((int)m_th.stage.floor);
+        const float y = 0.2126f * f.x + 0.7152f * f.y + 0.0722f * f.z;
+        m_rs.bgOverride = (f + (float3(y) - f) * 0.35f) * (m_opt.bgK > 0 ? m_opt.bgK : kBgFloorK);
+    }
     if (!m_rs.raster && !m_rcMode) {
         m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
         m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
@@ -698,12 +707,12 @@ void BrickApp::applyLook() {
         if (m_hdriPath.empty()) {   // the procedural sky: the HQ lights the bricks with its hemisphere (sky above, ground below) and
             // sees it in their varnish; the path tracer gets it as its sky, the background staying the dark of the stage
             const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtSky) * m_scene.env.hemiIntensity * 4.0f;
-            m_rs.bgOverride = m_scene.env.top;
+            if (kitStage) m_rs.bgOverride = m_scene.env.top;   // (the others: the floor's colour behind, above)
             m_scene.env.top = m_scene.env.hemiSky * k;
             m_scene.env.horizon = (m_scene.env.hemiSky + m_scene.env.hemiGround) * (0.5f * k);
             m_scene.env.bottom = m_scene.env.hemiGround * k;
-        } else m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f);
-    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f); }
+        }
+    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; }
     const bool ptLook = !m_rs.raster && !m_rcMode;
     if (ptLook != m_ptLook) { m_ptLook = ptLook; setLookdev(m_giLookdev); }
     ++m_scene.objectsVersion;
@@ -1725,6 +1734,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
         else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
+        else if (a == L"--bg-lin") opt.bgLin = (float)_wtof(next().c_str());
+        else if (a == L"--bg-k") opt.bgK = (float)_wtof(next().c_str());
         else if (a == L"--pt-sky") opt.ptSky = (float)_wtof(next().c_str());
         else if (a == L"--pt-envspec") opt.ptEnvSpec = (float)_wtof(next().c_str());
         else if (a == L"--pt-sun") opt.ptSun = (float)_wtof(next().c_str());

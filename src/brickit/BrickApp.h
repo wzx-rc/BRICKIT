@@ -91,6 +91,7 @@ struct Options {
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
+    float bgLin = -1, bgK = -1;   // --bg-lin: the background colour (linear grey), calibration
     float ptSss = -1;
     float ptSun = -1;
     float ptEnvSpec = -1;
