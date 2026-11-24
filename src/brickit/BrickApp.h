@@ -601,6 +601,7 @@ private:
     bool m_manPageDrag = false;
     float m_manPageScale = 1.0f;      // the size of the pages in the Notice (its slider, 0.5 to 1)
     std::unique_ptr<PdfReader> m_pdf;
+    float m_pdfWheel = 0;   // (the wheel over the page: a page per notch)
     bool m_pdfOn = false, m_pdfOpening = false, m_pdfScrollSmooth = false, m_prefsDirty = false;
     std::string m_pdfName, m_pdfMsg;
     int m_pdfPage = 1, m_pdfScrollTo = 0, m_bigScrollTo = 0;

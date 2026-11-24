@@ -590,10 +590,16 @@ void BrickApp::editInput() {
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) rotateSelected(1);   // (Q / S: Wzx 09/11/2026)
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_Q)) rotateSelected(-1);
+        const bool manPages = m_pManual.visible && !m_mechOn && !m_pdfSizes.empty() && !io.WantTextInput;
+        if (manPages) {   // the instructions open: ← → turn their pages, wherever the pointer is
+            const int N = (int)m_pdfSizes.size();
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) && m_pdfPage > 1) { m_pdfPage -= 1; m_prefsDirty = true; }
+            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && m_pdfPage < N) { m_pdfPage += 1; m_prefsDirty = true; }
+        }
         if (!m_reading && !m_holding) {   // the arrows: the selection moves by a stud, along the view; Page up / down: a plate
             int ax = 0, az = 0, ay = 0;
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
-            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ax = 1;
+            if (!manPages && ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
+            if (!manPages && ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ax = 1;
             if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) az = 1;
             if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) az = -1;
             if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) ay = 1;

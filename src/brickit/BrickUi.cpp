@@ -2821,7 +2821,43 @@ void BrickApp::dragScroll(Ui& u, ImVec2 a, ImVec2 b, float& scroll, int id) {
 // Vertical PDF view (.pdfview): white pages one under the other, gap 10, rendered when they come near the view.
 void BrickApp::pdfView(Ui& u, ImVec2 a, ImVec2 b, float& scroll, bool main) {
     const float s = u.s;
-    const float wFull = b.x - a.x - 4 * s, w = main ? wFull * std::clamp(m_manPageScale, 0.4f, 1.0f) : wFull;   // (the slider of the Notice)
+    if (main) {   // the panel: one page, whole, as big as the panel allows (Wzx 24/11/2026: « toujours une page entière »)
+        if (m_pdfSizes.empty()) {
+            const char* msg = m_pdfMsg.empty() ? "Opening the PDF…" : m_pdfMsg.c_str();
+            u.text(ImVec2((a.x + b.x) * 0.5f - u.textW(12, msg) * 0.5f, a.y + 16 * s), 12, C_DIM, msg);
+            return;
+        }
+        const int N = (int)m_pdfSizes.size();
+        if (m_pdfScrollTo > 0) { m_pdfPage = std::clamp(m_pdfScrollTo, 1, N); m_pdfScrollTo = 0; }
+        if (u.hover(a, b) && ImGui::GetIO().MouseWheel != 0) {   // the wheel: a page per notch
+            m_pdfWheel += ImGui::GetIO().MouseWheel;
+            if (m_pdfWheel <= -1) { m_pdfPage = std::min(N, m_pdfPage + 1); m_pdfWheel = 0; m_prefsDirty = true; }
+            if (m_pdfWheel >= 1) { m_pdfPage = std::max(1, m_pdfPage - 1); m_pdfWheel = 0; m_prefsDirty = true; }
+        }
+        m_pdfPage = std::clamp(m_pdfPage, 1, N);
+        const int i = m_pdfPage - 1;
+        const float aspect = m_pdfSizes[i].second / std::max(1.0f, m_pdfSizes[i].first);
+        const float availW = b.x - a.x - 4 * s, availH = b.y - a.y - 4 * s;
+        const float w = std::max(40.0f, std::min(availW, availH / std::max(0.05f, aspect))), h = w * aspect;
+        const ImVec2 pa(std::floor((a.x + b.x - w) * 0.5f), std::floor((a.y + b.y - h) * 0.5f)), pb(pa.x + w, pa.y + h);
+        const int want = (int)std::round(w);
+        for (int k = 0; k < N; ++k) {   // this page and its neighbours rendered at this size, the far ones let go
+            PdfTex& t = m_pdfTex[k];
+            const bool nearK = std::abs(k - i) <= 1;
+            if (nearK && (!t.tex || std::abs(t.w - want) > 2) && !t.asked && m_pdf) { m_pdf->request(k, want); t.asked = true; }
+            if (!nearK && t.tex && std::abs(k - i) > 6) { m_gui->releaseTexture(t.tex); t = PdfTex(); }
+        }
+        u.dl->AddRectFilled(ImVec2(pa.x, pa.y + 4 * s), ImVec2(pb.x, pb.y + 4 * s), IM_COL32(0, 0, 0, 60), 4 * s);
+        u.dl->AddRectFilled(pa, pb, IM_COL32_WHITE, 4 * s);
+        if (m_pdfTex[i].tex) u.dl->AddImageRounded(m_pdfTex[i].tex, pa, pb, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, 4 * s);
+        const std::string lab = std::to_string(i + 1) + " / " + std::to_string(N);
+        const float lw = u.textW(10, lab.c_str()) + 10 * s;
+        const ImVec2 la(pb.x - 6 * s - lw, pb.y - 4 * s - u.fs(10) - 2 * s);
+        u.dl->AddRectFilled(la, ImVec2(la.x + lw, pb.y - 4 * s), IM_COL32(255, 255, 255, 204), 6 * s);
+        u.text(ImVec2(la.x + 5 * s, la.y + 1 * s), 10, IM_COL32(0x55, 0x55, 0x55, 255), lab.c_str());
+        return;
+    }
+    const float wFull = b.x - a.x - 4 * s, w = wFull;
     const float ox = (wFull - w) * 0.5f;
     if (m_pdfSizes.empty()) {
         const char* msg = m_pdfMsg.empty() ? "Opening the PDF…" : m_pdfMsg.c_str();
@@ -2908,6 +2944,7 @@ void BrickApp::manualReserveDock() {
 // panel is wider than tall (one under the other otherwise), dockable in the dock spaces on the left / the right
 void BrickApp::uiManual() {
     if (!m_pManual.visible || m_mechOn) return;
+    m_pdfOn = true;   // (the manual of the scene removed, Wzx 24/11/2026: « c'est quoi le Scene manual ? supprime-le »)
     Ui u = ui(m_ui);
     if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const float s = m_ui;
@@ -2941,8 +2978,12 @@ void BrickApp::uiManual() {
     float bodyH;
     bool side = false;
     if (docked) bodyH = maxBody;
-    else if (m_manH >= 160) bodyH = m_manH - padT - headH - gap - padB;
-    else if (m_pdfOn) bodyH = std::min(ds.y * 0.72f, 920 * s);
+    else if (m_pdfOn && !m_pdfSizes.empty()) {   // the panel as tall as one whole page at its width (its corner sets the width,
+        // the height follows the page, Wzx 24/11/2026)
+        const int i = std::clamp(m_pdfPage, 1, (int)m_pdfSizes.size()) - 1;
+        bodyH = innerW * m_pdfSizes[i].second / std::max(1.0f, m_pdfSizes[i].first) + 4 * s;
+    } else if (m_manH >= 160) bodyH = m_manH - padT - headH - gap - padB;
+    else if (m_pdfOn) bodyH = 150 * s;
     else bodyH = std::min(pagesHeight(false), std::min(ds.y * 0.70f, 900 * s));
     bodyH = std::max(40 * s, std::min(bodyH, maxBody));
     if (!m_pdfOn) {
@@ -2966,14 +3007,14 @@ void BrickApp::uiManual() {
     float tw = u.text(ImVec2(x, y + (headH - u.fs(13)) * 0.5f), 13, C_TEXT, "Instructions", true).x;
     x += tw + 6 * s;
     char step[96];
-    if (m_pdfOn && !m_pdfSizes.empty()) snprintf(step, sizeof(step), "PDF p. %d / %d", m_pdfPage, (int)m_pdfSizes.size());
+    if (m_pdfOn && !m_pdfSizes.empty()) snprintf(step, sizeof(step), "p. %d / %d", m_pdfPage, (int)m_pdfSizes.size());
+    else if (m_pdfOn) snprintf(step, sizeof(step), "%s", m_pdfOpening ? "opening…" : "no PDF");
     else if (total) snprintf(step, sizeof(step), "Steps %d–%d / %d", l, std::min(r, total), total);
     else snprintf(step, sizeof(step), "No brick");
     u.text(ImVec2(x, y + (headH - u.fs(11)) * 0.5f), 11, C_DIM, step);
     struct Btn { const char* label; int icon; int id; const char* tip; };   // icon: 0 text, 1 fold, 2 enlarge
     std::vector<Btn> btns;
-    if (m_pdf && (!m_pdfSizes.empty() || m_pdfOpening)) btns.push_back({m_pdfOn ? "Scene" : "PDF", 0, 0, m_pdfOn ? "Back to your scene's manual" : "Back to the imported PDF"});
-    btns.push_back({"PDF", 0, 1, "Import an instructions PDF"});
+    btns.push_back({"Open PDF", 0, 1, "Import an instructions PDF"});
     if (!docked) btns.push_back({"", 1, 4, "Collapse"});
     btns.push_back({"", 2, 5, "Expand"});
     float bx = p1.x - padX;
@@ -3003,7 +3044,7 @@ void BrickApp::uiManual() {
         if (h && u.pressed) clicked = bt.id;
         bx -= 3 * s;
     }
-    if (!folded) {   // the size of the pages: a small slider left of the buttons (Wzx 15/11/2026)
+    if (false) {   // (the slider of the page size removed, Wzx 24/11/2026: the page always fits the panel)
         const float sw = 64 * s, sx1 = bx - 6 * s, sx0 = sx1 - sw, sy = y + headH * 0.5f;
         if (sx0 > x + 110 * s) {
             const ImVec2 sa(sx0 - 4 * s, sy - 10 * s), sb(sx1 + 4 * s, sy + 10 * s);
@@ -3035,7 +3076,17 @@ void BrickApp::uiManual() {
     const bool hasNext = m_pdfOn ? m_pdfPage < (int)m_pdfSizes.size() : m_manRight < total;
     auto inArrow = [&](ImVec2 c) { const float dx = u.mouse.x - c.x, dy = u.mouse.y - c.y; return dx * dx + dy * dy <= (ar + 4 * s) * (ar + 4 * s); };
     const bool overArrow = inArrow(aL) || inArrow(aR);
-    if (m_pdfOn) pdfView(u, ba, bb, m_pdfScroll, true);
+    if (m_pdfOn && !m_pdf && !m_pdfOpening) {   // no PDF yet: one button
+        const char* msg = "No instructions yet";
+        u.text(ImVec2((ba.x + bb.x) * 0.5f - u.textW(12, msg) * 0.5f, ba.y + 22 * s), 12, C_DIM, msg);
+        const char* lab = "Open a PDF of instructions";
+        const float bw = u.textW(11, lab, true) + 28 * s;
+        const ImVec2 qa((ba.x + bb.x - bw) * 0.5f, ba.y + 52 * s), qb(qa.x + bw, qa.y + 34 * s);
+        const bool hq = u.hover(qa, qb);
+        u.dl->AddRectFilled(qa, qb, hq ? C_LYEL : C_ACCENT, 10 * s);
+        u.text(ImVec2(qa.x + 14 * s, qa.y + (34 * s - u.fs(11)) * 0.5f), 11, C_INK, lab, true);
+        if (hq && u.pressed) pdfDialog();
+    } else if (m_pdfOn) pdfView(u, ba, bb, m_pdfScroll, true);
     else {
         const bool over = u.hover(ba, bb) && !overArrow;
         if (over && ImGui::GetIO().MouseWheel != 0) m_manScroll -= ImGui::GetIO().MouseWheel * 60 * s;
