@@ -782,7 +782,7 @@ void BrickApp::rebuildScene() {
 void BrickApp::syncObjects() {
     if (m_cornell) return;
     updateGridFade();
-    const bool dim = m_focusDim && (m_selected >= 0 || m_holding);
+    const bool dim = (m_focusDim && (m_selected >= 0 || m_holding)) || m_pivotPick;   // (choosing the pivot: the rest at 50 %)
     for (size_t i = 0; i < m_bricks.size(); ++i) {
         Object& o = m_scene.objects[m_firstBrickObject + i];
         const Brick& b = m_bricks[i];
@@ -1477,6 +1477,7 @@ void BrickApp::frame() {
         drawHoldOverlay();
         drawPivots();
         drawGizmo();   // over the pivot markers (renderOrder 1010 > 1003 in the web)
+        drawPivotPick();   // (W: choosing the pivot, its voxels over everything)
         drawMechOverlay();
         drawDevOverlay();
     }

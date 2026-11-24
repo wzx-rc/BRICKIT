@@ -630,7 +630,8 @@ void BrickApp::editInput() {
             else deleteSelected();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-            if (m_holding) cancelHeld();
+            if (m_pivotPick) pivotPickEnd(false);
+            else if (m_holding) cancelHeld();
             else if (!leaveGroup()) select(-1);   // inside a group: Échap leaves it first
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grid: on" : "Grid: off"); }
@@ -653,6 +654,7 @@ void BrickApp::editInput() {
     }
     if (m_holding && inView && m_opt.spawnPart.empty() && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) updateHeld(mp.x, mp.y);
     if (io.KeyAlt) { m_pressed = false; return; }   // Maya: Alt + a button is the camera (no pick, no menu, no paint)
+    if (m_pivotPick) { pivotPickInput(mp, inView); m_pressed = false; return; }   // (W: choosing the pivot has the mouse)
     if (io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right)) { m_pressed = false; m_rmbMoved = true; return; }   // (Shift + right: the light, cameraInput)
 
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
@@ -744,6 +746,7 @@ void BrickApp::editInput() {
         if (m_holding) { dropHeld(io.KeyCtrl); return; }
         if (!m_pivotEdit) {
             GizmoHandle gh = pickGizmo(mp.x, mp.y);
+            if (gh.kind == 2 && m_mode == 2) { pivotPickBegin(); return; }   // W: the centre sphere chooses the pivot (Wzx 24/11/2026)
             if (gh.kind == 2) {   // centre sphere: free move, the brick goes in hand and drops on release
                 m_pressPoint = gizmoPivot(m_selected);
                 const bool ap = m_autoPivot;
@@ -755,7 +758,7 @@ void BrickApp::editInput() {
             }
             if (gh.kind >= 0) { gizmoStart(gh, mp.x, mp.y); return; }
         }
-        if (m_mode == 2 || m_mode == 3) {   // Move / Rotate: a tap selects (Auto Pivot moves the pivot), dragging orbits
+        if (m_mode == 3) {   // Rotate: a tap selects (Auto Pivot moves the pivot), the void: the rectangle (W: as A, below)
             float3 pt;
             int hit = pickBrick(mp.x, mp.y, &pt);
             if (hit >= 0) {
@@ -784,7 +787,7 @@ void BrickApp::editInput() {
         m_pressBrick = pickBrick(mp.x, mp.y, &m_pressPoint);
         // the empty space: the selection rectangle, in Sélection and in Construire (Wzx 23/11/2026: the tool Sélection gone,
         // Construire on A does its rectangle; the camera: the right button or Alt); the iPad: a finger orbits (BrickTouch.cpp)
-        if ((m_mode == 0 || (m_mode == 1 && !m_ipad)) && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
+        if ((m_mode == 0 || ((m_mode == 1 || m_mode == 2) && !m_ipad)) && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
         else if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
     }
     if (m_marquee && m_tg.type != TG_MARQUEE) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds (a finger / the Pencil: BrickTouch.cpp)
@@ -812,7 +815,7 @@ void BrickApp::editInput() {
         enterGroup(m_pressBrick);
         return;
     }
-    if (m_pressed && (m_mode == 0 || m_mode == 1) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
+    if (m_pressed && (m_mode == 0 || m_mode == 1 || m_mode == 2) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
         dragSetOf(m_pressBrick).size() > 1 && (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
         m_pressed = false;   // drag a group, or a brick of a selection of several: they all move as one block
         const std::vector<int> set = dragSetOf(m_pressBrick);
@@ -820,7 +823,7 @@ void BrickApp::editInput() {
         beginGroupDrag(set, mp.x, mp.y);
         return;
     }
-    if (m_pressed && m_mode == 1 && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
+    if (m_pressed && (m_mode == 1 || m_mode == 2) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
         (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
         m_dragStarted = true;
         m_pressed = false;

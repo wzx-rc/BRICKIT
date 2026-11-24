@@ -618,6 +618,7 @@ private:
     void mouseTestFrame();
     void runMechTests();   // BrickMechTests.cpp (--mechtests)
     std::vector<MouseStep> m_mouseScript;
+    int m_mtGrab0 = -1, m_mtGrabWant = -1;   // (--mouse-test pivot)
     Brick m_mtBefore;
     std::vector<double> m_mtQ;
     int m_mtBrick = -1;
@@ -1173,6 +1174,16 @@ private:
     bool m_sheetOpen = false;          // « Scène partagée » sheet
     std::string m_sheetText;
     bool m_pivotEdit = false;          // P
+    // W, the centre sphere of the gizmo (Wzx 24/11/2026): choose the pivot. The axes hide, the voxels of the brick appear
+    // (one after the other), the other bricks at 50 %; a click, or a drag over the voxels then release, sets the pivot
+    bool m_pivotPick = false, m_pivotPickPressed = false;   // (pressed: a press since it opened; the click that opened it does not choose)
+    int m_pivotPickBrick = -1, m_pivotHot = -1;
+    double m_pivotPickT0 = 0, m_pivotDoneT = -1;
+    float3 m_pivotDoneAt{0, 0, 0};
+    void pivotPickBegin();
+    void pivotPickEnd(bool apply);
+    void pivotPickInput(ImVec2 mp, bool inView);
+    void drawPivotPick();
     int m_voxStep = 0;                 // V: voxels hidden / shown
 
     // Mechanical mode
