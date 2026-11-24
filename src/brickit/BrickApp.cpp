@@ -100,6 +100,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_rs.fireflyClamp = 8.0f;
     m_rs.filterGlossy = 0.15f;
     m_rs.bevelScale = 1.0f;
+    if (opt.bevelUser >= 0) { m_bevelUser = opt.bevelUser; m_rs.bevelScale = opt.bevelUser / 0.5f; }   // --bevel-radius r (captures)
     m_rs.tonemapper = m_opt.tonemapper;   // ACES by default
     m_rs.idPass = false;   // selection: coverage outline only
     m_rs.selectionStyle = 2;   // thin white line at 45 % and a light fill
@@ -1853,6 +1854,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--wzx-export") opt.wzxOut = next();
         else if (a == L"--lc-test") opt.lcTest = _wtoi(next().c_str());
         else if (a == L"--pt-dlss") { opt.ptDlss = true; opt.pathTrace = true; }
+        else if (a == L"--bevel-radius") opt.bevelUser = (float)_wtof(next().c_str());
         else if (a == L"--mat-edit") { std::wstring w = next(); opt.matEdit.assign(w.begin(), w.end()); }
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());

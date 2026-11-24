@@ -3846,6 +3846,10 @@ void BrickApp::uiSettings() {
         yesNo("Still anti-aliasing (HQ)", m_stillAA, 12);
         yesNo("HDRI occlusion (HQ)", m_ssaoOn, 3);
         yesNo("Rounded edges (bevel)", m_rs.bevel, 24);
+        if (m_rs.bevel && slider(111, "Bevel radius (Ray tracing, HQ)", m_bevelUser, 0.0f, 5.0f, "%.2f", m_bevelUser)) {   // (Wzx 24/11/2026: 0.5 as it was, up to 5)
+            m_rs.bevelScale = m_bevelUser / 0.5f;
+            m_renderer->resetAccumulation();
+        }
         group("Radiance Cascades");
         row("Anti-aliasing", {"MSAA 4x", "MSAA 8x", "AAA"}, m_rs.aaQuality, 9);
         row("Shadows", {"Low", "Medium", "High", "AAA"}, m_rs.shadowQuality <= 1 ? 0 : m_rs.shadowQuality - 1, 10);

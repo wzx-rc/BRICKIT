@@ -171,6 +171,7 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    float bevelUser = -1;       // --bevel-radius r: the bevel radius setting (0..5)
     bool ptDlss = false;        // --pt-dlss: the Ray tracing DLSS mode (with --pt)
     int lcTest = 0;             // --lc-test N: lights and cameras (1 a light selected, 2 a camera selected: its preview, 3 looked through) for captures
     std::string matEdit;        // --mat-edit id,r,g,b,metal,trans,rough: a Material panel edit (captures)
@@ -825,6 +826,7 @@ private:
     void addCamera();
     void deleteLight(int i);
     void deleteCamera(int i);
+    void duplicateLightOrCamera();   // Ctrl+D on a selected light / camera: a copy, a little aside, selected
     void syncLights();            // m_lights into m_scene.lights (and the renderers)
     void enterCamera(int i);
     void exitCamera();
@@ -1206,6 +1208,7 @@ private:
     float m_renderScale = 1.0f;       // Réglages › Échelle de rendu (1, 0.85, 0.75, 0.67)
     float m_selOutline = 0.22f, m_selFill = 0.15f;   // Réglages › Lumière: Contour / Voile de sélection
     float m_lumColumnH = 0.0f;        // Réglages: height of the Lumière column drawn last frame
+    float m_bevelUser = 0.5f;         // Réglages › Rendu › Bevel radius, 0..5 (0.5 = the BrickIt bevel as made: RenderSettings::bevelScale 1)
     float m_hqSSSStrength = 1.0f;     // Réglages › Lumière › SSS (HQ): strength 0..2 (0 = off)
     bool m_softGIHold = true;   // Réglages › Lumière › Figer la GI pendant le déplacement: the probes held while a brick is carried
     bool m_giLookdev = false;

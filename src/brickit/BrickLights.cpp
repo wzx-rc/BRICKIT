@@ -40,6 +40,8 @@ bool rayPlane(const float3& o, const float3& d, const float3& p, const float3& n
 float3 lin3(const float3& c) { return float3(srgbToLinear(c.x), srgbToLinear(c.y), srgbToLinear(c.z)); }
 }
 
+static void camAim(Camera& c, const float3& eye, const float3& tgt);
+
 float3 BrickApp::UserLight::dir() const { return qRot(rot, float3(0, 0, 1)); }
 float3 BrickApp::UserLight::upv() const { return qRot(rot, float3(0, 1, 0)); }
 
@@ -117,6 +119,34 @@ void BrickApp::deleteCamera(int i) {
     if (m_inCam > i) --m_inCam;
     if (m_selCam == i) m_selCam = -1;
     else if (m_selCam > i) --m_selCam;
+}
+
+// Ctrl+D (Wzx 24/11/2026): the selected light or camera copied, a little aside along the view's right, the copy selected
+void BrickApp::duplicateLightOrCamera() {
+    float3 r, u, f;
+    m_scene.camera.basis(r, u, f);
+    if (m_selLight >= 0 && m_selLight < (int)m_lights.size()) {
+        UserLight l = m_lights[m_selLight];
+        const float step = std::max(4.0f, std::max(l.w, l.h) * 1.2f);
+        l.pos = l.pos + r * step;
+        if (l.targetOn) l.target = l.target + r * step;
+        l.name = l.name + " copy";
+        m_lights.push_back(l);
+        m_selLight = (int)m_lights.size() - 1;
+        syncLights();
+        toast("Light duplicated: " + l.name);
+    } else if (m_selCam >= 0 && m_selCam < (int)m_cams.size()) {
+        UserCam c = m_cams[m_selCam];
+        const float step = std::max(4.0f, c.cam.distance * 0.15f);
+        if (c.targetOn) camAim(c.cam, c.cam.eye() + r * step, c.cam.target);
+        else c.cam.target = c.cam.target + r * step;
+        c.locked = false;
+        c.name = c.name + " copy";
+        m_cams.push_back(c);
+        m_selCam = (int)m_cams.size() - 1;
+        if (m_inCam >= 0) exitCamera();
+        toast("Camera duplicated: " + c.name);
+    }
 }
 
 void BrickApp::syncLights() {

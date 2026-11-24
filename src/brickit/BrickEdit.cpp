@@ -574,7 +574,7 @@ void BrickApp::editInput() {
         const bool ctrl = io.KeyCtrl;
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Z)) undo();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y)) redo();
-        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) duplicateSelected();
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) { if (m_selLight >= 0 || m_selCam >= 0) duplicateLightOrCamera(); else duplicateSelected(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_G) && !m_holding) { if (io.KeyShift) ungroupSelected(); else groupSelected(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) { if (io.KeyShift) saveDialog(); else saveNow(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N)) newScene();
