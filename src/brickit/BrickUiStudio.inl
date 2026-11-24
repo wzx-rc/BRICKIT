@@ -3078,7 +3078,7 @@ void BrickApp::drawUiStudio() {
     }
     stTools();
     stGroups();      // (before the badge: it goes right of it)
-    stBadge();
+    // (the badge « 1:1 · GRID 1 STUD » removed, Wzx 24/11/2026: the grid is in the options of the tools and on G)
     stColors();
     stNavHud();
     stSelHud();
