@@ -661,6 +661,22 @@ void BrickApp::editInput() {
     if (m_holding && inView && m_opt.spawnPart.empty() && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) updateHeld(mp.x, mp.y);
     if (io.KeyAlt) { m_pressed = false; return; }   // Maya: Alt + a button is the camera (no pick, no menu, no paint)
     if (m_pivotPick) { pivotPickInput(mp, inView); m_pressed = false; return; }   // (W: choosing the pivot has the mouse)
+    if (!m_holding) m_freeFromSphere = false;
+    if (m_sphPress) {   // W, the sphere pressed (Wzx 24/11/2026)
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || m_selected < 0) m_sphPress = false;   // (a click: nothing)
+        else if (std::fabs(mp.x - m_sphPressAt.x) + std::fabs(mp.y - m_sphPressAt.y) > 6 * m_ui) {   // dragged: the free move, the gizmo kept
+            m_sphPress = false;
+            m_pressPoint = gizmoPivot(m_selected);
+            const bool ap = m_autoPivot;
+            m_autoPivot = false;
+            beginMove(m_selected, mp.x, mp.y);
+            m_autoPivot = ap;
+            m_dragStarted = true;
+            m_freeFromSphere = true;
+        } else if (ImGui::GetTime() - m_sphPressT > 0.35) { m_sphPress = false; pivotPickBegin(); }   // held still: the pivot
+        m_pressed = false;
+        if (m_sphPress || m_pivotPick) return;
+    }
     if (io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right)) { m_pressed = false; m_rmbMoved = true; return; }   // (Shift + right: the light, cameraInput)
 
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
@@ -752,7 +768,12 @@ void BrickApp::editInput() {
         if (m_holding) { dropHeld(io.KeyCtrl); return; }
         if (!m_pivotEdit) {
             GizmoHandle gh = pickGizmo(mp.x, mp.y);
-            if (gh.kind == 2 && m_mode == 2) { pivotPickBegin(); return; }   // W: the centre sphere chooses the pivot (Wzx 24/11/2026)
+            if (gh.kind == 2 && m_mode == 2) {   // W, the sphere: held still, the choice of the pivot; dragged, the free move (below)
+                m_sphPress = true;
+                m_sphPressAt = mp;
+                m_sphPressT = ImGui::GetTime();
+                return;
+            }
             if (gh.kind == 2) {   // centre sphere: free move, the brick goes in hand and drops on release
                 m_pressPoint = gizmoPivot(m_selected);
                 const bool ap = m_autoPivot;

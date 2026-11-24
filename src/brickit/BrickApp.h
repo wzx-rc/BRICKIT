@@ -1177,6 +1177,11 @@ private:
     bool m_pivotEdit = false;          // P
     // W, the centre sphere of the gizmo (Wzx 24/11/2026): choose the pivot. The axes hide, the voxels of the brick appear
     // (one after the other), the other bricks at 50 %; a click, or a drag over the voxels then release, sets the pivot
+    // the sphere of W pressed (Wzx 24/11/2026): held still 0.35 s, the choice of the pivot; dragged, the free move with the
+    // gizmo still shown on the brick
+    bool m_sphPress = false, m_freeFromSphere = false;
+    ImVec2 m_sphPressAt{0, 0};
+    double m_sphPressT = 0;
     bool m_pivotPick = false, m_pivotPickPressed = false;   // (pressed: a press since it opened; the click that opened it does not choose)
     int m_pivotPickBrick = -1, m_pivotHot = -1;
     double m_pivotPickT0 = 0, m_pivotDoneT = -1;

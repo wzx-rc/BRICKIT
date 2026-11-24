@@ -30,10 +30,13 @@ static float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
 
 bool BrickApp::gizmoVisible() const {
     // (+ Réglages › Gizmo de rotation permanent: the rings, light, on any selected brick in Sélection and Construire)
-    return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette && !m_pivotPick &&
+    return m_selected >= 0 && m_selected < (int)m_bricks.size() && (!m_holding || m_freeFromSphere) && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette && !m_pivotPick &&
            (m_mode == 2 || m_mode == 3);   // (only when asked: the tools Déplacer and Tourner, no rings in Sélection / Construire, Wzx 23/11/2026)
 }
-float3 BrickApp::gizmoPivot(int b) const { return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b])); }
+float3 BrickApp::gizmoPivot(int b) const {
+    if (m_holding && m_freeFromSphere && b == m_held.brick && m_held.hasTarget) return m_held.snapVoxel;   // (the free move of the sphere: where the pivot goes)
+    return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b]));
+}
 float BrickApp::gizmoScale(const float3& piv) const {
     float3 r, u, f;
     m_scene.camera.basis(r, u, f);
@@ -44,7 +47,7 @@ float BrickApp::gizmoScale(const float3& piv) const {
 // Screen-space version of the web's invisible hit meshes (cylinders 0.11, tori 0.07, sphere 0.3); the sphere wins.
 BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
     GizmoHandle none;
-    if (!gizmoVisible()) return none;
+    if (!gizmoVisible() || m_holding) return none;
     View v = view();
     const float3 piv = gizmoPivot(m_selected);
     const float k = gizmoScale(piv);
@@ -216,6 +219,17 @@ void BrickApp::drawGizmo() {
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     View v = view();
     const float3 piv = gizmoPivot(m_selected);
+    if (m_sphPress) {   // the sphere held: a yellow ring fills in 0.35 s, then the choice of the pivot
+        float qx, qy;
+        if (v.project(piv, qx, qy)) {
+            const float e = std::clamp((float)(ImGui::GetTime() - m_sphPressT - 0.08) / 0.27f, 0.0f, 1.0f);
+            if (e > 0) {
+                const float R = 22 * m_ui, a0 = -1.5708f;
+                ImGui::GetForegroundDrawList()->PathArcTo(ImVec2(qx, qy), R, a0, a0 + 6.28318f * e, 40);
+                ImGui::GetForegroundDrawList()->PathStroke(IM_COL32(0xee, 0xb7, 0x0e, 255), 0, 3.0f * m_ui);
+            }
+        }
+    }
     const float k = gizmoScale(piv);
     float cx, cy;
     if (!v.project(piv, cx, cy)) return;
