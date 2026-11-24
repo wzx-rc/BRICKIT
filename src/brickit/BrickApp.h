@@ -1226,7 +1226,7 @@ private:
     std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
     // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
     // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
-    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; };
+    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; };   // sss < 0: the factory subsurface (none in path tracing)
     std::map<int, MatEdit> m_matEdits;
     int m_matDrag = -1;
     void applyMatEdits();                    // m_matEdits over the factory materials, then the lookdev / path tracer looks

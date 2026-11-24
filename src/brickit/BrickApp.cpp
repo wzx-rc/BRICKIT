@@ -328,7 +328,8 @@ void BrickApp::setupStage() {
     if (!m_opt.matEdit.empty()) {
         int id = 0;
         MatEdit e;
-        if (sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough) == 7) m_matEdits[id] = e;
+        const int n = sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough, &e.sss, &e.sssScale);
+        if (n >= 7) m_matEdits[id] = e;
     }
     if (!m_lights.empty()) syncLights();
     if (!m_matEdits.empty()) applyMatEdits();   // (the Material panel's edits, from the preferences)
@@ -537,6 +538,10 @@ void BrickApp::setLookdev(bool on) {
         } else if (m_ptLook && m.transmission < 0.5f && m.metallic < 0.5f) {
             // the path tracer (Wzx 23/11/2026: « pas le dynamisme et l'impact lumineux du HQ »): the ABS of a real brick, a
             // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
+            {   // no random walk under the surface unless the Material panel asked for it (it paled and greened the yellows)
+                auto it = i < m_lib.palette.size() ? m_matEdits.find(m_lib.palette[i].id) : m_matEdits.end();
+                if (it == m_matEdits.end() || it->second.sss < 0) m.subsurface = 0.0f;
+            }
             m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
             m.coatRoughness = m_opt.ptCoatRough >= 0 ? m_opt.ptCoatRough : kPtCoatRough;
             if (m_opt.ptRough >= 0) m.roughness = m_opt.ptRough;
@@ -774,7 +779,7 @@ void BrickApp::applyLook() {
         // the plastic as the HQ shades it (Wzx 23/11/2026: « les couleurs ne sont toujours pas bonnes, ça vient de la
         // réponse du shading, peut-être le SSS »): no random walk under the surface, which paled and greened the yellows
         // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
-        m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 0.0f;
+        m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 1.0f;   // (the random walk runs for the colours given an SSS in the Material panel; the others carry none, below)
         m_scene.sun.intensity *= procSky && m_hdriImg ? (m_opt.ptSunSky > 0 ? m_opt.ptSunSky : kPtSunSky) : (m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun);
         const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
         m_rs.envSpecBoost = m_opt.ptEnvSpec >= 0 ? m_opt.ptEnvSpec : 1.0f / std::max(hf, 0.05f);   // (the reflections at the full HDRI, as in the HQ)

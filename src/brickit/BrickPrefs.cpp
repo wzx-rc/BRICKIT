@@ -171,7 +171,7 @@ std::string BrickApp::prefsJson() {
         bool first = true;
         for (const auto& [id, e] : m_matEdits) {
             char mb[200];
-            snprintf(mb, sizeof(mb), "%s{\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f}", first ? "" : ", ", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough);
+            snprintf(mb, sizeof(mb), "%s{\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f, \"sss\": %.3f, \"sssScale\": %.3f}", first ? "" : ", ", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough, e.sss, e.sssScale);
             j += mb;
             first = false;
         }
@@ -224,6 +224,8 @@ void BrickApp::applyPrefs(const std::string& t) {
             e.metal = (float)mj["metal"].num(0);
             e.trans = (float)mj["trans"].num(0);
             e.rough = (float)mj["rough"].num(0.24);
+            e.sss = (float)mj["sss"].num(-1);
+            e.sssScale = (float)mj["sssScale"].num(1);
             m_matEdits[(int)mj["id"].num(-1)] = e;
         }
         const app::Json& lt = p["light"];

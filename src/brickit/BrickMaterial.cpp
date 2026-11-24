@@ -24,6 +24,7 @@ BrickApp::MatEdit BrickApp::matEditOf(int ci) const {
         e.metal = m.metallic;
         e.trans = m.transmission;
         e.rough = m.roughness;
+        e.sss = m.subsurface;
     }
     return e;
 }
@@ -38,6 +39,10 @@ void BrickApp::applyMatEdits() {
             m.metallic = e.metal;
             m.transmission = e.trans;
             m.roughness = e.rough;
+            if (e.sss >= 0) {   // SSS intensity and scale (Wzx 24/11/2026): the light under the surface, its distance (the Stage.cpp radius x scale)
+                m.subsurface = e.sss;
+                m.sssRadius = (m.baseColor * 0.85f + float3(0.15f)) * (0.14f * std::max(0.05f, e.sssScale));
+            }
             if (e.metal > 0.5f || e.trans > 0.5f) { m.coat = 0.0f; m.subsurface = 0.0f; }   // (metal and glass: no varnish, no light under the surface)
             else if (m_colorMaterialFactory[i].metallic > 0.5f || m_colorMaterialFactory[i].transmission > 0.5f) m.coat = 0.35f;   // (made plastic: the ABS varnish)
         }
