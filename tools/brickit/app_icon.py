@@ -38,7 +38,10 @@ if __name__ == "__main__":
             src.resize((px, px), Image.LANCZOS).save(os.path.join(ios, pre + name + ".png"), optimize=True)
         if k == "a": src.save(os.path.join(ios, "AppIcon1024.png"), optimize=True)
         sizes = [16, 24, 32, 48, 64, 128, 256]
-        imgs = [rounded(src, s, 0.03) for s in sizes]
+        # PC (Wzx 24/11/2026: « des icônes plus gros comme les apps normales »): the brick zoomed in (it fills ~90 % of the
+        # square) and no margin, as the other icons of the taskbar
+        big = src.crop((100, 100, 924, 924)).resize((1024, 1024), Image.LANCZOS)
+        imgs = [rounded(big, s, 0.0) for s in sizes]
         imgs[-1].save(os.path.join(res, "brickit.ico" if k == "a" else "brickit_b.ico"), sizes=[(s, s) for s in sizes], append_images=imgs[:-1])
         if k == "a": imgs[-1].save(os.path.join(res, "brickit_256.png"))
         rounded(src, 128, 0.0).save(os.path.join(logo, "brickit_%s.png" % k), optimize=True)
