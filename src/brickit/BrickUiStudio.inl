@@ -1697,7 +1697,8 @@ void BrickApp::stColors() {
         y += 22 * s;
     }
     // the swatches scroll with the wheel when the panel is shorter than them (Workshop: Groups under it, 24/11/2026)
-    const float listTop = y, listBot = b.y - 6 * s;
+    const float matH = (b.y - y < 214 * s + 60 * s) ? 0.0f : 214 * s;   // the Material section at the bottom (the swatches scroll above it)
+    const float listTop = y, listBot = b.y - 6 * s - matH;
     if (u.hover(ImVec2(a.x, listTop), ImVec2(b.x, listBot)) && ImGui::GetIO().MouseWheel != 0) m_colScroll -= ImGui::GetIO().MouseWheel * 40 * s;
     m_colScroll = std::clamp(m_colScroll, 0.0f, std::max(0.0f, m_colContentH - (listBot - listTop)));
     y -= m_colScroll;
@@ -1736,7 +1737,109 @@ void BrickApp::stColors() {
         const float vh = listBot - listTop, bh = vh * vh / m_colContentH, by = listTop + (vh - bh) * (m_colScroll / (m_colContentH - vh));
         u.dl->AddRectFilled(ImVec2(b.x - 7 * s, by), ImVec2(b.x - 3 * s, by + bh), stW(55), 2 * s);
     }
+    if (matH > 0) stMaterial(u, ImVec2(a.x, b.y - matH), b);
     colorDrag(u, a, b, filter, fpart);
+}
+
+// The Material section of the colour panel (Wzx 24/11/2026): the material of the current colour, edited for every brick
+// of that colour: its colour (hue, saturation, brightness), metalness, transparency, roughness; Reset: the BrickIt
+// material back. Each change is live in the view (all the renderers), kept in the preferences on release.
+float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
+    const float s = m_ui, pad = 14 * s;
+    const int ci = std::clamp(m_color, 0, (int)m_lib.palette.size() - 1);
+    MatEdit e = matEditOf(ci);
+    const bool edited = m_matEdits.count(m_lib.palette[ci].id) > 0;
+    float y = a.y + 4 * s;
+    u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(b.x - pad, y), stW(26), 1.0f);
+    y += 10 * s;
+    stTrack(u, ImVec2(a.x + pad, y), 10, C_TEXT, "MATERIAL", 2.2f * s);
+    {   // Reset to original
+        const char* lab = "Reset";
+        const float tw = u.textW(9.5f, lab, true), bw = tw + 18 * s, bh = 18 * s;
+        const ImVec2 ra(b.x - pad - bw, y - 2 * s), rb2(b.x - pad, y - 2 * s + bh);
+        const bool h = edited && u.hover(ra, rb2);
+        u.dl->AddRectFilled(ra, rb2, edited ? (h ? stW(40) : stW(18)) : stW(6), bh * 0.5f);
+        u.dl->AddRect(ra, rb2, edited ? stW(70) : stW(20), bh * 0.5f, 0, 1.0f);
+        u.text(ImVec2(ra.x + 9 * s, ra.y + (bh - u.fs(9.5f)) * 0.5f), 9.5f, edited ? C_TEXT : C_FAINT, lab, true);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Back to the original BrickIt material of %s", colorFr(m_lib.palette[ci].name));
+        if (h && u.pressed) { resetMatEdit(ci); e = matEditOf(ci); }
+        if (edited) u.dl->AddCircleFilled(ImVec2(ra.x - 8 * s, ra.y + bh * 0.5f), 3 * s, C_ACCENT, 12);
+    }
+    y += 22 * s;
+    // the colour: hue, saturation, brightness (the hue kept while the saturation is 0)
+    static float hueKeep = 0;
+    float hh, ss, vv;
+    ImGui::ColorConvertRGBtoHSV(e.srgb.x, e.srgb.y, e.srgb.z, hh, ss, vv);
+    if (ss > 0.001f && vv > 0.001f) hueKeep = hh; else hh = hueKeep;
+    const float labW = 78 * s, rowH = 22 * s;
+    bool changed = false;
+    auto track = [&](int id, const char* label, float& v, const char* fmt, float shown, const std::function<void(ImVec2, ImVec2)>& fill) {
+        u.text(ImVec2(a.x + pad, y + (rowH - u.fs(10)) * 0.5f), 10, C_DIM, label);
+        char vb[24];
+        snprintf(vb, sizeof(vb), fmt, shown);
+        const float vw = 34 * s;
+        u.text(ImVec2(b.x - pad - u.textW(9.5f, vb), y + (rowH - u.fs(9.5f)) * 0.5f), 9.5f, C_TEXT, vb);
+        const ImVec2 ta(a.x + pad + labW, y + rowH * 0.5f - 3 * s), tb(b.x - pad - vw - 6 * s, y + rowH * 0.5f + 3 * s);
+        const bool h = u.hover(ImVec2(ta.x - 6 * s, y), ImVec2(tb.x + 6 * s, y + rowH));
+        if (h && u.pressed) m_matDrag = id;
+        if (m_matDrag == id) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                const float nv = std::clamp((u.mouse.x - ta.x) / std::max(1.0f, tb.x - ta.x), 0.0f, 1.0f);
+                if (std::fabs(nv - v) > 1e-4f) { v = nv; changed = true; }
+            } else { m_matDrag = -1; savePrefs(); }
+        }
+        if (fill) fill(ta, tb);
+        else {
+            u.dl->AddRectFilled(ta, tb, stW(22), 3 * s);
+            u.dl->AddRectFilled(ta, ImVec2(ta.x + (tb.x - ta.x) * v, tb.y), C_PROGRESS, 3 * s);
+        }
+        const ImVec2 k(ta.x + (tb.x - ta.x) * v, (ta.y + tb.y) * 0.5f);
+        u.dl->AddCircleFilled(k, (h || m_matDrag == id ? 7.5f : 6.5f) * s, IM_COL32(255, 255, 255, 255), 20);
+        u.dl->AddCircle(k, (h || m_matDrag == id ? 7.5f : 6.5f) * s, IM_COL32(0, 0, 0, 90), 20, 1.0f);
+        y += rowH;
+    };
+    auto col = [](float r, float g, float bl) { return IM_COL32((int)(r * 255), (int)(g * 255), (int)(bl * 255), 255); };
+    {   // the colour swatch and its hex, over the three colour tracks
+        const ImVec2 p0(a.x + pad, y + 2 * s);
+        u.dl->AddRectFilled(p0, ImVec2(p0.x + 16 * s, p0.y + 16 * s), col(e.srgb.x, e.srgb.y, e.srgb.z), 4 * s);
+        u.dl->AddRect(p0, ImVec2(p0.x + 16 * s, p0.y + 16 * s), stW(80), 4 * s, 0, 1.0f);
+        char hx[16];
+        snprintf(hx, sizeof(hx), "#%02X%02X%02X", (int)(e.srgb.x * 255 + 0.5f), (int)(e.srgb.y * 255 + 0.5f), (int)(e.srgb.z * 255 + 0.5f));
+        u.text(ImVec2(p0.x + 22 * s, p0.y + 1 * s), 10, C_TEXT, "Colour");
+        u.text(ImVec2(b.x - pad - u.textW(9.5f, hx), p0.y + 2 * s), 9.5f, C_DIM, hx);
+        y += 22 * s;
+    }
+    track(1, "   Hue", hh, "%.0f°", hh * 360, [&](ImVec2 ta, ImVec2 tb) {
+        const float w = (tb.x - ta.x) / 6;
+        for (int k = 0; k < 6; ++k) {
+            float r0, g0, b0, r1, g1, b1;
+            ImGui::ColorConvertHSVtoRGB(k / 6.0f, 1, 1, r0, g0, b0);
+            ImGui::ColorConvertHSVtoRGB((k + 1) / 6.0f, 1, 1, r1, g1, b1);
+            u.dl->AddRectFilledMultiColor(ImVec2(ta.x + k * w, ta.y), ImVec2(ta.x + (k + 1) * w + 0.5f, tb.y), col(r0, g0, b0), col(r1, g1, b1), col(r1, g1, b1), col(r0, g0, b0));
+        }
+    });
+    track(2, "   Saturation", ss, "%.0f %%", ss * 100, [&](ImVec2 ta, ImVec2 tb) {
+        float r1, g1, b1;
+        ImGui::ColorConvertHSVtoRGB(hh, 1, std::max(vv, 0.25f), r1, g1, b1);
+        const ImU32 c0 = col(std::max(vv, 0.25f), std::max(vv, 0.25f), std::max(vv, 0.25f)), c1 = col(r1, g1, b1);
+        u.dl->AddRectFilledMultiColor(ta, tb, c0, c1, c1, c0);
+    });
+    track(3, "   Brightness", vv, "%.0f %%", vv * 100, [&](ImVec2 ta, ImVec2 tb) {
+        float r1, g1, b1;
+        ImGui::ColorConvertHSVtoRGB(hh, ss, 1, r1, g1, b1);
+        const ImU32 c0 = IM_COL32(0, 0, 0, 255), c1 = col(r1, g1, b1);
+        u.dl->AddRectFilledMultiColor(ta, tb, c0, c1, c1, c0);
+    });
+    if (changed) {
+        hueKeep = hh;
+        ImGui::ColorConvertHSVtoRGB(hh, ss, vv, e.srgb.x, e.srgb.y, e.srgb.z);
+    }
+    y += 4 * s;
+    track(4, "Metalness", e.metal, "%.2f", e.metal, nullptr);
+    track(5, "Transparency", e.trans, "%.2f", e.trans, nullptr);
+    track(6, "Roughness", e.rough, "%.2f", e.rough, nullptr);
+    if (changed) setMatEdit(ci, e);
+    return y - a.y;
 }
 
 // a swatch pressed (Wzx 10/11 and 14/11/2026): released in place it applies the colour (the big one: folds / unfolds the

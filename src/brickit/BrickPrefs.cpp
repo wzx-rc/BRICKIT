@@ -165,6 +165,17 @@ std::string BrickApp::prefsJson() {
         for (size_t i = 0; i < m_hdriCustom.size(); ++i) j += (i ? ", " : "") + jstr(narrowW(m_hdriCustom[i]));
         j += "]},";
     }
+    {   // the Material panel's edits (by LDraw colour id)
+        j += "\"materials\": [";
+        bool first = true;
+        for (const auto& [id, e] : m_matEdits) {
+            char mb[200];
+            snprintf(mb, sizeof(mb), "%s{\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f}", first ? "" : ", ", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough);
+            j += mb;
+            first = false;
+        }
+        j += "],";
+    }
     j += "\"recentParts\": " + names(m_recent) + ", \"favParts\": " + names(m_fav) + "}\n";
     return j;
 }
@@ -204,6 +215,16 @@ void BrickApp::applyPrefs(const std::string& t) {
     list("recentParts", m_recent);
     list("favParts", m_fav);
     {   // Réglages > Lumière
+        m_matEdits.clear();
+        for (const app::Json& mj : p["materials"].a) {
+            MatEdit e;
+            const app::Json& c = mj["c"];
+            if (c.type == app::Json::Array && c.a.size() == 3) e.srgb = float3((float)c[0].num(1), (float)c[1].num(1), (float)c[2].num(1));
+            e.metal = (float)mj["metal"].num(0);
+            e.trans = (float)mj["trans"].num(0);
+            e.rough = (float)mj["rough"].num(0.24);
+            m_matEdits[(int)mj["id"].num(-1)] = e;
+        }
         const app::Json& lt = p["light"];
         if (lt.type == app::Json::Object) {
             if (lt["rotation"].type == app::Json::Number) m_hdriRotDeg = (float)lt["rotation"].n;

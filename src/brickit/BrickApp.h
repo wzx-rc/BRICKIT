@@ -171,6 +171,7 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    std::string matEdit;        // --mat-edit id,r,g,b,metal,trans,rough: a Material panel edit (captures)
     std::wstring wzxOut;        // --wzx-export <WZX Engine project>: the model as a WZX Engine scene (OBJ + .wzx) then quit
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
     int libCategory = -1;     // --cat N
@@ -1154,6 +1155,17 @@ private:
     bool m_sideLFold = false, m_sideRFold = false;   // the left panel (the library docked on the left) / the right column folded (its arrow)
     void stSideTabs();                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
     std::string m_libStateKey;                // the library as the user left it (saved when it changes)              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
+    std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
+    // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
+    // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
+    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; };
+    std::map<int, MatEdit> m_matEdits;
+    int m_matDrag = -1;
+    void applyMatEdits();                    // m_matEdits over the factory materials, then the lookdev / path tracer looks
+    MatEdit matEditOf(int colorIndex) const; // the edit of a colour, or its factory values
+    void setMatEdit(int colorIndex, const MatEdit& e);
+    void resetMatEdit(int colorIndex);
+    float stMaterial(Ui& u, ImVec2 a, ImVec2 b);   // the Material section under the swatches; its height
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
     float3 m_softLo{0, 0, 0}, m_softHi{0, 0, 0};

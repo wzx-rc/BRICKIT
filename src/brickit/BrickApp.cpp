@@ -299,6 +299,7 @@ void BrickApp::setupStage() {
     m_colorMaterial = addPaletteMaterials(m_scene, m_lib, m_opt.sss);
     m_colorMaterialOrig.clear();
     for (int ci : m_colorMaterial) m_colorMaterialOrig.push_back(m_scene.materials[ci]);
+    m_colorMaterialFactory = m_colorMaterialOrig;
     // focus mode: the same materials at 50 % for the bricks that are not the focus
     m_dimMaterial.clear();
     for (int ci : m_colorMaterial) {
@@ -321,6 +322,12 @@ void BrickApp::setupStage() {
         m_rubberDim.push_back(m_scene.addMaterial(d));
     }
     m_partRubber.assign(m_lib.parts.size(), -1);
+    if (!m_opt.matEdit.empty()) {
+        int id = 0;
+        MatEdit e;
+        if (sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough) == 7) m_matEdits[id] = e;
+    }
+    if (!m_matEdits.empty()) applyMatEdits();   // (the Material panel's edits, from the preferences)
     if (m_opt.giLookdev) setLookdev(true);
     {
         Material gm;   // ghostMat of the web: 0xffe08a, emissive 0x6b5a1a
@@ -1822,6 +1829,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--turntable-test") { std::wstring w1 = next(), w2 = next(); opt.ttBase.assign(w1.begin(), w1.end()); opt.ttTop.assign(w2.begin(), w2.end()); }
         else if (a == L"--maya") opt.mayaOut = next();
         else if (a == L"--wzx-export") opt.wzxOut = next();
+        else if (a == L"--mat-edit") { std::wstring w = next(); opt.matEdit.assign(w.begin(), w.end()); }
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());
         else if (a == L"--focus") opt.focusDim = true;
