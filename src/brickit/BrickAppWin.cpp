@@ -54,8 +54,13 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
     int winW = r.right - r.left, winH = r.bottom - r.top;
     const bool tooBig = winW > workW || winH > workH;
     if (tooBig && opt.shotPath.empty()) { winW = std::min(winW, workW); winH = std::min(winH, workH); }
-    m_hwnd = CreateWindowExW(0, wc.lpszClassName, versionString().c_str(), WS_OVERLAPPEDWINDOW, opt.shotPath.empty() && tooBig ? mi.rcWork.left : CW_USEDEFAULT,
-                             opt.shotPath.empty() && tooBig ? mi.rcWork.top : CW_USEDEFAULT, winW, winH, nullptr, nullptr, inst, nullptr);
+    // the captures and the tests: a window beyond the right edge of the desktop, never activated, not in the taskbar,
+    // so they run without covering the user's screen (Wzx 24/11/2026)
+    m_offscreen = !opt.shotPath.empty() || !opt.mouseTest.empty();
+    const int offX = GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN) + 64;
+    m_hwnd = CreateWindowExW(m_offscreen ? (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) : 0, wc.lpszClassName, versionString().c_str(), WS_OVERLAPPEDWINDOW,
+                             m_offscreen ? offX : opt.shotPath.empty() && tooBig ? mi.rcWork.left : CW_USEDEFAULT,
+                             m_offscreen ? mi.rcWork.top : opt.shotPath.empty() && tooBig ? mi.rcWork.top : CW_USEDEFAULT, winW, winH, nullptr, nullptr, inst, nullptr);
     if (!m_hwnd) return false;
     m_startMaximized = tooBig && opt.shotPath.empty();
     m_dpi = GetDpiForWindow(m_hwnd) / 96.0f;
@@ -76,12 +81,12 @@ bool BrickApp::init(HINSTANCE inst, const Options& opt) {
         return false;
     }
     if (!initCommon(opt, std::move(renderer), std::move(gui), m_exeDir, m_dpi)) return false;
-    ShowWindow(m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT);
+    ShowWindow(m_hwnd, m_offscreen ? SW_SHOWNOACTIVATE : m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT);
     UpdateWindow(m_hwnd);
     return true;
 }
 
-void BrickApp::showWindow() { ShowWindow(m_hwnd, m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT); }
+void BrickApp::showWindow() { ShowWindow(m_hwnd, m_offscreen ? SW_SHOWNOACTIVATE : m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT); }
 
 int BrickApp::run() {
     MSG msg;

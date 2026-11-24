@@ -755,6 +755,7 @@ private:
 
 #ifdef _WIN32
     HWND m_hwnd = nullptr;
+    bool m_offscreen = false;   // captures and tests: the window off the desktop, not activated
 #endif
     Options m_opt;
     std::wstring m_exeDir;
