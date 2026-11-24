@@ -171,6 +171,7 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    int lcTest = 0;             // --lc-test N: lights and cameras (1 a light selected, 2 a camera selected: its preview, 3 looked through) for captures
     std::string matEdit;        // --mat-edit id,r,g,b,metal,trans,rough: a Material panel edit (captures)
     std::wstring wzxOut;        // --wzx-export <WZX Engine project>: the model as a WZX Engine scene (OBJ + .wzx) then quit
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
@@ -781,6 +782,60 @@ private:
     int m_blockedMaterial = -1;        // brick in hand that cannot be dropped (red ghost)
     int m_ghostMaterial = -1, m_ghostBlockedMaterial = -1;
     int m_rimLight = -1;
+    // ---- Lighting and Camera panels (Wzx 24/11/2026, BrickLights.cpp): area lights and cameras of the user, a list each,
+    // their settings, handles in the view (move, rotate; W / H of a light), a camera looked through or shown in a preview
+    struct UserLight {
+        std::string name = "Area light";
+        float3 pos{0, 30, 0};
+        float yaw = 0, pitch = -1.0f;   // where it shines (radians), when it has no target
+        float w = 12, h = 12;           // cm
+        float3 color{1, 1, 1};          // sRGB
+        float intensity = 25;           // radiance
+        bool visible = true;
+        bool targetOn = false;
+        float3 target{0, 0, 0};
+        float3 dir() const;
+    };
+    struct UserCam {
+        std::string name = "Camera";
+        Camera cam;          // its pose and lens (orbit form: target, yaw, pitch, distance, fovY)
+        bool locked = false; // looked through: the view does not move
+    };
+    std::vector<UserLight> m_lights;
+    std::vector<UserCam> m_cams;
+    int m_firstUserLight = 0;     // m_scene.lights: the stage's first, then the user's
+    int m_selLight = -1, m_selCam = -1;   // the one picked in the panels or the view (one at a time)
+    bool m_lightPanel = false, m_camPanel = false;
+    int m_inCam = -1;             // the view looks through this camera
+    Camera m_perspSave;           // the perspective view, back when the camera is left
+    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0; };
+    ObjDrag m_od, m_odHover;
+    bool m_odDragging = false;
+    int m_lcRename = -1, m_lcRenameKind = 0;   // the row renamed (kind 0 light, 1 camera)
+    int m_lcMenu = -1, m_lcMenuKind = 0;       // right click on a row: Rename, Delete
+    ImVec2 m_lcMenuAt;
+    ImTextureID m_pipTex = 0;
+    double m_pipT = 0;
+    std::string m_pipKey;
+    int m_lcDrag = -1;            // slider of the panels being dragged
+    void addLight();
+    void addCamera();
+    void deleteLight(int i);
+    void deleteCamera(int i);
+    void syncLights();            // m_lights into m_scene.lights (and the renderers)
+    void enterCamera(int i);
+    void exitCamera();
+    void frameCamera(int i);
+    bool camLocked() const { return m_inCam >= 0 && m_inCam < (int)m_cams.size() && m_cams[m_inCam].locked; }
+    void camFollowView();         // looked through and free: the camera follows the view
+    float3 lcPivot(int kind, int i) const;
+    ObjDrag pickObj(float sx, float sy) const;   // a handle of the selected light / camera, or the icon of one (kind 9)
+    bool objInput(ImVec2 mp);     // the view's clicks on lights, cameras and their handles; true when it took the mouse
+    void drawObjOverlay();
+    void pipRender();             // the preview of the selected camera (offscreen, a few times a second)
+    void stLightPanel();
+    void stCamPanel();
+    void stLcButtons(Ui& u, ImVec2 a, float bw, float s);
     bool m_startMaximized = false;
     bool m_cornell = false;
     int m_adaptiveSpp = 1;             // path tracing samples per frame (adaptive, see frame)            // --cornell: the WZX Engine Cornell box instead of bricks

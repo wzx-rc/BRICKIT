@@ -292,6 +292,7 @@ void BrickApp::setupStage() {
     addGround(m_scene, m_opt.groundSize, !m_opt.cleanGround, !m_opt.noGround);
     m_firstBrickObject = (int)m_scene.objects.size();
     m_rimLight = addRimLight(m_scene);
+    m_firstUserLight = (int)m_scene.lights.size();   // (the user's area lights after it, BrickLights.cpp)
 
     // one material per palette colour (Stage.cpp, shared with the iPad build)
     m_colorMaterial.clear();
@@ -327,6 +328,7 @@ void BrickApp::setupStage() {
         MatEdit e;
         if (sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough) == 7) m_matEdits[id] = e;
     }
+    if (!m_lights.empty()) syncLights();
     if (!m_matEdits.empty()) applyMatEdits();   // (the Material panel's edits, from the preferences)
     if (m_opt.giLookdev) setLookdev(true);
     {
@@ -1242,6 +1244,7 @@ void BrickApp::frame() {
     }
     if (m_teSave) saveThumbOverride();   // (Edit thumbnail: before anything is drawn this frame)
     bacRenderPending();                  // (the thumbnails of the tray, likewise)
+    pipRender();                         // (the preview of the selected camera, likewise: offscreen)
 
     touchPump();   // fingers and Pencil (iPad), before the UI reads the mouse
     m_gui->newFrame();
@@ -1309,6 +1312,20 @@ void BrickApp::frame() {
         }
     }
     if (m_frame == 3 && !m_opt.mayaOut.empty()) mayaExportScene(m_opt.mayaOut);   // scripted test: Maya export
+    if (m_frame == 8 && m_opt.lcTest > 0) {   // (captures: the Lighting and Camera panels)
+        m_lightPanel = m_camPanel = true;
+        addLight();
+        const Camera v = m_scene.camera;
+        m_scene.camera.yaw += 0.9f;
+        m_scene.camera.pitch = 0.15f;
+        addCamera();
+        m_scene.camera = v;
+        if (m_opt.lcTest == 1) { m_selLight = 0; m_selCam = -1; }
+        if (m_opt.lcTest == 1 || m_opt.lcTest == 4) m_scene.camera.distance *= 2.4f;   // (the light and the camera in the view)
+        if (m_opt.lcTest == 4) { m_selLight = -1; m_selCam = 0; }
+        if (m_opt.lcTest == 3) enterCamera(0);
+        if (m_opt.lcTest == 5) { m_lights[0].color = float3(1.0f, 0.25f, 0.15f); m_lights[0].intensity *= 3; syncLights(); m_lightPanel = m_camPanel = false; m_selLight = -1; }   // (a red light: its effect seen)
+    }
     if (m_frame == 6 && !m_opt.wzxOut.empty()) {   // the model as a WZX Engine scene (after an --import at frame 3)
         std::string rep;
         const bool ok = wzxExport(m_opt.wzxOut, m_modelName.empty() ? std::string("brickit") : m_modelName, rep);
@@ -1360,6 +1377,7 @@ void BrickApp::frame() {
     QueryPerformanceCounter(&pI1);
     updateAnim(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
     updateFocus(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
+    camFollowView();   // (looked through a camera: it follows the view, or holds it when locked)
     QueryPerformanceCounter(&pI2);
     m_perfInput = (double)(pI1.QuadPart - pI0.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_perfAnim = (double)(pI2.QuadPart - pI1.QuadPart) * 1000.0 / m_qpf.QuadPart;
@@ -1536,6 +1554,7 @@ void BrickApp::frame() {
         drawHoldOverlay();
         drawPivots();
         drawGizmo();   // over the pivot markers (renderOrder 1010 > 1003 in the web)
+        drawObjOverlay();   // the user's lights and cameras, the handles of the selected one
         drawPivotPick();   // (W: choosing the pivot, its voxels over everything)
         drawMechOverlay();
         drawDevOverlay();
@@ -1829,6 +1848,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--turntable-test") { std::wstring w1 = next(), w2 = next(); opt.ttBase.assign(w1.begin(), w1.end()); opt.ttTop.assign(w2.begin(), w2.end()); }
         else if (a == L"--maya") opt.mayaOut = next();
         else if (a == L"--wzx-export") opt.wzxOut = next();
+        else if (a == L"--lc-test") opt.lcTest = _wtoi(next().c_str());
         else if (a == L"--mat-edit") { std::wstring w = next(); opt.matEdit.assign(w.begin(), w.end()); }
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());

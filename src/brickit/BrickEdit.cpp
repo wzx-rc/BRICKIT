@@ -711,6 +711,7 @@ void BrickApp::editInput() {
     }
     if (!inView) return;
     if (io.KeyAlt) return;   // Alt + left drag orbits
+    if (objInput(mp)) return;   // the lights and cameras of the user, their handles (BrickLights.cpp)
 
     if (!m_holding && !m_gizmoDragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_gizmoHover = pickGizmo(mp.x, mp.y);
     if (m_gizmoDragging) {

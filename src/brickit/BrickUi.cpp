@@ -4242,6 +4242,7 @@ void BrickApp::uiThumbEditor() {
 
 #include "BrickUiIpad.inl"
 #include "BrickUiStudio.inl"
+#include "BrickUiLights.inl"
 #include "BrickHub.inl"
 #include "BrickUiBrique.inl"
 #include "BrickUiCreme.inl"

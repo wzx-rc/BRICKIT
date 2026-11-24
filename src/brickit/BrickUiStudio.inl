@@ -3185,6 +3185,8 @@ void BrickApp::drawUiStudio() {
     // (the badge « 1:1 · GRID 1 STUD » removed, Wzx 24/11/2026: the grid is in the options of the tools and on G)
     stColors();
     stNavHud();
+    stLightPanel();
+    stCamPanel();
     stSelHud();
     stRing();
     stPaintFx();
@@ -3694,6 +3696,7 @@ void BrickApp::stNavHud() {
         }
         y += bw;
     }
+    if (!m_ipad) stLcButtons(u, ImVec2(a.x - 10 * s - (bw + 2 * pad), top), bw, s);   // Lighting, Cameras, left of the brick of the views (BrickUiLights.inl)
     // the drag of a gesture button: the camera follows the pointer (anywhere on the screen until it is released)
     if (m_navDrag >= 0) {
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_navDrag = -1;
