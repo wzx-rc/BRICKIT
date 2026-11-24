@@ -304,7 +304,7 @@ void BrickApp::stLightPanel() {
             y += 30 * s;
         }
         if (lcPill(u, ImVec2(x0, y), ImVec2(x0 + 96 * s, y + 26 * s), ST_TRASH, "Delete", false, s)) deleteLight(m_selLight);
-        u.text(ImVec2(x0 + 106 * s, y + 7 * s), 9, C_FAINT, "View: arrows, rings, edges");
+        u.text(ImVec2(x0 + 106 * s, y + 7 * s), 9, C_FAINT, "View: arrows, squares, rings, edges");
         if (ch) syncLights();
     }
     if (m_lcMenu >= 0 && m_lcMenuKind == 0) {
@@ -342,7 +342,7 @@ void BrickApp::stCamPanel() {
     const float W = 290 * s, pad = 14 * s;
     const bool has = m_selCam >= 0 && m_selCam < (int)m_cams.size();
     const int rows = std::max(1, (int)m_cams.size());
-    const float H = 40 * s + 40 * s + rows * 26 * s + 10 * s + (has ? 20 * s + 34 * s + 22 * s + 4 * s + 26 * s : 0) + pad;
+    const float H = 40 * s + 40 * s + rows * 26 * s + 10 * s + (has ? 20 * s + 34 * s + 22 * s + 4 * s + 30 * s + 26 * s : 0) + pad;
     float x1p = g_lcAnchor.x > 0 ? g_lcAnchor.x : m_stage.z - 90 * s, top = m_lightPanel ? g_lcAnchor.y : m_stage.y + 14 * s;
     if (m_lightPanel && top + H > m_stage.w - 10 * s) { x1p = g_lcLightLeft - 10 * s; top = m_stage.y + 150 * s; }   // (no room under Lighting: beside it)
     const ImVec2 a(x1p - W, top), b(x1p, top + H);
@@ -397,8 +397,15 @@ void BrickApp::stCamPanel() {
             }
         }
         y += 4 * s;
+        {   // Target: on / off (as the lights: the camera keeps looking at its point when it moves)
+            u.text(ImVec2(x0, y + 6 * s), 10, C_DIM, "Target");
+            const float bw2 = 54 * s;
+            if (lcPill(u, ImVec2(x1 - 2 * bw2 - 4 * s, y), ImVec2(x1 - bw2 - 4 * s, y + 24 * s), nullptr, "On", c.targetOn, s)) c.targetOn = true;
+            if (lcPill(u, ImVec2(x1 - bw2, y), ImVec2(x1, y + 24 * s), nullptr, "Off", !c.targetOn, s)) c.targetOn = false;
+            y += 30 * s;
+        }
         if (lcPill(u, ImVec2(x0, y), ImVec2(x0 + 96 * s, y + 26 * s), ST_TRASH, "Delete", false, s)) deleteCamera(m_selCam);
-        u.text(ImVec2(x0 + 106 * s, y + 7 * s), 9, C_FAINT, "View: arrows, rings");
+        u.text(ImVec2(x0 + 106 * s, y + 7 * s), 9, C_FAINT, c.targetOn ? "View: arrows, squares, target" : "View: arrows, squares, rings");
     }
     if (m_lcMenu >= 0 && m_lcMenuKind == 1) {
         const int k = lcMenu(u, m_lcMenuAt, true, s, m_uiRects);

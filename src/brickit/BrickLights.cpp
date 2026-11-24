@@ -15,8 +15,6 @@ namespace brickit {
 
 namespace {
 const ImU32 kLcCol = IM_COL32(255, 214, 120, 230), kCamCol = IM_COL32(150, 205, 255, 230), kHot = IM_COL32(0xf7, 0xc5, 0x1e, 255);
-const ImU32 kAx[3] = {IM_COL32(0xe0, 0x3a, 0x2a, 240), IM_COL32(0x6c, 0xc6, 0x3a, 240), IM_COL32(0x3a, 0x7c, 0xe8, 240)};
-float3 axisOf(int a) { return float3(a == 0 ? 1.0f : 0.0f, a == 1 ? 1.0f : 0.0f, a == 2 ? 1.0f : 0.0f); }
 float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
     const float dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
     const float t = l > 0 ? std::clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / l, 0.0f, 1.0f) : 0;
@@ -209,8 +207,39 @@ float3 BrickApp::lcPivot(int kind, int i) const {
     return float3(0);
 }
 
-// kinds: 0 arrow (axis), 1 ring (axis 1 yaw, 0 pitch), 4 edge of a light (0 +U, 1 -U, 2 +V, 3 -V), 5 target,
-// 9 the icon of light axis, 10 the icon of camera axis
+// The local frame of the selected light or camera: its handles (Wzx 24/11/2026: « un gizmo transform spécifique, en local,
+// des axes plus épais, le translate avec équerres plus la rotation, sans rouge / vert / bleu: trois niveaux de blanc et
+// de gris, subtil et élégant »).
+void BrickApp::lcAxes(int kind, int i, float3& o, float3 ax[3]) const {
+    if (kind == 0) {
+        const UserLight& l = m_lights[i];
+        AreaLight a;
+        a.position = l.pos;
+        a.target = l.targetOn ? l.target : l.pos + l.dir();
+        a.basis(ax[0], ax[1], ax[2]);
+        o = l.pos;
+    } else {
+        const Camera& c = m_cams[i].cam;
+        c.basis(ax[0], ax[1], ax[2]);
+        o = c.eye();
+    }
+}
+
+// the camera at eye, aimed at tgt (its orbit form)
+static void camAim(Camera& c, const float3& eye, const float3& tgt) {
+    const float3 d = eye - tgt;
+    const float L = std::max(length(d), 0.1f);
+    c.target = tgt;
+    c.distance = L;
+    c.pitch = std::asin(std::clamp(d.y / L, -0.999f, 0.999f));
+    c.yaw = std::atan2(d.x, d.z);
+    c.focusDistance = L;
+}
+
+static const float kArrow = 1.3f, kPlaneLo = 0.26f, kPlaneHi = 0.5f, kRing = 0.82f;
+
+// kinds: 0 arrow (axis), 3 plane square (the axis normal to it), 1 ring (around axis 0 or 1), 4 edge of a light
+// (0 +U, 1 -U, 2 +V, 3 -V), 5 target, 9 the icon of light axis, 10 the icon of camera axis
 BrickApp::ObjDrag BrickApp::pickObj(float sx, float sy) const {
     ObjDrag none;
     const View v = view();
@@ -218,58 +247,63 @@ BrickApp::ObjDrag BrickApp::pickObj(float sx, float sy) const {
     const int kind = m_selLight >= 0 ? 0 : (m_selCam >= 0 ? 1 : -1);
     const int sel = kind == 0 ? m_selLight : m_selCam;
     if (kind >= 0 && !(kind == 1 && m_inCam == sel)) {
-        const float3 piv = lcPivot(kind, sel);
-        const float k = gizmoScale(piv) * 1.15f;
+        float3 o, ax[3];
+        lcAxes(kind, sel, o, ax);
+        const float k = gizmoScale(o);
+        const bool targetOn = kind == 0 ? m_lights[sel].targetOn : m_cams[sel].targetOn;
+        const float3 tgt = kind == 0 ? m_lights[sel].target : m_cams[sel].cam.target;
         float cx, cy;
-        if (v.project(piv, cx, cy)) {
+        if (v.project(o, cx, cy)) {
+            if (targetOn) {
+                float tx, ty;
+                if (v.project(tgt, tx, ty) && std::hypot(sx - tx, sy - ty) < 10) { ObjDrag d; d.kind = 5; return d; }
+            }
             if (kind == 0) {
                 const UserLight& l = m_lights[sel];
-                if (l.targetOn) {
-                    float tx, ty;
-                    if (v.project(l.target, tx, ty) && std::hypot(sx - tx, sy - ty) < 10) { ObjDrag d; d.kind = 5; return d; }
-                }
-                AreaLight a;
-                a.position = l.pos;
-                a.target = l.targetOn ? l.target : l.pos + l.dir();
-                float3 U, V, N;
-                a.basis(U, V, N);
-                const float3 hp[4] = {l.pos + U * (l.w * 0.5f), l.pos - U * (l.w * 0.5f), l.pos + V * (l.h * 0.5f), l.pos - V * (l.h * 0.5f)};
+                const float3 hp[4] = {l.pos + ax[0] * (l.w * 0.5f), l.pos - ax[0] * (l.w * 0.5f), l.pos + ax[1] * (l.h * 0.5f), l.pos - ax[1] * (l.h * 0.5f)};
                 for (int e = 0; e < 4; ++e) {
                     float hx, hy;
                     if (v.project(hp[e], hx, hy) && std::fabs(sx - hx) < 8 && std::fabs(sy - hy) < 8) { ObjDrag d; d.kind = 4; d.axis = e; return d; }
                 }
             }
-            float best = 8;
+            for (int a = 0; a < 3; ++a) {   // the squares between two axes (move in their plane)
+                const float3 e1 = ax[(a + 1) % 3], e2 = ax[(a + 2) % 3];
+                ImVec2 q[4];
+                bool ok = true;
+                ok &= v.project(o + (e1 * kPlaneLo + e2 * kPlaneLo) * k, q[0].x, q[0].y);
+                ok &= v.project(o + (e1 * kPlaneHi + e2 * kPlaneLo) * k, q[1].x, q[1].y);
+                ok &= v.project(o + (e1 * kPlaneHi + e2 * kPlaneHi) * k, q[2].x, q[2].y);
+                ok &= v.project(o + (e1 * kPlaneLo + e2 * kPlaneHi) * k, q[3].x, q[3].y);
+                if (!ok) continue;
+                auto cr = [](ImVec2 a0, ImVec2 b0, ImVec2 p) { return (b0.x - a0.x) * (p.y - a0.y) - (b0.y - a0.y) * (p.x - a0.x); };
+                const float c0 = cr(q[0], q[1], m), c1 = cr(q[1], q[2], m), c2 = cr(q[2], q[3], m), c3 = cr(q[3], q[0], m);
+                if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c3 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c3 <= 0)) { ObjDrag d; d.kind = 3; d.axis = a; return d; }
+            }
+            float best = 9;
             ObjDrag bh;
             for (int a = 0; a < 3; ++a) {
                 float ex, ey;
-                if (!v.project(piv + axisOf(a) * k, ex, ey)) continue;
+                if (!v.project(o + ax[a] * (k * kArrow), ex, ey)) continue;
                 const float dd = segDist(m, ImVec2(cx, cy), ImVec2(ex, ey));
                 if (dd < best && std::hypot(sx - cx, sy - cy) > 6) { best = dd; bh.kind = 0; bh.axis = a; }
             }
-            const bool rings = kind == 1 || !m_lights[sel].targetOn;
-            if (rings) {
-                float yaw = kind == 0 ? m_lights[sel].yaw : m_cams[sel].cam.yaw;
-                const float3 right(std::cos(yaw), 0, -std::sin(yaw));
-                for (int ax = 0; ax < 2; ++ax) {   // 1: around Y (yaw), 0: around the object's right (pitch)
-                    float3 eu, ev;
-                    if (ax == 1) { eu = float3(1, 0, 0); ev = float3(0, 0, 1); }
-                    else { eu = float3(0, 1, 0); ev = normalize(cross(right, float3(0, 1, 0))); }
+            if (!targetOn)
+                for (int ra = 0; ra < 2; ++ra) {   // ring around axis 0 (tilt) and axis 1 (turn)
+                    const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
                     ImVec2 prev;
                     bool havePrev = false;
-                    for (int j = 0; j <= 40; ++j) {
-                        const float t = j * 6.2831853f / 40;
+                    for (int j = 0; j <= 48; ++j) {
+                        const float t = j * 6.2831853f / 48;
                         float px, py;
-                        if (!v.project(piv + (eu * std::cos(t) + ev * std::sin(t)) * (k * 0.78f), px, py)) { havePrev = false; continue; }
+                        if (!v.project(o + (eu * std::cos(t) + ev * std::sin(t)) * (k * kRing), px, py)) { havePrev = false; continue; }
                         if (havePrev) {
                             const float dd = segDist(m, prev, ImVec2(px, py));
-                            if (dd < best) { best = dd; bh.kind = 1; bh.axis = ax; }
+                            if (dd < best - 1) { best = dd + 1; bh.kind = 1; bh.axis = ra; }
                         }
                         prev = ImVec2(px, py);
                         havePrev = true;
                     }
                 }
-            }
             if (bh.kind >= 0) return bh;
         }
     }
@@ -297,13 +331,19 @@ bool BrickApp::objInput(ImVec2 mp) {
         float3 o, d;
         v.ray(mp.x, mp.y, o, d);
         const ObjDrag& g = m_od;
-        if (g.kind == 0) {   // along an axis
-            const float3 ax = axisOf(g.axis);
-            const float t = lineParam(o, d, g.p0, ax), t0 = g.w0;
-            const float3 np = g.p0 + ax * (t - t0);
-            if (kind == 0) { m_lights[sel].pos = np; syncLights(); }
-            else { Camera& c = m_cams[sel].cam; c.target = g.q0 + (np - g.p0); }
-        } else if (g.kind == 1) {   // a ring
+        auto moveTo = [&](const float3& np) {
+            if (kind == 0) { m_lights[sel].pos = np; syncLights(); return; }
+            UserCam& uc = m_cams[sel];
+            if (uc.targetOn) camAim(uc.cam, np, uc.cam.target);   // (it keeps looking at its target)
+            else uc.cam.target = g.q0 + (np - g.p0);
+        };
+        if (g.kind == 0) {   // along a local axis
+            const float t = lineParam(o, d, g.p0, g.axv);
+            moveTo(g.p0 + g.axv * (t - g.w0));
+        } else if (g.kind == 3) {   // in a local plane
+            float3 hit;
+            if (rayPlane(o, d, g.p0, g.axv, hit)) moveTo(g.p0 + (hit - g.hit0));
+        } else if (g.kind == 1) {   // a ring: around the local right axis (tilt) or the local up axis (turn)
             const float dx = mp.x - g.m0.x, dy = mp.y - g.m0.y;
             float yaw = g.yaw0, pitch = g.pitch0;
             if (g.axis == 1) yaw = g.yaw0 - dx * 0.01f;
@@ -311,29 +351,28 @@ bool BrickApp::objInput(ImVec2 mp) {
             if (kind == 0) { m_lights[sel].yaw = yaw; m_lights[sel].pitch = pitch; syncLights(); }
             else {
                 Camera& c = m_cams[sel].cam;
-                const float3 eye = g.p0;
                 c.yaw = yaw;
                 c.pitch = pitch;
                 float3 r, u, f;
                 c.basis(r, u, f);
-                c.target = eye + f * c.distance;
+                c.target = g.p0 + f * c.distance;   // (it turns around its eye)
             }
         } else if (g.kind == 4 && kind == 0) {   // the edge of a light: its width or height
             UserLight& l = m_lights[sel];
-            AreaLight a;
-            a.position = l.pos;
-            a.target = l.targetOn ? l.target : l.pos + l.dir();
-            float3 U, V, N, hit;
-            a.basis(U, V, N);
-            if (rayPlane(o, d, l.pos, N, hit)) {
-                if (g.axis < 2) l.w = std::clamp(2.0f * std::fabs(dot(hit - l.pos, U)), 0.5f, 400.0f);
-                else l.h = std::clamp(2.0f * std::fabs(dot(hit - l.pos, V)), 0.5f, 400.0f);
+            float3 lo, ax[3], hit;
+            lcAxes(0, sel, lo, ax);
+            if (rayPlane(o, d, l.pos, ax[2], hit)) {
+                if (g.axis < 2) l.w = std::clamp(2.0f * std::fabs(dot(hit - l.pos, ax[0])), 0.5f, 400.0f);
+                else l.h = std::clamp(2.0f * std::fabs(dot(hit - l.pos, ax[1])), 0.5f, 400.0f);
                 syncLights();
             }
-        } else if (g.kind == 5 && kind == 0) {   // the target, in the plane facing the view
+        } else if (g.kind == 5) {   // the target, in the plane facing the view
             float3 r, u, f, hit;
             m_scene.camera.basis(r, u, f);
-            if (rayPlane(o, d, g.q0, f, hit)) { m_lights[sel].target = hit; syncLights(); }
+            if (rayPlane(o, d, g.p0, f, hit)) {
+                if (kind == 0) { m_lights[sel].target = hit; syncLights(); }
+                else camAim(m_cams[sel].cam, g.q0, hit);
+            }
         }
         return true;
     }
@@ -346,21 +385,23 @@ bool BrickApp::objInput(ImVec2 mp) {
     const int kind = m_selLight >= 0 ? 0 : 1, sel = kind == 0 ? m_selLight : m_selCam;
     m_od = h;
     m_od.m0 = mp;
-    m_od.p0 = lcPivot(kind, sel);
+    float3 lo, ax[3];
+    lcAxes(kind, sel, lo, ax);
+    m_od.p0 = lo;
     if (kind == 0) {
         m_od.yaw0 = m_lights[sel].yaw;
         m_od.pitch0 = m_lights[sel].pitch;
-        if (h.kind == 5) m_od.p0 = m_od.q0 = m_lights[sel].target;
+        if (h.kind == 5) m_od.p0 = m_lights[sel].target;
     } else {
         m_od.yaw0 = m_cams[sel].cam.yaw;
         m_od.pitch0 = m_cams[sel].cam.pitch;
         m_od.q0 = m_cams[sel].cam.target;
+        if (h.kind == 5) { m_od.q0 = lo; m_od.p0 = m_cams[sel].cam.target; }   // (the target moves, the eye stays)
     }
-    if (h.kind == 0) {
-        float3 o, d;
-        v.ray(mp.x, mp.y, o, d);
-        m_od.w0 = lineParam(o, d, m_od.p0, axisOf(h.axis));   // (where the arrow was taken)
-    }
+    float3 o, d;
+    v.ray(mp.x, mp.y, o, d);
+    if (h.kind == 0) { m_od.axv = ax[h.axis]; m_od.w0 = lineParam(o, d, m_od.p0, m_od.axv); }   // (where the arrow was taken)
+    if (h.kind == 3) { m_od.axv = ax[h.axis]; if (!rayPlane(o, d, m_od.p0, m_od.axv, m_od.hit0)) m_od.hit0 = m_od.p0; }
     m_odDragging = true;
     return true;
 }
@@ -448,41 +489,72 @@ void BrickApp::drawObjOverlay() {
         dl->AddCircleFilled(e, 4.5f, col, 12);
         label(ImVec2(e.x + 12, e.y + 6), m_cams[i].name + (m_cams[i].locked ? "  (locked)" : ""), sel ? kHot : IM_COL32(235, 235, 238, 220));
     }
-    // the handles of the selected one
+    // the targets of the cameras aimed at a point: a dashed line, the point
+    for (int i = 0; i < (int)m_cams.size(); ++i) {
+        if (i == m_inCam || !m_cams[i].targetOn) continue;
+        const bool sel = i == m_selCam;
+        const ImU32 col = sel ? kHot : kCamCol;
+        ImVec2 c0, e;
+        if (!P(m_cams[i].cam.eye(), c0) || !P(m_cams[i].cam.target, e)) continue;
+        const float dx = e.x - c0.x, dy = e.y - c0.y, len = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
+        for (float t = 0; t < len; t += 10) dl->AddLine(ImVec2(c0.x + dx * t / len, c0.y + dy * t / len), ImVec2(c0.x + dx * std::min(len, t + 5) / len, c0.y + dy * std::min(len, t + 5) / len), col, 1.3f);
+        const bool th = sel && (m_odDragging ? m_od.kind == 5 : m_odHover.kind == 5);
+        dl->AddCircleFilled(e, th ? 7 : 5.5f, th ? IM_COL32(255, 255, 255, 255) : col, 16);
+        dl->AddCircle(e, th ? 7 : 5.5f, IM_COL32(0, 0, 0, 140), 16, 1.0f);
+    }
+    // the handles of the selected one: arrows, squares between two axes, rings; local; white, light grey, grey
     const int kind = m_selLight >= 0 ? 0 : (m_selCam >= 0 ? 1 : -1), sel = kind == 0 ? m_selLight : m_selCam;
     if (kind < 0 || (kind == 1 && m_inCam == sel)) return;
-    const float3 piv = lcPivot(kind, sel);
-    const float k = gizmoScale(piv) * 1.15f;
+    float3 o, ax[3];
+    lcAxes(kind, sel, o, ax);
+    const float k = gizmoScale(o);
     ImVec2 c;
-    if (!P(piv, c)) return;
+    if (!P(o, c)) return;
     const ObjDrag hov = m_odDragging ? m_od : m_odHover;
-    const bool rings = kind == 1 || !m_lights[sel].targetOn;
-    if (rings) {
-        const float yaw = kind == 0 ? m_lights[sel].yaw : m_cams[sel].cam.yaw;
-        const float3 right(std::cos(yaw), 0, -std::sin(yaw));
-        for (int ax = 0; ax < 2; ++ax) {
-            float3 eu, ev;
-            if (ax == 1) { eu = float3(1, 0, 0); ev = float3(0, 0, 1); }
-            else { eu = float3(0, 1, 0); ev = normalize(cross(right, float3(0, 1, 0))); }
-            const bool hh = hov.kind == 1 && hov.axis == ax;
+    static const ImU32 kLv[3] = {IM_COL32(250, 250, 252, 240), IM_COL32(206, 208, 214, 235), IM_COL32(150, 153, 162, 235)};
+    const ImU32 kShade = IM_COL32(10, 11, 14, 120);
+    const bool targetOn = kind == 0 ? m_lights[sel].targetOn : m_cams[sel].targetOn;
+    if (!targetOn)
+        for (int ra = 0; ra < 2; ++ra) {   // the rings (behind)
+            const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
+            const bool hh = hov.kind == 1 && hov.axis == ra;
             std::vector<ImVec2> pts;
-            for (int j = 0; j <= 48; ++j) {
-                const float t = j * 6.2831853f / 48;
+            for (int j = 0; j <= 64; ++j) {
+                const float t = j * 6.2831853f / 64;
                 ImVec2 q;
-                if (P(piv + (eu * std::cos(t) + ev * std::sin(t)) * (k * 0.78f), q)) pts.push_back(q);
+                if (P(o + (eu * std::cos(t) + ev * std::sin(t)) * (k * kRing), q)) pts.push_back(q);
             }
-            if (pts.size() > 2) dl->AddPolyline(pts.data(), (int)pts.size(), hh ? kHot : IM_COL32(255, 255, 255, ax == 1 ? 200 : 150), 0, hh ? 2.6f : 1.6f);
+            if (pts.size() > 2) {
+                dl->AddPolyline(pts.data(), (int)pts.size(), kShade, 0, hh ? 5.5f : 4.5f);
+                dl->AddPolyline(pts.data(), (int)pts.size(), hh ? kHot : kLv[ra], 0, hh ? 3.2f : 2.4f);
+            }
         }
+    for (int a = 0; a < 3; ++a) {   // the squares (équerres)
+        const float3 e1 = ax[(a + 1) % 3], e2 = ax[(a + 2) % 3];
+        ImVec2 q[4];
+        if (!P(o + (e1 * kPlaneLo + e2 * kPlaneLo) * k, q[0]) || !P(o + (e1 * kPlaneHi + e2 * kPlaneLo) * k, q[1]) ||
+            !P(o + (e1 * kPlaneHi + e2 * kPlaneHi) * k, q[2]) || !P(o + (e1 * kPlaneLo + e2 * kPlaneHi) * k, q[3]))
+            continue;
+        const bool hh = hov.kind == 3 && hov.axis == a;
+        dl->AddQuadFilled(q[0], q[1], q[2], q[3], hh ? IM_COL32(0xf7, 0xc5, 0x1e, 120) : IM_COL32(255, 255, 255, 34));
+        dl->AddQuad(q[0], q[1], q[2], q[3], hh ? kHot : ((kLv[a] & 0x00FFFFFFu) | 0xC0000000u), hh ? 2.0f : 1.4f);
     }
-    for (int a = 0; a < 3; ++a) {
+    for (int a = 0; a < 3; ++a) {   // the arrows, thick, with a dark edge that keeps them on any floor
         ImVec2 e;
-        if (!P(piv + axisOf(a) * k, e)) continue;
+        if (!P(o + ax[a] * (k * kArrow), e)) continue;
         const bool hh = hov.kind == 0 && hov.axis == a;
-        dl->AddLine(c, e, hh ? kHot : kAx[a], hh ? 3.4f : 2.4f);
         const float dx = e.x - c.x, dy = e.y - c.y, len = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
         const ImVec2 n(dx / len, dy / len), pn(-n.y, n.x);
-        dl->AddTriangleFilled(ImVec2(e.x + n.x * 9, e.y + n.y * 9), ImVec2(e.x + pn.x * 5, e.y + pn.y * 5), ImVec2(e.x - pn.x * 5, e.y - pn.y * 5), hh ? kHot : kAx[a]);
+        const ImU32 col = hh ? kHot : kLv[a];
+        const ImVec2 base(e.x - n.x * 4, e.y - n.y * 4);
+        dl->AddLine(c, base, kShade, hh ? 6.5f : 5.5f);
+        dl->AddLine(c, base, col, hh ? 4.2f : 3.4f);
+        const ImVec2 t0(e.x + n.x * 11, e.y + n.y * 11), t1(base.x + pn.x * 6.5f, base.y + pn.y * 6.5f), t2(base.x - pn.x * 6.5f, base.y - pn.y * 6.5f);
+        dl->AddTriangleFilled(ImVec2(t0.x + n.x, t0.y + n.y), ImVec2(t1.x + pn.x, t1.y + pn.y), ImVec2(t2.x - pn.x, t2.y - pn.y), kShade);
+        dl->AddTriangleFilled(t0, t1, t2, col);
     }
+    dl->AddCircleFilled(c, 5.5f, kShade, 16);
+    dl->AddCircleFilled(c, 4.0f, kLv[0], 16);
     (void)s;
 }
 

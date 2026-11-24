@@ -720,6 +720,17 @@ void BrickApp::editInput() {
         return;
     }
     if (m_pipette && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_pipette = false;
+    if (m_matPick && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_matPick = false;
+    if (m_matPick && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // the pipette of the Material panel
+        const int b = pickBrick(mp.x, mp.y);
+        if (b >= 0) {
+            m_color = m_bricks[b].color;
+            m_matPick = false;
+            m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});
+            toast(std::string("Material: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name);
+        }
+        return;
+    }
     if (m_paintStroke) {   // the Pinceau held: held a moment (or moved), a circle of rays paints all it covers
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !m_paintTool) {
             m_paintStroke = false;

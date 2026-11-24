@@ -801,6 +801,7 @@ private:
         std::string name = "Camera";
         Camera cam;          // its pose and lens (orbit form: target, yaw, pitch, distance, fovY)
         bool locked = false; // looked through: the view does not move
+        bool targetOn = false;   // aimed at a point (cam.target), kept when the camera moves
     };
     std::vector<UserLight> m_lights;
     std::vector<UserCam> m_cams;
@@ -809,7 +810,7 @@ private:
     bool m_lightPanel = false, m_camPanel = false;
     int m_inCam = -1;             // the view looks through this camera
     Camera m_perspSave;           // the perspective view, back when the camera is left
-    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0; };
+    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0, axv, hit0; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0; };
     ObjDrag m_od, m_odHover;
     bool m_odDragging = false;
     int m_lcRename = -1, m_lcRenameKind = 0;   // the row renamed (kind 0 light, 1 camera)
@@ -830,6 +831,7 @@ private:
     bool camLocked() const { return m_inCam >= 0 && m_inCam < (int)m_cams.size() && m_cams[m_inCam].locked; }
     void camFollowView();         // looked through and free: the camera follows the view
     float3 lcPivot(int kind, int i) const;
+    void lcAxes(int kind, int i, float3& o, float3 ax[3]) const;   // the local frame of a light (U, V, its normal) or a camera (right, up, forward)
     ObjDrag pickObj(float sx, float sy) const;   // a handle of the selected light / camera, or the icon of one (kind 9)
     bool objInput(ImVec2 mp);     // the view's clicks on lights, cameras and their handles; true when it took the mouse
     void drawObjOverlay();
@@ -1176,6 +1178,7 @@ private:
     float m_themeTabH = 0;            // height of the Thème tab, as drawn last frame
     bool m_selHud = true;             // Réglages › HUD de sélection (on by default, apart from the iPad ring)
     bool m_pipette = false;           // the pipette of the HUD: the next brick clicked gives its colour
+    bool m_matPick = false;           // the pipette of the Material panel: the next brick clicked gives its material to edit
     std::map<std::string, ImTextureID> m_pcIcons;
     bool pcDarkNow();
     ImTextureID pcIcon(const char* name, bool white);

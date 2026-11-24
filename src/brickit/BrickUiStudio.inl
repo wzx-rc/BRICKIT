@@ -1753,7 +1753,16 @@ float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
     float y = a.y + 4 * s;
     u.dl->AddLine(ImVec2(a.x + pad, y), ImVec2(b.x - pad, y), stW(26), 1.0f);
     y += 10 * s;
-    stTrack(u, ImVec2(a.x + pad, y), 10, C_TEXT, "MATERIAL", 2.2f * s);
+    const float titleW = stTrack(u, ImVec2(a.x + pad, y), 10, C_TEXT, "MATERIAL", 2.2f * s);
+    {   // the pipette (Wzx 24/11/2026): a click on a brick takes its material, here, to edit it
+        const ImVec2 pc(a.x + pad + titleW + 18 * s, y + 6 * s);
+        const bool h = u.hover(ImVec2(pc.x - 11 * s, pc.y - 11 * s), ImVec2(pc.x + 11 * s, pc.y + 11 * s));
+        if (m_matPick || h) u.dl->AddCircleFilled(pc, 11 * s, m_matPick ? C_ACCENT : stW(22), 24);
+        stIcon(u.dl, ST_PICK, pc, 16 * s, m_matPick ? C_INK : (h ? C_TEXT : C_DIM), 1.3f * s);
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Pick: click a brick to edit its material (Esc: cancel)");
+        if (h && u.pressed) { m_matPick = !m_matPick; m_pipette = false; }
+        if (m_matPick) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
     {   // Reset to original
         const char* lab = "Reset";
         const float tw = u.textW(9.5f, lab, true), bw = tw + 18 * s, bh = 18 * s;
