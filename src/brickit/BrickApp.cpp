@@ -498,9 +498,22 @@ void BrickApp::buildHouse() {
 // specular and no coat, a light SSS (the lighting alone, in HQ, RC and PT); off: the palette materials back. The
 // dimmed copies (focus mode) follow.
 static const float kBgLin = 0.03f, kBgFloorK = 1.2f;   // the background, linear: the dark floor as it shows in the distance (measured)
-static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / raster HQ, measured 23/11/2026)
+static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / raster HQ, measured 23/11/2026, with an HDRI file)
+// The procedural sky (Wzx 24/11/2026, clay comparison: « le HQ est plus lumineux, le fake GI plus doux »): the HQ lights
+// the bricks with the whole sky, its sun smeared into the ambient (no sun extracted from the image), so its shadows are
+// filled; the path tracer at x0.5 was a third darker in the shadows (model 0.55 against 0.72, shadows 0.15 against 0.42,
+// measured on the tractor). x1.8 brings the model and its shadows to the HQ (0.72 / 0.37); the floor, which then gets
+// too much sky, keeps its HQ brightness with its albedo lowered.
+static const float kPtHdriSky = 1.8f, kPtFloorSky = 0.6f;   // (kPtFloorSky: the floor's albedo and sheen under that sky: it bounces onto the sides of the bricks)
+// Second measure (colour, the same tractor): the whole image x1.8 also multiplies the sun drawn in the procedural sky, so
+// the faces in the sun were 3 x too bright (turquoise 107 / 191 / 194 against 18 / 151 / 154 in the HQ) while the
+// shadows only reached the HQ. Under the procedural sky the path tracer now lights with the sky as a gradient (the
+// colours of the procedural sky, x kPtGradSky, no image, no second sun) and the scene sun alone (x kPtSunSky).
+// Measured on the tractor (24/11/2026, colour): model 0.43 against 0.45 in the HQ, shadows and floor at the HQ's level.
+static const float kPtGradSky = 3.2f, kPtSunSky = 1.0f, kPtGroundSky = 1.0f;
 static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
 static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
+static const float kPtGlassTrans = 0.85f, kPtGlassRough = 0.08f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
 void BrickApp::setLookdev(bool on) {
     m_giLookdev = on;
     for (size_t i = 0; i < m_colorMaterial.size() && i < m_colorMaterialOrig.size(); ++i) {
@@ -518,6 +531,9 @@ void BrickApp::setLookdev(bool on) {
             m.transmission = 0.0f;
             m.subsurface = 0.12f;
             m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+        } else if (m_ptLook && m.transmission > 0.5f) {   // the glass of the path tracer (Wzx 24/11/2026: « le verre est moins joli en raytraced »)
+            m.roughness = m_opt.ptGlassRough >= 0 ? m_opt.ptGlassRough : kPtGlassRough;
+            m.transmission = m_opt.ptGlassTrans >= 0 ? m_opt.ptGlassTrans : kPtGlassTrans;
         } else if (m_ptLook && m.transmission < 0.5f && m.metallic < 0.5f) {
             // the path tracer (Wzx 23/11/2026: « pas le dynamisme et l'impact lumineux du HQ »): the ABS of a real brick, a
             // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
@@ -636,7 +652,8 @@ void BrickApp::setHdri(const std::wstring& path) {
     }
     if (!m_ipad && !m_cornell) m_scene.sun.direction = hdriSunDir();
     m_hdriPath = path;
-    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)   // --no-env: no environment image at all (profiling)
+    m_hdriImg = img;
+    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_renderer->resetAccumulation();
 }
@@ -738,15 +755,30 @@ void BrickApp::applyLook() {
     }
     if (!m_rs.raster && !m_rcMode) {
         m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
-        m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
+        const bool procSky = m_hdriPath.empty();
+        m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
+        if (procSky && m_hdriImg && !m_opt.noEnv) {   // the sky as a gradient (its colours), the sun of the scene alone
+            m_scene.env.hdri = nullptr;
+            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtGradSky) * 0.9f;
+            m_scene.env.top = float3(0.18f, 0.32f, 0.72f) * k;
+            m_scene.env.horizon = float3(0.85f, 0.82f, 0.78f) * k;
+            m_scene.env.bottom = float3(0.85f, 0.82f, 0.78f) * (k * (m_opt.ptGround >= 0 ? m_opt.ptGround : kPtGroundSky));
+            m_scene.env.intensity = 1.0f;
+        }
+        if (procSky && !kitStage) {   // the floor under 1.8 x the sky: its albedo and its sheen lowered, so it reads as in the HQ
+            const float kf = m_opt.ptFloor >= 0 ? m_opt.ptFloor : kPtFloorSky;
+            g.baseColor = g.baseColor * kf;
+            g.specular = 0.5f * kf;
+            g.roughness = 0.95f;
+        }
         // the plastic as the HQ shades it (Wzx 23/11/2026: « les couleurs ne sont toujours pas bonnes, ça vient de la
         // réponse du shading, peut-être le SSS »): no random walk under the surface, which paled and greened the yellows
         // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
         m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 0.0f;
-        m_scene.sun.intensity *= m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun;
-        const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : kPtHdri;
+        m_scene.sun.intensity *= procSky && m_hdriImg ? (m_opt.ptSunSky > 0 ? m_opt.ptSunSky : kPtSunSky) : (m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun);
+        const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
         m_rs.envSpecBoost = m_opt.ptEnvSpec >= 0 ? m_opt.ptEnvSpec : 1.0f / std::max(hf, 0.05f);   // (the reflections at the full HDRI, as in the HQ)
-        if (m_hdriPath.empty()) {   // the procedural sky: the HQ lights the bricks with its hemisphere (sky above, ground below) and
+        if (m_hdriPath.empty() && !m_hdriImg) {   // (no image at all: the hemisphere of the HQ as the sky)
             // sees it in their varnish; the path tracer gets it as its sky, the background staying the dark of the stage
             const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtSky) * m_scene.env.hemiIntensity * 4.0f;
             if (kitStage) m_rs.bgOverride = m_scene.env.top;   // (the others: the floor's colour behind, above)
@@ -754,9 +786,9 @@ void BrickApp::applyLook() {
             m_scene.env.horizon = (m_scene.env.hemiSky + m_scene.env.hemiGround) * (0.5f * k);
             m_scene.env.bottom = m_scene.env.hemiGround * k;
         }
-    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; }
+    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; if (m_hdriImg && !m_opt.noEnv) m_scene.env.hdri = m_hdriImg; }
     const bool ptLook = !m_rs.raster && !m_rcMode;
-    if (ptLook != m_ptLook) { m_ptLook = ptLook; setLookdev(m_giLookdev); }
+    if (ptLook != m_ptLook || ptLook) { m_ptLook = ptLook; setLookdev(m_giLookdev); }   // (path tracing: its materials again, the flags of a capture included)
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -1805,6 +1837,11 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--exposure") opt.exposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
         else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
+        else if (a == L"--pt-floor") opt.ptFloor = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun-sky") opt.ptSunSky = (float)_wtof(next().c_str());
+        else if (a == L"--pt-ground") opt.ptGround = (float)_wtof(next().c_str());
+        else if (a == L"--pt-glass-rough") opt.ptGlassRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-glass-trans") opt.ptGlassTrans = (float)_wtof(next().c_str());
         else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
         else if (a == L"--bg-lin") opt.bgLin = (float)_wtof(next().c_str());
         else if (a == L"--bg-k") opt.bgK = (float)_wtof(next().c_str());

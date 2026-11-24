@@ -98,6 +98,10 @@ struct Options {
     float ptSky = -1;   // --pt-sky: without HDRI, the sky of the path tracer (the HQ hemisphere light) x this   // --pt-envspec: the HDRI in the sharp reflections of the path tracer (x)   // --pt-sun: the sun of the path tracer against the HQ one
     float ptCoat = -1, ptCoatRough = -1, ptRough = -1, ptSpec = -1;   // --pt-coat, --pt-coatr, --pt-rough, --pt-spec: the ABS of the path tracer (calibration)   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
     float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
+    float ptGlassRough = -1, ptGlassTrans = -1;   // --pt-glass-rough r, --pt-glass-trans t: the glass of the path tracer (calibration)
+    float ptGround = -1;   // --pt-ground g: the light from below under the procedural sky (g x the horizon), calibration
+    float ptSunSky = -1;   // --pt-sun-sky k: the sun of the path tracer under the procedural sky (calibration)
+    float ptFloor = -1; // --pt-floor k: the floor's albedo in path tracing with the procedural sky (calibration)
     float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
     bool stPaint = false, stGroups = false, colorsMin = false;
@@ -1218,6 +1222,7 @@ private:
     bool m_sideLFold = false, m_sideRFold = false;   // the left panel (the library docked on the left) / the right column folded (its arrow)
     void stSideTabs();                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
     std::string m_libStateKey;                // the library as the user left it (saved when it changes)              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
+    EnvImagePtr m_hdriImg;   // the environment image of the view (the HDRI file, or the procedural sky)
     std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
     // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
     // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
