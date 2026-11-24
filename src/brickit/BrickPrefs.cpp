@@ -138,6 +138,14 @@ std::string BrickApp::prefsJson() {
         j += std::string(", \"highPoly\": ") + (m_highPoly ? "true" : "false");
         j += ", \"libDock\": " + std::to_string(m_libDock) + ", \"libH\": " + std::to_string(m_libH) + ", \"libW\": " + std::to_string(m_libW);
         j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
+        j += std::string(", \"swatchFlat\": ") + (m_swatchFlat ? "true" : "false");
+        {   // the library as left (Wzx 24/11/2026: « auto mémorise le choix user du panneau Library »)
+            std::string open;
+            for (const std::string& f : m_clsOpen) open += (open.empty() ? "" : ",") + f;
+            j += ", \"stFam\": " + jstr(m_stFam) + ", \"stSub\": " + std::to_string(m_stSub) + ", \"clsOpen\": " + jstr(open);
+            j += std::string(", \"clsTechnic\": ") + (m_clsTechnic ? "true" : "false");
+            j += std::string(", \"trayFolded\": ") + (m_pTray.collapsed ? "true" : "false");
+        }
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
         j += std::string(", \"bevel\": ") + (m_rs.bevel ? "true" : "false");
@@ -249,6 +257,16 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libH"].type == app::Json::Number) m_libH = std::max(0.0f, (float)tj["libH"].n);
         if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
+        if (tj["swatchFlat"].type == app::Json::Bool) m_swatchFlat = tj["swatchFlat"].b;
+        if (tj["stFam"].type == app::Json::String && !tj["stFam"].str().empty()) m_stFam = tj["stFam"].str();
+        if (tj["stSub"].type == app::Json::Number) m_stSub = (int)tj["stSub"].n;
+        if (tj["clsTechnic"].type == app::Json::Bool) m_clsTechnic = tj["clsTechnic"].b;
+        if (tj["trayFolded"].type == app::Json::Bool) m_pTray.collapsed = tj["trayFolded"].b;
+        if (tj["clsOpen"].type == app::Json::String) {
+            m_clsOpen.clear();
+            const std::string o = tj["clsOpen"].str();
+            for (size_t p = 0, q; p <= o.size(); p = q + 1) { q = o.find(',', p); if (q == std::string::npos) q = o.size(); if (q > p) m_clsOpen.insert(o.substr(p, q - p)); }
+        }
         if (tj["studioUi"].type == app::Json::Bool) m_studioUi = true;   // (Legacy removed 23/11/2026: always the Studio interfaces)
         else m_themeId = "brique";   // (the first launch of the Studio interface: Brique)
         if (p["brique01"].type != app::Json::Bool) { m_themeId = "brique"; m_studioUi = true; m_libDock = 1; m_libW = 0; m_pGroups.visible = true; }   // (Wzx 15/11/2026: the Brique interface, once)

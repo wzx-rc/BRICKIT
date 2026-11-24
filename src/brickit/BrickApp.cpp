@@ -1137,7 +1137,7 @@ void BrickApp::cameraInput() {
     const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
     const bool dolly = alt && ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (dolly && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
-        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x - io.MouseDelta.y) * 0.004f));
+        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x + io.MouseDelta.y) * 0.004f));   // (up / down as Maya, Wzx 24/11/2026)
         changed = true;
     } else if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
         float3 r, u, f;

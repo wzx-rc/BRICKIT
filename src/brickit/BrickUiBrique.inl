@@ -237,7 +237,7 @@ void BrickApp::stBriqueCorners() {
     const ImVec4 st = m_stageB;
     (void)d;
     // ---- the scene: its thumbnail, its name, saved / cloud; a click: the Hub
-    if (!bqHidden("scene")) {
+    if (false && !bqHidden("scene")) {   // (the scene card removed, Wzx 24/11/2026: the Hub tab opens the scenes)
         const float k = bqK("scene"), s = m_ui * k;
         Ui u = ui(s);
         if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;

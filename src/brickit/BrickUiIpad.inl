@@ -315,7 +315,6 @@ void BrickApp::kitColors() {
 
 std::string BrickApp::colorNameFr(int index) {
     kitColors();
-    for (const KitColor& kc : m_kitColorList) if (kc.index == index) return kc.nom;
     if (index < 0 || index >= (int)m_lib.palette.size()) return "";
     return colorFr(m_lib.palette[index].name);
 }

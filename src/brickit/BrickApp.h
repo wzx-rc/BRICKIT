@@ -925,7 +925,10 @@ private:
     ImVec2 m_editP0{0, 0};
     UiBox m_editB0;
     int m_hubSection = 0;                          // the hub page: 0 Mes scènes, 1 Récentes, 2 Cloud, 3 Démos
-    float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0;
+    float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0, m_bqGroupsTop = 0;
+    float m_colScroll = 0, m_colContentH = 0;   // the swatches of Colour scrolled
+    bool m_grpDrag = false;   // Studio: the grip of Groups held
+    ImVec2 m_grpDrag0{0, 0}, m_grpDragP{0, 0};
     ImVec4 m_stageB{0, 0, 0, 0};                    // the 3D view inset in its frame (this frame)
     void stHeaderBrique();
     void stBriqueStage();
@@ -1135,7 +1138,9 @@ private:
     bool m_softGIHold = true;   // Réglages › Lumière › Figer la GI pendant le déplacement: the probes held while a brick is carried
     bool m_giLookdev = false;
     bool m_ptLook = false;
-    bool m_lightDragged = false;              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
+    bool m_lightDragged = false;
+    bool m_swatchFlat = false;                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
+    std::string m_libStateKey;                // the library as the user left it (saved when it changes)              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
     float3 m_softLo{0, 0, 0}, m_softHi{0, 0, 0};

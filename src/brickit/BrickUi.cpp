@@ -551,7 +551,7 @@ bool BrickApp::applyTheme() {
         changed = true;
     }
     m_darkUi = m_th.dark;
-    g_studTex = m_th.brickSwatch ? themeTex("glass/stud1x1.png") : 0;   // (the Atelier: a 2x2 brick, Wzx 15/11/2026; Ardoise: the 1-stud of Studio, Wzx 23/11/2026)
+    g_studTex = m_th.brickSwatch && !m_swatchFlat ? themeTex("glass/stud1x1.png") : 0;   // (the Atelier: a 2x2 brick, Wzx 15/11/2026; Ardoise: the 1-stud of Studio, Wzx 23/11/2026)
     setTheme(m_th);
     return changed;
 }
@@ -3733,6 +3733,8 @@ void BrickApp::uiSettings() {
             const int kc = seg("Colours", {"Cream", "Slate", "Black"}, tc);
             if (kc >= 0 && kc != tc) { m_themeId = kc == 0 ? "creme" : kc == 1 ? "brique" : "classic"; savePrefs(); }
             note("For every layout. Shades: Colours section.");
+            const int ks = seg("Colour swatches", {"1x1 brick", "Square"}, m_swatchFlat ? 1 : 0);
+            if (ks >= 0 && (ks == 1) != m_swatchFlat) { m_swatchFlat = ks == 1; savePrefs(); }
         }
         if (m_studioUi) {
             if (m_th.brique) {

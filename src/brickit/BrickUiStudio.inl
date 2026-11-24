@@ -1256,6 +1256,7 @@ static std::string stFit(Ui& u, float px, std::string t, float maxW, bool bold) 
 
 void BrickApp::stGroups() {
     m_bqGroupsY = m_stageB.y - 12 * m_ui;
+    m_bqGroupsTop = m_stageB.w + 12 * m_ui;   // (no Groups: Colour down to the foot of the column)
     if (!m_pGroups.visible || m_mechOn) return;
     if (g_brique && (bqHidden("groups") || m_popup == 8)) return;
     Ui u = ui(m_ui);
@@ -1320,11 +1321,33 @@ void BrickApp::stGroups() {
         const ImVec2 sz = bqSize("groups", def), off = bqOff("groups");
         W = sz.x; maxH = sz.y; bq0 = ImVec2(m_bqColX, m_stageB.y); bqA = ImVec2(bq0.x + off.x, bq0.y + off.y);
     }
-    const float listH = std::min(std::max(1, (int)rows.size()) * rowH, maxH - pad - headH - footH - pad);
-    const ImVec2 a = g_brique ? bqA : ImVec2((m_paintMode ? 14 : 74) * s + m_dockL, top + (m_paintMode ? 52 * s : 0)), b(a.x + W, a.y + pad + headH + listH + footH + pad);
+    const int maxRows = g_brique ? 6 : 10;   // (then it scrolls, Wzx 24/11/2026)
+    const float listH = std::min(std::min(std::max(1, (int)rows.size()), maxRows) * rowH, maxH - pad - headH - footH - pad);
+    if (g_brique) {   // Workshop: under Colour, at the foot of the right column (Wzx 24/11/2026)
+        const ImVec2 off = bqOff("groups");
+        bq0 = ImVec2(m_bqColX, m_stageB.w - (pad + headH + listH + footH + pad));
+        bqA = ImVec2(bq0.x + off.x, bq0.y + off.y);
+        m_bqGroupsTop = bq0.y;
+    } else {   // Studio: where the user dragged it (its grip)
+        bqA = ImVec2((m_paintMode ? 14 : 74) * s + m_dockL + m_pGroups.x * s, top + (m_paintMode ? 52 * s : 0) + m_pGroups.y * s);
+    }
+    const ImVec2 a = bqA, b(a.x + W, a.y + pad + headH + listH + footH + pad);
     stGlass(u.dl, a, b, 18 * s, s);
     if (!g_brique) u.dl->AddRectFilled(a, b, stD(IM_COL32(14, 15, 17, 120)), 18 * s);
-    if (g_brique) { m_bqGroupsY = b.y; bqReg("groups", "Scene", ImVec4(bq0.x, bq0.y, bq0.x + W, bq0.y + maxH), ImVec4(a.x, a.y, b.x, std::max(b.y, a.y + 60 * s)), true); }
+    if (g_brique) { m_bqGroupsY = b.y; bqReg("groups", "Groups", ImVec4(bq0.x, bq0.y, bq0.x + W, bq0.y + (b.y - a.y)), ImVec4(a.x, a.y, b.x, std::max(b.y, a.y + 60 * s)), true); }
+    else {   // Studio: the grip on top, dragged: the panel follows (kept in the preferences)
+        const ImVec2 ga((a.x + b.x) * 0.5f - 22 * s, a.y), gb((a.x + b.x) * 0.5f + 22 * s, a.y + 12 * s);
+        const bool hg = u.hover(ga, gb);
+        u.dl->AddRectFilled(ImVec2(ga.x + 6 * s, a.y + 5 * s), ImVec2(gb.x - 6 * s, a.y + 8 * s), stW(hg || m_grpDrag ? 150 : 70), 2 * s);
+        if (hg && u.pressed) { m_grpDrag = true; m_grpDrag0 = u.mouse; m_grpDragP = ImVec2(m_pGroups.x, m_pGroups.y); }
+        if (m_grpDrag) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                m_pGroups.x = std::clamp(m_grpDragP.x + (u.mouse.x - m_grpDrag0.x) / s, -60.0f, d.x / s - 200.0f);
+                m_pGroups.y = std::clamp(m_grpDragP.y + (u.mouse.y - m_grpDrag0.y) / s, -40.0f, d.y / s - 200.0f);
+            } else { m_grpDrag = false; savePrefs(); }
+        }
+        if (hg && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Drag to move the panel");
+    }
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     // the title: GROUPES, how many; the shared prefix; Tout afficher while one is isolated; the close
     {
@@ -1564,8 +1587,8 @@ void BrickApp::stColors() {
     const bool bqCol = g_brique && !m_pColors.collapsed;
     if (g_brique && (bqHidden("colors") || m_popup == 8)) return;
     if (bqCol) {   // (Brique: under Scène in the right column, Couleurs)
-        bq0 = ImVec2(m_bqColX, m_bqGroupsY + 12 * s);
-        bqSz = bqSize("colors", ImVec2(m_bqColW, std::max(200 * s, m_stageB.w - bq0.y)));
+        bq0 = ImVec2(m_bqColX, m_stageB.y);
+        bqSz = bqSize("colors", ImVec2(m_bqColW, std::max(200 * s, m_bqGroupsTop - 12 * s - bq0.y)));
         const ImVec2 off = bqOff("colors");
         bqA = ImVec2(bq0.x + off.x, bq0.y + off.y);
         bqB = ImVec2(bqA.x + bqSz.x, bqA.y + bqSz.y);
@@ -1577,7 +1600,7 @@ void BrickApp::stColors() {
         const float bs = 44 * s;
         ImVec2 ca(d.x - 14 * s - m_dockR - bs - 2 * pad, top), cb(d.x - 14 * s - m_dockR, top + bs + 2 * pad);
         if (g_brique) {   // the Atelier: at the top of its column, under Scène, its width, the name beside (Wzx 23/11/2026: it was hidden under the cube)
-            ca = ImVec2(m_bqColX, m_bqGroupsY + 12 * s);
+            ca = ImVec2(m_bqColX, m_stageB.y);
             cb = ImVec2(ca.x + m_bqColW, ca.y + bs + 2 * pad);
         }
         stGlass(u.dl, ca, cb, 16 * s, s);
@@ -1664,7 +1687,12 @@ void BrickApp::stColors() {
         if (h && u.pressed) m_allColors = !m_allColors;
         y += 22 * s;
     }
-    u.dl->PushClipRect(ImVec2(a.x, y), ImVec2(b.x, b.y - 6 * s), true);
+    // the swatches scroll with the wheel when the panel is shorter than them (Workshop: Groups under it, 24/11/2026)
+    const float listTop = y, listBot = b.y - 6 * s;
+    if (u.hover(ImVec2(a.x, listTop), ImVec2(b.x, listBot)) && ImGui::GetIO().MouseWheel != 0) m_colScroll -= ImGui::GetIO().MouseWheel * 40 * s;
+    m_colScroll = std::clamp(m_colScroll, 0.0f, std::max(0.0f, m_colContentH - (listBot - listTop)));
+    y -= m_colScroll;
+    u.dl->PushClipRect(ImVec2(a.x, listTop), ImVec2(b.x, listBot), true);
     auto group = [&](const char* title, const char* key) {
         stTrack(u, ImVec2(a.x + pad, y), 8.5f, C_DIM, title, 1.8f * s);
         u.dl->AddLine(ImVec2(a.x + pad + stTrackW(u, 8.5f, title, 1.8f * s, true) + 8 * s, y + 7 * s), ImVec2(b.x - pad, y + 7 * s), stW(22), 1.0f);
@@ -1682,7 +1710,7 @@ void BrickApp::stColors() {
             }
             if (i == m_color) m_colCurAt = ImVec2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
             if (i == m_color) u.dl->AddRect(ImVec2(p0.x - 2.5f * s, p0.y - 2.5f * s), ImVec2(p1.x + 2.5f * s, p1.y + 2.5f * s), C_ACCENT, 4 * s, 0, 1.5f * s);
-            if (u.hover(p0, p1)) {
+            if (u.hover(p0, p1) && u.mouse.y >= listTop && u.mouse.y < listBot) {
                 if (m_colPress < 0) ImGui::SetTooltip(exists ? "%s · %d" : "%s · %d: doesn't exist for this part", colorFr(c.name), c.id);
                 if (u.pressed) { m_colPress = i; m_colPressPos = u.mouse; }   // (a click applies on release; a drag out takes a 1x1)
             }
@@ -1694,6 +1722,11 @@ void BrickApp::stColors() {
     group("TRANSPARENT", "transparent");
     group("METALLIC", "metallic");
     u.dl->PopClipRect();
+    m_colContentH = y + m_colScroll - listTop;
+    if (m_colContentH > listBot - listTop + 1) {   // its scroll bar
+        const float vh = listBot - listTop, bh = vh * vh / m_colContentH, by = listTop + (vh - bh) * (m_colScroll / (m_colContentH - vh));
+        u.dl->AddRectFilled(ImVec2(b.x - 7 * s, by), ImVec2(b.x - 3 * s, by + bh), stW(55), 2 * s);
+    }
     colorDrag(u, a, b, filter, fpart);
 }
 
@@ -2999,6 +3032,16 @@ void BrickApp::drawUiStudio() {
         m_uiRects.push_back(ImVec4(0, d.y, d.x, d.y));
         uiVoxelEditor();
         return;
+    }
+    {   // the library as the user leaves it: remembered (Wzx 24/11/2026)
+        std::string k = m_stFam + "|" + std::to_string(m_stSub) + "|" + (m_clsTechnic ? "T" : "L") + "|" + std::to_string((int)m_libH) + "|" + std::to_string((int)m_libW) + "|" +
+                         std::to_string((int)(m_stCardScale * 100)) + "|" + std::to_string(m_libDock) + "|" + (m_pTray.collapsed ? "c" : "o") + "|" + (m_libClassic ? "cl" : "st") + "|" +
+                         std::to_string((int)(m_kitLibFrac * 100)) + "|" + std::to_string(m_stCardMode);
+        for (const std::string& f : m_clsOpen) k += "|" + f;
+        if (k != m_libStateKey && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            if (!m_libStateKey.empty() && m_opt.shotPath.empty()) savePrefs();
+            m_libStateKey = k;
+        }
     }
     g_brique = m_th.brique;
     g_hubPage = g_brique || m_ux == 1;   // (Black: the hub of Classique)

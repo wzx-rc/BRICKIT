@@ -233,6 +233,11 @@ void BrickApp::crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool curre
     const Color& col = m_lib.palette[std::clamp(color, 0, (int)m_lib.palette.size() - 1)];
     const bool trans = col.group == "transparent", metal = col.group == "metallic" || col.group == "metal" || col.group == "chrome" || col.group == "pearl";
     const float a = std::clamp(alpha, 0.0f, 1.0f);
+    if (g_studTex) {   // the 1x1 brick seen from above, as the panel (Wzx 24/11/2026)
+        if (current) dl->AddRect(ImVec2(p.x - r - 4 * s, p.y - r - 4 * s), ImVec2(p.x + r + 4 * s, p.y + r + 4 * s), alphaOf(IM_COL32(255, 255, 255, 255), a), 6 * s, 0, 2.0f * s);
+        dl->AddImage(g_studTex, ImVec2(p.x - r, p.y - r), ImVec2(p.x + r, p.y + r), ImVec2(0, 0), ImVec2(1, 1), kitCol(col, (trans ? 0.7f : 1.0f) * a));
+        return;
+    }
     kitShadowCircle(dl, p, r * 2, alphaOf(IM_COL32(40, 25, 10, 70), a), 1.5f * s);
     if (current) {
         dl->AddCircleFilled(p, r + 5 * s, alphaOf(IM_COL32(255, 255, 255, 255), a), 48);
