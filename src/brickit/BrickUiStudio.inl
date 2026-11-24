@@ -562,7 +562,8 @@ void BrickApp::stHeader() {
     if (!m_ipad) {   // the render: Rapide / HQ / Ray tracing (iPad: none, Wzx 10/11/2026)
         struct R { const char* label; bool on; int id; const char* tip; };
         std::vector<R> rs = {{"FAST", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Fast real time"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "High-quality real time: shadows, soft GI"},
-                             {"RAY TRACING", pathTraced(), 2, "Realistic progressive render (path tracing)"}};
+                             {"RAY TRACING", pathTraced() && !m_rtDlss, 2, "Realistic progressive render (path tracing)"},
+                             {"RT DLSS", pathTraced() && m_rtDlss, 4, "Path tracing denoised by Open Image Denoise when still, NVIDIA DLSS Ray Reconstruction while moving"}};
         float w = 6 * s;
         for (const R& r : rs) w += stTrackW(u, 9.5f, r.label, 1.3f * s, true) + 20 * s + 2 * s;
         const ImVec2 ra(rx - w, cy - 14 * s), rb(rx, cy + 14 * s);
@@ -578,7 +579,7 @@ void BrickApp::stHeader() {
             stTrack(u, ImVec2(ba.x + 10 * s, (ba.y + bb.y) * 0.5f - u.fs(9.5f) * 0.52f), 9.5f, r.on ? C_INK : C_DIM, r.label, 1.3f * s);
             if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", r.tip);
             if (h && u.pressed && !r.on) {
-                if (r.id == 2) { setRC(false); m_rs.raster = false; applyLook(); }
+                if (r.id == 2 || r.id == 4) { setRC(false); m_rtDlss = r.id == 4; m_rs.raster = false; applyLook(); }
                 else { setRC(false); m_quality = r.id; m_rs.msaaSamples = m_quality ? 4 : 1; if (!m_rs.raster) { m_rs.raster = true; applyLook(); } }
                 m_renderer->resetAccumulation();
                 savePrefs();

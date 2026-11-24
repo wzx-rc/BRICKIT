@@ -286,8 +286,10 @@ void BrickApp::stBriqueCorners() {
         if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
         const ImVec2 off = bqOff("render");
         struct R { const char* label; bool on; int id; const char* tip; };
-        const R rs[4] = {{"Fast", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Fast real time"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "High-quality real time: shadows, soft GI"},
-                         {"Ray tracing", pathTraced(), 2, "Realistic progressive render (path tracing)"}, {"HD", m_highPoly, 3, "HD parts: smooth curves"}};
+        const R rs[5] = {{"Fast", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Fast real time"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "High-quality real time: shadows, soft GI"},
+                         {"Ray tracing", pathTraced() && !m_rtDlss, 2, "Realistic progressive render (path tracing)"},
+                         {"Ray tracing DLSS", pathTraced() && m_rtDlss, 4, "Path tracing denoised by Open Image Denoise when still, NVIDIA DLSS Ray Reconstruction while moving"},
+                         {"HD", m_highPoly, 3, "HD parts: smooth curves"}};
         float W = 10 * s;
         for (const R& r : rs) W += u.textW(12, r.label, true) + 24 * s + 2 * s;
         const float Hh = 44 * s;
@@ -308,7 +310,7 @@ void BrickApp::stBriqueCorners() {
             if (h && u.pressed) {
                 if (r.id == 3) setHighPoly(!m_highPoly);
                 else if (!r.on) {
-                    if (r.id == 2) { setRC(false); m_rs.raster = false; applyLook(); }
+                    if (r.id == 2 || r.id == 4) { setRC(false); m_rtDlss = r.id == 4; m_rs.raster = false; applyLook(); }
                     else { setRC(false); m_quality = r.id; m_rs.msaaSamples = m_quality ? 4 : 1; if (!m_rs.raster) { m_rs.raster = true; applyLook(); } }
                     m_renderer->resetAccumulation();
                     savePrefs();

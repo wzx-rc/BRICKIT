@@ -171,6 +171,7 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    bool ptDlss = false;        // --pt-dlss: the Ray tracing DLSS mode (with --pt)
     int lcTest = 0;             // --lc-test N: lights and cameras (1 a light selected, 2 a camera selected: its preview, 3 looked through) for captures
     std::string matEdit;        // --mat-edit id,r,g,b,metal,trans,rough: a Material panel edit (captures)
     std::wstring wzxOut;        // --wzx-export <WZX Engine project>: the model as a WZX Engine scene (OBJ + .wzx) then quit
@@ -1229,6 +1230,10 @@ private:
     void setRC(bool on);
     bool userSession() const;   // not a test / demo / capture run: the preferences and the autosave may be written
     bool pathTraced() const { return !m_rs.raster && !m_rcMode; }
+    // Ray tracing DLSS (Wzx 24/11/2026: « les deux versions dans BrickIt avant de valider »): the same path tracer, its
+    // image denoised by Intel Open Image Denoise while the view is still and by NVIDIA DLSS Ray Reconstruction while it
+    // moves (WZX Engine main); Ray tracing keeps its a-trous filter
+    bool m_rtDlss = false;
     struct PanelState { bool visible = true, collapsed = false, floating = false; float x = 0, y = 0; };
     // grip of the library / brick actions: click folds, click-drag undocks into a floating window, dropped on the
     // bottom edge (library) or a side edge (actions) it docks again (web: dockable panels)

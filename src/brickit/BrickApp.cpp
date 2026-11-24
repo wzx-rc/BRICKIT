@@ -89,6 +89,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
     if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
+    m_rtDlss = opt.ptDlss;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
     m_rs.vignette = 0.06f;
@@ -1486,6 +1487,8 @@ void BrickApp::frame() {
     } else {
         renderSteps();   // images of the manual asked by the UI this frame
         RenderSettings frs = m_rs;
+        frs.oidn = frs.dlss = m_rtDlss;   // (Ray tracing: the a-trous filter as before; Ray tracing DLSS: OIDN still, DLSS moving)
+        frs.adaptive = false;
         if (m_rs.raster && m_quality == 1 && m_softGI && !m_rcMode) {
             // HQ + GI douce: the raster view of the HQ reads the probes (DDGI, ray traced in the volume of the bricks,
             // long temporal average in world space: stable, converged while nothing moves)
@@ -1849,6 +1852,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--maya") opt.mayaOut = next();
         else if (a == L"--wzx-export") opt.wzxOut = next();
         else if (a == L"--lc-test") opt.lcTest = _wtoi(next().c_str());
+        else if (a == L"--pt-dlss") { opt.ptDlss = true; opt.pathTrace = true; }
         else if (a == L"--mat-edit") { std::wstring w = next(); opt.matEdit.assign(w.begin(), w.end()); }
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());
