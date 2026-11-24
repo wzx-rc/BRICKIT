@@ -88,8 +88,8 @@ std::vector<int> addRubberMaterials(Scene& scene, const Library& lib, bool sss) 
         float3 lin(srgbToLinear(c.srgb.x), srgbToLinear(c.srgb.y), srgbToLinear(c.srgb.z));
         const float lum = 0.2126f * lin.x + 0.7152f * lin.y + 0.0722f * lin.z;
         m.baseColor = lum < 0.04f ? float3(0.021f, 0.021f, 0.022f) : lin * 0.75f + float3(lum * 0.25f);
-        m.roughness = 0.8f;
-        m.specular = 0.3f;
+        m.roughness = 0.58f;   // (Wzx 24/11/2026: « un poil moins mat, une légère spéculaire visible »; 0.8 / 0.3 before)
+        m.specular = 0.45f;
         m.coat = 0.0f;
         m.bevelRadius = 0.0245f;
         m.flags |= 4u;   // (MAT_FLAG_VCOLOR: printed tyres)
