@@ -833,10 +833,10 @@ static ImU32 stSrgb(const Color& c, int alpha) {
 // the mode PEINDRE (Wzx 09/11/2026): under the header in the middle, the colour taken in big (a 1x1 brick), the Pinceau, the Pipette,
 // « Groupe entier »; around it every colour on an arc (stPaintColors), out one by one like the marking menu
 void BrickApp::stPaintPanel() {
-    Ui u = ui(m_ui);
-    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const bool small = m_ipad;   // iPad (Wzx 10/11/2026): twice smaller, the icons without their labels
-    const float s = m_ui * (small ? 0.5f : 1.0f);
+    const float s = m_ui * (small ? 0.5f : 0.6f);   // (PC: 40 % smaller, Wzx 24/11/2026)
+    Ui u = ui(small ? m_ui : s);   // (the iPad: its text as before, the labels are hidden)
+    if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     const float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 16 * s;
     const float bw = 92 * s, bh = 76 * s, pad = 8 * s, swW = 128 * s, cw = 96 * s;
