@@ -1699,7 +1699,7 @@ void BrickApp::stColors() {
         y += 22 * s;
     }
     // the swatches scroll with the wheel when the panel is shorter than them (Workshop: Groups under it, 24/11/2026)
-    const float matH = (b.y - y < 288 * s + 60 * s) ? 0.0f : 288 * s;   // the Material section at the bottom (the swatches scroll above it)
+    const float matH = (b.y - y < 310 * s + 60 * s) ? 0.0f : 310 * s;   // the Material section at the bottom (the swatches scroll above it)
     const float listTop = y, listBot = b.y - 6 * s - matH;
     if (u.hover(ImVec2(a.x, listTop), ImVec2(b.x, listBot)) && ImGui::GetIO().MouseWheel != 0) m_colScroll -= ImGui::GetIO().MouseWheel * 40 * s;
     m_colScroll = std::clamp(m_colScroll, 0.0f, std::max(0.0f, m_colContentH - (listBot - listTop)));
@@ -1863,6 +1863,7 @@ float BrickApp::stMaterial(Ui& u, ImVec2 a, ImVec2 b) {
     track(4, "Metalness", e.metal, "%.2f", e.metal, nullptr);
     track(5, "Transparency", e.trans, "%.2f", e.trans, nullptr);
     track(6, "Roughness", e.rough, "%.2f", e.rough, nullptr);
+    track(9, "Specular", e.spec, "%.2f", e.spec, nullptr);   // (the strength of the reflections: 0.5 = a plastic, IOR 1.5)
     {   // SSS (Wzx 24/11/2026: « intensité et scale, surtout pour le Ray tracing »): the light under the surface and how far it travels
         float sss = std::max(0.0f, e.sss), sc = std::clamp(e.sssScale / 4.0f, 0.0f, 1.0f);
         const bool c1 = ([&] { const bool was = changed; changed = false; track(7, "SSS intensity", sss, "%.2f", sss, nullptr); const bool r = changed; changed = was || r; return r; })();

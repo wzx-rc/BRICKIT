@@ -26,7 +26,7 @@ static const float kStudioBg = 0.80f;          // what the camera sees beyond th
 static const float kStudioRough = 0.30f;       // the studio plastic without its fingerprints map
 static const float kStudioFpScale = 0.2f;      // the fingerprints: repeats per cm (aiTriplanar scale 0.2)
 static const float kStudioSss = 0.5f, kStudioSssRadius = 0.02f;   // (aiStandardSurface: subsurface 0.5, radius 1 x scale 0.02 cm)
-static const float kStudioBevel = 0.012f;      // (aiRoundCorners radius 0.03 cm: the bevel of the engine reads 2.5 x wider, measured on the edges)
+static const float kStudioBevel = 0.03f;       // (aiRoundCorners radius 0.03 cm)
 
 // a colour of the scene (linear, sRGB primaries): in ACEScg primaries when the scene is rendered there; else in the sRGB gamut
 float3 BrickApp::gamut(const float3& c) const {
@@ -55,16 +55,19 @@ void BrickApp::ensureStudioTex() {
 }
 
 // a plastic of the palette as the studio plastic (setLookdev)
-void BrickApp::studioPlastic(vp3d::Material& m, bool sssFromEdit) {
+// (e: the edit of the colour in the Material panel, if any: its Specular, its Roughness (0.30 = the fingerprints map as
+// it is, more or less: the map times roughness / 0.30), its SSS)
+void BrickApp::studioPlastic(vp3d::Material& m, const MatEdit* e) {
+    const bool sssFromEdit = e && e->sss >= 0;
     ensureStudioTex();
     m.coat = 0.0f;
-    m.specular = m_opt.ptSpec >= 0 ? m_opt.ptSpec : 0.5f;
+    m.specular = m_opt.ptSpec >= 0 ? m_opt.ptSpec : (e ? e->spec : 0.5f);
     m.flags |= 16u;   // MAT_FLAG_FRESNEL: the exact Fresnel of IOR 1.5
-    m.roughness = m_opt.ptRough >= 0 ? m_opt.ptRough : kStudioRough;
+    m.roughness = m_opt.ptRough >= 0 ? m_opt.ptRough : (e ? e->rough : kStudioRough);
     if (m_fpTex >= 0 && m_opt.ptRough < 0) {
         m.roughnessTex = m_fpTex;
         m.roughTexScale = kStudioFpScale;
-        m.roughTexStrength = m_opt.studioFp >= 0 ? m_opt.studioFp : 1.0f;
+        m.roughTexStrength = m_opt.studioFp >= 0 ? m_opt.studioFp : (e ? e->rough / kStudioRough : 1.0f);
         m.flags |= 8u;   // MAT_FLAG_ROUGH_MAP
     }
     m.bevelRadius = kStudioBevel;
@@ -217,8 +220,8 @@ std::string BrickApp::sceneLookJson() const {
     j += "],\n  \"activeCamera\": " + std::to_string(m_inCam) + ",\n  \"materials\": [";
     bool first = true;
     for (const auto& [id, e] : m_sceneMats) {
-        snprintf(b, sizeof(b), "%s\n   {\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f, \"sss\": %.3f, \"sssScale\": %.3f}",
-                 first ? "" : ",", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough, e.sss, e.sssScale);
+        snprintf(b, sizeof(b), "%s\n   {\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f, \"sss\": %.3f, \"sssScale\": %.3f, \"spec\": %.3f}",
+                 first ? "" : ",", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough, e.sss, e.sssScale, e.spec);
         j += b;
         if (e.ap1.x >= 0) { j.pop_back(); j += ", \"acescg\": " + f3(e.ap1) + "}"; }
         first = false;
@@ -320,6 +323,7 @@ void BrickApp::applySceneLook(const std::string& text) {
         e.rough = (float)mj["rough"].num(0.24);
         e.sss = (float)mj["sss"].num(-1);
         e.sssScale = (float)mj["sssScale"].num(1);
+        e.spec = (float)mj["spec"].num(0.5);
         if (mj["acescg"].type == app::Json::Array) e.ap1 = v3(mj["acescg"], e.ap1);
         m_sceneMats[(int)mj["id"].num(-1)] = e;
     }

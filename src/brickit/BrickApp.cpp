@@ -527,7 +527,8 @@ static const float kPtSkySat = 0.6f, kPtSunR = 1.10f, kPtSunB = 0.84f, kPtBgSky 
 static const float kPtGlassDepth = 0.2f;   // (the glass absorbed by its thickness: the palette colour at 2 mm, a pane of a cab)
 static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
 static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
-static const float kPtGlassTrans = 0.85f, kPtGlassRough = 0.08f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
+// (Wzx 25/11/2026: « en RT la transparence est toute floue, ça ne va pas du tout »: clear glass again, no milky share)
+static const float kPtGlassTrans = 1.0f, kPtGlassRough = 0.0f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
 void BrickApp::setLookdev(bool on) {
     m_giLookdev = on;
     for (size_t i = 0; i < m_colorMaterial.size() && i < m_colorMaterialOrig.size(); ++i) {
@@ -548,7 +549,7 @@ void BrickApp::setLookdev(bool on) {
             if (m_opt.clayAlbedo >= 0) { m.baseColor = float3(m_opt.clayAlbedo); m.subsurface = 0.0f; m.roughness = 1.0f; }
         } else if (m_studioShader && m.transmission < 0.5f && m.metallic < 0.5f) {   // the studio plastic (BrickStudio.cpp)
             const MatEdit* e = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr;
-            studioPlastic(m, e && e->sss >= 0);
+            studioPlastic(m, e);
         } else if (m_ptLook && m.transmission > 0.5f) {   // the glass of the path tracer (Wzx 24/11/2026: « le verre est moins joli en raytraced »)
             m.roughness = m_opt.ptGlassRough >= 0 ? m_opt.ptGlassRough : kPtGlassRough;
             m.transmission = m_opt.ptGlassTrans >= 0 ? m_opt.ptGlassTrans : kPtGlassTrans;
@@ -563,6 +564,13 @@ void BrickApp::setLookdev(bool on) {
             }
             m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
             m.coatRoughness = m_opt.ptCoatRough >= 0 ? m_opt.ptCoatRough : kPtCoatRough;
+            if (const MatEdit* ed = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr) {
+                // a colour edited in the Material panel (Wzx 25/11/2026: « j'ai l'impression que roughness ne fonctionne
+                // pas »: the sharp varnish hid it): its Roughness is the one of the varnish too, its Specular the strength
+                // of the varnish (0.5, a plastic: the full varnish)
+                m.coatRoughness = std::max(m.coatRoughness, ed->rough * ed->rough);
+                m.coat *= std::clamp(ed->spec * 2.0f, 0.0f, 1.0f);
+            }
             if (m_opt.ptRough >= 0) m.roughness = m_opt.ptRough;
             if (m_opt.ptSpec >= 0) m.specular = m_opt.ptSpec;
         }

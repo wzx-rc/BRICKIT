@@ -862,7 +862,6 @@ private:
     std::string m_pendingLook;                        // the scene text whose lookdev block is applied once the stage is up
     std::wstring studioFile(const wchar_t* name) const;
     void ensureStudioTex();
-    void studioPlastic(vp3d::Material& m, bool sssFromEdit);
     void setStudio(bool on);
     float studioScale(float3* centre) const;
     void studioRig(const float3& c, float k);
@@ -1276,10 +1275,11 @@ private:
     std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
     // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
     // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
-    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; float3 ap1{-1, -1, -1}; };   // (ap1.x >= 0: the colour given in ACEScg, linear; srgb is then its nearest sRGB)   // sss < 0: the factory subsurface (none in path tracing)
+    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; float3 ap1{-1, -1, -1}; float spec = 0.5f; };   // (ap1.x >= 0: the colour given in ACEScg, linear; srgb is then its nearest sRGB)   // sss < 0: the factory subsurface (none in path tracing)
     std::map<int, MatEdit> m_matEdits;
     std::map<int, MatEdit> m_sceneMats;               // the materials edited for this scene only (over m_matEdits)
     const MatEdit* editOf(int colourKey) const { auto s = m_sceneMats.find(colourKey); if (s != m_sceneMats.end()) return &s->second; auto p = m_matEdits.find(colourKey); return p != m_matEdits.end() ? &p->second : nullptr; }
+    void studioPlastic(vp3d::Material& m, const MatEdit* e);
     int m_matDrag = -1;
     bool m_matRubber = false;   // the Material panel edits the rubber of the colour (tyres), not its plastic
     static constexpr int kRubberKey = 100000;   // m_matEdits: the rubber of colour id is at kRubberKey + id
