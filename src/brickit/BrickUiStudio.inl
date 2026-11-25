@@ -17,6 +17,7 @@ static ImU32 bqMixC(ImU32 a, ImU32 b, float t) {
     return ch(0) | ch(8) | ch(16) | ch(24);
 }
 static bool g_brique = false;   // the layout of Brique (Brique, Crème)
+static ImVec2 g_navBR(0, 0);   // the bottom right corner of the navigation buttons, last frame (the render bar goes under them)
 static float g_bqSceneR = 0;   // the right edge of the scene card of Atelier (the tools go right of it on a narrow stage)
 static bool g_hubPage = false;  // the hub as a page (Brique, Crème, Classic: Wzx 22/11/2026)
 // the colours of that layout, per theme (Wzx 22/11/2026: Classic, Brique, Crème / Galet)
@@ -3589,7 +3590,7 @@ void BrickApp::stNavHud() {
         m_renderer->resetAccumulation();
         if (t >= 1) m_viewAnim = false;
     }
-    if (g_brique && (bqHidden("nav") || m_popup == 8)) return;
+    if (g_brique && (bqHidden("nav") || m_popup == 8)) { g_navBR = ImVec2(0, 0); return; }
     float right = (m_pColors.visible && !m_mechOn && !m_sideRFold ? m_colPanelX : d.x - m_dockR) - 12 * s;
     float top = (m_uiRects.empty() ? 46 * s : m_uiRects[0].w) + 12 * s;
     ImVec2 nav0(0, 0);
@@ -3704,6 +3705,7 @@ void BrickApp::stNavHud() {
     const float bw = 46 * s, pad = 6 * s;
     const ImVec2 a(right - bw - 2 * pad, top + cs + 10 * s), b(right, a.y + 5 * bw + 2 * pad + 8 * s);
     stGlass(u.dl, a, b, 14 * s, s);
+    g_navBR = ImVec2(b.x, b.y);
     if (g_brique) bqReg("nav", "Navigation", ImVec4(nav0.x - cs, nav0.y, nav0.x, nav0.y + (b.y - top)), ImVec4(right - cs, top, right, b.y), false);
     m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
     float y = a.y + pad;

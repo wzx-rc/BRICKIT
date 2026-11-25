@@ -293,7 +293,10 @@ void BrickApp::stBriqueCorners() {
         float W = 10 * s;
         for (const R& r : rs) W += u.textW(12, r.label, true) + 24 * s + 2 * s;
         const float Hh = 44 * s;
-        const ImVec2 a0(st.x + 14 * m_ui, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
+        // under the navigation buttons, right aligned on them (Wzx 25/11/2026); bottom left of the stage when there is no room
+        ImVec2 a0(st.x + 14 * m_ui, st.w - 14 * m_ui - Hh);
+        if (g_navBR.x > 0 && g_navBR.y + 10 * m_ui + Hh < st.w - 6 * m_ui) a0 = ImVec2(std::max(st.x + 14 * m_ui, g_navBR.x - W), g_navBR.y + 10 * m_ui);
+        const ImVec2 a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
         bqRaise(u.dl, a, b, 14 * s, s, C_HUD, 60);
         m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
         float xx = a.x + 5 * s;
