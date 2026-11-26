@@ -40,7 +40,10 @@ function quantize(r) {
   return { buf, q: { vc, ic, big, mn, sc, col: printed }, bb: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]] };
 }
 
+// --all: every part of the library (its geometry converted again, its connectors kept)
+if (ids[0] === "--all") ids.splice(0, ids.length, ...index.parts.map((p) => p.name));
 const byPack = new Map();
+let done = 0;
 for (const id of ids) {
   const e = byName.get(id.toLowerCase());
   if (!e) { console.log(id, ": not in this library"); continue; }
@@ -59,8 +62,9 @@ for (const [no, entries] of byPack) {
   for (const m of metas) {
     const e = entries.find((x) => x.name === m.name);
     let buf;
-    if (e) {
-      const r = convertPart(e.name, { system: e.info.category !== "Technic" });
+    let r = null;
+    if (e) { try { r = convertPart(e.name, { system: e.info.category !== "Technic" }); } catch (err) { console.log(e.name, ": conversion failed, kept as it was:", err.message); } }
+    if (e && r && r.mesh.idx.length) {
       const qz = quantize(r);
       buf = qz.buf;
       const before = m.q;
@@ -68,6 +72,7 @@ for (const [no, entries] of byPack) {
       e.info.triangles = qz.q.ic / 3;
       e.info.vertices = qz.q.vc;
       console.log(`${e.name} in pack ${no}: ${before.ic / 3} -> ${qz.q.ic / 3} triangles, ${before.vc} -> ${qz.q.vc} vertices`);
+      if (++done % 1000 === 0) console.error(done, "parts");
     } else buf = Buffer.from(data.subarray(m.q.off, m.q.off + partLen(m.q)));
     m.q.off = off;
     bufs.push(buf);
