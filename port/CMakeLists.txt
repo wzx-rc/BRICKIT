@@ -157,3 +157,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         "-framework UIKit" "-framework QuartzCore" "-framework Metal" "-framework IOSurface" "-framework CoreGraphics"
         "-framework UniformTypeIdentifiers" "-framework MetricKit")
 endif()
+
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT WIN32)
+    # ArchViz (the building editor, src/archviz) without a window, as BrickItLinux.
+    file(GLOB ARCHVIZ_SOURCES ${BRICKIT_ROOT}/src/archviz/*.cpp)
+    list(FILTER ARCHVIZ_SOURCES EXCLUDE REGEX ".*Win\\.cpp$")
+    add_executable(ArchVizLinux archviz/main_linux.cpp ${ARCHVIZ_SOURCES})
+    target_include_directories(ArchVizLinux PRIVATE ${BRICKIT_ROOT}/src/archviz)
+    target_link_libraries(ArchVizLinux PRIVATE brickit_app ${BRICKIT_BACKENDS})
+    add_custom_command(TARGET ArchVizLinux POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:ArchVizLinux>/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BRICKIT_SHADERS} $<TARGET_FILE_DIR:ArchVizLinux>/shaders
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${BRICKIT_ROOT}/assets $<TARGET_FILE_DIR:ArchVizLinux>/assets)
+endif()
