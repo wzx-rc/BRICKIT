@@ -189,7 +189,7 @@ void ArchApp::renderSettings(RenderSettings& rs) {
         rs.raster = true;
         rs.msaaSamples = 4;
         rs.rasterRT = true;
-        rs.rasterAO = 1.2f;
+        rs.rasterAO = 0.3f;   // metres: contact occlusion only (2 rays a pixel on a fixed pattern: a long range dithers the walls)
         rs.reflSamples = 1;
         rs.reflMaxRough = 0.35f;
         rs.rasterBevel = true;
