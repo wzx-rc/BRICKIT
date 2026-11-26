@@ -176,7 +176,7 @@ void ArchApp::setupLook() {
     m_rs.denoisePasses = 4;
     m_rs.fireflyClamp = 8.0f;
     m_rs.filterGlossy = 0.15f;
-    m_rs.maxBounces = 4;
+    m_rs.maxBounces = 8;   // (glass: the light comes in through two panes and back)
     m_rs.idPass = false;
     m_rs.selectionStyle = 2;
     m_rs.editorGrid = 0.0f;

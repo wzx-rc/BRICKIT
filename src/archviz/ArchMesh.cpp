@@ -94,8 +94,8 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     Material g;
     g.name = "Ground"; g.baseColor = lin(0xdfe3e8); g.roughness = 0.9f; g.flags = MAT_FLAG_GRID;
     const int mGround = scene.addMaterial(g);
-    const int mWall = mat("Plaster", 0xeeebe4, 0.85f, 0.012f);
-    const int mWallSel = mat("Plaster selected", 0xb9cdf5, 0.85f, 0.012f);
+    const int mWall = mat("Plaster", 0xeeebe4, 0.85f);
+    const int mWallSel = mat("Plaster selected", 0xb9cdf5, 0.85f);
     const int mFrame = mat("Alu anthracite", 0x3a4250, 0.35f, 0.004f);
     const int mFrameSel = mat("Frame selected", 0x2f6bff, 0.35f, 0.004f);
     const int mDoor = mat("Oak door", 0xb88c5e, 0.55f, 0.004f);
@@ -146,7 +146,8 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
                     const float sm = s0 + (s1 - s0) * k / panes;
                     box(fr, f, sm - p * 0.5f, sm + p * 0.5f, -dd, dd, z0 + p, z1 - p);
                 }
-                box(glass, f, s0 + p, s1 - p, -0.006f, 0.006f, z0 + p, z1 - p);
+                // one thin pane (MAT_FLAG_THIN): a single surface, so a ray crosses the window in one bounce
+                quad(glass, f.P(s0 + p, 0, z0 + p), f.P(s1 - p, 0, z0 + p), f.P(s1 - p, 0, z1 - p), f.P(s0 + p, 0, z1 - p), f.N());
             } else {
                 box(door, f, s0 + p, s1 - p, -0.02f, 0.02f, 0.0f, z1 - p);
             }
