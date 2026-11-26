@@ -68,7 +68,7 @@ bool ArchApp::init(HINSTANCE inst, const Options& opt) {
         MessageBoxA(m_hwnd, err.c_str(), "ArchViz - DirectX 12", MB_ICONERROR);
         return false;
     }
-    const float ui = opt.uiScale > 0 ? m_opt.uiScale : m_dpi;   // fonts and layout at the UI scale (100 % / 150 % tests)
+    const float ui = opt.uiScale > 0 ? opt.uiScale : m_dpi;   // fonts and layout at the UI scale (100 % / 150 % tests)
     auto gui = std::make_unique<GfxGuiDx12>();
     if (!gui->init(m_hwnd, *renderer, ui)) {
         MessageBoxA(m_hwnd, "Dear ImGui initialisation failed", "ArchViz", MB_ICONERROR);
@@ -79,8 +79,6 @@ bool ArchApp::init(HINSTANCE inst, const Options& opt) {
     UpdateWindow(m_hwnd);
     return true;
 }
-
-void ArchApp::showWindow() { ShowWindow(m_hwnd, opt.shotPath.empty() && tooBig ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT); }
 
 int ArchApp::run() {
     MSG msg;
