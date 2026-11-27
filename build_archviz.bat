@@ -29,6 +29,11 @@ del /q build\obj\archviz\*.obj 2>nul
 
 set "CFLAGS=/nologo /std:c++17 /EHsc /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DIMGUI_DEFINE_MATH_OPERATORS %CFG% /Isrc /Isrc\brickit /Isrc\archviz /I%E%\src /I%E%\third_party\imgui /Ibuild\obj"
 
+rem NVIDIA DLSS Ray Reconstruction (the RT DLSS mode): as build.bat, release only, when the SDK is in the engine's
+rem third_party (vp3d is then compiled with WZX_DLSS and needs its static library). OIDN is loaded at run time.
+set "DLSSLIB="
+if /i not "%1"=="debug" if exist %E%\third_party\dlss\lib\nvsdk_ngx_s.lib set "DLSSLIB=%E%\third_party\dlss\lib\nvsdk_ngx_s.lib advapi32.lib"
+
 echo [1/2] BrickIt core (the objects of BrickIt.exe, without its entry point)
 del /q build\lib\brickit_core.lib 2>nul
 set "OBJS="
@@ -37,5 +42,5 @@ lib /nologo /OUT:build\lib\brickit_core.lib %OBJS% || exit /b 1
 
 echo [2/2] ArchViz
 cl %CFLAGS% /c src\archviz\*.cpp /Fo:build\obj\archviz\ || exit /b 1
-link /nologo /OUT:%OUT%\ArchViz.exe build\obj\archviz\*.obj build\lib\brickit_core.lib build\lib\vp3d.lib build\lib\imgui_te_mt.lib d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib dbghelp.lib winhttp.lib crypt32.lib advapi32.lib bcrypt.lib /SUBSYSTEM:WINDOWS /DEBUG /OPT:REF /OPT:ICF || exit /b 1
+link /nologo /OUT:%OUT%\ArchViz.exe build\obj\archviz\*.obj build\lib\brickit_core.lib build\lib\vp3d.lib build\lib\imgui_te_mt.lib %DLSSLIB% d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib dbghelp.lib winhttp.lib crypt32.lib advapi32.lib bcrypt.lib /SUBSYSTEM:WINDOWS /DEBUG /OPT:REF /OPT:ICF || exit /b 1
 echo Build OK: %OUT%\ArchViz.exe

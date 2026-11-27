@@ -28,7 +28,7 @@ struct Options {
     int shotFrames = 30;
     int shotSpp = 64;               // ray tracing captures: samples
     std::string view;               // 3d | split | plan
-    std::string quality;            // hq | rt
+    std::string quality;            // hq | rt | dlss
     std::string script;             // test states (see ArchApp::runScript)
     std::wstring file;              // building to open
     bool demo = false;              // the demo house, not the last session
@@ -71,7 +71,7 @@ private:
     std::unique_ptr<brickit::GfxRenderer> m_r;
     std::unique_ptr<brickit::GfxGui> m_g;
     vp3d::RenderSettings m_rs;
-    int m_quality = 0;              // 0 HQ (raster + soft GI), 1 ray tracing
+    int m_quality = 0;              // 0 HQ (raster + soft GI), 1 ray tracing, 2 RT DLSS (OIDN still, DLSS moving)
     double m_lastMove = -10;
     void setupLook();
     void renderSettings(vp3d::RenderSettings& rs);

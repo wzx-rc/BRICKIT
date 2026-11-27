@@ -84,7 +84,7 @@ bool ArchApp::initCommon(const Options& opt, std::unique_ptr<brickit::GfxRendere
     m_dpi = dpi;
     m_ui = opt.uiScale > 0 ? opt.uiScale : dpi;
     m_view = opt.view == "3d" ? kView3D : opt.view == "plan" ? kViewPlan : kViewSplit;
-    m_quality = opt.quality == "rt" ? 1 : 0;
+    m_quality = opt.quality == "rt" ? 1 : opt.quality == "dlss" ? 2 : 0;
 
     const std::wstring dir = brickit::plat::dataDir() + L"/ArchViz";
     brickit::plat::makeDir(dir);
@@ -198,7 +198,9 @@ void ArchApp::renderSettings(RenderSettings& rs) {
         rs.samplesPerFrame = 1;
         rs.rasterSSS = 0.0f;
         rs.bloom = 0.25f;
-    } else {                // Ray tracing: the path tracer of WZX Engine
+    } else {                // Ray tracing (1) / RT DLSS (2): the path tracer of WZX Engine
+        rs.oidn = rs.dlss = m_quality == 2;   // Ray tracing: the a-trous filter; RT DLSS: OIDN still, DLSS Ray Reconstruction moving (as BrickIt)
+        rs.adaptive = false;
         rs.raster = false;
         rs.ddgi = false;
         rs.traceStride = moving ? 4 : 1;
@@ -1262,9 +1264,9 @@ void ArchApp::drawUi() {
         int v = m_view;
         if (segButtons("views", views, 3, v, k, bold) && v != m_view) { m_view = v; m_lastMove = ImGui::GetTime(); }
         ImGui::SameLine(0, 10 * k);
-        static const char* q[] = {"HQ", "Ray tracing"};
+        static const char* q[] = {"HQ", "Ray tracing", "RT DLSS"};
         int qq = m_quality;
-        if (segButtons("quality", q, 2, qq, k, bold) && qq != m_quality) { m_quality = qq; m_r->resetAccumulation(); }
+        if (segButtons("quality", q, 3, qq, k, bold) && qq != m_quality) { m_quality = qq; m_r->resetAccumulation(); }
     }
     ImGui::End();
 
