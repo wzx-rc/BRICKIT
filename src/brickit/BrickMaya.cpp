@@ -62,9 +62,9 @@ static float4 fromUnitVectors(const float3& from, const float3& to) {
 }
 
 bool BrickApp::mayaExportScript(std::string& py, MayaStats& st, std::string& err) {
-    if (m_bricks.empty()) { err = "Scène vide"; return false; }
+    if (m_bricks.empty()) { err = "Empty scene"; return false; }
     MechModel m;
-    if (!m_mech.build(m_bricks, m)) { err = "Mécanisme non construit"; return false; }
+    if (!m_mech.build(m_bricks, m)) { err = "Mechanism not built"; return false; }
     // --- meshes (local space of the part, vertices merged by position + normal)
     std::string jm = "{";
     std::set<int> partsUsed;
@@ -290,30 +290,30 @@ static std::string mayaReadme(const std::string& name, const ReadmeStats& st) {
     char cp[32];
     snprintf(cp, sizeof(cp), "%g", st.coupling);
     return "BrickIt Builder -> Maya · " + name + "\n\n"
-           "1. Maya > Windows > General Editors > Script Editor, onglet Python.\n"
-           "2. File > Load Script… > " + name + ".py, puis Execute (Ctrl+Entrée). Ou glisse le .py dans la fenêtre de Maya.\n"
-           "3. Le groupe " + name + " contient la scène. Sélectionne BRICKIT_CTRL : un attribut par moteur (degrés) et par vérin (cm).\n"
-           "   Une animation de démo est posée sur la timeline (chaque commande va au max, au min, puis revient à 0).\n\n"
-           "Contenu : " + std::to_string(st.bricks) + " briques (" + std::to_string(st.parts) + " pièces LDraw différentes), " + std::to_string(st.bodies) + " corps rigides, " +
-           std::to_string(st.joints) + " liaisons, " + std::to_string(st.cmds) + " commandes.\n"
-           "Shaders : aiStandardSurface + aiRoundCorners (biseau) si Arnold (mtoa) est chargé, sinon standardSurface, sinon blinn.\n"
-           "Rig : un groupe par corps rigide, une paire de groupes par liaison (Jn_repos + Jn piloté, pivot sur l'axe).\n"
-           "Les liaisons sont pilotées par set driven keys échantillonnées depuis le solveur BrickIt, boucles fermées comprises.\n"
-           "Écart max quand plusieurs commandes bougent ensemble : " + std::string(cp) + " (degrés, ou mm pour les glissières).\n"
-           "Unités : centimètres, Y vers le haut. Chaque brique porte un attribut « ldraw » (référence de la pièce).\n";
+           "1. Maya > Windows > General Editors > Script Editor, Python tab.\n"
+           "2. File > Load Script… > " + name + ".py, then Execute (Ctrl+Enter). Or drag the .py into the Maya window.\n"
+           "3. The group " + name + " holds the scene. Select BRICKIT_CTRL: one attribute per motor (degrees) and per cylinder (cm).\n"
+           "   A demo animation is set on the timeline (each control goes to max, to min, then back to 0).\n\n"
+           "Content: " + std::to_string(st.bricks) + " bricks (" + std::to_string(st.parts) + " different LDraw parts), " + std::to_string(st.bodies) + " rigid bodies, " +
+           std::to_string(st.joints) + " joints, " + std::to_string(st.cmds) + " controls.\n"
+           "Shaders: aiStandardSurface + aiRoundCorners (bevel) if Arnold (mtoa) is loaded, else standardSurface, else blinn.\n"
+           "Rig: one group per rigid body, a pair of groups per joint (Jn_repos + driven Jn, pivot on the axis).\n"
+           "The joints are driven by set driven keys sampled from the BrickIt solver, closed loops included.\n"
+           "Max error when several controls move together: " + std::string(cp) + " (degrees, or mm for sliders).\n"
+           "Units: centimetres, Y up. Each brick carries an “ldraw” attribute (the part reference).\n";
 }
 
 // "Exporter vers Maya" of the « Scène partagée » sheet (web: mayaExportScene)
 void BrickApp::mayaExportScene(const std::wstring& forcedPath) {
-    if (m_bricks.empty()) { toast("Scène vide"); return; }
-    toast("Export Maya en cours…");
+    if (m_bricks.empty()) { toast("Empty scene"); return; }
+    toast("Exporting to Maya…");
     std::string py, err;
     MayaStats st;
-    if (!mayaExportScript(py, st, err)) { toast("Export Maya impossible : " + err); return; }
+    if (!mayaExportScript(py, st, err)) { toast("Maya export failed: " + err); return; }
     const std::string nm = "BrickIt_scene";
-    const std::string zip = zipStored({{nm + ".py", py}, {"LISEZMOI.txt", mayaReadme(nm, ReadmeStats{st.bricks, st.parts, st.bodies, st.joints, st.cmds, st.coupling})}});
+    const std::string zip = zipStored({{nm + ".py", py}, {"README.txt", mayaReadme(nm, ReadmeStats{st.bricks, st.parts, st.bodies, st.joints, st.cmds, st.coupling})}});
     if (forcedPath.empty()) {
-        plat::saveFileDialog(L"Archive ZIP (*.zip)\0*.zip\0", L"zip", L"BrickIt_scene_maya.zip",
+        plat::saveFileDialog(L"ZIP archive (*.zip)\0*.zip\0", L"zip", L"BrickIt_scene_maya.zip",
                              [this, zip, py, nm, st](const std::wstring& p) { mayaWriteZip(p, std::wstring(), zip, py, nm, st); });
         return;
     }
@@ -323,7 +323,7 @@ void BrickApp::mayaExportScene(const std::wstring& forcedPath) {
 void BrickApp::mayaWriteZip(const std::wstring& path, const std::wstring& forcedPath, const std::string& zip, const std::string& py,
                             const std::string& nm, const MayaStats& st) {
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Export Maya impossible : fichier non écrit"); return; }
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Maya export failed: file not written"); return; }
     fwrite(zip.data(), 1, zip.size(), f);
     fclose(f);
     if (path.size() > 4) {   // the script next to the zip too when scripted (tests)
@@ -332,7 +332,7 @@ void BrickApp::mayaWriteZip(const std::wstring& path, const std::wstring& forced
             if (_wfopen_s(&f, pyPath.c_str(), L"wb") == 0 && f) { fwrite(py.data(), 1, py.size(), f); fclose(f); }
         }
     }
-    toast(nm + "_maya.zip : " + std::to_string(st.bricks) + " briques, " + std::to_string(st.joints) + " liaisons, " + std::to_string(st.cmds) + " commandes");
+    toast(nm + "_maya.zip: " + std::to_string(st.bricks) + " bricks, " + std::to_string(st.joints) + " joints, " + std::to_string(st.cmds) + " controls");
 }
 
 } // namespace brickit

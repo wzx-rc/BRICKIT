@@ -56,7 +56,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
             ImDrawList* dl = ImGui::GetBackgroundDrawList();
             const ImVec2 ds = ImGui::GetIO().DisplaySize;
             dl->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(0x13, 0x14, 0x17, 255));
-            const char* t = "Chargement de la bibliothèque BrickIt…";
+            const char* t = "Loading the BrickIt library…";
             const float px = 14 * m_ui * 1.22f;
             const ImVec2 sz = ImGui::GetFont()->CalcTextSizeA(px, 1e9f, 0, t);
             dl->AddText(ImGui::GetFont(), px, ImVec2((ds.x - sz.x) * 0.5f, (ds.y - sz.y) * 0.5f), IM_COL32(0x9a, 0x9c, 0xa4, 255), t);
@@ -72,22 +72,24 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     loadConnLabels();   // (the connector labels set by hand, mode DEV)
     loadVoxEdits();     // (the voxels placed by hand, Voxel Editor)
     crashSetState([this]() {   // what a crash report says of the app
-        char b[1200];
+        char b[1600];
         const Part* vp = m_vePart >= 0 && m_vePart < (int)m_lib.parts.size() ? &m_lib.parts[m_vePart] : nullptr;
-        snprintf(b, sizeof(b), "Image %d · briques %d · sélection %d · en main %d\nInterface %s · popup %d · bibliothèque dock %d %s · HD %d · DEV %d\n"
-                 "Voxel Editor : %s · miniature (DEV) %d · mécanique %d · peindre %d\nRendu : %s · qualité %d · GI douce %d\nDernier message : %s\n"
-                 "Textures BrickIt : %d (limite 170) · miniatures chargées %d · textures ImGui %d · atlas de police %dx%d\n",
-                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classique", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
-                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "fermé", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
+        snprintf(b, sizeof(b), "Frame %d · bricks %d · selection %d · in hand %d\nInterface %s · popup %d · library dock %d %s · HD %d · DEV %d\n"
+                 "Voxel Editor: %s · thumbnail (DEV) %d · mechanics %d · paint %d\nRender: %s · quality %d · soft GI %d\nLast message: %s\n"
+                 "BrickIt textures: %d (1024 slots) · thumbnails loaded %d · ImGui textures %d · font atlas %dx%d\nGPU device: 0x%08lX (0 = OK; 887A0005 removed, 887A0006 hung, 887A0007 reset, 887A0020 driver error, 8007000E out of memory)\nWindow: %ux%u · UI scale %.2f\n",
+                 m_frame, (int)m_bricks.size(), m_selected, m_holding ? 1 : 0, m_studioUi ? "Studio" : "Classic", m_popup, m_libDock, m_libClassic ? "Classic" : "Studio",
+                 m_highPoly ? 1 : 0, m_dev ? 1 : 0, vp ? vp->name.c_str() : "closed", m_teditPart, m_mechOn ? 1 : 0, m_paintMode ? 1 : 0,
                  m_rs.raster ? "raster" : "path tracing", m_quality, m_softGI ? 1 : 0, m_toast.c_str(),
                  m_gui ? m_gui->liveTextures() : -1, (int)m_lazyThumbs.size(), ImGui::GetCurrentContext() ? ImGui::GetPlatformIO().Textures.Size : -1,
                  ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Width : 0,
-                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0);
+                 ImGui::GetCurrentContext() && ImGui::GetIO().Fonts->TexData ? ImGui::GetIO().Fonts->TexData->Height : 0,
+                 (unsigned long)(m_renderer ? m_renderer->deviceRemoved() : 0), m_renderer ? m_renderer->width() : 0u, m_renderer ? m_renderer->height() : 0u, m_ui);
         return std::string(b);
     });
     if (m_opt.highPoly >= 0) m_highPoly = m_opt.highPoly != 0;
     if (m_highPoly) { m_highPoly = false; setHighPoly(true); }   // (Préférences: HD)
     m_rs.raster = !opt.pathTrace;
+    m_rtDlss = opt.ptDlss;
     m_rs.denoise = true;
     m_rs.exposure = m_opt.exposure;   // bright "product shot" look
     m_rs.vignette = 0.06f;
@@ -98,6 +100,7 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     m_rs.fireflyClamp = 8.0f;
     m_rs.filterGlossy = 0.15f;
     m_rs.bevelScale = 1.0f;
+    if (opt.bevelUser >= 0) { m_bevelUser = opt.bevelUser; m_rs.bevelScale = opt.bevelUser / 0.5f; }   // --bevel-radius r (captures)
     m_rs.tonemapper = m_opt.tonemapper;   // ACES by default
     m_rs.idPass = false;   // selection: coverage outline only
     m_rs.selectionStyle = 2;   // thin white line at 45 % and a light fill
@@ -139,6 +142,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
     if (opt.libClassic >= 0) m_libClassic = opt.libClassic != 0;
     if (opt.stPaint) { m_paintMode = true; m_paintTool = true; }
     if (opt.stGroups) m_pGroups.visible = true;
+    if (opt.colorsMin) m_pColors.collapsed = true;
+    if (opt.sideFold >= 0) { m_sideLFold = (opt.sideFold & 1) != 0; m_sideRFold = (opt.sideFold & 2) != 0; }
     if (opt.cardScale > 0) m_stCardScale = opt.cardScale;
     if (opt.stPopup > 0) { m_popup = opt.stPopup; m_popupAt = ImVec2(10 * m_ui, 52 * m_ui); }
     if (opt.theme == 1 || opt.theme == 2) m_uiThemePref = opt.theme;   // (captures: the mode shown in Réglages › Thème)
@@ -253,7 +258,8 @@ bool BrickApp::initCommon(const Options& opt, std::unique_ptr<GfxRenderer> rende
         }
     }
 
-    if (opt.mechTests) { runMechTests(); return false; }   // (quits: the results are in mech_tests.txt)
+    if (opt.mechTests) { runMechTests(); return false; }
+    if (!opt.partsTest.empty()) { partsTest(opt.partsTest); return false; }   // (quits: the results are in mech_tests.txt)
     return true;
 }
 
@@ -286,8 +292,11 @@ void BrickApp::setupStage() {
     m_partMesh.assign(m_lib.parts.size(), -1);
 
     addGround(m_scene, m_opt.groundSize, !m_opt.cleanGround, !m_opt.noGround);
+    m_cycloObj = addCyclo(m_scene);   // (the studio stage, hidden until it is on)
+    m_fpTex = -1;
     m_firstBrickObject = (int)m_scene.objects.size();
     m_rimLight = addRimLight(m_scene);
+    m_firstUserLight = (int)m_scene.lights.size();   // (the user's area lights after it, BrickLights.cpp)
 
     // one material per palette colour (Stage.cpp, shared with the iPad build)
     m_colorMaterial.clear();
@@ -295,6 +304,7 @@ void BrickApp::setupStage() {
     m_colorMaterial = addPaletteMaterials(m_scene, m_lib, m_opt.sss);
     m_colorMaterialOrig.clear();
     for (int ci : m_colorMaterial) m_colorMaterialOrig.push_back(m_scene.materials[ci]);
+    m_colorMaterialFactory = m_colorMaterialOrig;
     // focus mode: the same materials at 50 % for the bricks that are not the focus
     m_dimMaterial.clear();
     for (int ci : m_colorMaterial) {
@@ -305,6 +315,29 @@ void BrickApp::setupStage() {
         d.coat *= 0.5f;
         m_dimMaterial.push_back(m_scene.addMaterial(d));
     }
+    m_rubberMaterial = addRubberMaterials(m_scene, m_lib, m_opt.sss);
+    m_rubberOrig.clear();
+    m_rubberFactory.clear();
+    m_rubberDim.clear();
+    for (int ci : m_rubberMaterial) {
+        m_rubberOrig.push_back(m_scene.materials[ci]);
+        m_rubberFactory.push_back(m_scene.materials[ci]);
+        Material d = m_scene.materials[ci];
+        d.name += " (dim)";
+        d.baseColor = d.baseColor * 0.5f;
+        d.specular *= 0.5f;
+        m_rubberDim.push_back(m_scene.addMaterial(d));
+    }
+    m_partRubber.assign(m_lib.parts.size(), -1);
+    if (!m_opt.matEdit.empty()) {
+        int id = 0;
+        MatEdit e;
+        const int n = sscanf_s(m_opt.matEdit.c_str(), "%d,%f,%f,%f,%f,%f,%f,%f,%f", &id, &e.srgb.x, &e.srgb.y, &e.srgb.z, &e.metal, &e.trans, &e.rough, &e.sss, &e.sssScale);
+        if (n >= 7) m_matEdits[id] = e;
+    }
+    if (m_opt.matRubber) { m_matRubber = true; m_color = 0; }   // (captures: the Material panel on the rubber of the black tyres)
+    if (!m_lights.empty()) syncLights();
+    if (!m_matEdits.empty()) applyMatEdits();   // (the Material panel's edits, from the preferences)
     if (m_opt.giLookdev) setLookdev(true);
     {
         Material gm;   // ghostMat of the web: 0xffe08a, emissive 0x6b5a1a
@@ -470,6 +503,32 @@ void BrickApp::buildHouse() {
 // GI look development (--gi-lookdev, Réglages › Lumière › Lookdev GI): every colour the same light grey, rough, no
 // specular and no coat, a light SSS (the lighting alone, in HQ, RC and PT); off: the palette materials back. The
 // dimmed copies (focus mode) follow.
+static const float kBgLin = 0.03f, kBgFloorK = 1.2f;   // the background, linear: the dark floor as it shows in the distance (measured)
+static const float kPtExposure = 1.0f, kPtHdri = 0.5f;   // (path tracing / raster HQ, measured 23/11/2026, with an HDRI file)
+// The procedural sky (Wzx 24/11/2026, clay comparison: « le HQ est plus lumineux, le fake GI plus doux »): the HQ lights
+// the bricks with the whole sky, its sun smeared into the ambient (no sun extracted from the image), so its shadows are
+// filled; the path tracer at x0.5 was a third darker in the shadows (model 0.55 against 0.72, shadows 0.15 against 0.42,
+// measured on the tractor). x1.8 brings the model and its shadows to the HQ (0.72 / 0.37); the floor, which then gets
+// too much sky, keeps its HQ brightness with its albedo lowered.
+static const float kPtHdriSky = 1.8f, kPtFloorSky = 0.5f;   // (kPtFloorSky: the floor's albedo and sheen under that sky: it bounces onto the sides of the bricks)
+// Second measure (colour, the same tractor): the whole image x1.8 also multiplies the sun drawn in the procedural sky, so
+// the faces in the sun were 3 x too bright (turquoise 107 / 191 / 194 against 18 / 151 / 154 in the HQ) while the
+// shadows only reached the HQ. Under the procedural sky the path tracer now lights with the sky as a gradient (the
+// colours of the procedural sky, x kPtGradSky, no image, no second sun) and the scene sun alone (x kPtSunSky).
+// Measured on the tractor (24/11/2026, colour): model 0.43 against 0.45 in the HQ, shadows and floor at the HQ's level.
+static const float kPtGradSky = 4.0f, kPtSunSky = 1.2f, kPtGroundSky = 1.0f;   // (second pass, clay, two views, bloom on: model 0.79 / 0.77 against 0.80 / 0.72 in the HQ)
+// Third pass (Wzx 24/11/2026: « le grading global semble plus bleu que le HQ, sur le render clay c'est visible »): the
+// zenith of the gradient (0.18, 0.32, 0.72) lit the clay blue (model b/g 1.078, r/g 0.974 against 1.027 and 1.000 in
+// the HQ, whose ambient holds the warm sun of the sky image). The sky keeps part of its blue (kPtSkySat, towards its
+// grey at the same luminance: the shadows stay cool as in the HQ) and the sun is warmed (kPtSunR, kPtSunB). Measured on
+// the clay tractor: model r/g 1.000, b/g 1.035. The far floor (the background and the sheen of the floor at grazing
+// angles: 38 against 23 in the HQ) is lowered (kPtBgSky, kPtFloorSpecSky).
+static const float kPtSkySat = 0.6f, kPtSunR = 1.10f, kPtSunB = 0.84f, kPtBgSky = 0.7f, kPtFloorSpecSky = 0.4f;
+static const float kPtGlassDepth = 0.2f;   // (the glass absorbed by its thickness: the palette colour at 2 mm, a pane of a cab)
+static const float kPtSun = 1.2f, kPtSky = 1.0f;   // (the sun of the path tracer against the HQ one)
+static const float kPtCoat = 1.0f, kPtCoatRough = 0.02f;   // (the varnish of the ABS in path tracing)
+// (Wzx 25/11/2026: « en RT la transparence est toute floue, ça ne va pas du tout »: clear glass again, no milky share)
+static const float kPtGlassTrans = 1.0f, kPtGlassRough = 0.0f;   // (the trans-clear parts: 15 % of a milky diffuse, towards the translucent plastic the HQ shows)
 void BrickApp::setLookdev(bool on) {
     m_giLookdev = on;
     for (size_t i = 0; i < m_colorMaterial.size() && i < m_colorMaterialOrig.size(); ++i) {
@@ -487,7 +546,35 @@ void BrickApp::setLookdev(bool on) {
             m.transmission = 0.0f;
             m.subsurface = 0.12f;
             m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+            if (m_opt.clayAlbedo >= 0) { m.baseColor = float3(m_opt.clayAlbedo); m.subsurface = 0.0f; m.roughness = 1.0f; }
+        } else if (m_studioShader && m.transmission < 0.5f && m.metallic < 0.5f) {   // the studio plastic (BrickStudio.cpp)
+            const MatEdit* e = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr;
+            studioPlastic(m, e);
+        } else if (m_ptLook && m.transmission > 0.5f) {   // the glass of the path tracer (Wzx 24/11/2026: « le verre est moins joli en raytraced »)
+            m.roughness = m_opt.ptGlassRough >= 0 ? m_opt.ptGlassRough : kPtGlassRough;
+            m.transmission = m_opt.ptGlassTrans >= 0 ? m_opt.ptGlassTrans : kPtGlassTrans;
+        } else if (m_ptLook && m.transmission < 0.5f && m.metallic < 0.5f) {
+            // the path tracer (Wzx 23/11/2026: « pas le dynamisme et l'impact lumineux du HQ »): the ABS of a real brick, a
+            // clear and sharp varnish over the colour, so that the light and the room show in the faces as in the HQ
+            {   // the light under the surface (the new random walk: the colour of the brick, soft): the strength of
+                // Réglages › Lumière › SSS, as the HQ; a colour set in the Material panel keeps its own value
+                const MatEdit* e = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr;
+                if (!e || e->sss < 0)
+                    m.subsurface = std::clamp(m.subsurface * (m_opt.ptSssAll >= 0 ? m_opt.ptSssAll : (m_opt.hqSSS >= 0 ? m_opt.hqSSS : m_hqSSSStrength)), 0.0f, 0.85f);
+            }
+            m.coat = m_opt.ptCoat >= 0 ? m_opt.ptCoat : kPtCoat;
+            m.coatRoughness = m_opt.ptCoatRough >= 0 ? m_opt.ptCoatRough : kPtCoatRough;
+            if (const MatEdit* ed = i < m_lib.palette.size() ? editOf(m_lib.palette[i].id) : nullptr) {
+                // a colour edited in the Material panel (Wzx 25/11/2026: « j'ai l'impression que roughness ne fonctionne
+                // pas »: the sharp varnish hid it): its Roughness is the one of the varnish too, its Specular the strength
+                // of the varnish (0.5, a plastic: the full varnish)
+                m.coatRoughness = std::max(m.coatRoughness, ed->rough * ed->rough);
+                m.coat *= std::clamp(ed->spec * 2.0f, 0.0f, 1.0f);
+            }
+            if (m_opt.ptRough >= 0) m.roughness = m_opt.ptRough;
+            if (m_opt.ptSpec >= 0) m.specular = m_opt.ptSpec;
         }
+        m.baseColor = gamut(m.baseColor);
         m_scene.materials[m_colorMaterial[i]] = m;
         if (i < m_dimMaterial.size()) {
             Material d = m;
@@ -498,20 +585,40 @@ void BrickApp::setLookdev(bool on) {
             m_scene.materials[m_dimMaterial[i]] = d;
         }
     }
+    for (size_t i = 0; i < m_rubberMaterial.size() && i < m_rubberOrig.size(); ++i) {   // the rubber: the lookdev grey too,
+        Material m = m_rubberOrig[i];                                                     // never the varnish of the path tracer
+        if (on) {
+            m.flags &= ~4u;
+            m.baseColor = float3(srgbToLinear(0.78f), srgbToLinear(0.79f), srgbToLinear(0.80f));
+            m.roughness = 0.9f;
+            m.specular = 0.0f;
+            m.subsurface = 0.12f;
+            m.sssRadius = float3(0.06f, 0.06f, 0.06f);
+        }
+        m.baseColor = gamut(m.baseColor);
+        m_scene.materials[m_rubberMaterial[i]] = m;
+        if (i < m_rubberDim.size()) {
+            Material d = m;
+            d.name += " (dim)";
+            d.baseColor = d.baseColor * 0.5f;
+            d.specular *= 0.5f;
+            m_scene.materials[m_rubberDim[i]] = d;
+        }
+    }
     ++m_scene.objectsVersion;   // (the materials are uploaded again, the accumulations restart)
     m_renderer->resetAccumulation();
 }
 
 void BrickApp::openOfficialHouse() {   // Dossier › Ouvrir la maison officielle (31153)
     const std::wstring path = m_exeDir + L"\\..\\..\\docs\\brickit\\tests\\maison_officielle_31153.v3d.json";
-    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Maison officielle introuvable (docs\\brickit\\tests)"); return; }
+    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Official house not found (docs\\brickit\\tests)"); return; }
     openScene(path);
 }
 
 void BrickApp::openTestHouse() {
     const std::wstring dir = m_exeDir;   // build\bin
     const std::wstring path = dir + L"\\..\\..\\docs\\brickit\\tests\\maison_gi.v3d.json";
-    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Maison test introuvable (docs\\brickit\\tests\\maison_gi.v3d.json)"); return; }
+    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES) { toast("Test house not found (docs\\brickit\\tests\\maison_gi.v3d.json)"); return; }
     openScene(path);
 }
 
@@ -554,7 +661,7 @@ void BrickApp::setHdri(const std::wstring& path) {
         auto e = std::make_shared<EnvImage>();
         std::string err;
         if (path.empty() || m_opt.noHdri || !fileExists(path) || !loadEnvImage(path, *e, &err)) {
-            if (!path.empty()) m_status = "HDRI illisible, ciel procédural : " + err;
+            if (!path.empty()) m_status = "Unreadable HDRI, procedural sky: " + err;
             makeProceduralSky(*e);
         }
         img = e;
@@ -579,7 +686,8 @@ void BrickApp::setHdri(const std::wstring& path) {
     }
     if (!m_ipad && !m_cornell) m_scene.sun.direction = hdriSunDir();
     m_hdriPath = path;
-    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)   // --no-env: no environment image at all (profiling)
+    m_hdriImg = img;
+    m_scene.env.hdri = m_opt.noEnv ? nullptr : img;   // --no-env: no environment image at all (profiling)
     m_hdriLoadMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - t0).count();
     m_renderer->resetAccumulation();
 }
@@ -589,7 +697,7 @@ void BrickApp::loadHdriDialog() {
         if (std::find(m_hdriCustom.begin(), m_hdriCustom.end(), p) == m_hdriCustom.end()) m_hdriCustom.push_back(p);
         buildHdriList();
         setHdri(p);
-        toast("HDRI chargée");
+        toast("HDRI loaded");
         savePrefs();
     });
 }
@@ -599,6 +707,7 @@ uint32_t BrickApp::gridLineValue() const {
     auto b = [](float v) { return (uint32_t)std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f); };
     return b(m_gridRgb.x) | (b(m_gridRgb.y) << 8) | (b(m_gridRgb.z) << 16) | (std::max(1u, b(m_gridAlpha)) << 24);
 }
+
 
 void BrickApp::applyLook() {
     if (m_cornell) { m_renderer->resetAccumulation(); return; }   // (the scene keeps its own look)
@@ -620,7 +729,9 @@ void BrickApp::applyLook() {
         m_scene.env.hemiIntensity = 0.25f;
         if (m_rimLight >= 0) m_scene.lights[m_rimLight].enabled = true;
         m_rs.exposure = 1.0f;
-        m_rs.tonemapper = 0;
+        // (the view transform stays the one chosen in Render Settings: it was forced back to ACES here at every change of mode)
+        // the background behind the floor: the colour the lit floor shows far away, so the horizon disappears
+        m_rs.bgOverride = m_opt.bgLin >= 0 ? float3(m_opt.bgLin) : float3(kBgLin);
     }
     const bool kitStage = m_ipadCreme && m_themeId == "creme";
     if (m_ipad && !kitStage && !m_th.stage.light) {   // iPad, dark stage (Wzx 15/11/2026: « le ciel au loin est tout noir »): a
@@ -667,6 +778,60 @@ void BrickApp::applyLook() {
         m_rs.exposure = 1.2f;
         m_scene.gridLine = gridLineValue();
     }
+    // the path tracer: the same stage as the raster HQ, but every bounce and the whole HDRI light the scene: brighter,
+    // the yellows paler in the tone curve (Wzx 23/11/2026: « plus jaune et délavé en raytracing »): its exposure lowered
+    // to match the HQ
+    if (kitStage) m_rs.bgOverride = float3(-1.0f, 0.0f, 0.0f);   // (the stage of the kit keeps its sky, validated 08/11)
+    else if (m_th.stage.light) {   // a light theme: its floor as it reads far away, lit (greyer, a little brighter: measured on Ardoise)
+        const float3 f = lin((int)m_th.stage.floor);
+        const float y = 0.2126f * f.x + 0.7152f * f.y + 0.0722f * f.z;
+        m_rs.bgOverride = (f + (float3(y) - f) * 0.35f) * (m_opt.bgK > 0 ? m_opt.bgK : kBgFloorK);
+    }
+    if (!m_rs.raster && !m_rcMode) {
+        m_rs.exposure *= m_opt.ptExposure > 0 ? m_opt.ptExposure : kPtExposure;
+        const bool procSky = m_hdriPath.empty();
+        const float userInt = m_scene.env.hdriIntensity;   // (Render Settings: HDRI intensity)
+        m_scene.env.hdriIntensity *= m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
+        if (procSky && m_hdriImg && !m_opt.noEnv) {   // the sky as a gradient (its colours), the sun of the scene alone
+            m_scene.env.hdri = nullptr;
+            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtGradSky) * 0.9f * (userInt / 1.294f);   // (calibrated at the intensity 1.294; it follows the slider as the HQ does)
+            const float sat = m_opt.ptSkySat >= 0 ? m_opt.ptSkySat : kPtSkySat;
+            auto sky = [&](float3 c) { const float l = 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; return (float3(l) + (c - float3(l)) * sat) * k; };
+            m_scene.env.top = sky(float3(0.18f, 0.32f, 0.72f));
+            m_scene.env.horizon = sky(float3(0.85f, 0.82f, 0.78f));
+            m_scene.env.bottom = sky(float3(0.85f, 0.82f, 0.78f)) * (m_opt.ptGround >= 0 ? m_opt.ptGround : kPtGroundSky);
+            m_scene.env.intensity = 1.0f;
+        }
+        if (procSky && !kitStage) {   // the floor under 1.8 x the sky: its albedo and its sheen lowered, so it reads as in the HQ
+            const float kf = m_opt.ptFloor >= 0 ? m_opt.ptFloor : kPtFloorSky;
+            g.baseColor = g.baseColor * kf;
+            const bool grad = m_hdriImg && !m_opt.noEnv;   // (the gradient sky above)
+            g.specular = m_opt.ptFloorSpec >= 0 ? m_opt.ptFloorSpec : (grad ? kPtFloorSpecSky : 0.5f) * kf;
+            if (grad && m_opt.bgLin < 0 && !m_th.stage.light && m_rs.bgOverride.x >= 0) m_rs.bgOverride = m_rs.bgOverride * kPtBgSky;
+            g.roughness = 0.95f;
+        }
+        // the plastic as the HQ shades it (Wzx 23/11/2026: « les couleurs ne sont toujours pas bonnes, ça vient de la
+        // réponse du shading, peut-être le SSS »): no random walk under the surface, which paled and greened the yellows
+        // (the light leaving a hollow brick of 1.2 mm walls after a walk tinted by the radius, not by the colour)
+        m_rs.sssScale = m_opt.ptSss >= 0 ? m_opt.ptSss : 1.0f;   // (the random walk runs for the colours given an SSS in the Material panel; the others carry none, below)
+        m_scene.sun.intensity *= procSky && m_hdriImg ? (m_opt.ptSunSky > 0 ? m_opt.ptSunSky : kPtSunSky) : (m_opt.ptSun > 0 ? m_opt.ptSun : kPtSun);
+        if (procSky && m_hdriImg && !m_opt.noEnv) m_scene.sun.color = m_scene.sun.color * float3(m_opt.ptSunR > 0 ? m_opt.ptSunR : kPtSunR, 1.0f, m_opt.ptSunB > 0 ? m_opt.ptSunB : kPtSunB);
+        const float hf = m_opt.ptHdri > 0 ? m_opt.ptHdri : (procSky ? kPtHdriSky : kPtHdri);
+        m_rs.envSpecBoost = m_opt.ptEnvSpec >= 0 ? m_opt.ptEnvSpec : 1.0f / std::max(hf, 0.05f);   // (the reflections at the full HDRI, as in the HQ)
+        if (m_hdriPath.empty() && !m_hdriImg) {   // (no image at all: the hemisphere of the HQ as the sky)
+            // sees it in their varnish; the path tracer gets it as its sky, the background staying the dark of the stage
+            const float k = (m_opt.ptSky >= 0 ? m_opt.ptSky : kPtSky) * m_scene.env.hemiIntensity * 4.0f;
+            if (kitStage) m_rs.bgOverride = m_scene.env.top;   // (the others: the floor's colour behind, above)
+            m_scene.env.top = m_scene.env.hemiSky * k;
+            m_scene.env.horizon = (m_scene.env.hemiSky + m_scene.env.hemiGround) * (0.5f * k);
+            m_scene.env.bottom = m_scene.env.hemiGround * k;
+        }
+    } else { m_rs.sssScale = 1.0f; m_rs.envSpecBoost = 1.0f; if (m_hdriImg && !m_opt.noEnv) m_scene.env.hdri = m_hdriImg; }
+    studioLook();   // (the studio stage over all this, BrickStudio.cpp)
+    m_rs.wideGamut = m_wideGamut;
+    m_scene.sun.color = gamut(m_scene.sun.color);
+    const bool ptLook = !m_rs.raster && !m_rcMode;
+    if (ptLook != m_ptLook || ptLook || m_studioShader) { m_ptLook = ptLook; setLookdev(m_giLookdev); }   // (path tracing: its materials again, the flags of a capture included)
     ++m_scene.objectsVersion;
     m_renderer->resetAccumulation();
 }
@@ -675,7 +840,7 @@ void BrickApp::applyLook() {
 void BrickApp::setHighPoly(bool on) {
     crumb("HD : %d", on ? 1 : 0);
     m_highPoly = on;
-    if (!m_lib.hasHd) { if (on) toast("Pas encore de pièces HD : la bibliothèque HD n'est pas construite"); return; }
+    if (!m_lib.hasHd) { if (on) toast("No HD parts yet: the HD library is not built"); return; }
     m_lib.setHighPoly(on);
     for (int i = 0; i < (int)m_partMesh.size(); ++i) {
         const int mesh = m_partMesh[i];
@@ -744,7 +909,7 @@ void BrickApp::rebuildScene() {
 void BrickApp::syncObjects() {
     if (m_cornell) return;
     updateGridFade();
-    const bool dim = m_focusDim && (m_selected >= 0 || m_holding);
+    const bool dim = (m_focusDim && (m_selected >= 0 || m_holding)) || m_pivotPick;   // (choosing the pivot: the rest at 50 %)
     for (size_t i = 0; i < m_bricks.size(); ++i) {
         Object& o = m_scene.objects[m_firstBrickObject + i];
         const Brick& b = m_bricks[i];
@@ -755,6 +920,11 @@ void BrickApp::syncObjects() {
         const bool focus = (int)i == m_selected || (m_holding && (int)i == m_held.brick) ||
                            std::find(m_multi.begin(), m_multi.end(), (int)i) != m_multi.end();
         o.material = dim && !focus ? m_dimMaterial[c] : m_colorMaterial[c];
+        if (b.part >= 0 && b.part < (int)m_partRubber.size() && c < (int)m_rubberMaterial.size()) {   // the tyres: rubber
+            int8_t& r = m_partRubber[b.part];
+            if (r < 0) r = isRubberPart(m_lib.parts[b.part]) ? 1 : 0;
+            if (r) o.material = dim && !focus ? m_rubberDim[c] : m_rubberMaterial[c];
+        }
         if (m_mechOn && m_mechTint && i < m_mm.brickBody.size()) {   // Mechanical mode: one colour per body (golden angle hues)
             const int body = m_mm.brickBody[i];
             while ((int)m_tintMaterial.size() <= body) {
@@ -922,13 +1092,13 @@ void BrickApp::buildDemo() {
     add("6541", 14, 19 * P, 0, 8 * P);
     add("60483", 71, 21 * P, 0, 8 * P);
     char buf[64];
-    snprintf(buf, sizeof(buf), "Demo : %d briques", (int)m_bricks.size());
+    snprintf(buf, sizeof(buf), "Demo: %d bricks", (int)m_bricks.size());
     m_status = buf;
 }
 
 // F (Wzx 10/11/2026, as Maya): the camera framed on the selection, its direction kept; nothing selected: the whole scene
 void BrickApp::frameSelection() {
-    crumb("F : cadrer la sélection");
+    crumb("F: frame the selection");
     const std::vector<int> sel = selection();
     if (sel.empty()) { frameAll(); return; }
     float3 mn(1e30f), mx(-1e30f);
@@ -1012,11 +1182,25 @@ void BrickApp::updateFocus(float dt) {
     float aim = m_focusAim > 0 ? m_focusAim : cam.distance;
     if (m_focusMode == 2) aim = m_focusManual;
     else if (m_focusMode == 0) {
-        float3 o, d;
-        const ImVec4 st = m_stage;
-        view().ray((st.x + st.z) * 0.5f, (st.y + st.w) * 0.5f, o, d);
-        const PickResult r = pick(m_scene, o, d);
-        if (r.object >= 0 && r.t < 1e20f) aim = r.t;
+        // (the ray through the middle of the view hits the whole scene: 2.6 ms a frame on the house 31153, 947 parts;
+        // only with the depth of field on, and only when the view or the scene changed, 23/11/2026)
+        static float lastKey[6] = {0, 0, 0, 0, 0, 0};
+        static uint64_t lastVer = ~0ull;
+        static float lastAim = -1;
+        const float key[6] = {cam.yaw, cam.pitch, cam.distance, cam.target.x, cam.target.y, cam.target.z};
+        const bool same = lastVer == (uint64_t)m_scene.objectsVersion && std::equal(key, key + 6, lastKey);
+        if (m_rs.dof <= 0 && !cam.dof) aim = cam.distance;   // (no depth of field: no focus to aim)
+        else if (same && lastAim > 0) aim = lastAim;
+        else {
+            float3 o, d;
+            const ImVec4 st = m_stage;
+            view().ray((st.x + st.z) * 0.5f, (st.y + st.w) * 0.5f, o, d);
+            const PickResult r = pick(m_scene, o, d);
+            if (r.object >= 0 && r.t < 1e20f) aim = r.t;
+            std::copy(key, key + 6, lastKey);
+            lastVer = (uint64_t)m_scene.objectsVersion;
+            lastAim = aim;
+        }
     } else {
         aim = cam.distance;
         std::vector<int> s = selection();
@@ -1069,12 +1253,23 @@ void BrickApp::cameraInput() {
     // Maya navigation (Wzx 10/11/2026): the camera moves only with Alt. Alt + left: orbit, Alt + middle: pan,
     // Alt + right: dolly; the wheel zooms. Without Alt the mouse never moves the camera.
     const bool alt = io.KeyAlt;
+    if (!alt && io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {   // Shift + right drag: the light turns (Substance Painter)
+        if (io.MouseDelta.x != 0) {
+            m_hdriRotDeg = std::fmod(m_hdriRotDeg + io.MouseDelta.x * 0.35f + 360.0f, 360.0f);
+            m_scene.env.hdriRotation = radians(m_hdriRotDeg);
+            if (!m_ipad) m_scene.sun.direction = hdriSunDir();   // (the sun turns with the HDRI)
+            m_renderer->resetAccumulation();
+            m_lightDragged = true;
+        }
+        return;
+    }
+    if (m_lightDragged && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) { m_lightDragged = false; savePrefs(); }
     const bool orbit = alt && ImGui::IsMouseDown(ImGuiMouseButton_Left);
     if (!orbit) m_orbitCentred = false;
     const bool pan = alt && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
     const bool dolly = alt && ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (dolly && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
-        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x - io.MouseDelta.y) * 0.004f));
+        cam.distance = std::max(1.0f, cam.distance * std::exp(-(io.MouseDelta.x + io.MouseDelta.y) * 0.004f));   // (up / down as Maya, Wzx 24/11/2026)
         changed = true;
     } else if (pan && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
         float3 r, u, f;
@@ -1110,8 +1305,23 @@ void BrickApp::frame() {
     QueryPerformanceCounter(&t0);
     if (m_last.QuadPart) m_frameMs = m_frameMs * 0.9 + 0.1 * (t0.QuadPart - m_last.QuadPart) * 1000.0 / m_qpf.QuadPart;
     m_last = t0;
+    if (m_renderer && m_frame > 2 && (m_frame % 30) == 0 && m_renderer->deviceRemoved() != 0) {
+        // the graphics card was reset by Windows (a GPU job too long: TDR) or lost: nothing draws or loads any more
+        // (empty thumbnails, a theme that does not apply, Wzx 23/11/2026). The scene kept, a report, BrickIt again
+        crumb("GPU perdu (0x%08lX) : scène enregistrée, redémarrage", (unsigned long)m_renderer->deviceRemoved());
+        autosave();
+        crashWriteReport("gpu");
+#ifdef _WIN32
+        STARTUPINFOW si = {sizeof(si)};
+        PROCESS_INFORMATION pi = {};
+        if (CreateProcessW(nullptr, GetCommandLineW(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) { CloseHandle(pi.hThread); CloseHandle(pi.hProcess); }
+#endif
+        m_running = false;
+        return;
+    }
     if (m_teSave) saveThumbOverride();   // (Edit thumbnail: before anything is drawn this frame)
     bacRenderPending();                  // (the thumbnails of the tray, likewise)
+    pipRender();                         // (the preview of the selected camera, likewise: offscreen)
 
     touchPump();   // fingers and Pencil (iPad), before the UI reads the mouse
     m_gui->newFrame();
@@ -1179,6 +1389,38 @@ void BrickApp::frame() {
         }
     }
     if (m_frame == 3 && !m_opt.mayaOut.empty()) mayaExportScene(m_opt.mayaOut);   // scripted test: Maya export
+    if (!m_pendingLook.empty() && m_frame >= 2) { const std::string t = std::move(m_pendingLook); m_pendingLook.clear(); applySceneLook(t); }
+    if (m_sceneLook && m_bricks.empty() && !m_holding && m_frame > 4) applySceneLook(std::string());   // (a new scene: the look of the last one goes)
+    if (m_frame == 4 && m_opt.studioBrick) studioBrickScene();
+    if (m_frame == 6 && (m_opt.studio >= 0 || m_opt.studioShader >= 0 || m_opt.noUserLights || m_opt.wideGamut >= 0)) {
+        if (m_opt.studioShader >= 0) m_studioShader = m_opt.studioShader != 0;
+        if (m_opt.wideGamut >= 0) { m_wideGamut = m_opt.wideGamut != 0; syncLights(); }
+        if (m_opt.noUserLights) { for (UserLight& l : m_lights) l.visible = false; syncLights(); }
+        if (m_opt.studio >= 0) setStudio(m_opt.studio != 0);
+        applyLook();
+    }
+    if (m_frame == 12 && !m_opt.studioSave.empty()) { saveScene(m_opt.studioSave); }
+    if (m_frame == 8 && m_opt.renderPanel > 0) { m_renderPanel = true; m_rsPos = ImVec2(-1, -1); m_rsFold = m_opt.renderPanel == 2 ? 0xfcu : m_opt.renderPanel == 3 ? 0x0fu : 0u; }   // (captures: the Render Settings panel)
+    if (m_frame == 8 && m_opt.lcTest > 0) {   // (captures: the Lighting and Camera panels)
+        m_lightPanel = m_camPanel = true;
+        addLight();
+        const Camera v = m_scene.camera;
+        m_scene.camera.yaw += 0.9f;
+        m_scene.camera.pitch = 0.15f;
+        addCamera();
+        m_scene.camera = v;
+        if (m_opt.lcTest == 1) { m_selLight = 0; m_selCam = -1; }
+        if (m_opt.lcTest == 1 || m_opt.lcTest == 4) m_scene.camera.distance *= 2.4f;   // (the light and the camera in the view)
+        if (m_opt.lcTest == 4) { m_selLight = -1; m_selCam = 0; }
+        if (m_opt.lcTest == 3) enterCamera(0);
+        if (m_opt.lcTest == 5) { m_lights[0].color = float3(1.0f, 0.25f, 0.15f); m_lights[0].intensity *= 3; syncLights(); m_lightPanel = m_camPanel = false; m_selLight = -1; }   // (a red light: its effect seen)
+    }
+    if (m_frame == 6 && !m_opt.wzxOut.empty()) {   // the model as a WZX Engine scene (after an --import at frame 3)
+        std::string rep;
+        const bool ok = wzxExport(m_opt.wzxOut, m_modelName.empty() ? std::string("brickit") : m_modelName, rep);
+        toast(ok ? "WZX Engine: " + rep : "WZX Engine export failed: " + rep);
+        OutputDebugStringA(rep.c_str());
+    }
     if (m_frame == 3 && !m_opt.devRoundtrip.empty()) {   // self-test: OBJ export of a part, re-import, fit (offset and scale must be identity)
         int pi = m_lib.find(m_opt.devRoundtrip);
         Part* pp = pi >= 0 ? m_lib.get(m_opt.devRoundtrip) : nullptr;
@@ -1216,11 +1458,18 @@ void BrickApp::frame() {
     LARGE_INTEGER pB;
     QueryPerformanceCounter(&pB);
     if (m_opt.perfOrbit && m_frame > 30) { m_scene.camera.yaw += 0.01f; m_renderer->resetAccumulation(); m_lastMove = ImGui::GetTime(); }   // (--perf-orbit: the view turns)
+    LARGE_INTEGER pI0, pI1, pI2;   // (--perf-trace: the input, the animations)
+    QueryPerformanceCounter(&pI0);
     cameraInput();
     if (m_mechOn) mechUpdate((float)ImGui::GetIO().DeltaTime);
     else editInput();
+    QueryPerformanceCounter(&pI1);
     updateAnim(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
     updateFocus(std::min(0.05f, (float)ImGui::GetIO().DeltaTime));
+    camFollowView();   // (looked through a camera: it follows the view, or holds it when locked)
+    QueryPerformanceCounter(&pI2);
+    m_perfInput = (double)(pI1.QuadPart - pI0.QuadPart) * 1000.0 / m_qpf.QuadPart;
+    m_perfAnim = (double)(pI2.QuadPart - pI1.QuadPart) * 1000.0 / m_qpf.QuadPart;
     if (ImGui::IsKeyPressed(ImGuiKey_M) && !ImGui::GetIO().WantTextInput && !ImGui::GetIO().KeyCtrl) { if (m_mechOn) mechExit(); else mechEnter(); }
 
     ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -1302,7 +1551,10 @@ void BrickApp::frame() {
     m_rs.sharpen = (!pathTraced() && scale < 0.99f) ? std::min(0.6f, (1.0f - scale) * 1.1f) : 0.0f;
     // Réglages › Lumière: depth of field (HQ, RC) and bloom (the raster views); the path tracer has its own lens
     m_rs.dof = m_ipad ? 0.0f : (m_quality == 1 || m_rcMode) ? (m_opt.dof >= 0 ? m_opt.dof : m_dof) : 0.0f;
-    m_rs.bloom = m_opt.bloom >= 0 ? m_opt.bloom : m_bloom;
+    m_rs.bloom = pathTraced() ? (m_opt.bloomPt >= 0 ? m_opt.bloomPt : m_opt.bloom >= 0 ? m_opt.bloom : m_bloomPT) : (m_opt.bloom >= 0 ? m_opt.bloom : m_bloom);
+    m_rs.glare = m_ipad ? 0.0f : (m_opt.glare >= 0 ? m_opt.glare : m_glare);
+    if (m_studio) m_rs.bloom = m_opt.bloomPt >= 0 ? m_opt.bloomPt : 0.0f;   // (the studio stage: a bright background, everything would glow; the glare stays)
+    m_rs.glassDepth = (m_opt.glassAbsorb >= 0 ? m_opt.glassAbsorb != 0 : m_glassAbsorb) ? kPtGlassDepth : 0.0f;
     m_rs.stillAA = m_opt.stillAA >= 0 ? m_opt.stillAA != 0 : m_stillAA;   // Réglages › Anti-aliasing au repos
     // part sheet open: the main view keeps its last image, the renderer draws the 3D viewer of the part
     const bool uiDrag = m_grip.id >= 0 && m_grip.moved;   // a panel dragged by its grip: the view frozen (heavy scenes stay fluid)
@@ -1326,6 +1578,8 @@ void BrickApp::frame() {
     } else {
         renderSteps();   // images of the manual asked by the UI this frame
         RenderSettings frs = m_rs;
+        frs.oidn = frs.dlss = m_rtDlss;   // (Ray tracing: the a-trous filter as before; Ray tracing DLSS: OIDN still, DLSS moving)
+        frs.adaptive = false;
         if (m_rs.raster && m_quality == 1 && m_softGI && !m_rcMode) {
             // HQ + GI douce: the raster view of the HQ reads the probes (DDGI, ray traced in the volume of the bricks,
             // long temporal average in world space: stable, converged while nothing moves)
@@ -1394,6 +1648,8 @@ void BrickApp::frame() {
         drawHoldOverlay();
         drawPivots();
         drawGizmo();   // over the pivot markers (renderOrder 1010 > 1003 in the web)
+        drawObjOverlay();   // the user's lights and cameras, the handles of the selected one
+        drawPivotPick();   // (W: choosing the pivot, its voxels over everything)
         drawMechOverlay();
         drawDevOverlay();
     }
@@ -1406,18 +1662,18 @@ void BrickApp::frame() {
     m_perfA = pA; m_perfB = pB; m_perfT1 = t1; m_perfF = pF; m_perfT0 = t0;
     ++m_frame;
     crashHeartbeat();
-    if (m_opt.crashTest && m_frame == 30) { crumb("Test : plantage volontaire"); volatile int* nul = nullptr; *nul = 1; }
+    if (m_opt.crashTest && m_frame == 30) { crumb("Test: deliberate crash"); volatile int* nul = nullptr; *nul = 1; }
     if (m_frame == 2 && !m_ipad && m_appIcon == 1) plat::setAppIcon(1);   // PC: the icon B on the window (the .exe keeps A)
     if (m_frame == 40 && m_opt.shotPath.empty()) {   // the last session crashed or froze: said once
         const std::wstring p = crashLastUnseen();
         if (!p.empty() && m_ipad)   // the iPad: no folder to look into, the report is sent from here (Mail, AirDrop, Fichiers)
-            plat::confirm(L"BrickIt s'est arrêté", L"La dernière session s'est terminée brutalement. Envoyer le rapport ?\n(il reste aussi dans Fichiers › BrickIt › Rapports)",
+            plat::confirm(L"BrickIt stopped", L"The last session ended abruptly. Send the report?\n(it also stays in Files › BrickIt › Rapports)",
                           [p]() { plat::shareFile(p); });
-        else if (!p.empty()) toast("BrickIt s'est arrêté brutalement la dernière fois : rapport dans " + plat::toUtf8(p));
+        else if (!p.empty()) toast("BrickIt crashed last time: report in " + plat::toUtf8(p));
     }
     if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_F12)) {   // a report of a glitch (not a crash)
-        const std::wstring p = crashWriteReport("RAPPORT (Ctrl+Maj+F12)");
-        toast("Rapport écrit : " + std::string(p.begin(), p.end()));
+        const std::wstring p = crashWriteReport("REPORT (Ctrl+Shift+F12)");
+        toast("Report written: " + std::string(p.begin(), p.end()));
     }
     // GI hold test: a brick carried in the air (swinging), then put down on the ground 3.5 cm in front of where it was
     if (!m_opt.groupTest.empty() && m_frame == 5) groupTest();
@@ -1451,7 +1707,7 @@ void BrickApp::frame() {
         importLDraw(m_opt.importPath);
         const auto ms = GetTickCount64() - t0;
         if (m_opt.readStep > 0) readStepTo(m_opt.readStep);
-        else if (m_opt.readStep == 0) { stopReading(); frameAll(); }
+        else if (m_opt.readStep == 0) { stopReading(); frameAll(); m_scene.camera.distance *= m_opt.zoom; }   // (--zoom: closer captures of an imported model)
         if (!m_opt.importReport.empty()) {
             FILE* rf = nullptr;
             if (_wfopen_s(&rf, m_opt.importReport.c_str(), L"wb") == 0 && rf) { fprintf(rf, "import_ms=%llu\n%s", (unsigned long long)ms, m_importReport.c_str()); fclose(rf); }
@@ -1517,12 +1773,12 @@ void BrickApp::frame() {
     m_renderer->present(m_opt.shotPath.empty());
     if (!m_opt.perfTrace.empty()) {   // --perf-trace: ms of each part of the frame (UI, render submit, ImGui, present / vsync), GPU
         static FILE* pf = nullptr;
-        if (!pf) { _wfopen_s(&pf, m_opt.perfTrace.c_str(), L"w"); if (pf) fprintf(pf, "frame total pre ui logic render overlays imgui present gpu\n"); }
+        if (!pf) { _wfopen_s(&pf, m_opt.perfTrace.c_str(), L"w"); if (pf) fprintf(pf, "frame total pre ui logic render overlays imgui present gpu input anim\n"); }
         LARGE_INTEGER pG;
         QueryPerformanceCounter(&pG);
         auto ms = [&](const LARGE_INTEGER& a, const LARGE_INTEGER& b) { return (b.QuadPart - a.QuadPart) * 1000.0 / m_qpf.QuadPart; };
         const bool r = m_perfD.QuadPart > m_perfT0.QuadPart;
-        if (pf) fprintf(pf, "%d %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n", m_frame, ms(m_perfT0, pG), ms(m_perfT0, m_perfA), ms(m_perfA, m_perfB), r ? ms(m_perfB, m_perfD) : ms(m_perfB, m_perfT1), r ? ms(m_perfD, m_perfE) : 0.0, r ? ms(m_perfE, m_perfT1) : 0.0, ms(m_perfT1, m_perfF), ms(m_perfF, pG), m_renderer->gpuFrameMs());
+        if (pf) fprintf(pf, "%d %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n", m_frame, ms(m_perfT0, pG), ms(m_perfT0, m_perfA), ms(m_perfA, m_perfB), r ? ms(m_perfB, m_perfD) : ms(m_perfB, m_perfT1), r ? ms(m_perfD, m_perfE) : 0.0, r ? ms(m_perfE, m_perfT1) : 0.0, ms(m_perfT1, m_perfF), ms(m_perfF, pG), m_renderer->gpuFrameMs(), m_perfInput, m_perfAnim);
         if (m_frame >= m_opt.perfFrames) { if (pf) fclose(pf); pf = nullptr; m_running = false; }
     }
     if (!m_opt.ptTrace.empty()) {   // convergence: samples accumulated and the cost of each frame
@@ -1544,6 +1800,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         if (a == L"--card-scale") { opt.cardScale = (float)_wtof(next().c_str()); continue; }
         if (a == L"--st-paint") { opt.stPaint = true; continue; }
         if (a == L"--st-groups") { opt.stGroups = true; continue; }
+        if (a == L"--colors-min") { opt.colorsMin = true; continue; }
+        if (a == L"--side-fold") { opt.sideFold = _wtoi(next().c_str()); continue; }
         if (a == L"--st-popup") { opt.stPopup = _wtoi(next().c_str()); continue; }
         if (a == L"--st-fam") { const std::wstring v = next(); opt.stFam = std::string(v.begin(), v.end()); continue; }
         if (a == L"--st-sub") { opt.stSub = _wtoi(next().c_str()); continue; }
@@ -1635,6 +1893,41 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--tonemap") opt.tonemapper = _wtoi(next().c_str());
         else if (a == L"--clean") opt.cleanGround = true;
         else if (a == L"--exposure") opt.exposure = (float)_wtof(next().c_str());
+        else if (a == L"--pt-exposure") opt.ptExposure = (float)_wtof(next().c_str());
+        else if (a == L"--pt-hdri") opt.ptHdri = (float)_wtof(next().c_str());
+        else if (a == L"--pt-floor") opt.ptFloor = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun-sky") opt.ptSunSky = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sss-all") opt.ptSssAll = (float)_wtof(next().c_str());
+        else if (a == L"--mat-rubber") opt.matRubber = true;
+        else if (a == L"--pt-ground") opt.ptGround = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sky-sat") opt.ptSkySat = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun-tint") { std::wstring v = next(); swscanf_s(v.c_str(), L"%f,%f", &opt.ptSunR, &opt.ptSunB); }
+        else if (a == L"--pt-floor-spec") opt.ptFloorSpec = (float)_wtof(next().c_str());
+        else if (a == L"--glare") opt.glare = (float)_wtof(next().c_str());
+        else if (a == L"--bloom-pt") opt.bloomPt = (float)_wtof(next().c_str());
+        else if (a == L"--glass-absorb") opt.glassAbsorb = _wtoi(next().c_str());
+        else if (a == L"--render-panel") opt.renderPanel = _wtoi(next().c_str());
+        else if (a == L"--studio") opt.studio = _wtoi(next().c_str());
+        else if (a == L"--studio-plastic") opt.studioShader = _wtoi(next().c_str());
+        else if (a == L"--studio-brick") opt.studioBrick = true;
+        else if (a == L"--studio-save") opt.studioSave = next();
+        else if (a == L"--studio-fp") opt.studioFp = (float)_wtof(next().c_str());
+        else if (a == L"--studio-base") opt.studioBase = (float)_wtof(next().c_str());
+        else if (a == L"--wide-gamut") opt.wideGamut = _wtoi(next().c_str());
+        else if (a == L"--clay-albedo") opt.clayAlbedo = (float)_wtof(next().c_str());
+        else if (a == L"--no-user-lights") opt.noUserLights = true;
+        else if (a == L"--pt-glass-rough") opt.ptGlassRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-glass-trans") opt.ptGlassTrans = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sss") opt.ptSss = (float)_wtof(next().c_str());
+        else if (a == L"--bg-lin") opt.bgLin = (float)_wtof(next().c_str());
+        else if (a == L"--bg-k") opt.bgK = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sky") opt.ptSky = (float)_wtof(next().c_str());
+        else if (a == L"--pt-envspec") opt.ptEnvSpec = (float)_wtof(next().c_str());
+        else if (a == L"--pt-sun") opt.ptSun = (float)_wtof(next().c_str());
+        else if (a == L"--pt-coat") opt.ptCoat = (float)_wtof(next().c_str());
+        else if (a == L"--pt-coatr") opt.ptCoatRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-rough") opt.ptRough = (float)_wtof(next().c_str());
+        else if (a == L"--pt-spec") opt.ptSpec = (float)_wtof(next().c_str());
         else if (a == L"--yaw") opt.yaw = (float)_wtof(next().c_str());
         else if (a == L"--pitch") opt.pitch = (float)_wtof(next().c_str());
         else if (a == L"--no-hdri") opt.noHdri = true;
@@ -1660,7 +1953,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--float-tray") { opt.floatTray = true; opt.floatX = (float)_wtof(next().c_str()); opt.floatY = (float)_wtof(next().c_str()); }
         else if (a == L"--opts-right") opt.optsRight = true;
         else if (a == L"--cornell") opt.cornell = true;
-        else if (a == L"--mechtests") opt.mechTests = true;   // the Cornell box of WZX Engine (comparison of the renderers)
+        else if (a == L"--mechtests") opt.mechTests = true;
+        else if (a == L"--parts-test") opt.partsTest = next();   // the Cornell box of WZX Engine (comparison of the renderers)
         else if (a == L"--perf-trace") { opt.perfTrace = next(); opt.perfFrames = _wtoi(next().c_str()); }
         else if (a == L"--perf-orbit") opt.perfOrbit = 1;
         else if (a == L"--cloud-selftest") opt.cloudSelfTest = next();
@@ -1670,6 +1964,11 @@ void parseOptions(const std::vector<std::wstring>& args, Options& opt) {
         else if (a == L"--mouse-test") { std::wstring w = next(); opt.mouseTest.assign(w.begin(), w.end()); }
         else if (a == L"--turntable-test") { std::wstring w1 = next(), w2 = next(); opt.ttBase.assign(w1.begin(), w1.end()); opt.ttTop.assign(w2.begin(), w2.end()); }
         else if (a == L"--maya") opt.mayaOut = next();
+        else if (a == L"--wzx-export") opt.wzxOut = next();
+        else if (a == L"--lc-test") opt.lcTest = _wtoi(next().c_str());
+        else if (a == L"--pt-dlss") { opt.ptDlss = true; opt.pathTrace = true; }
+        else if (a == L"--bevel-radius") opt.bevelUser = (float)_wtof(next().c_str());
+        else if (a == L"--mat-edit") { std::wstring w = next(); opt.matEdit.assign(w.begin(), w.end()); }
         else if (a == L"--dev-roundtrip") { std::wstring w = next(); opt.devRoundtrip.assign(w.begin(), w.end()); }   // 0 select, 1 visor, 2 move, 3 rotate
         else if (a == L"--cat") opt.libCategory = _wtoi(next().c_str());
         else if (a == L"--focus") opt.focusDim = true;

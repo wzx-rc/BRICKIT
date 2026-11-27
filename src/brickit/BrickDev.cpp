@@ -84,12 +84,12 @@ std::string BrickApp::devObjText(int part, const MeshData& g, const float3& o, b
     std::string title = p.title.empty() ? p.label : p.title, t2;
     for (char c : title) { if (std::isspace((unsigned char)c)) { if (t2.empty() || t2.back() != ' ') t2.push_back(' '); } else t2.push_back(c); }
     std::ostringstream L;
-    L << "# BrickIt Builder LDraw · export mode développeur\n";
+    L << "# BrickIt Builder LDraw · developer mode export\n";
     L << "# brickit-part " << id << "\n";
     L << "# ldraw-title " << t2 << "\n";
     L << "# ldraw-release " << p.release << "\n";
-    L << "# unites: cm (1 LDU = 0.04 cm) · Y vers le haut · origine = origine LDraw de la piece\n";
-    L << "# Le groupe ref_connecteurs (" << (markers ? p.voxels.size() : 0) << " reperes) sert a l'alignement : il est ignore au reimport.\n";
+    L << "# units: cm (1 LDU = 0.04 cm) · Y up · origin = LDraw origin of the part\n";
+    L << "# The group ref_connecteurs (" << (markers ? p.voxels.size() : 0) << " markers) is for alignment: it is ignored on reimport.\n";
     L << "g " << gid << "\n";
     for (const auto& v : g.vertices) L << "v " << f5(v.pos.x - o.x) << " " << f5(v.pos.y - o.y) << " " << f5(v.pos.z - o.z) << "\n";
     for (const auto& v : g.vertices) L << "vn " << f5(v.nrm.x) << " " << f5(v.nrm.y) << " " << f5(v.nrm.z) << "\n";
@@ -160,15 +160,15 @@ std::string zipStored(const std::vector<std::pair<std::string, std::string>>& fi
 std::string BrickApp::devReadme(int part) const {
     const Part& p = m_lib.parts[part];
     const std::string id = devId(part);
-    return "BrickIt Builder LDraw · pièce " + id + " (" + p.label + ")\n\n"
-           "Import dans Maya : Fichier > Importer, type OBJ. Unités de la scène Maya : centimètres. Y vers le haut.\n"
-           "L'origine du fichier est l'origine LDraw de la pièce (1 LDU = 0,04 cm), donc ne déplace pas la pièce.\n\n"
-           "Les groupes ref_connecteurs_* sont des repères des points de connexion (tenons, anti-tenons, trous…).\n"
-           "Garde-les pour vérifier l'alignement : ils sont ignorés au réimport.\n\n"
-           "Retour dans BrickIt : exporte en OBJ (normales activées) ou en FBX, en cm, puis dans BrickIt :\n"
-           "mode DEV > fiche de la pièce (appui long dans la bibliothèque) > « Importer le maillage modifié ».\n"
-           "Nom de fichier conseillé : " + id + ".obj (la référence est reconnue toute seule depuis le panneau DEV).\n\n"
-           "Base LDraw : " + (p.release.empty() ? std::string("inconnue") : p.release) + " · géométrie LDraw (ldraw.org, CC BY).\n";
+    return "BrickIt Builder LDraw · part " + id + " (" + p.label + ")\n\n"
+           "Import in Maya: File > Import, type OBJ. Maya scene units: centimetres. Y up.\n"
+           "The file origin is the LDraw origin of the part (1 LDU = 0.04 cm), so do not move the part.\n\n"
+           "The groups ref_connecteurs_* mark the connection points (studs, anti-studs, holes…).\n"
+           "Keep them to check the alignment: they are ignored on reimport.\n\n"
+           "Back in BrickIt: export as OBJ (normals on) or FBX, in cm, then in BrickIt:\n"
+           "DEV mode > part sheet (long press in the library) > “Import the modified mesh”.\n"
+           "Suggested file name: " + id + ".obj (the reference is recognised automatically from the DEV panel).\n\n"
+           "LDraw base: " + (p.release.empty() ? std::string("inconnue") : p.release) + " · LDraw geometry (ldraw.org, CC BY).\n";
 }
 
 void BrickApp::devExport(int part) {
@@ -179,8 +179,8 @@ void BrickApp::devExport(int part) {
     const std::string zip = zipStored({{id + ".obj", obj}, {"LISEZMOI.txt", devReadme(part)}});
     const bool replaced = m_devOverrides.count(id) && m_devUseOverrides;
     plat::saveFileDialog(L"Archive ZIP (*.zip)\0*.zip\0", L"zip", widen(id + "_maya.zip"), [this, zip, id, replaced](const std::wstring& file) {
-        if (!writeAll(file, zip)) { toast("Enregistrement impossible : " + narrow(file)); return; }
-        toast(id + "_maya.zip enregistré (" + (replaced ? "le remplacement actuel" : "la géométrie LDraw") + ")");
+        if (!writeAll(file, zip)) { toast("Cannot save: " + narrow(file)); return; }
+        toast(id + "_maya.zip saved (" + (replaced ? "the current replacement" : "the LDraw geometry") + ")");
     });   // (web: e.code === "declined": nothing)
 }
 
@@ -266,7 +266,7 @@ void BrickApp::devFit(int part, MeshData& g, DevReview& R) {
     const float3 rs = rmx - rmn, is = imx - imn;
     const double ratio = std::cbrt((double)is.x * is.y * is.z / std::max(1e-9, (double)rs.x * rs.y * rs.z));
     struct Cand { double k; const char* unit; };
-    static const Cand cands[] = {{1, ""}, {10, "mm"}, {0.1, "dm"}, {100, "m"}, {0.01, "×100"}, {2.54, "pouces"}, {1.0 / 25, "LDU"}, {1 / 2.54, "?"}};
+    static const Cand cands[] = {{1, ""}, {10, "mm"}, {0.1, "dm"}, {100, "m"}, {0.01, "×100"}, {2.54, "inches"}, {1.0 / 25, "LDU"}, {1 / 2.54, "?"}};
     Cand best = cands[0];
     double bestErr = 1e30;
     for (const Cand& c : cands) { double e = std::fabs(std::log(ratio / c.k)); if (e < bestErr) { bestErr = e; best = c; } }
@@ -276,10 +276,10 @@ void BrickApp::devFit(int part, MeshData& g, DevReview& R) {
     if (best.k != 1 && bestErr < 0.12) {
         R.scale = (float)(1 / best.k);
         for (auto& v : g.vertices) v.pos = o + (v.pos - o) * R.scale;
-        snprintf(b, sizeof(b), "Échelle corrigée ×%.3g (fichier en %s ?)", R.scale, best.unit);
+        snprintf(b, sizeof(b), "Scale corrected ×%.3g (file in %s?)", R.scale, best.unit);
         R.note = b;
     } else if (bestErr > 0.25) {
-        snprintf(b, sizeof(b), "Taille très différente de LDraw (×%.2f) : vérifie les unités", ratio);
+        snprintf(b, sizeof(b), "Size very different from LDraw (×%.2f): check the units", ratio);
         R.note = b;
     }
     meshBounds(g, imn, imx);
@@ -370,14 +370,14 @@ void BrickApp::devImportFile(const std::wstring& path, int forced) {
     std::string lower = fileName;
     for (char& c : lower) c = (char)tolower((unsigned char)c);
     if (lower.size() > 4 && lower.substr(lower.size() - 4) == ".fbx") {   // (native: no FBX reader)
-        toast("Lecture impossible : le FBX n'est pas lu par la version native, exporte en OBJ (normales activées)");
+        toast("Cannot read: FBX is not supported by the native version, export as OBJ (normals on)");
         return;
     }
     std::string text;
-    if (!readAll(path, text)) { toast("Lecture impossible : " + fileName); return; }
+    if (!readAll(path, text)) { toast("Cannot read: " + fileName); return; }
     MeshData g;
     std::map<std::string, std::string> header;
-    if (!devParseObj(text, g, header)) { toast("Aucun maillage trouvé dans " + fileName + " (hors ref_connecteurs)"); return; }
+    if (!devParseObj(text, g, header)) { toast("No mesh found in " + fileName + " (without ref_connecteurs)"); return; }
     int part = forced;
     if (part < 0) {
         std::string guess = header.count("brickit-part") ? header["brickit-part"] : "";
@@ -387,9 +387,9 @@ void BrickApp::devImportFile(const std::wstring& path, int forced) {
             if (k > 0 && (k == fileName.size() || strchr("_. -", fileName[k]))) guess = fileName.substr(0, k);
         }
         part = guess.empty() ? -1 : devPartById(guess);
-        if (part < 0) { toast("Référence inconnue : ouvre la fiche de la pièce (appui long) puis « Importer le maillage modifié »"); return; }
+        if (part < 0) { toast("Unknown reference: open the part sheet (long press) then “Import the modified mesh”"); return; }
     }
-    if (forced >= 0 && header.count("brickit-part") && header["brickit-part"] != devId(part)) toast("Attention : ce fichier vient de la pièce " + header["brickit-part"]);
+    if (forced >= 0 && header.count("brickit-part") && header["brickit-part"] != devId(part)) toast("Warning: this file comes from part " + header["brickit-part"]);
     if (!m_lib.get(m_lib.parts[part].name)) return;
     DevReview R;
     devFit(part, g, R);
@@ -422,7 +422,7 @@ void BrickApp::devReviewRecenter() {
     for (auto& v : R.g.vertices) v.pos = v.pos - R.offset;
     R.offset = float3(0);
     devSetGeometry(R.part, R.g);
-    toast("Recalé sur le centre de la pièce LDraw");
+    toast("Re-centred on the LDraw part");
 }
 
 void BrickApp::devReviewKeep() {
@@ -446,12 +446,12 @@ void BrickApp::devReviewKeep() {
     o.geometry = R.g;
     // stored as OBJ in LDraw-origin cm, like the export (no connector markers)
     const std::string obj = devObjText(R.part, R.g, p.ldrawOrigin, false);
-    if (!devSave(o, obj)) { toast("Enregistrement impossible : " + narrow(devDir())); return; }
+    if (!devSave(o, obj)) { toast("Cannot save: " + narrow(devDir())); return; }
     const std::string id = o.id;
     m_devOverrides[id] = std::move(o);
     devApplyAll();
     R.open = false;
-    toast("Remplacement de " + id + " enregistré sur cet appareil");
+    toast("Replacement of " + id + " saved on this device");
 }
 
 void BrickApp::devRevert(int part) {
@@ -466,7 +466,7 @@ void BrickApp::devRevert(int part) {
 void BrickApp::devSetOn(bool v) {
     m_dev = v;
     savePrefs();
-    toast(v ? "Mode développeur : connecteurs LDraw affichés, export / import Maya dans la fiche des pièces" : "Mode développeur désactivé");
+    toast(v ? "Developer mode: LDraw connectors shown, Maya export / import in the part sheet" : "Developer mode off");
 }
 
 // ---------- overlays on every brick: connectors by type (8 px squares, over everything) and the LDraw outline

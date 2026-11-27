@@ -17,7 +17,7 @@ static ImU32 veCol(int t, int a = 255) {
 }
 static bool veHollow(int t) { return t == CONN_PINHOLE || t == CONN_AXLEHOLE || t == CONN_ANTISTUD; }
 static const char* veName(int t) {
-    static const char* n[6] = {"Tenon", "Anti-tenon", "Pin", "Trou de pin", "Axe", "Trou d'axe"};
+    static const char* n[6] = {"Stud", "Anti-stud", "Pin", "Pin hole", "Axle", "Axle hole"};
     return t >= 0 && t < 6 ? n[t] : "?";
 }
 // the marker of a voxel: filled (male), ringed (female), its colour
@@ -87,7 +87,7 @@ void BrickApp::saveVoxEdits() {
 void BrickApp::openVoxelEditor(int part) {
     if (part < 0 || part >= (int)m_lib.parts.size() || !m_lib.get(m_lib.parts[part].name)) return;
     const Part& p = m_lib.parts[part];
-    crumb("Voxel Editor : ouverture de %s (%d voxels)", p.name.c_str(), (int)p.voxels.size());
+    crumb("Voxel Editor: opening %s (%d voxels)", p.name.c_str(), (int)p.voxels.size());
     m_vePart = part;
     m_veVox = p.voxels;
     m_veConn = p.conn;
@@ -209,7 +209,7 @@ void BrickApp::veAnalyze() {
     auto veNear = [&](const std::vector<float3>& set, const float3& q) { for (const float3& v : set) if (length(v - q) < 0.05f) return true; return false; };
     auto pt = [](int ax, float at, float u, float v) { float3 r; (&r.x)[ax] = at; (&r.x)[(ax + 1) % 3] = u; (&r.x)[(ax + 2) % 3] = v; return r; };
     const std::vector<VeRing> rings = veRings(m);
-    VeSug studs{"Tenons", "", {}, {}}, axles{"Axes ronds Ø 8", "", {}, {}}, axleHoles{"Trous ronds Ø 8", "", {}, {}}, pins{"Pins Ø 12", "", {}, {}}, pinHoles{"Trous de pin Ø 12", "", {}, {}};
+    VeSug studs{"Studs", "", {}, {}}, axles{"Round axles Ø 8", "", {}, {}}, axleHoles{"Round holes Ø 8", "", {}, {}}, pins{"Pins Ø 12", "", {}, {}}, pinHoles{"Pin holes Ø 12", "", {}, {}};
     // studs: two rings r 0.24 one above the other 0.16 apart (the top and the base of a stud), outward
     for (const VeRing& a : rings) {
         if (a.axis != 1 || !a.outward || std::fabs(a.r - 0.24f) > 0.025f) continue;
@@ -275,7 +275,7 @@ void BrickApp::veAnalyze() {
         }
     }
     // anti-studs: the cells of the stud grid covered by a flat face of the bottom
-    VeSug anti{"Anti-tenons", "", {}, {}};
+    VeSug anti{"Anti-studs", "", {}, {}};
     {
         std::vector<std::array<float3, 3>> flat;
         for (size_t k = 0; k + 2 < m.indices.size(); k += 3) {
@@ -316,7 +316,7 @@ void BrickApp::veAnalyze() {
         for (size_t k = sg->v.size(); k-- > 0;)   // (what is already placed is not proposed again)
             if (veNear(m_veVox, sg->v[k])) { sg->v.erase(sg->v.begin() + k); sg->t.erase(sg->t.begin() + k); }
         if (sg->v.empty()) continue;
-        snprintf(b, sizeof(b), "%d voxel%s · %s", (int)sg->v.size(), sg->v.size() > 1 ? "s" : "", sg == &anti ? "sous les faces plates du dessous" : sg == &studs ? "cylindres Ø 12 sur le dessus" : "le long des cylindres, tous les ½ tenon");
+        snprintf(b, sizeof(b), "%d voxel%s · %s", (int)sg->v.size(), sg->v.size() > 1 ? "s" : "", sg == &anti ? "under the flat bottom faces" : sg == &studs ? "Ø 12 cylinders on top" : "along the cylinders, every ½ stud");
         sg->detail = b;
         m_veSugs.push_back(*sg);
     }
@@ -486,7 +486,7 @@ void BrickApp::uiVoxelEditor() {
         u.text(ImVec2(x, hy + 3 * s), 9.5f, C_DIM, sub);
         x += std::max(stTrackW(u, 9.5f, t.c_str(), 1.4f * s, true), u.textW(9.5f, sub)) + 18 * s;
         // the status: its colour
-        const char* st = P.connSrc == 4 ? "Validée" : P.connSrc == 1 ? "LDCad" : P.connSrc == 2 ? "Auto" : "À traiter";
+        const char* st = P.connSrc == 4 ? "Validated" : P.connSrc == 1 ? "LDCad" : P.connSrc == 2 ? "Auto" : "To do";
         const float sw = u.textW(9.5f, st) + 30 * s;
         const ImVec2 sa(x, hy - 11 * s), sb(x + sw, hy + 11 * s);
         u.dl->AddRect(sa, sb, stConnCol(P.connSrc), 11 * s, 0, 1.5f * s);
@@ -497,26 +497,26 @@ void BrickApp::uiVoxelEditor() {
     float bx = hb.x - 14 * s, bw = 0;
     const float bh = 28 * s, by = hy - bh * 0.5f;
     {
-        stTrackW(u, 8.5f, "VALIDER · V", 1.2f * s, true);
-        bw = stTrackW(u, 8.5f, "VALIDER · V", 1.2f * s, true) + 24 * s;
-        if (veBtn(u, ImVec2(bx - bw, by), "VALIDER · V", bh, 2, s) || (!typing && !ctrl && ImGui::IsKeyPressed(ImGuiKey_V))) {
+        stTrackW(u, 8.5f, "VALIDATE · V", 1.2f * s, true);
+        bw = stTrackW(u, 8.5f, "VALIDATE · V", 1.2f * s, true) + 24 * s;
+        if (veBtn(u, ImVec2(bx - bw, by), "VALIDATE · V", bh, 2, s) || (!typing && !ctrl && ImGui::IsKeyPressed(ImGuiKey_V))) {
             veSave(true);
-            toast(std::string("Voxels validés : ") + P.name);
+            toast(std::string("Voxels validated: ") + P.name);
             const int nx = veNextPart();
             if (nx >= 0) openVoxelEditor(nx); else m_vePart = -1;
             return;
         }
         bx -= bw + 8 * s;
-        bw = stTrackW(u, 8.5f, "SUIVANTE À TRAITER ›", 1.2f * s, true) + 24 * s;
-        if (veBtn(u, ImVec2(bx - bw, by), "SUIVANTE À TRAITER ›", bh, 0, s) || (!typing && !ctrl && ImGui::IsKeyPressed(ImGuiKey_N))) {
+        bw = stTrackW(u, 8.5f, "NEXT TO DO ›", 1.2f * s, true) + 24 * s;
+        if (veBtn(u, ImVec2(bx - bw, by), "NEXT TO DO ›", bh, 0, s) || (!typing && !ctrl && ImGui::IsKeyPressed(ImGuiKey_N))) {
             veSave(false);
             const int nx = veNextPart();
-            if (nx >= 0) openVoxelEditor(nx); else toast("Plus de pièce rouge ni orange dans cette liste");
+            if (nx >= 0) openVoxelEditor(nx); else toast("No more red or orange part in this list");
             return;
         }
         bx -= bw + 8 * s;
-        bw = stTrackW(u, 8.5f, "FERMER", 1.2f * s, true) + 24 * s;
-        if (veBtn(u, ImVec2(bx - bw, by), "FERMER", bh, 0, s) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        bw = stTrackW(u, 8.5f, "CLOSE", 1.2f * s, true) + 24 * s;
+        if (veBtn(u, ImVec2(bx - bw, by), "CLOSE", bh, 0, s) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             veSave(false);   // (what was placed is kept, the label does not change)
             m_vePart = -1;
             return;
@@ -524,7 +524,7 @@ void BrickApp::uiVoxelEditor() {
         bx -= bw + 16 * s;
         // the steps
         const bool hasSug = !m_veSugs.empty();
-        const char* steps[3] = {"1 · DÉTECTER", "2 · CORRIGER", "3 · VALIDER"};
+        const char* steps[3] = {"1 · DETECT", "2 · FIX", "3 · VALIDATE"};
         const int cur = hasSug ? 0 : (P.connSrc == 4 && !m_veDirty ? 2 : 1);
         for (int k = 2; k >= 0; --k) {
             const float w = stTrackW(u, 8, steps[k], 1.2f * s, true) + 20 * s;
@@ -541,10 +541,10 @@ void BrickApp::uiVoxelEditor() {
     const ImVec2 la(20 * s, top), lb(20 * s + 220 * s, bot);
     stGlass(u.dl, la, lb, 16 * s, s);
     float ly = la.y + 14 * s;
-    stTrack(u, ImVec2(la.x + 14 * s, ly), 7.5f, C_DIM, "OUTILS", 1.6f * s);
+    stTrack(u, ImVec2(la.x + 14 * s, ly), 7.5f, C_DIM, "TOOLS", 1.6f * s);
     ly += 18 * s;
     struct T { const char* name; const char* key; ImGuiKey k; };
-    static const T tools[5] = {{"Sélection", "Q", ImGuiKey_Q}, {"Placer (aimanté)", "W", ImGuiKey_W}, {"Ligne d'axe", "L", ImGuiKey_L}, {"Remplir une face", "G", ImGuiKey_G}, {"Gomme", "E", ImGuiKey_E}};
+    static const T tools[5] = {{"Selection", "Q", ImGuiKey_Q}, {"Place (magnetic)", "W", ImGuiKey_W}, {"Axis line", "L", ImGuiKey_L}, {"Fill a face", "G", ImGuiKey_G}, {"Eraser", "E", ImGuiKey_E}};
     for (int k = 0; k < 5; ++k) {
         const ImVec2 a(la.x + 8 * s, ly), b(lb.x - 8 * s, ly + 30 * s);
         const bool on = m_veTool == k, h = u.hover(a, b);
@@ -564,7 +564,7 @@ void BrickApp::uiVoxelEditor() {
     }
     {   // the mirror: X, Z
         ly += 4 * s;
-        u.text(ImVec2(la.x + 20 * s, ly + 6 * s), 11, C_TEXT, "Miroir");
+        u.text(ImVec2(la.x + 20 * s, ly + 6 * s), 11, C_TEXT, "Mirror");
         const char* ax[2] = {"X", "Z"};
         for (int k = 0; k < 2; ++k) {
             const ImVec2 a(lb.x - 8 * s - (2 - k) * 38 * s, ly), b(a.x + 34 * s, ly + 26 * s);
@@ -576,14 +576,14 @@ void BrickApp::uiVoxelEditor() {
         if (!typing && !ctrl && ImGui::IsKeyPressed(ImGuiKey_M)) m_veMirror = (m_veMirror + 1) & 3;
         ly += 36 * s;
     }
-    stTrack(u, ImVec2(la.x + 14 * s, ly + 4 * s), 7.5f, C_DIM, "TYPE DE VOXEL", 1.6f * s);
+    stTrack(u, ImVec2(la.x + 14 * s, ly + 4 * s), 7.5f, C_DIM, "VOXEL TYPE", 1.6f * s);
     ly += 22 * s;
     {
         const ImVec2 a(la.x + 8 * s, ly), b(lb.x - 8 * s, ly + 26 * s);
         const bool h = u.hover(a, b);
         if (m_veAutoType) { u.dl->AddRectFilled(a, b, stA(C_ACCENT, 0.14f), 8 * s); u.dl->AddRect(a, b, stA(C_ACCENT, 0.55f), 8 * s, 0, 1.0f); }
         else if (h) u.dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 10), 8 * s);
-        u.text(ImVec2(a.x + 12 * s, (a.y + b.y) * 0.5f - u.fs(10.5f) * 0.55f), 10.5f, m_veAutoType ? C_ACCENT_TXT : C_TEXT, "Auto (selon la forme)");
+        u.text(ImVec2(a.x + 12 * s, (a.y + b.y) * 0.5f - u.fs(10.5f) * 0.55f), 10.5f, m_veAutoType ? C_ACCENT_TXT : C_TEXT, "Auto (from the shape)");
         if (h && u.pressed) m_veAutoType = !m_veAutoType;
         ly += 28 * s;
     }
@@ -610,7 +610,7 @@ void BrickApp::uiVoxelEditor() {
         ly += 6 * s;
         const ImVec2 a(la.x + 8 * s, ly), b(lb.x - 8 * s, ly + 26 * s);
         const bool h = u.hover(a, b);
-        u.text(ImVec2(a.x + 12 * s, (a.y + b.y) * 0.5f - u.fs(10.5f) * 0.55f), 10.5f, C_TEXT, "X-ray (pièce en verre)");
+        u.text(ImVec2(a.x + 12 * s, (a.y + b.y) * 0.5f - u.fs(10.5f) * 0.55f), 10.5f, C_TEXT, "X-ray (glass part)");
         const ImVec2 sa(b.x - 40 * s, a.y + 5 * s), sb(b.x - 8 * s, b.y - 5 * s);
         u.dl->AddRectFilled(sa, sb, m_veXray ? stA(C_ACCENT, 0.85f) : IM_COL32(255, 255, 255, 30), 8 * s);
         u.dl->AddCircleFilled(ImVec2(m_veXray ? sb.x - 8 * s : sa.x + 8 * s, (sa.y + sb.y) * 0.5f), 6 * s, m_veXray ? C_INK : IM_COL32(220, 222, 226, 255), 16);
@@ -624,9 +624,9 @@ void BrickApp::uiVoxelEditor() {
     stTrack(u, ImVec2(ra.x + 36 * s, ry + 7 * s - u.fs(8) * 0.52f), 8, C_TEXT, "ASSISTANT", 1.8f * s);
     if (!m_veSugs.empty()) {
         float w = 0;
-        stTrackW(u, 8.5f, "TOUT ACCEPTER · ENTRÉE", 1.2f * s, true);
-        w = stTrackW(u, 8.5f, "TOUT ACCEPTER · ENTRÉE", 1.2f * s, true) + 24 * s;
-        if (veBtn(u, ImVec2(rb.x - 14 * s - w, ry - 5 * s), "TOUT ACCEPTER · ENTRÉE", 24 * s, 1, s) || (!typing && ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+        stTrackW(u, 8.5f, "ACCEPT ALL · ENTER", 1.2f * s, true);
+        w = stTrackW(u, 8.5f, "ACCEPT ALL · ENTER", 1.2f * s, true) + 24 * s;
+        if (veBtn(u, ImVec2(rb.x - 14 * s - w, ry - 5 * s), "ACCEPT ALL · ENTER", 24 * s, 1, s) || (!typing && ImGui::IsKeyPressed(ImGuiKey_Enter))) {
             vePush();
             const int mir = m_veMirror;
             m_veMirror = 0;
@@ -636,10 +636,10 @@ void BrickApp::uiVoxelEditor() {
         }
     }
     ry += 32 * s;
-    stTrack(u, ImVec2(ra.x + 14 * s, ry), 7.5f, C_DIM, "TROUVÉ DANS LE MAILLAGE", 1.6f * s);
+    stTrack(u, ImVec2(ra.x + 14 * s, ry), 7.5f, C_DIM, "FOUND IN THE MESH", 1.6f * s);
     ry += 18 * s;
     if (m_veSugs.empty()) {
-        u.text(ImVec2(ra.x + 14 * s, ry), 10.5f, C_DIM, "Rien de plus à proposer.");
+        u.text(ImVec2(ra.x + 14 * s, ry), 10.5f, C_DIM, "Nothing more to suggest.");
         ry += 22 * s;
     }
     for (size_t i = 0; i < m_veSugs.size() && ry < rb.y - 160 * s; ++i) {
@@ -652,9 +652,9 @@ void BrickApp::uiVoxelEditor() {
         u.text(ImVec2(a.x + 30 * s, a.y + 9 * s), 11, C_TEXT, sg.label.c_str(), true);
         u.text(ImVec2(a.x + 14 * s, a.y + 30 * s), 9.5f, C_DIM, sg.detail.c_str());
         float w = 0;
-        stTrackW(u, 8.5f, "ACCEPTER", 1.2f * s, true);
-        w = stTrackW(u, 8.5f, "ACCEPTER", 1.2f * s, true) + 24 * s;
-        if (veBtn(u, ImVec2(b.x - 10 * s - w, a.y + 6 * s), "ACCEPTER", 22 * s, 0, s)) {
+        stTrackW(u, 8.5f, "ACCEPT", 1.2f * s, true);
+        w = stTrackW(u, 8.5f, "ACCEPT", 1.2f * s, true) + 24 * s;
+        if (veBtn(u, ImVec2(b.x - 10 * s - w, a.y + 6 * s), "ACCEPT", 22 * s, 0, s)) {
             vePush();
             const int mir = m_veMirror;
             m_veMirror = 0;
@@ -668,7 +668,7 @@ void BrickApp::uiVoxelEditor() {
     }
     if (!m_veSimilar.empty()) {
         ry += 6 * s;
-        stTrack(u, ImVec2(ra.x + 14 * s, ry), 7.5f, C_DIM, "PIÈCES PROCHES (MÊME TAILLE)", 1.6f * s);
+        stTrack(u, ImVec2(ra.x + 14 * s, ry), 7.5f, C_DIM, "SIMILAR PARTS (SAME SIZE)", 1.6f * s);
         ry += 18 * s;
         for (int i : m_veSimilar) {
             if (ry > rb.y - 80 * s) break;
@@ -677,8 +677,8 @@ void BrickApp::uiVoxelEditor() {
             u.dl->AddRect(ImVec2(a.x + 6 * s, a.y + 8 * s), ImVec2(a.x + 30 * s, b.y - 8 * s), stConnCol(q.connSrc), 5 * s, 0, 1.5f * s);
             std::string nm = stFit(u, 10, q.name + " · " + partFr(q.label), b.x - a.x - 150 * s, false);
             u.text(ImVec2(a.x + 38 * s, (a.y + b.y) * 0.5f - u.fs(10) * 0.55f), 10, C_TEXT, nm.c_str());
-            float w = stTrackW(u, 8.5f, "COPIER", 1.2f * s, true) + 24 * s;
-            if (veBtn(u, ImVec2(b.x - 6 * s - w, a.y + 8 * s), "COPIER", 24 * s, 0, s)) {
+            float w = stTrackW(u, 8.5f, "COPY", 1.2f * s, true) + 24 * s;
+            if (veBtn(u, ImVec2(b.x - 6 * s - w, a.y + 8 * s), "COPY", 24 * s, 0, s)) {
                 Part* src = m_lib.get(q.name);
                 if (src) {
                     vePush();
@@ -692,9 +692,9 @@ void BrickApp::uiVoxelEditor() {
         }
     }
     {   // the symmetry
-        const char* t = m_veMirror == 3 ? "Symétrie X et Z : chaque voxel posé se recopie" : m_veMirror == 1 ? "Symétrie X : chaque voxel posé se recopie de l'autre côté"
-                      : m_veMirror == 2 ? "Symétrie Z : chaque voxel posé se recopie de l'autre côté" : "Pas de symétrie (Miroir à gauche pour l'activer)";
-        stTrack(u, ImVec2(ra.x + 14 * s, rb.y - 58 * s), 7.5f, C_DIM, "SYMÉTRIE", 1.6f * s);
+        const char* t = m_veMirror == 3 ? "Symmetry X and Z: each voxel placed is copied" : m_veMirror == 1 ? "Symmetry X: each voxel placed is copied to the other side"
+                      : m_veMirror == 2 ? "Symmetry Z: each voxel placed is copied to the other side" : "No symmetry (Mirror on the left to turn it on)";
+        stTrack(u, ImVec2(ra.x + 14 * s, rb.y - 58 * s), 7.5f, C_DIM, "SYMMETRY", 1.6f * s);
         u.text(ImVec2(ra.x + 14 * s, rb.y - 40 * s), 10, m_veMirror ? C_TEXT : C_DIM, t);
     }
     // ================= the viewport
@@ -774,7 +774,7 @@ void BrickApp::uiVoxelEditor() {
                 float sx, sy;
                 if (!v.project(sg.v[k], sx, sy)) continue;
                 const float dd = std::hypot(sx - u.mouse.x, sy - u.mouse.y);
-                if (dd < bd) { bd = dd; snapP = sg.v[k]; snapT = sg.t[k]; why = "AIMANT · " + stUpper(sg.label); snapOk = true; }
+                if (dd < bd) { bd = dd; snapP = sg.v[k]; snapT = sg.t[k]; why = "MAGNET · " + stUpper(sg.label); snapOk = true; }
             }
         if (!snapOk && hit) {   // the smart snap 1: on a cylinder found, its axis (the middle of the matter), along it by ½ tenon
             for (const VeCyl& c : m_veCyl) {
@@ -787,7 +787,7 @@ void BrickApp::uiVoxelEditor() {
                 (&snapP.x)[a2] = c.v;
                 const bool r8 = std::fabs(c.r - 0.16f) < 0.03f;
                 if (m_veAutoType) snapT = r8 ? (c.outward ? CONN_AXLE : CONN_AXLEHOLE) : (c.outward ? CONN_PIN : CONN_PINHOLE);
-                why = std::string(c.outward ? "AXE DU CYLINDRE" : "CENTRE DU TROU") + (r8 ? " · Ø 8" : " · Ø 12");
+                why = std::string(c.outward ? "CYLINDER AXIS" : "HOLE CENTRE") + (r8 ? " · Ø 8" : " · Ø 12");
                 snapOk = true;
                 break;
             }
@@ -815,7 +815,7 @@ void BrickApp::uiVoxelEditor() {
                 snapP = hp - hn * (best2 * 0.5f);
                 snapP.y = std::round(snapP.y / 0.04f) * 0.04f;
                 if (m_veAutoType) snapT = CONN_AXLE;   // (the matter of a side: most often an axle)
-                why = "CENTRE DE LA MATIÈRE";
+                why = "MATERIAL CENTRE";
                 snapOk = true;
             }
         }
@@ -831,7 +831,7 @@ void BrickApp::uiVoxelEditor() {
             if (std::fabs(hn.x) > 0.7f) snapP.x = hp.x;
             if (std::fabs(hn.z) > 0.7f) snapP.z = hp.z;
             if (m_veAutoType) snapT = upF ? CONN_STUD : downF ? CONN_ANTISTUD : (uint8_t)m_veType;
-            why = upF ? "GRILLE · FACE DU DESSUS" : downF ? "GRILLE · FACE DU DESSOUS" : "GRILLE · FACE DE CÔTÉ";
+            why = upF ? "GRID · TOP FACE" : downF ? "GRID · BOTTOM FACE" : "GRID · SIDE FACE";
             snapOk = true;
         }
     }
@@ -936,7 +936,7 @@ void BrickApp::uiVoxelEditor() {
                 u.dl->AddLine(ImVec2(sx, sy - 21 * s), ImVec2(sx, sy - 15 * s), C_ACCENT, 1.5f * s);
                 u.dl->AddLine(ImVec2(sx, sy + 15 * s), ImVec2(sx, sy + 21 * s), C_ACCENT, 1.5f * s);
                 veMark(u.dl, ImVec2(sx, sy), 5 * s, snapT, 200, false, s);
-                const std::string t2 = std::string("type : ") + veName(snapT) + (m_veMirror ? " · miroir" : "");
+                const std::string t2 = std::string("type : ") + veName(snapT) + (m_veMirror ? " · mirror" : "");
                 const float tw = std::max(stTrackW(u, 7.6f, why.c_str(), 1.4f * s, true), u.textW(9.5f, t2.c_str())) + 22 * s;
                 const ImVec2 ta(sx + 22 * s, sy - 42 * s), tb(ta.x + tw, ta.y + 38 * s);
                 u.dl->AddRectFilled(ta, tb, IM_COL32(10, 11, 14, 225), 9 * s);
@@ -947,18 +947,18 @@ void BrickApp::uiVoxelEditor() {
         }
     }
     {   // the hint of the view
-        const char* hint = m_veTool == 2 ? (m_veLineA ? "Ligne d'axe : clique la seconde extrémité" : "Ligne d'axe : clique une extrémité")
-                         : m_veTool == 3 ? "Remplir une face : clique une face plate" : m_veTool == 4 ? "Gomme : clique un voxel" : m_veTool == 0 ? "Sélection : clique un voxel, 1 à 6 change son type, Suppr l'enlève"
-                         : "Placer : clique sur la pièce, le point s'aimante";
+        const char* hint = m_veTool == 2 ? (m_veLineA ? "Axis line: click the second end" : "Axis line: click one end")
+                         : m_veTool == 3 ? "Fill a face: click a flat face" : m_veTool == 4 ? "Eraser: click a voxel" : m_veTool == 0 ? "Select: click a voxel, 1 to 6 change its type, Del removes it"
+                         : "Place: click on the part, the point snaps";
         u.text(ImVec2(va.x + 14 * s, va.y + 12 * s), 10, C_DIM, hint);
-        u.text(ImVec2(va.x + 14 * s, vb.y - 22 * s), 9.5f, C_FAINT, "Clic droit ou Alt + clic gauche : tourner · clic molette : déplacer · molette : zoom · Ctrl+Z : annuler");
+        u.text(ImVec2(va.x + 14 * s, vb.y - 22 * s), 9.5f, C_FAINT, "Right click or Alt + left click: orbit · middle click: pan · wheel: zoom · Ctrl+Z: undo");
     }
     u.dl->PopClipRect();
     // ================= bottom: the counts, the work queue
     const ImVec2 qa(20 * s, d.y - 20 * s - bottomH), qb(d.x - 20 * s, d.y - 20 * s);
     stGlass(u.dl, qa, qb, 16 * s, s);
     {
-        stTrack(u, ImVec2(qa.x + 16 * s, qa.y + 14 * s), 7.5f, C_DIM, "VOXELS DE LA PIÈCE", 1.6f * s);
+        stTrack(u, ImVec2(qa.x + 16 * s, qa.y + 14 * s), 7.5f, C_DIM, "VOXELS OF THE PART", 1.6f * s);
         int cnt[6] = {0, 0, 0, 0, 0, 0}, sug[6] = {0, 0, 0, 0, 0, 0};
         for (uint8_t t : m_veConn) if (t < 6) ++cnt[t];
         for (const VeSug& sg : m_veSugs) for (uint8_t t : sg.t) if (t < 6) ++sug[t];
@@ -973,7 +973,7 @@ void BrickApp::uiVoxelEditor() {
     {
         const float x0 = qa.x + 400 * s;
         u.dl->AddLine(ImVec2(x0 - 16 * s, qa.y + 14 * s), ImVec2(x0 - 16 * s, qb.y - 14 * s), IM_COL32(255, 255, 255, 24), 1.0f);
-        stTrack(u, ImVec2(x0, qa.y + 14 * s), 7.5f, C_DIM, "FILE DE TRAVAIL · LES ROUGES, PUIS LES ORANGES", 1.6f * s);
+        stTrack(u, ImVec2(x0, qa.y + 14 * s), 7.5f, C_DIM, "WORK QUEUE · REDS, THEN ORANGES", 1.6f * s);
         std::vector<int> q;
         q.push_back(m_vePart);
         for (int pass = 3; pass >= 2 && q.size() < 16; --pass)
@@ -996,6 +996,6 @@ void BrickApp::uiVoxelEditor() {
             if (h && u.pressed && i != m_vePart) { veSave(false); openVoxelEditor(i); return; }
             cx += cs + 8 * s;
         }
-        if (q.size() == 1) u.text(ImVec2(x0 + 72 * s, qa.y + 58 * s), 10.5f, C_DIM, "Aucune autre pièce rouge ou orange dans la liste ouverte de la bibliothèque.");
+        if (q.size() == 1) u.text(ImVec2(x0 + 72 * s, qa.y + 58 * s), 10.5f, C_DIM, "No other red or orange part in the open library list.");
     }
 }

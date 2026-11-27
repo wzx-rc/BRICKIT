@@ -35,6 +35,7 @@ public:
     float giUpdateMs() const override { return r.giUpdateMs(); }
     float giBlendMs() const override { return r.giBlendMs(); }
     bool pathTracing() const override { return true; }
+    long deviceRemoved() const override { return r.device() ? (long)r.device()->GetDeviceRemovedReason() : 0; }
 };
 
 class GfxGuiDx12 final : public GfxGui {
@@ -57,7 +58,7 @@ public:
     ImTextureID createTexture(const uint8_t* rgba, uint32_t w, uint32_t h) override {
         // (counted by their ids: a texture let go twice no longer lowers the count, which let it pass the limit; the limit
         // 170 leaves the font atlas of ImGui room to grow: a crash in ImGui_ImplDX12_UpdateTexture, Wzx 10/11/2026)
-        if ((int)m_ids.size() >= 170) return (ImTextureID)0;
+        if ((int)m_ids.size() >= 900) return (ImTextureID)0;   // (1024 slots since 23/11/2026: 900 for BrickIt, the rest for ImGui)
         const ImTextureID id = l.createTexture(rgba, w, h);
         if (id) m_ids.insert(id);
         return id;

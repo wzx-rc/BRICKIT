@@ -8,6 +8,11 @@
 namespace brickit {
 
 static const ImU32 kGz[3] = {IM_COL32(0xc9, 0x1a, 0x09, 242), IM_COL32(0xf2, 0xcd, 0x37, 242), IM_COL32(0x00, 0x55, 0xbf, 242)};
+// Wzx 23/11/2026: Déplacer in three greys (white, grey, anthracite), each with an outline that keeps it on any floor;
+// the one under the mouse in the accent yellow. Tourner: white rings.
+static const ImU32 kGzMove[3] = {IM_COL32(0xf4, 0xf4, 0xf6, 245), IM_COL32(0x9a, 0x9d, 0xa4, 245), IM_COL32(0x3a, 0x3c, 0x42, 245)};
+static const ImU32 kGzOutline[3] = {IM_COL32(0, 0, 0, 120), IM_COL32(0, 0, 0, 120), IM_COL32(255, 255, 255, 110)};
+static const ImU32 kGzHot = IM_COL32(0xf7, 0xc5, 0x1e, 255);
 static float4 qNorm(const float4& q) { const float l = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w); return l > 0 ? float4(q.x / l, q.y / l, q.z / l, q.w / l) : float4(0, 0, 0, 1); }
 static float3 axisOf(int a) { return float3(a == 0 ? 1.0f : 0.0f, a == 1 ? 1.0f : 0.0f, a == 2 ? 1.0f : 0.0f); }
 // two unit vectors spanning the plane of a ring around axis a
@@ -25,21 +30,24 @@ static float segDist(ImVec2 p, ImVec2 a, ImVec2 b) {
 
 bool BrickApp::gizmoVisible() const {
     // (+ Réglages › Gizmo de rotation permanent: the rings, light, on any selected brick in Sélection and Construire)
-    return m_selected >= 0 && m_selected < (int)m_bricks.size() && !m_holding && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette &&
-           (m_mode == 2 || m_mode == 3 || (m_permRotate && !m_ipadCreme && (m_mode == 0 || m_mode == 1)));   // (the kit: only when asked, its Tourner / Déplacer pebbles, Wzx 22/11/2026)
+    return m_selected >= 0 && m_selected < (int)m_bricks.size() && (!m_holding || m_freeFromSphere) && !m_mechOn && !m_paintMode && !m_paintTool && !m_pipette && !m_pivotPick &&
+           (m_mode == 2 || m_mode == 3);   // (only when asked: the tools Déplacer and Tourner, no rings in Sélection / Construire, Wzx 23/11/2026)
 }
-float3 BrickApp::gizmoPivot(int b) const { return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b])); }
+float3 BrickApp::gizmoPivot(int b) const {
+    if (m_holding && m_freeFromSphere && b == m_held.brick && m_held.hasTarget) return m_held.snapVoxel;   // (the free move of the sphere: where the pivot goes)
+    return m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b]));
+}
 float BrickApp::gizmoScale(const float3& piv) const {
     float3 r, u, f;
     m_scene.camera.basis(r, u, f);
     float3 eye = m_scene.camera.target - f * m_scene.camera.distance;
-    return length(eye - piv) * 0.07f;
+    return length(eye - piv) * (m_ipad ? 0.07f : 0.049f);   // (PC: 30 % smaller, Wzx 24/11/2026; the iPad keeps it for the finger)
 }
 
 // Screen-space version of the web's invisible hit meshes (cylinders 0.11, tori 0.07, sphere 0.3); the sphere wins.
 BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
     GizmoHandle none;
-    if (!gizmoVisible()) return none;
+    if (!gizmoVisible() || m_holding) return none;
     View v = view();
     const float3 piv = gizmoPivot(m_selected);
     const float k = gizmoScale(piv);
@@ -51,7 +59,9 @@ BrickApp::GizmoHandle BrickApp::pickGizmo(float sx, float sy) const {
     v.project(piv + r * k, ex, ey);
     const float px = std::max(1.0f, std::fabs(ex - cx));   // pixels per gizmo unit
     const ImVec2 m(sx, sy);
-    // (no centre sphere any more, Wzx 14/11/2026: the plane handles, two axes at once, instead)
+    // the centre sphere of Déplacer (back, Wzx 23/11/2026: « un peu plus grosse et sélectionnable pour le free mode »):
+    // the brick in hand, free; it wins over the arrows
+    if (m_mode == 2 && std::hypot(sx - cx, sy - cy) < std::max(9.0f, 0.13f * px) + 5) return GizmoHandle{2, -1};
     float best = 1e30f;
     GizmoHandle bh;
     if (m_mode == 2)
@@ -209,6 +219,17 @@ void BrickApp::drawGizmo() {
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     View v = view();
     const float3 piv = gizmoPivot(m_selected);
+    if (m_sphPress) {   // the sphere held: a yellow ring fills in 0.35 s, then the choice of the pivot
+        float qx, qy;
+        if (v.project(piv, qx, qy)) {
+            const float e = std::clamp((float)(ImGui::GetTime() - m_sphPressT - 0.08) / 0.27f, 0.0f, 1.0f);
+            if (e > 0) {
+                const float R = 22 * m_ui, a0 = -1.5708f;
+                ImGui::GetForegroundDrawList()->PathArcTo(ImVec2(qx, qy), R, a0, a0 + 6.28318f * e, 40);
+                ImGui::GetForegroundDrawList()->PathStroke(IM_COL32(0xee, 0xb7, 0x0e, 255), 0, 3.0f * m_ui);
+            }
+        }
+    }
     const float k = gizmoScale(piv);
     float cx, cy;
     if (!v.project(piv, cx, cy)) return;
@@ -224,10 +245,11 @@ void BrickApp::drawGizmo() {
         int order[3] = {0, 1, 2};
         std::sort(order, order + 3, [&](int a, int b) { return dot(axisOf(a), f) > dot(axisOf(b), f); });
         for (int a : order) {
-            const ImU32 col = (hov.kind == 0 && hov.axis == a) ? white : kGz[a];
+            const ImU32 col = (hov.kind == 0 && hov.axis == a) ? kGzHot : kGzMove[a];
             ImVec2 p0, p1, tip;
             const float3 d = axisOf(a);
             if (!v.project(piv + d * (0.05f * k), p0.x, p0.y) || !v.project(piv + d * (1.03f * k), p1.x, p1.y) || !v.project(piv + d * (1.21f * k), tip.x, tip.y)) continue;
+            dl->AddLine(p0, p1, kGzOutline[a], std::max(1.5f, 0.036f * px) + 2.0f);   // (its outline)
             dl->AddLine(p0, p1, col, std::max(1.5f, 0.036f * px));
             // cone (radius 0.06, length 0.18) seen from the camera: triangle from its base to the tip
             float3 side = cross(d, f);
@@ -251,19 +273,26 @@ void BrickApp::drawGizmo() {
             ok &= v.project(piv + e1 * hi + e2 * hi, c1.x, c1.y);
             if (!ok) continue;
             const bool on = hov.kind == 3 && hov.axis == a;
-            const ImU32 base = kGz[a] & 0x00ffffffu;
-            dl->AddQuadFilled(q[0], q[1], q[2], q[3], on ? IM_COL32(255, 255, 255, 90) : (base | (60u << 24)));
+            const ImU32 base = kGzMove[a] & 0x00ffffffu;
+            dl->AddQuadFilled(q[0], q[1], q[2], q[3], on ? (kGzHot & 0x00ffffffu) | (90u << 24) : (base | (60u << 24)));
             // the L: along the far edges of the square, from one axis to the other
             const ImVec2 L[3] = {q[1], q[2], q[3]};
-            dl->AddPolyline(L, 3, on ? white : (base | (230u << 24)), 0, std::max(1.5f, 0.03f * px));
+            dl->AddPolyline(L, 3, kGzOutline[a], 0, std::max(1.5f, 0.03f * px) + 2.0f);
+            dl->AddPolyline(L, 3, on ? kGzHot : (base | (230u << 24)), 0, std::max(1.5f, 0.03f * px));
             (void)c2;
         }
-        dl->AddCircleFilled(ImVec2(cx, cy), std::max(2.5f, 0.05f * px), IM_COL32(255, 255, 255, 220), 16);   // (the pivot, a small dot)
+        {   // the centre sphere: free move (bigger, taken by the mouse or a finger)
+            const bool on = hov.kind == 2;
+            const float rr = std::max(7.0f, 0.11f * px);
+            dl->AddCircleFilled(ImVec2(cx, cy + 1.5f), rr + 1.5f, IM_COL32(0, 0, 0, 90), 32);
+            dl->AddCircleFilled(ImVec2(cx, cy), rr, on ? kGzHot : IM_COL32(255, 255, 255, 235), 32);
+            dl->AddCircleFilled(ImVec2(cx - rr * 0.3f, cy - rr * 0.3f), rr * 0.35f, IM_COL32(255, 255, 255, on ? 120 : 0), 16);
+        }
         if (m_gizmoDragging && (m_gz.h.kind == 0 || m_gz.h.kind == 3) && m_gz.brick >= 0 && m_gz.brick < (int)m_bricks.size()) {
             // how far it moved: in studs on the floor, in plates upwards
             const float3 dd = m_bricks[m_gz.brick].pos - m_gz.startPos;
             char t[96];
-            snprintf(t, sizeof(t), "%+d · %+d tenons · %+d plaques", (int)std::lround(dd.x / kPitch), (int)std::lround(dd.z / kPitch), (int)std::lround(dd.y / kPlate));
+            snprintf(t, sizeof(t), "%+d · %+d studs · %+d plates", (int)std::lround(dd.x / kPitch), (int)std::lround(dd.z / kPitch), (int)std::lround(dd.y / kPlate));
             const ImVec2 tp(cx + 0.6f * px, cy - 0.9f * px);
             const ImVec2 ts = ImGui::CalcTextSize(t);
             dl->AddRectFilled(ImVec2(tp.x - 6, tp.y - 3), ImVec2(tp.x + ts.x + 6, tp.y + ts.y + 3), IM_COL32(16, 17, 19, 200), 6);
@@ -273,7 +302,7 @@ void BrickApp::drawGizmo() {
         for (int a = 0; a < 3; ++a) {
             // (Wzx 15/11/2026: in the style of the arrows of Déplacer, no ticks; the permanent rings: white, light)
             const bool hot = hov.kind == 1 && hov.axis == a, light = m_mode != 3;
-            const ImU32 col = hot ? white : light ? IM_COL32(255, 255, 255, 75) : kGz[a];
+            const ImU32 col = hot ? kGzHot : light ? IM_COL32(255, 255, 255, 75) : IM_COL32(255, 255, 255, 215);   // (white rings, Wzx 23/11/2026)
             float3 ru, rv;
             ringBasis(a, ru, rv);
             std::vector<ImVec2> pts;
@@ -282,7 +311,11 @@ void BrickApp::drawGizmo() {
                 ImVec2 q;
                 if (v.project(piv + (ru * std::cos(t) + rv * std::sin(t)) * (0.78f * k), q.x, q.y)) pts.push_back(q);
             }
-            if (pts.size() > 1) dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, light && !hot ? std::max(1.5f, 0.03f * px) : std::max(2.0f, 0.045f * px));
+            if (pts.size() > 1) {
+                const float w = light && !hot ? std::max(1.5f, 0.03f * px) : std::max(2.0f, 0.045f * px);
+                if (!light) dl->AddPolyline(pts.data(), (int)pts.size(), IM_COL32(0, 0, 0, 90), 0, w + 2.0f);   // (an outline: white on a light floor)
+                dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, w);
+            }
         }
     }
 }
@@ -342,6 +375,142 @@ void BrickApp::drawPivots() {
         float3 w = xf.point(p.voxels[curIdx]);
         float x, y, ex, ey;
         if (v.project(w, x, y) && v.project(w + r * 0.3f, ex, ey)) dl->AddCircleFilled(ImVec2(x, y), std::max(3.0f, std::fabs(ex - x)), IM_COL32(255, 255, 255, 255), 24);
+    }
+}
+
+} // namespace brickit
+
+
+namespace brickit {
+
+// --------------------------------------------------------------------------- W: choose the pivot (Wzx 24/11/2026)
+
+void BrickApp::pivotPickBegin() {
+    if (m_selected < 0 || m_selected >= (int)m_bricks.size()) return;
+    m_pivotPick = true;
+    m_pivotPickBrick = m_selected;
+    m_pivotHot = -1;
+    m_pivotPickPressed = false;
+    m_pivotPickT0 = ImGui::GetTime();
+    syncObjects();   // (the other bricks at 50 %)
+}
+
+void BrickApp::pivotPickEnd(bool apply) {
+    if (!m_pivotPick) return;
+    const int b = m_pivotPickBrick;
+    if (apply && b >= 0 && b < (int)m_bricks.size() && m_pivotHot >= 0) {
+        const Part& p = m_lib.parts[m_bricks[b].part];
+        if (m_pivotHot < (int)p.voxels.size()) {
+            m_bricks[b].grab = m_pivotHot;
+            m_pivotDoneAt = m_build.worldVoxel(m_bricks[b], p.voxels[m_pivotHot]);
+            m_pivotDoneT = ImGui::GetTime();   // (the ripple where the gizmo comes back)
+            autosave();
+        }
+    }
+    m_pivotPick = false;
+    m_pivotPickBrick = -1;
+    m_pivotHot = -1;
+    syncObjects();
+}
+
+// the cursor over the voxels: the nearest within reach is the one (a click sets it; a drag glides over them and the
+// release sets the last); a click away from every voxel, the right button or Escape: leave without change
+void BrickApp::pivotPickInput(ImVec2 mp, bool inView) {
+    const int b = m_pivotPickBrick;
+    if (b < 0 || b >= (int)m_bricks.size() || m_selected != b || m_mode != 2 || m_holding || m_mechOn) { pivotPickEnd(false); return; }
+    const Part& p = m_lib.parts[m_bricks[b].part];
+    const Affine xf = m_scene.objects[m_firstBrickObject + b].transform();
+    const View v = view();
+    float best = (34 * m_ui) * (34 * m_ui);
+    int hot = -1;
+    if (inView)
+        for (size_t i = 0; i < p.voxels.size(); ++i) {
+            float x, y;
+            if (!v.project(xf.point(p.voxels[i]), x, y)) continue;
+            const float d = (x - mp.x) * (x - mp.x) + (y - mp.y) * (y - mp.y);
+            if (d < best) { best = d; hot = (int)i; }
+        }
+    m_pivotHot = hot;
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { pivotPickEnd(false); return; }
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) m_pivotPickPressed = true;
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && m_pivotPickPressed && inView) pivotPickEnd(hot >= 0);
+}
+
+void BrickApp::drawPivotPick() {
+    const double now = ImGui::GetTime();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const float s = m_ui;
+    const View v = view();
+    if (m_pivotDoneT >= 0 && now - m_pivotDoneT < 0.45) {   // the new pivot: a ripple
+        float x, y;
+        if (v.project(m_pivotDoneAt, x, y)) {
+            const float e = (float)((now - m_pivotDoneT) / 0.45), k = 1 - (1 - e) * (1 - e);
+            dl->AddCircle(ImVec2(x, y), (8 + 34 * k) * s, IM_COL32(255, 255, 255, (int)(220 * (1 - e))), 40, 2.5f * s);
+            dl->AddCircle(ImVec2(x, y), (6 + 18 * k) * s, IM_COL32(0xee, 0xb7, 0x0e, (int)(255 * (1 - e))), 32, 2.0f * s);
+        }
+    }
+    if (!m_pivotPick) return;
+    const int b = m_pivotPickBrick;
+    if (b < 0 || b >= (int)m_bricks.size()) return;
+    const Part& p = m_lib.parts[m_bricks[b].part];
+    const Affine xf = m_scene.objects[m_firstBrickObject + b].transform();
+    float3 r, u, f;
+    m_scene.camera.basis(r, u, f);
+    const float3 curW = m_build.worldVoxel(m_bricks[b], m_build.grabOf(m_bricks[b]));
+    const float3 mid = xf.point((p.bmin + p.bmax) * 0.5f);
+    static const ImU32 col[3] = {IM_COL32(0xff, 0xc2, 0x1a, 255), IM_COL32(0x38, 0xd0, 0xe8, 255), IM_COL32(0xe0, 0x5a, 0xd7, 255)};
+    // the voxels: from the current pivot outwards, one after the other (0.012 s apart, 0.2 s each, a little overshoot);
+    // the far side of the brick dimmer
+    struct V { int i; float d; };
+    std::vector<V> order;
+    for (size_t i = 0; i < p.voxels.size(); ++i) order.push_back({(int)i, length(xf.point(p.voxels[i]) - curW)});
+    std::sort(order.begin(), order.end(), [](const V& a, const V& c) { return a.d < c.d; });
+    const float t = (float)(now - m_pivotPickT0);
+    float hx = 0, hy = 0, cx = 0, cy = 0;
+    bool hotOn = false, curOn = v.project(curW, cx, cy);
+    for (size_t k = 0; k < order.size(); ++k) {
+        const int i = order[k].i;
+        const float3 w = xf.point(p.voxels[i]);
+        float x, y, ex, ey;
+        if (!v.project(w, x, y) || !v.project(w + r * 0.16f, ex, ey)) continue;
+        const float e = std::clamp((t - std::min(0.35f, k * 0.012f)) / 0.2f, 0.0f, 1.0f);
+        if (e <= 0) continue;
+        const float back = 1.70158f, sc = 1 + (back + 1) * std::pow(e - 1, 3.0f) + back * std::pow(e - 1, 2.0f);   // (ease out back)
+        const bool behind = dot(w - mid, f) > 0.05f;
+        const uint8_t c = p.conn[i];
+        const int ty = (c == CONN_PIN || c == CONN_PINHOLE) ? 1 : (c == CONN_AXLE || c == CONN_AXLEHOLE) ? 2 : 0;
+        const float rad = std::max(3.5f * s, std::fabs(ex - x)) * sc * (i == m_pivotHot ? 1.7f : 1.0f);
+        const int a = behind ? 120 : 245;
+        dl->AddCircleFilled(ImVec2(x, y), rad + 1.5f * s, IM_COL32(0, 0, 0, a / 3), 20);
+        dl->AddCircleFilled(ImVec2(x, y), rad, (col[ty] & 0x00FFFFFF) | ((ImU32)a << 24), 20);
+        if (i == m_pivotHot) { hotOn = true; hx = x; hy = y; }
+    }
+    if (curOn) {   // the current pivot: white, a ring that breathes
+        const float pr = (6 + 1.5f * (float)std::sin(now * 5.0)) * s;
+        dl->AddCircleFilled(ImVec2(cx, cy), 4.5f * s, IM_COL32(255, 255, 255, 255), 20);
+        dl->AddCircle(ImVec2(cx, cy), pr + 4 * s, IM_COL32(255, 255, 255, 170), 32, 1.6f * s);
+    }
+    if (hotOn) {   // the voxel aimed: a yellow ring, a line from the current pivot, its tag
+        dl->AddCircle(ImVec2(hx, hy), 13 * s, IM_COL32(0xee, 0xb7, 0x0e, 255), 32, 2.2f * s);
+        if (curOn && (std::fabs(hx - cx) + std::fabs(hy - cy)) > 4) {
+            const float L = std::sqrt((hx - cx) * (hx - cx) + (hy - cy) * (hy - cy));
+            for (float q = 0; q < L; q += 9 * s) {
+                const float q1 = std::min(L, q + 5 * s);
+                dl->AddLine(ImVec2(cx + (hx - cx) * q / L, cy + (hy - cy) * q / L), ImVec2(cx + (hx - cx) * q1 / L, cy + (hy - cy) * q1 / L), IM_COL32(255, 255, 255, 150), 1.4f * s);
+            }
+        }
+        const char* tag = ImGui::IsMouseDown(ImGuiMouseButton_Left) ? "release: new pivot" : "click: new pivot";
+        const ImVec2 ts = ImGui::CalcTextSize(tag), tp(hx + 16 * s, hy - 26 * s);
+        dl->AddRectFilled(ImVec2(tp.x - 7 * s, tp.y - 3 * s), ImVec2(tp.x + ts.x + 7 * s, tp.y + ts.y + 3 * s), IM_COL32(16, 17, 19, 225), 8 * s);
+        dl->AddText(tp, IM_COL32(255, 255, 255, 240), tag);
+    }
+    {   // the hint, under the view
+        const char* hint = "Choose the pivot: click a voxel, or drag over them and release  ·  Esc / right click: cancel";
+        const ImVec2 ts = ImGui::CalcTextSize(hint);
+        const float a = std::clamp(t / 0.25f, 0.0f, 1.0f);
+        const ImVec2 tp((m_stage.x + m_stage.z) * 0.5f - ts.x * 0.5f, m_stage.w - 64 * s);
+        dl->AddRectFilled(ImVec2(tp.x - 12 * s, tp.y - 6 * s), ImVec2(tp.x + ts.x + 12 * s, tp.y + ts.y + 6 * s), IM_COL32(16, 17, 19, (int)(225 * a)), 12 * s);
+        dl->AddText(tp, IM_COL32(255, 255, 255, (int)(235 * a)), hint);
     }
 }
 

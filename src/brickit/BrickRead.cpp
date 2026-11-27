@@ -17,7 +17,7 @@ bool BrickApp::hasSteps() const {
 }
 
 void BrickApp::startReading(int step) {
-    if (!hasSteps()) { toast("Ce modèle n'a pas d'étapes à lire"); return; }
+    if (!hasSteps()) { toast("This model has no steps to read"); return; }
     int last = 0;
     for (const Brick& b : m_bricks) last = std::max(last, b.step + 1);
     m_readSteps = last;

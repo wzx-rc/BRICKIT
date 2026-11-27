@@ -166,13 +166,16 @@ function ldColor(code, parent) {
   return LDCOLORS.has(code) ? LDCOLORS.get(code) : parent;
 }
 function loadPart(name) {
-  const tris = [], snaps = [], prims = [];
+  const tris = [], snaps = [], prims = [], lines2 = [], lines5 = [];   // lines2: the edge lines (type 2: the hard edges drawn by LDraw)
   // colour: -1 = the colour of the brick (16), else 0xRRGGBB of the print
   function walk(fname, M, invert, certifiedParent, depth, colour = -1) {
     const f = findFile(fname);
     if (!f) { console.warn("missing", fname); return; }
     const rel = f.rel;
     const lines = readLines(f.full);
+    // the embossed text of some parts (the tyres 70695, 15413: « 3D Text "LEGO Group ..." » subparts, Wzx 24/11/2026:
+    // « enlever ce texte-là sur les pneus »): left out of the geometry; the printed patterns (stickers) stay
+    if (depth > 0 && process.env.KEEP_TEXT !== "1" && /^0\s+~?.*3D Text/i.test(lines[0] || "")) return [];   // (KEEP_TEXT=1: as before)
     const sh = shadowOf(rel);
     // snaps of this file (shadow) + its includes
     const mySnaps = [];
@@ -181,7 +184,7 @@ function loadPart(name) {
       const L = matFrom(inc.ori, inc.pos);
       for (const [gx, gz] of gridOffsets(inc.grid)) collectInclSnaps(inc.ref, mul(M, mul(L, [1, 0, 0, 0, 1, 0, 0, 0, 1, gx, 0, gz])), mySnaps, 0);
     }
-    if (BEVEL_STUDS && STUD_PROFILES[rel]) { tris.push(...latheStud(STUD_PROFILES[rel], M)); return mySnaps; }
+    if (BEVEL_STUDS && STUD_PROFILES[rel]) { const lt = latheStud(STUD_PROFILES[rel], M, HIRES ? 48 : 24); for (const x of lt) x.fine = true; tris.push(...lt); return mySnaps; }
     const childSnaps = [];
     let winding = "CCW", certified = false, invertNext = false;
     for (const raw of lines) {
@@ -210,6 +213,8 @@ function loadPart(name) {
         const sub = walkCollect(child, W, inv, cert, depth + 1, ldColor(Number(t[1]), colour));
         childSnaps.push(...sub);
         invertNext = false;
+      } else if (t[0] === "2" || t[0] === "5") {
+        (t[0] === "2" ? lines2 : lines5).push([tp(M, t.slice(2, 5).map(Number)), tp(M, t.slice(5, 8).map(Number))]);
       } else if (t[0] === "3" || t[0] === "4") {
         const n = t[0] === "3" ? 3 : 4;
         const pts = [];
@@ -220,6 +225,7 @@ function loadPart(name) {
           const tri = q.map((i) => pts[i]);
           const rev = [tri[0], tri[2], tri[1]];
           tri.c = c; rev.c = c;
+          if (rel.startsWith("p/48/")) { tri.fine = true; rev.fine = true; }   // (a 48-sided primitive: smooth already)
           if (!cert) { tris.push(tri); tris.push(rev); continue; }
           let ccw = winding === "CCW";
           if (invert) ccw = !ccw;
@@ -236,7 +242,7 @@ function loadPart(name) {
   function walkCollect(child, W, inv, cert, depth, colour) { return walk(child, W, inv, cert, depth, colour) || []; }
   const top = walk(name, IDENT, false, true, 0) || [];
   snaps.push(...top);
-  return { tris, snaps, prims };
+  return { tris, snaps, prims, lines2, lines5 };
 }
 
 // ---------------------------------------------------------------- the cracks of the LDraw meshes (Wzx 10/11/2026: « certains
@@ -379,10 +385,204 @@ function repairTris(tris) {
   return { tris: out, split };
 }
 
+// ---------------------------------------------------------------- HD: the curved surfaces refined (Wzx 26/11/2026)
+// « certaines pièces ne passent pas en HD, notamment celles qui sont en courbe »: the HD library took the p/48
+// primitives where they exist, but the curves modelled in the part itself (the arch of a mudguard, a curved slope, a
+// tyre tread, the 16-sided primitives that have no 48 version) kept their coarse facets. Every triangle on a smooth
+// surface is now refined as a curved point-normal triangle (PN triangle, Vlachos 2001): its corners stay where they are,
+// its edges become cubic curves tangent to the surface (from the smoothed normals), its inside follows; each triangle cut
+// in L x L. Watertight: an edge shared by two triangles gets one curve (its end normals averaged over the two). Kept
+// straight: the hard edges (LDraw type 2 lines, a dihedral over the crease), the open edges (a crack, a T-junction).
+// L from the curvature of the part: its largest smooth angle between two faces over 8 degrees (1 to 3). The faces of
+// the p/48 primitives and of the bevelled studs (48 sides in HD) are smooth already: left as they are.
+// Which edges are smooth (LDraw semantics): a conditional line (type 5) marks a smooth edge, an edge line (type 2) a
+// hard one; an edge without a line is smooth under the crease angle. The parts modelled with coarse facets (35 to 45
+// degrees, the arch of a mudguard: Wzx 26/11/2026) draw conditional lines on them: smooth, though over 35 degrees.
+const SMOOTH_MAX = 70;   // (a conditional line on a sharper edge: hard all the same)
+function edgeKeyL(p, q) { const a = p.map((x) => Math.round(x * 50)).join(","), b = q.map((x) => Math.round(x * 50)).join(","); return a < b ? a + "|" + b : b + "|" + a; }
+function pnRefine(tris, lines2, lines5, crease = 35, refine = true) {
+  const key = (p) => p.map((x) => Math.round(x * 50)).join(",");   // (0.02 LDU)
+  const ek = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const hard = new Set(), soft = new Set();
+  for (const [a, c] of lines2) hard.add(edgeKeyL(a, c));
+  for (const [a, c] of lines5) soft.add(edgeKeyL(a, c));
+  const cosT = Math.cos((crease * Math.PI) / 180), cosS = Math.cos((SMOOTH_MAX * Math.PI) / 180);
+  const col = (t) => (t.c === undefined ? -1 : t.c);
+  const mk = (list) => {
+    const faces = [];
+    for (const t of list) {
+      const u = [t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]], v = [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]];
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const l = Math.hypot(...n);
+      faces.push(l < 1e-9 ? null : { t, n: n.map((x) => x / l), area: l / 2, k: t.map(key) });
+    }
+    const edges = new Map(), incident = new Map();
+    faces.forEach((f, i) => {
+      if (!f) return;
+      for (let c = 0; c < 3; c++) {
+        if (!incident.has(f.k[c])) incident.set(f.k[c], []);
+        incident.get(f.k[c]).push([i, c]);
+        const e = ek(f.k[c], f.k[(c + 1) % 3]);
+        if (!edges.has(e)) edges.set(e, []);
+        edges.get(e).push(i);
+      }
+    });
+    return { faces, edges, incident };
+  };
+  const smoothEdge = (e, fa, fb) => {
+    if (col(fa.t) !== col(fb.t)) return false;
+    if (hard.has(e)) return false;
+    const d = dot(fa.n, fb.n);
+    if (soft.has(e)) return d > cosS;
+    return d >= cosT;
+  };
+  // the normal of each corner: the faces around the vertex joined to this one through smooth edges (a fan: no smoothing
+  // across a hard edge, even a slight one; across a conditional line even a coarse one)
+  const corners = (M) => {
+    const { faces, edges, incident } = M;
+    const parent = new Map();
+    const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+    const id = (fi, c) => fi * 3 + c;
+    for (const [, list] of incident) for (const [fi, c] of list) parent.set(id(fi, c), id(fi, c));
+    for (const [e, l] of edges) {
+      if (l.length !== 2) continue;
+      const fa = faces[l[0]], fb = faces[l[1]];
+      if (!smoothEdge(e, fa, fb)) continue;
+      const [k0, k1] = e.split("|");
+      for (const kk of [k0, k1]) {
+        const ca = fa.k.indexOf(kk), cb = fb.k.indexOf(kk);
+        const ra = find(id(l[0], ca)), rb = find(id(l[1], cb));
+        if (ra !== rb) parent.set(ra, rb);
+      }
+    }
+    const sum = new Map();
+    faces.forEach((f, fi) => { if (f) for (let c = 0; c < 3; c++) { const r = find(id(fi, c)); const s0 = sum.get(r) || [0, 0, 0]; for (let i = 0; i < 3; i++) s0[i] += f.n[i] * f.area; sum.set(r, s0); } });
+    const out = [];
+    faces.forEach((f, fi) => {
+      if (!f) { out.push(null); return; }
+      out.push([0, 1, 2].map((c) => { const v = sum.get(find(id(fi, c))); const l = Math.hypot(...v) || 1; return v.map((x) => x / l); }));
+    });
+    return out;
+  };
+  let M = mk(tris);
+  let cn = corners(M);
+  if (refine) {
+    // the curved edges (smooth, not flat, between two faces that are not fine already) and the level
+    const curved = new Map();
+    let maxAng = 0;
+    for (const [e, l] of M.edges) {
+      if (l.length !== 2) continue;
+      const fa = M.faces[l[0]], fb = M.faces[l[1]];
+      if (fa.t.fine || fb.t.fine || !smoothEdge(e, fa, fb)) continue;
+      const d = dot(fa.n, fb.n);
+      if (d > 0.99996) continue;   // (flat: under half a degree)
+      const [k0, k1] = e.split("|");
+      const ns = [k0, k1].map((kk) => {
+        const na = cn[l[0]][fa.k.indexOf(kk)], nb = cn[l[1]][fb.k.indexOf(kk)];
+        const v = [na[0] + nb[0], na[1] + nb[1], na[2] + nb[2]], ll = Math.hypot(...v) || 1;
+        return v.map((x) => x / ll);
+      });
+      curved.set(e, { k0, n0: ns[0], n1: ns[1] });
+      const P0 = fa.t[fa.k.indexOf(k0)], P1 = fa.t[fa.k.indexOf(k1)];
+      if (Math.hypot(P1[0] - P0[0], P1[1] - P0[1], P1[2] - P0[2]) > 1.5) maxAng = Math.max(maxAng, (Math.acos(Math.min(1, d)) * 180) / Math.PI);
+    }
+    // The hard edges that follow a curve (the ridge of a chamfer along the arch of a mudguard, the rim of a curved
+    // slope): a chain of hard edges turning a little at each vertex. Each one becomes the Catmull-Rom curve through the
+    // chain (its control points from its neighbours), the same for the two faces along it: the outline is round, not
+    // a polygon. A corner (a turn over 35 degrees, a vertex with three hard edges or more) ends the curve there.
+    const hardAt = new Map();   // vertex key -> [the hard edges there: other end key, its point]
+    const ptOf = new Map();
+    for (const [e, l] of M.edges) {
+      if (l.length !== 2) continue;
+      const fa = M.faces[l[0]], fb = M.faces[l[1]];
+      if (fa.t.fine || fb.t.fine || smoothEdge(e, fa, fb)) continue;
+      if (dot(fa.n, fb.n) > 0.99996) continue;
+      const [k0, k1] = e.split("|");
+      ptOf.set(k0, fa.t[fa.k.indexOf(k0)]); ptOf.set(k1, fa.t[fa.k.indexOf(k1)]);
+      for (const [x, y] of [[k0, k1], [k1, k0]]) { if (!hardAt.has(x)) hardAt.set(x, []); hardAt.get(x).push(y); }
+    }
+    const sub = (a, c) => [a[0] - c[0], a[1] - c[1], a[2] - c[2]];
+    const nrm = (v) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
+    // the tangent of the chain at vertex k, going towards kn (null: no smooth continuation, a corner or an end)
+    const tangentAt = (k, kn) => {
+      const list = hardAt.get(k);
+      if (!list || list.length !== 2) return null;
+      const kp = list[0] === kn ? list[1] : list[0];
+      const P = ptOf.get(k), Pn = ptOf.get(kn), Pp = ptOf.get(kp);
+      const d1 = nrm(sub(Pn, P)), d0 = nrm(sub(P, Pp));
+      const turn = (Math.acos(Math.max(-1, Math.min(1, dot(d0, d1)))) * 180) / Math.PI;
+      if (turn < 1 || turn > 35) return null;
+      return { T: [(Pn[0] - Pp[0]) / 2, (Pn[1] - Pp[1]) / 2, (Pn[2] - Pp[2]) / 2], turn };
+    };
+    for (const [k0, list] of hardAt) for (const k1 of list) {
+      if (k0 > k1) continue;
+      const t0 = tangentAt(k0, k1), t1 = tangentAt(k1, k0);
+      if (!t0 && !t1) continue;
+      const P0 = ptOf.get(k0), P1 = ptOf.get(k1), D = sub(P1, P0);
+      const T0 = t0 ? t0.T : D, T1 = t1 ? [-t1.T[0], -t1.T[1], -t1.T[2]] : D;   // (t1 points back along the chain)
+      const c0 = [0, 1, 2].map((i) => P0[i] + T0[i] / 3), c1 = [0, 1, 2].map((i) => P1[i] - T1[i] / 3);
+      curved.set(k0 + "|" + k1, { k0, cp: [c0, c1] });
+      if (Math.hypot(...D) > 1.5) maxAng = Math.max(maxAng, t0 ? t0.turn : 0, t1 ? t1.turn : 0);
+    }
+    const L = Math.max(1, Math.min(4, Math.ceil(maxAng / 9)));
+    if (L > 1 && curved.size) {
+      const out = [];
+      const lin = (a, c, w) => [0, 1, 2].map((i) => a[i] + (c[i] - a[i]) * w);
+      for (const f of M.faces) {
+        if (!f) continue;
+        const t = f.t, k = f.k, P = t;
+        let any = false;
+        const E = [];
+        for (let c = 0; c < 3; c++) {
+          const e = ek(k[c], k[(c + 1) % 3]), cv = curved.get(e);
+          const P0 = t[c], P1 = t[(c + 1) % 3];
+          if (!cv) { E.push([lin(P0, P1, 1 / 3), lin(P0, P1, 2 / 3)]); continue; }
+          any = true;
+          if (cv.cp) { E.push(cv.k0 === k[c] ? [cv.cp[0], cv.cp[1]] : [cv.cp[1], cv.cp[0]]); continue; }   // (a curved hard edge)
+          const N0 = cv.k0 === k[c] ? cv.n0 : cv.n1, N1 = cv.k0 === k[c] ? cv.n1 : cv.n0;
+          const w01 = dot([P1[0] - P0[0], P1[1] - P0[1], P1[2] - P0[2]], N0), w10 = dot([P0[0] - P1[0], P0[1] - P1[1], P0[2] - P1[2]], N1);
+          E.push([[0, 1, 2].map((i) => (2 * P0[i] + P1[i] - w01 * N0[i]) / 3), [0, 1, 2].map((i) => (2 * P1[i] + P0[i] - w10 * N1[i]) / 3)]);
+        }
+        if (!any) { out.push(t); continue; }
+        const [b210, b120] = E[0], [b021, b012] = E[1], [b102, b201] = E[2];
+        const Ee = [0, 1, 2].map((i) => (b210[i] + b120[i] + b021[i] + b012[i] + b102[i] + b201[i]) / 6);
+        const V = [0, 1, 2].map((i) => (P[0][i] + P[1][i] + P[2][i]) / 3);
+        const b111 = [0, 1, 2].map((i) => Ee[i] + (Ee[i] - V[i]) / 2);
+        const at = (u, v) => {
+          const w = 1 - u - v;
+          return [0, 1, 2].map((i) => P[0][i] * u * u * u + P[1][i] * v * v * v + P[2][i] * w * w * w + 3 * (b210[i] * u * u * v + b120[i] * u * v * v + b201[i] * u * u * w + b021[i] * v * v * w + b102[i] * u * w * w + b012[i] * v * w * w) + 6 * b111[i] * u * v * w);
+        };
+        const G = [];
+        for (let i = 0; i <= L; i++) { G.push([]); for (let j = 0; j <= L - i; j++) { const u = 1 - (i + j) / L, v = j / L; G[i].push(i === 0 && j === 0 ? P[0] : i === 0 && j === L ? P[1] : i === L ? P[2] : at(u, v)); } }
+        // the pieces of a hard or conditional edge stay so (their keys added)
+        for (let c = 0; c < 3; c++) {
+          const e = ek(k[c], k[(c + 1) % 3]);
+          const set = hard.has(e) ? hard : soft.has(e) ? soft : null;
+          if (!set) continue;
+          const pts = [];
+          for (let s2 = 0; s2 <= L; s2++) pts.push(c === 0 ? G[0][s2] : c === 1 ? G[s2][L - s2] : G[L - s2][0]);
+          for (let s2 = 0; s2 < L; s2++) set.add(ek(key(pts[s2]), key(pts[s2 + 1])));
+        }
+        for (let i = 0; i < L; i++) for (let j = 0; j < L - i; j++) {
+          const a2 = G[i][j], b2 = G[i][j + 1], c2 = G[i + 1][j];
+          const t1 = [a2, b2, c2]; t1.c = t.c; out.push(t1);
+          if (j < L - i - 1) { const d2 = G[i + 1][j + 1]; const t2 = [b2, d2, c2]; t2.c = t.c; out.push(t2); }
+        }
+      }
+      M = mk(out);
+      cn = corners(M);
+    }
+  }
+  const res = [];
+  M.faces.forEach((f, i) => { if (f) { f.t.cn = cn[i]; res.push(f.t); } });
+  return res;
+}
+
 // ---------------------------------------------------------------- geometry: to BrickIt space, weld, crease normals
 const toB = (p) => [p[0] * LDU, -p[1] * LDU, -p[2] * LDU];
 function buildMesh(trisL, crease = 35) {
-  const tris = trisL.map((t) => { const b = t.map(toB); b.c = t.c === undefined ? -1 : t.c; return b; });
+  const tris = trisL.map((t) => { const b = t.map(toB); b.c = t.c === undefined ? -1 : t.c; b.cn = t.cn ? t.cn.map((n) => [n[0], -n[1], -n[2]]) : null; return b; });
   // drop degenerate
   const faces = [];
   for (const t of tris) {
@@ -408,7 +608,8 @@ function buildMesh(trisL, crease = 35) {
     for (const p of f.t) {
       const k = key(p);
       const nn = [0, 0, 0];
-      for (const gj of incident.get(k)) {
+      if (f.t.cn) { const cc = f.t.cn[f.t.indexOf(p)]; nn[0] = cc[0]; nn[1] = cc[1]; nn[2] = cc[2]; }
+      else for (const gj of incident.get(k)) {
         const g = faces[gj];
         const d = g.n[0] * f.n[0] + g.n[1] * f.n[1] + g.n[2] * f.n[2];
         if (d >= cosT) for (let i = 0; i < 3; i++) nn[i] += g.n[i] * g.area;
@@ -659,6 +860,7 @@ export function convertPart(id, opts = {}) {
   let maxY = -1e9; for (const t of part.tris) for (const p of t) maxY = Math.max(maxY, p[1]);
   part.maxY = maxY;
   if (opts.repair || process.env.REPAIR === "1") part.tris = repairTris(part.tris).tris;   // (the cracks closed)
+  if (HIRES && process.env.NO_PN !== "1") part.tris = pnRefine(part.tris, part.lines2, part.lines5, opts.crease ?? 35, opts.refine !== false);   // (HD: smooth by the LDraw lines, the curved surfaces refined)
   const mesh = buildMesh(part.tris, opts.crease ?? 35);
   const { vox, studs, types, source } = buildVoxels(part, mesh, opts);
   const size = [mesh.mx[0] - mesh.mn[0], mesh.mx[1] - mesh.mn[1], mesh.mx[2] - mesh.mn[2]];

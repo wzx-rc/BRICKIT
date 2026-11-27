@@ -30,6 +30,99 @@ void BrickApp::mouseTestFrame() {
     if (t.empty()) return;
     const float sw = m_stage.z - m_stage.x, sh = m_stage.w - m_stage.y;
     View v = view();
+    if (t == "browse") {   // the library browsed category after category (the thumbnails must keep coming, 24/11/2026)
+        static const char* fams[] = {"basique", "formes", "technic", "mecanique", "vehicules", "batiment"};
+        static int shown = 0;
+        if (m_frame >= 10 && m_frame < 610 && m_frame % 8 == 0) {
+            const int k = (m_frame - 10) / 8;
+            m_stFam = fams[(k / 12) % 6];
+            m_stSub = k % 12 - 1;
+            m_clsGridScroll = 0;
+            m_cardsScroll = 0;
+        }
+        if (m_frame > 10) shown = std::max(shown, (int)m_lazyThumbs.size());
+        if (m_frame == 640) {
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") == 0 && f) {
+                fprintf(f, "browse: BrickIt textures %d, thumbnails in memory %zu (max seen %d), category %s / %d\n", m_gui->liveTextures(), m_lazyThumbs.size(), shown, m_stFam.c_str(), m_stSub);
+                fclose(f);
+            }
+        }
+        return;
+    }
+    if (t == "lcgizmo") {   // the gizmo of a light (with --lc-test 1): its three rings, its centre, then its target taken unselected
+        static std::string rep;
+        static float4 r0;
+        static float3 p0, t0;
+        auto quat = [](const float4& q) { char b[96]; snprintf(b, sizeof(b), "(%.3f %.3f %.3f %.3f)", q.x, q.y, q.z, q.w); return std::string(b); };
+        if (m_lights.empty()) return;
+        UserLight& l = m_lights[0];
+        const int ringStart[3] = {20, 40, 60};
+        for (int ra = 0; ra < 3; ++ra) {
+            if (m_frame == ringStart[ra]) {
+                m_selLight = 0; m_selCam = -1;
+                float3 o, ax[3];
+                lcAxes(0, 0, o, ax);
+                const float k = gizmoScale(o) * 0.82f;
+                const float3 eu = ax[(ra + 1) % 3], ev = ax[(ra + 2) % 3];
+                ImVec2 best(0, 0), bestT(0, 0);
+                float farD = -1;
+                for (int j = 0; j < 24; ++j) {   // the point of the ring farthest from the centre on screen (no other handle there)
+                    const float tt = j * 6.2831853f / 24;
+                    float x, y, x2, y2, cx, cy;
+                    if (!v.project(o + (eu * std::cos(tt) + ev * std::sin(tt)) * k, x, y) || !v.project(o + (eu * std::cos(tt + 0.25f) + ev * std::sin(tt + 0.25f)) * k, x2, y2) || !v.project(o, cx, cy)) continue;
+                    const float dd = std::hypot(x - cx, y - cy);
+                    if (dd > farD) { farD = dd; best = ImVec2(x, y); bestT = ImVec2(x2, y2); }
+                }
+                r0 = l.rot;
+                m_mouseScript.clear();
+                dragScript(m_mouseScript, m_frame + 1, best, ImVec2(best.x + (bestT.x - best.x) * 3, best.y + (bestT.y - best.y) * 3));
+            }
+            if (m_frame == ringStart[ra] + 17) {
+                float3 o, ax[3];
+                lcAxes(0, 0, o, ax);
+                const float4 d = l.rot;
+                const float dot4 = std::fabs(d.x * r0.x + d.y * r0.y + d.z * r0.z + d.w * r0.w);
+                char b[200];
+                snprintf(b, sizeof(b), "ring %d: turned %.1f deg %s -> %s\n", ra, 2 * std::acos(std::min(1.0f, dot4)) * 57.29578f, quat(r0).c_str(), quat(d).c_str());
+                rep += b;
+            }
+        }
+        if (m_frame == 80) {   // the centre: dragged 80 px to the right
+            float cx, cy;
+            v.project(l.pos, cx, cy);
+            p0 = l.pos;
+            m_mouseScript.clear();
+            dragScript(m_mouseScript, 81, ImVec2(cx, cy), ImVec2(cx + 80, cy));
+        }
+        if (m_frame == 97) { char b[160]; snprintf(b, sizeof(b), "centre: moved %.2f cm\n", length(l.pos - p0)); rep += b; }
+        if (m_frame == 100) {   // the target on, the light let go, its point taken and dropped on the model (its middle on screen)
+            l.targetOn = true;
+            float3 mn(1e30f), mx(-1e30f);
+            for (const Brick& br : m_bricks) { const Part& pp = m_lib.parts[br.part]; if (pp.loaded) { mn = minv(mn, br.pos + pp.bmin); mx = maxv(mx, br.pos + pp.bmax); } }
+            l.target = float3((mn.x + mx.x) * 0.5f, 0.0f, mx.z + 20.0f);   // (on the floor beside the model)
+            syncLights();
+            m_selLight = -1;
+            t0 = l.target;
+            float tx, ty, mx2, my2;
+            v.project(l.target, tx, ty);
+            v.project((mn + mx) * 0.5f, mx2, my2);
+            m_mouseScript.clear();
+            dragScript(m_mouseScript, 101, ImVec2(tx, ty), ImVec2(mx2, my2));
+        }
+        if (m_frame == 118) {
+            float sx, sy;
+            v.project(l.target, sx, sy);
+            float3 hp;
+            const int hit = pickBrick(sx, sy, &hp);
+            char b[240];
+            snprintf(b, sizeof(b), "target: selected light %d, moved %.2f cm, on a brick %s (%.2f cm from the brick surface)\n", m_selLight, length(l.target - t0), hit >= 0 ? "yes" : "no", hit >= 0 ? length(hp - l.target) : -1.0f);
+            rep += b;
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") == 0 && f) { fputs(rep.c_str(), f); fclose(f); }
+        }
+        return;
+    }
     const bool swipeTest = t.rfind("swipe", 0) == 0;
     if (m_frame == (swipeTest ? 22 : 10)) {
         m_mouseScript.clear();
@@ -39,8 +132,49 @@ void BrickApp::mouseTestFrame() {
             m_mouseScript.push_back({12, a.x, a.y, -1});
             m_mouseScript.push_back({13, a.x, a.y, 0});
             for (int k = 1; k <= 60; ++k) m_mouseScript.push_back({13 + k, a.x + (b.x - a.x) * k / 60.0f, a.y + (b.y - a.y) * k / 60.0f, -1});
-        } else if (t == "marquee") {
-            m_mode = 0;
+        } else if (t == "pivot" || t == "wdrag" || t == "sphdrag") {   // W: the sphere chooses the pivot / a brick dragged comes in hand
+            m_mode = 2;
+            select(3);
+            m_mtGrab0 = m_bricks[3].grab;
+            float x, y;
+            v.project(gizmoPivot(3), x, y);
+            const Part& p = m_lib.parts[m_bricks[3].part];
+            const Affine xf = m_scene.objects[m_firstBrickObject + 3].transform();
+            int farI = 0;
+            float best = -1;
+            for (size_t i = 0; i < p.voxels.size(); ++i) { const float d = length(xf.point(p.voxels[i]) - gizmoPivot(3)); if (d > best) { best = d; farI = (int)i; } }
+            m_mtGrabWant = farI;
+            float tx, ty;
+            v.project(xf.point(p.voxels[farI]), tx, ty);
+            if (t == "pivot") {   // the sphere held still (long press), then a voxel clicked
+                m_mouseScript.push_back({12, x, y, -1});
+                m_mouseScript.push_back({13, x, y, 0});
+                for (int k = 14; k < 120; ++k) m_mouseScript.push_back({k, x, y, -1});   // (held still: the choice opens; 0.35 s even at 300 fps)
+                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({120 + k, x + (tx - x) * k / 10.0f, y + (ty - y) * k / 10.0f, -1});   // glided, still held
+                m_mouseScript.push_back({134, tx, ty, 1});   // released on the voxel: set, and out
+            } else if (t == "sphdrag") {   // the sphere dragged: the free move, the gizmo kept
+                m_mouseScript.push_back({12, x, y, -1});
+                m_mouseScript.push_back({13, x, y, 0});
+                for (int k = 1; k <= 12; ++k) m_mouseScript.push_back({13 + k, x + k * 8.0f, y, -1});
+            } else {   // a press on the brick away from the gizmo, a drag: it comes in hand
+                const Box bx = m_build.aabbOf(m_bricks[3].part, m_bricks[3].rot, m_bricks[3].pos);
+                float bx0, by0;
+                v.project(float3(bx.mn.x + 0.1f, (bx.mn.y + bx.mx.y) * 0.5f, bx.mx.z - 0.1f), bx0, by0);
+                m_mouseScript.push_back({12, bx0, by0, -1});
+                m_mouseScript.push_back({13, bx0, by0, 0});
+                for (int k = 1; k <= 10; ++k) m_mouseScript.push_back({13 + k, bx0 + k * 6.0f, by0, -1});
+            }
+        } else if (t == "hold") {   // a press held still on a brick (Studio): the ring of the colours
+            m_mode = 1;
+            select(-1);
+            const Box bx = m_build.aabbOf(m_bricks[3].part, m_bricks[3].rot, m_bricks[3].pos);
+            float x, y;
+            v.project((bx.mn + bx.mx) * 0.5f, x, y);
+            m_mouseScript.push_back({12, x, y, -1});
+            m_mouseScript.push_back({13, x, y, 0});
+            for (int k = 1; k <= 70; ++k) m_mouseScript.push_back({13 + k, x, y, -1});
+        } else if (t == "marquee" || t == "marquee1") {
+            m_mode = t == "marquee" ? 0 : 1;
             select(-1);
             dragScript(m_mouseScript, 12, ImVec2(m_stage.x + sw * 0.08f, m_stage.y + sh * 0.12f), ImVec2(m_stage.x + sw * 0.92f, m_stage.y + sh * 0.9f));
         } else if (t == "gizmo" || t == "ring") {
@@ -248,10 +382,14 @@ void BrickApp::mouseTestFrame() {
                    " mouse=" + std::to_string((int)ImGui::GetIO().MousePos.x) + "," + std::to_string((int)ImGui::GetIO().MousePos.y) + " down=" + std::to_string(ImGui::IsMouseDown(0)) +
                    " overUi=" + std::to_string(m_overUi) + " swipe=" + std::to_string(m_swipe.id) + "/" + std::to_string(m_swipe.dir) + " libPress=" + std::to_string(m_libPress) + " tray=" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].y : -1)) + "-" + std::to_string((int)(m_uiRects.size() > 1 ? m_uiRects[1].w : -1)) + " cardsMax?scroll=" + std::to_string(m_cardsScroll);
     }
-    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
+    if (m_frame == (t.rfind("swipe", 0) == 0 ? 46 : t == "hold" ? 80 : t == "pivot" ? 160 : 34)) {   // (the swipes start at frame 24: the cards answer from ~16)
         FILE* f = nullptr;
         if (_wfopen_s(&f, (m_exeDir + L"\\mouse_test.txt").c_str(), L"w") != 0 || !f) return;
-        if (t == "marquee") fprintf(f, "marquee: selected=%zu of %zu bricks (expected all)\n", selection().size(), m_bricks.size());
+        if (t == "pivot") fprintf(f, "pivot: grab %d -> %d (expected %d), choosing %d (expected 0)\n", m_mtGrab0, m_bricks[3].grab, m_mtGrabWant, m_pivotPick ? 1 : 0);
+        if (t == "sphdrag") fprintf(f, "sphdrag: brick in hand %d (expected 1), gizmo shown %d (expected 1), choosing %d (expected 0)\n", m_holding ? 1 : 0, gizmoVisible() ? 1 : 0, m_pivotPick ? 1 : 0);
+        if (t == "wdrag") fprintf(f, "wdrag: brick in hand %d (expected 1), marquee %d (expected 0)\n", m_holding ? 1 : 0, m_marquee ? 1 : 0);
+        if (t == "hold") fprintf(f, "hold: ring of colours open=%d (expected 1), marking menu=%d (expected 0)\n", m_crRing, m_stMenu);
+        if (t == "marquee" || t == "marquee1") fprintf(f, "marquee: selected=%zu of %zu bricks (expected all)\n", selection().size(), m_bricks.size());
         else if (t == "swipe") fprintf(f, "swipe: cards scroll %.0f -> %.0f at release, %.0f now (inertia: further), velocity %.0f, brick in hand=%d (expected 0)\n", m_mtScroll0, m_mtScrollRel, m_cardsScroll, m_cardsVel, m_holding);
         else if (t == "swipediag") fprintf(f, "swipe diagonal (56 deg from up): brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);
         else if (t == "swipeup") fprintf(f, "swipe up: brick in hand=%d (expected 1), cards scroll %.0f -> %.0f (expected unchanged)\n", m_holding, m_mtScroll0, m_cardsScroll);

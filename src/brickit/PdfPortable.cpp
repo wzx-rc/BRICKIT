@@ -13,7 +13,7 @@ bool pdfBackendRender(void* doc, int page, int width, PdfReader::Image& img);
 
 #ifndef __APPLE__
 std::shared_ptr<void> pdfBackendOpen(const std::wstring&, std::vector<std::pair<float, float>>&, std::string& error) {
-    error = "lecture PDF non disponible sur ce système";
+    error = "PDF reading not available on this system";
     return nullptr;
 }
 bool pdfBackendRender(void*, int, int, PdfReader::Image&) { return false; }

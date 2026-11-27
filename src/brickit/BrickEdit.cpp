@@ -1,5 +1,6 @@
 // BrickIt - viewport editing: the brick in hand (typed snap), selection, duplicate, rotate, colours, undo, files.
 #include "BrickApp.h"
+#include "Stage.h"
 #include "CrashLog.h"
 #include <algorithm>
 #include "Platform.h"
@@ -110,7 +111,7 @@ void BrickApp::spawn(int part, float sx, float sy) {
     m_held.vpos = m_held.target + float3(0, 1.2f, 0);
     m_held.vrot = m_held.rot;
     m_held.squash = 0.55f;
-    toast("Brique en main : clic pour poser, R tourner, T basculer, clic droit annuler");
+    toast("Brick in hand: click to place, R rotate, T tilt, right click cancel");
 }
 
 void BrickApp::beginMove(int brick, float sx, float sy) {
@@ -156,7 +157,7 @@ void BrickApp::updateHeld(float sx, float sy) {
 void BrickApp::dropHeld(bool keepCopy) {
     if (!m_holding) return;
     if (m_held.blocked) {
-        toast("Placement impossible : plus de 50 % de la brique est dans une autre");
+        toast("Cannot place: more than 50 % of the brick is inside another");
         return;
     }
     if (m_held.dropping) return;
@@ -221,7 +222,7 @@ void BrickApp::resetRotation() {
     }
     syncObjects();
     autosave();
-    toast("Rotation remise droite (90°)");
+    toast("Rotation straightened (90°)");
 }
 
 void BrickApp::select(int brick, bool add) {
@@ -274,7 +275,7 @@ void BrickApp::duplicateSelected() {
         int c = m_build.stackedCopy(i);
         if (c >= 0) last = c;
     }
-    if (last < 0) { m_undo.pop_back(); toast("Pas de place libre au-dessus de cette brique"); return; }
+    if (last < 0) { m_undo.pop_back(); toast("No free space above this brick"); return; }
     m_selected = last;
     m_multi.clear();
     rebuildScene();
@@ -350,7 +351,7 @@ void BrickApp::turnSelectedFree(int dir) {
         if (worst > 0.5f) {
             m_bricks = m_undo.back();
             m_undo.pop_back();
-            toast("Rotation refusée : la brique entrerait dans une autre (Sécurité)");
+            toast("Rotation refused: the brick would go into another (Safety)");
             return;
         }
     }
@@ -446,9 +447,9 @@ void BrickApp::noteRecent(int part) {
 // --------------------------------------------------------------------------- files
 
 bool BrickApp::saveScene(const std::wstring& path) {
-    std::string text = m_build.toJson(m_scene.camera);
+    std::string text = sceneJson();   // (the bricks and the look of the scene: BrickStudio.cpp)
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Impossible d'écrire le fichier"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"wb") != 0 || !f) { toast("Cannot write the file"); return false; }
     fwrite(text.data(), 1, text.size(), f);
     fclose(f);
     m_scenePath = path;
@@ -462,7 +463,7 @@ bool BrickApp::saveScene(const std::wstring& path) {
         }
         m_hubStale = true;
     }
-    toast("Scène enregistrée");
+    toast("Scene saved");
     return true;
 }
 
@@ -471,7 +472,7 @@ bool BrickApp::openScene(const std::wstring& path) {
     for (auto& c : ext) c = (wchar_t)towlower(c);
     if (ext == L".ldr" || ext == L".mpd" || ext == L".dat") return importLDraw(path);   // an LDraw model (OMR)
     FILE* f = nullptr;
-    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("Fichier introuvable"); return false; }
+    if (_wfopen_s(&f, path.c_str(), L"rb") != 0 || !f) { toast("File not found"); return false; }
     std::string text;
     char buf[65536];
     size_t n;
@@ -487,6 +488,7 @@ bool BrickApp::openScene(const std::wstring& path) {
     m_scenePath = path;
     cloudForget();   // (a scene of a file: a new scene of the cloud)
     rebuildScene();
+    applySceneLook(text);   // (its lights, cameras, stage)
     toast(msg);
     return true;
 }
@@ -503,12 +505,12 @@ void BrickApp::saveDialog() {
     // .brick (Wzx 10/11/2026): the scene of BrickIt between the apps (PC, iPad, Fichiers, AirDrop); the same JSON as the
     // .v3d.json of the editor, which still opens. A scene opened as .v3d.json is saved again as .brick.
     if (suggested.size() > 9 && suggested.compare(suggested.size() - 9, 9, L".v3d.json") == 0) suggested = suggested.substr(0, suggested.size() - 9) + L".brick";
-    plat::saveFileDialog(L"Scène BrickIt (*.brick)\0*.brick\0Scène de l'éditeur (*.v3d.json)\0*.v3d.json;*.json\0", L"brick", suggested,
+    plat::saveFileDialog(L"BrickIt scene (*.brick)\0*.brick\0Editor scene (*.v3d.json)\0*.v3d.json;*.json\0", L"brick", suggested,
                          [this](const std::wstring& p) { if (!p.empty()) saveScene(p); });
 }
 
 void BrickApp::openDialog() {
-    plat::openFileDialog(L"Scène BrickIt ou modèle LDraw (*.brick, *.v3d.json, *.ldr, *.mpd)\0*.brick;*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0Tous les fichiers\0*.*\0",
+    plat::openFileDialog(L"BrickIt scene or LDraw model (*.brick, *.v3d.json, *.ldr, *.mpd)\0*.brick;*.v3d.json;*.json;*.ldr;*.mpd;*.dat\0All files\0*.*\0",
                          L"brick", [this](const std::wstring& p) { if (!p.empty()) openScene(p); }, m_scenePath);
 }
 
@@ -525,11 +527,11 @@ void BrickApp::shareScene() {
 // (Rapports/report_<date>.txt), then the share sheet (Mail, AirDrop, Fichiers)
 void BrickApp::sendReport() {
     m_popup = 0;
-    crumb("Rapport demandé");
-    const std::wstring p = crashWriteReport("RAPPORT (envoyé depuis l'app)");
-    if (p.empty()) { toast("Rapport impossible : le journal n'est pas actif"); return; }
+    crumb("Report requested");
+    const std::wstring p = crashWriteReport("REPORT (sent from the app)");
+    if (p.empty()) { toast("Cannot report: the log is not active"); return; }
     if (m_ipad) plat::shareFile(p);
-    else toast("Rapport écrit : " + plat::toUtf8(p));
+    else toast("Report written: " + plat::toUtf8(p));
 }
 
 // --------------------------------------------------------------------------- input
@@ -553,7 +555,7 @@ void BrickApp::finishMarquee(bool add) {
     m_multi.assign(all.size() > 1 ? all.begin() + 1 : all.end(), all.end());
     syncObjects();
     char t[64];
-    snprintf(t, sizeof(t), "%d briques sélectionnées", (int)all.size());
+    snprintf(t, sizeof(t), "%d bricks selected", (int)all.size());
     if (!all.empty()) toast(t);
 }
 
@@ -574,7 +576,7 @@ void BrickApp::editInput() {
         const bool ctrl = io.KeyCtrl;
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Z)) undo();
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y)) redo();
-        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) duplicateSelected();
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_D)) { if (m_selLight >= 0 || m_selCam >= 0) duplicateLightOrCamera(); else duplicateSelected(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_G) && !m_holding) { if (io.KeyShift) ungroupSelected(); else groupSelected(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) { if (io.KeyShift) saveDialog(); else saveNow(); }
         if (ctrl && ImGui::IsKeyPressed(ImGuiKey_N)) newScene();
@@ -584,15 +586,22 @@ void BrickApp::editInput() {
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_R)) rotateSelected(1);
         // Q, W, E: Sélection, Déplacer, Tourner, as Maya (Wzx 15/11/2026; Q and E turned the brick before)
         if (m_studioUi && !ctrl && !m_holding) {
-            if (ImGui::IsKeyPressed(ImGuiKey_Q)) stTool(0);
+            if (ImGui::IsKeyPressed(ImGuiKey_A)) stTool(1);   // (A: Construire, first of the tools; Q turns the other way of S, Wzx 23/11/2026)
             if (ImGui::IsKeyPressed(ImGuiKey_W)) stTool(4);
             if (ImGui::IsKeyPressed(ImGuiKey_E)) stTool(5);
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_S)) rotateSelected(1);   // (Q / S: Wzx 09/11/2026)
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_Q)) rotateSelected(-1);
+        const bool manPages = m_pManual.visible && !m_mechOn && !m_pdfSizes.empty() && !io.WantTextInput;
+        if (manPages) {   // the instructions open: ← → turn their pages, wherever the pointer is
+            const int N = (int)m_pdfSizes.size();
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) && m_pdfPage > 1) { m_pdfPage -= 1; m_prefsDirty = true; }
+            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && m_pdfPage < N) { m_pdfPage += 1; m_prefsDirty = true; }
+        }
         if (!m_reading && !m_holding) {   // the arrows: the selection moves by a stud, along the view; Page up / down: a plate
             int ax = 0, az = 0, ay = 0;
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
-            if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ax = 1;
+            if (!manPages && ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) ax = -1;
+            if (!manPages && ImGui::IsKeyPressed(ImGuiKey_RightArrow)) ax = 1;
             if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) az = 1;
             if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) az = -1;
             if (ImGui::IsKeyPressed(ImGuiKey_PageUp)) ay = 1;
@@ -611,9 +620,9 @@ void BrickApp::editInput() {
             }
         }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_C)) cycleGrab();
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels : affichés (tenons jaunes, pins cyan, axles magenta)" : "Voxels : masqués"); }
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_V)) { m_showVox = !m_showVox; syncObjects(); toast(m_showVox ? "Voxels: shown (yellow studs, cyan pins, magenta axles)" : "Voxels: hidden"); }
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_P)) m_pivotEdit = !m_pivotEdit;
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;
+        if (!ctrl && !m_studioUi && ImGui::IsKeyPressed(ImGuiKey_A)) m_animOn = !m_animOn;   // (Studio: A is Construire; the animations in Réglages)
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_F)) frameSelection();   // F: the view framed on the selection (as Maya; nothing selected: everything)
         if (ImGui::IsKeyPressed(ImGuiKey_Space)) pickUpSelected();
         if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_T) && m_holding) {   // tilt towards the viewer
@@ -629,10 +638,11 @@ void BrickApp::editInput() {
             else deleteSelected();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-            if (m_holding) cancelHeld();
+            if (m_pivotPick) pivotPickEnd(false);
+            else if (m_holding) cancelHeld();
             else if (!leaveGroup()) select(-1);   // inside a group: Échap leaves it first
         }
-        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grille : oui" : "Grille : non"); }
+        if (!ctrl && ImGui::IsKeyPressed(ImGuiKey_G)) { m_build.gridSnap = !m_build.gridSnap; toast(m_build.gridSnap ? "Grid: on" : "Grid: off"); }
         if (m_studioUi && !m_ipad && !ctrl) {   // Studio: the tools on 1 to 6 (Sélection, Construire, Pinceau, Pipette, Déplacer, Tourner)
             static const ImGuiKey kKeys[6] = {ImGuiKey_1, ImGuiKey_2, ImGuiKey_3, ImGuiKey_4, ImGuiKey_5, ImGuiKey_6};
             for (int k = 0; k < 6; ++k) if (ImGui::IsKeyPressed(kKeys[k])) stTool(k);
@@ -652,6 +662,28 @@ void BrickApp::editInput() {
     }
     if (m_holding && inView && m_opt.spawnPart.empty() && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) updateHeld(mp.x, mp.y);
     if (io.KeyAlt) { m_pressed = false; return; }   // Maya: Alt + a button is the camera (no pick, no menu, no paint)
+    if (m_pivotPick) { pivotPickInput(mp, inView); m_pressed = false; return; }   // (W: choosing the pivot has the mouse)
+    if (!m_holding) m_freeFromSphere = false;
+    if (m_sphPress) {   // W, the sphere pressed (Wzx 24/11/2026)
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || m_selected < 0) m_sphPress = false;   // (a click: nothing)
+        else if (std::fabs(mp.x - m_sphPressAt.x) + std::fabs(mp.y - m_sphPressAt.y) > 6 * m_ui) {   // dragged: the free move, the gizmo kept
+            m_sphPress = false;
+            m_pressPoint = gizmoPivot(m_selected);
+            const bool ap = m_autoPivot;
+            m_autoPivot = false;
+            beginMove(m_selected, mp.x, mp.y);
+            m_autoPivot = ap;
+            m_dragStarted = true;
+            m_freeFromSphere = true;
+        } else if (ImGui::GetTime() - m_sphPressT > 0.35) {   // held still: the pivot; the same press glides over the voxels and its
+            m_sphPress = false;                                // release sets the pivot and leaves (Wzx 24/11/2026)
+            pivotPickBegin();
+            m_pivotPickPressed = true;
+        }
+        m_pressed = false;
+        if (m_sphPress || m_pivotPick) return;
+    }
+    if (io.KeyShift && ImGui::IsMouseDown(ImGuiMouseButton_Right)) { m_pressed = false; m_rmbMoved = true; return; }   // (Shift + right: the light, cameraInput)
 
     // right button: a click without moving cancels the brick in hand (a drag orbits the camera)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { m_rmbPos = mp; m_rmbMoved = false; }
@@ -681,6 +713,7 @@ void BrickApp::editInput() {
     }
     if (!inView) return;
     if (io.KeyAlt) return;   // Alt + left drag orbits
+    if (objInput(mp)) return;   // the lights and cameras of the user, their handles (BrickLights.cpp)
 
     if (!m_holding && !m_gizmoDragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) m_gizmoHover = pickGizmo(mp.x, mp.y);
     if (m_gizmoDragging) {
@@ -689,6 +722,18 @@ void BrickApp::editInput() {
         return;
     }
     if (m_pipette && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_pipette = false;
+    if (m_matPick && ImGui::IsKeyPressed(ImGuiKey_Escape)) m_matPick = false;
+    if (m_matPick && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_holding) {   // the pipette of the Material panel
+        const int b = pickBrick(mp.x, mp.y);
+        if (b >= 0) {
+            m_color = m_bricks[b].color;
+            m_matPick = false;
+            m_matRubber = isRubberPart(m_lib.parts[m_bricks[b].part]);   // (a tyre: its rubber, not the plastic of its colour)
+            m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});
+            toast(std::string("Material: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + (m_matRubber ? " rubber (tyres)" : ""));
+        }
+        return;
+    }
     if (m_paintStroke) {   // the Pinceau held: held a moment (or moved), a circle of rays paints all it covers
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !m_paintTool) {
             m_paintStroke = false;
@@ -723,7 +768,7 @@ void BrickApp::editInput() {
             m_paintFx.push_back({mp, m_color, ImGui::GetTime(), 0});   // (a ring, a drop to the active colour)
             m_paintSwatchPop = ImGui::GetTime() + 0.58;
             m_paintTool = true;   // (back to the Pinceau with the colour taken, Wzx 14/11/2026: also from the toolbar)
-            if (!m_paintMode) toast(std::string("Couleur prise : ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (pinceau pour l'appliquer)");
+            if (!m_paintMode) toast(std::string("Colour picked: ") + m_lib.palette[std::clamp(m_color, 0, (int)m_lib.palette.size() - 1)].name + " (brush to apply it)");
         }
         return;
     }
@@ -742,6 +787,12 @@ void BrickApp::editInput() {
         if (m_holding) { dropHeld(io.KeyCtrl); return; }
         if (!m_pivotEdit) {
             GizmoHandle gh = pickGizmo(mp.x, mp.y);
+            if (gh.kind == 2 && m_mode == 2) {   // W, the sphere: held still, the choice of the pivot; dragged, the free move (below)
+                m_sphPress = true;
+                m_sphPressAt = mp;
+                m_sphPressT = ImGui::GetTime();
+                return;
+            }
             if (gh.kind == 2) {   // centre sphere: free move, the brick goes in hand and drops on release
                 m_pressPoint = gizmoPivot(m_selected);
                 const bool ap = m_autoPivot;
@@ -753,7 +804,7 @@ void BrickApp::editInput() {
             }
             if (gh.kind >= 0) { gizmoStart(gh, mp.x, mp.y); return; }
         }
-        if (m_mode == 2 || m_mode == 3) {   // Move / Rotate: a tap selects (Auto Pivot moves the pivot), dragging orbits
+        if (m_mode == 3) {   // Rotate: a tap selects (Auto Pivot moves the pivot), the void: the rectangle (W: as A, below)
             float3 pt;
             int hit = pickBrick(mp.x, mp.y, &pt);
             if (hit >= 0) {
@@ -765,7 +816,12 @@ void BrickApp::editInput() {
                         if (d < best) { best = d; m_bricks[hit].grab = (int)v; }
                     }
                 }
-                select(hit);
+                select(hit, io.KeyShift || io.KeyCtrl);   // (Shift / Ctrl: added to the selection, Wzx 24/11/2026)
+            } else if (!m_ipad) {   // the empty space: the selection rectangle, as in Construire (A) (Wzx 24/11/2026)
+                m_marquee = true;
+                m_marquee0 = m_marquee1 = mp;
+                m_pressed = false;
+                return;
             }
             m_leftOrbit = true;
             return;
@@ -775,10 +831,12 @@ void BrickApp::editInput() {
         m_pressPos = mp;
         m_pressT = ImGui::GetTime();
         m_pressBrick = pickBrick(mp.x, mp.y, &m_pressPoint);
-        if (m_mode == 0 && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
-        if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
+        // the empty space: the selection rectangle, in Sélection and in Construire (Wzx 23/11/2026: the tool Sélection gone,
+        // Construire on A does its rectangle; the camera: the right button or Alt); the iPad: a finger orbits (BrickTouch.cpp)
+        if ((m_mode == 0 || ((m_mode == 1 || m_mode == 2) && !m_ipad)) && m_pressBrick < 0) { m_marquee = true; m_marquee0 = m_marquee1 = mp; m_pressed = false; }
+        else if (m_mode == 1 && m_pressBrick < 0) m_leftOrbit = true;   // Visor: dragging the empty space orbits
     }
-    if (m_marquee) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds
+    if (m_marquee && m_tg.type != TG_MARQUEE) {   // selection rectangle (mode Sélection): bricks whose box centre falls inside, Shift / Ctrl adds (a finger / the Pencil: BrickTouch.cpp)
         m_marquee1 = mp;
         if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) finishMarquee(io.KeyShift || io.KeyCtrl);
         return;
@@ -790,13 +848,12 @@ void BrickApp::editInput() {
     }
     if (m_studioUi && !m_ipad && m_pressed && m_pressBrick >= 0 && !m_dragStarted && ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
         (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) <= 6 && ImGui::GetTime() - m_pressT > 0.26) {
-        m_pressed = false;   // Studio: a press held still on a brick opens the marking menu where it is held
-        if (m_selected != m_pressBrick) select(m_pressBrick);
-        m_stMenu = true;
-        m_stMenuT0 = ImGui::GetTime();
-        m_stMenuAt = m_pressPos;
-        m_stMenuBtn = 0;
-        m_stMenuSticky = false;
+        m_pressed = false;   // Studio: a press held still on a brick opens the ring of the colours where it is held, as on
+        { const std::vector<int> sel = selection(); if (std::find(sel.begin(), sel.end(), m_pressBrick) == sel.end()) select(m_pressBrick); }   // the iPad (Wzx 23/11/2026: « le clic maintenu ouvre uniquement la roue des matériaux »)
+        m_crRing = true;
+        m_crRingSticky = false;
+        m_crRingT0 = ImGui::GetTime();
+        m_crRingAt = m_pressPos;
         return;
     }
     if (m_pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && m_pressBrick >= 0 && unitGroup(m_pressBrick) >= 0) {
@@ -804,7 +861,7 @@ void BrickApp::editInput() {
         enterGroup(m_pressBrick);
         return;
     }
-    if (m_pressed && (m_mode == 0 || m_mode == 1) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
+    if (m_pressed && (m_mode == 0 || m_mode == 1 || m_mode == 2) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
         dragSetOf(m_pressBrick).size() > 1 && (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
         m_pressed = false;   // drag a group, or a brick of a selection of several: they all move as one block
         const std::vector<int> set = dragSetOf(m_pressBrick);
@@ -812,7 +869,7 @@ void BrickApp::editInput() {
         beginGroupDrag(set, mp.x, mp.y);
         return;
     }
-    if (m_pressed && m_mode == 1 && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
+    if (m_pressed && (m_mode == 1 || m_mode == 2) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !m_dragStarted && m_pressBrick >= 0 &&
         (std::fabs(mp.x - m_pressPos.x) + std::fabs(mp.y - m_pressPos.y)) > 6) {
         m_dragStarted = true;
         m_pressed = false;

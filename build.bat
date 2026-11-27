@@ -33,7 +33,7 @@ set "SH=%E%\src\vp3d\shaders"
 
 echo [1/4] Shaders (engine)
 set "DXC=%WindowsSdkVerBinPath%x64\dxc.exe"
-for %%S in (PathTrace Denoise Tonemap DDGIUpdate DDGIRaster DDGIBlend GIShade GIFade PostFX RCVisibility RCTrace RCGather RCSProbes RCSTrace RCSProbeSH RCSGather SunShadowTrace SunShadowFilter ReflectTrace ReflectFilter SRCClear SRCInsert SRCAlloc SRCCount SRCTrace SRCMerge SRCIrradiance SRCFilter SRCGather ResolveTM) do (
+for %%S in (PathTrace Denoise Tonemap DDGIUpdate DDGIRaster DDGIBlend GIShade GIFade PostFX RCVisibility RCTrace RCGather RCSProbes RCSTrace RCSProbeSH RCSGather SunShadowTrace SunShadowFilter ReflectTrace ReflectFilter SRCClear SRCInsert SRCAlloc SRCCount SRCTrace SRCMerge SRCIrradiance SRCFilter SRCGather ResolveTM OidnPack DlssPack) do (
     "%DXC%" -nologo -T cs_6_5 -E main -HV 2021 -O3 -I %SH% %SH%\%%S.hlsl -Fo "%OUT%\shaders\%%S.cso" || exit /b 1
 )
 "%DXC%" -nologo -T cs_6_5 -E main -HV 2021 -O3 -I %SH% %SH%\SSAO.hlsl -Fo "%OUT%\shaders\SSAO.cso" || exit /b 1
@@ -51,12 +51,23 @@ rem assets: the engine's (HDRI, themes), then BrickIt's on top
 if exist %E%\assets\hdri xcopy /E /I /Y /Q %E%\assets\hdri "%OUT%\assets\hdri" >nul
 if exist %E%\assets\themes xcopy /E /I /Y /Q %E%\assets\themes "%OUT%\assets\themes" >nul
 xcopy /E /I /Y /Q assets "%OUT%\assets" >nul
+rem Intel Open Image Denoise and NVIDIA DLSS Ray Reconstruction (the (Ray tracing DLSS) render mode): in the engine's
+rem third_party (git-ignored), fetched once by its tools\fetch_oidn.ps1 / fetch_dlss.ps1. Without them BrickIt builds
+rem without: that mode keeps the a-trous filter.
+if not exist %E%\third_party\oidn\bin\OpenImageDenoise.dll powershell -NoProfile -ExecutionPolicy Bypass -File %E%\tools\fetch_oidn.ps1
+if exist %E%\third_party\oidn\bin\OpenImageDenoise.dll xcopy /Y /Q /D %E%\third_party\oidn\bin\*.dll "%OUT%\" >nul
+set "DLSSDEF="
+set "DLSSLIB="
+if not exist %E%\third_party\dlss\lib\nvsdk_ngx_s.lib powershell -NoProfile -ExecutionPolicy Bypass -File %E%\tools\fetch_dlss.ps1
+if /i not "%1"=="debug" if exist %E%\third_party\dlss\lib\nvsdk_ngx_s.lib set "DLSSDEF=/DWZX_DLSS /I%E%\third_party\dlss\include"
+if defined DLSSDEF set "DLSSLIB=%E%\third_party\dlss\lib\nvsdk_ngx_s.lib advapi32.lib"
+if defined DLSSDEF xcopy /Y /Q /D %E%\third_party\dlss\bin\nvngx_dlssd.dll "%OUT%\" >nul
 
 set "CFLAGS=/nologo /std:c++17 /EHsc /W3 /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DIMGUI_DEFINE_MATH_OPERATORS %CFG% /Isrc /I%E%\src /I%E%\third_party\imgui /Ibuild\obj"
 del /q build\obj\vp3d\*.obj build\obj\brickit\*.obj 2>nul
 
 echo [2/4] vp3d module (engine)
-cl %CFLAGS% /c %E%\src\vp3d\*.cpp /Fo:build\obj\vp3d\ || exit /b 1
+cl %CFLAGS% %DLSSDEF% /c %E%\src\vp3d\*.cpp /Fo:build\obj\vp3d\ || exit /b 1
 lib /nologo /OUT:build\lib\vp3d.lib build\obj\vp3d\*.obj || exit /b 1
 
 echo [3/4] Dear ImGui (engine third_party, built once)
@@ -82,7 +93,7 @@ git diff --quiet HEAD -- src assets 2>nul || set "CM=%CM%+"
 rem the application icon of BrickIt (tools\brickit\app_icon.py)
 rc /nologo /fo build\obj\res\wzx.res src\brickit\res\brickit.rc || exit /b 1
 cl %CFLAGS% /c src\brickit\*.cpp %E%\src\app\ImGuiLayer.cpp %E%\src\app\Theme.cpp %E%\src\app\Content.cpp /Fo:build\obj\brickit\ || exit /b 1
-link /nologo /OUT:%OUT%\BrickIt.exe build\obj\brickit\*.obj build\obj\res\wzx.res build\lib\vp3d.lib build\lib\imgui_te_mt.lib d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib dbghelp.lib /SUBSYSTEM:WINDOWS /DEBUG /OPT:REF /OPT:ICF || exit /b 1
+link /nologo /OUT:%OUT%\BrickIt.exe build\obj\brickit\*.obj build\obj\res\wzx.res build\lib\vp3d.lib build\lib\imgui_te_mt.lib %DLSSLIB% d3d12.lib dxgi.lib d3dcompiler.lib windowscodecs.lib user32.lib gdi32.lib ole32.lib shell32.lib shcore.lib comdlg32.lib dwmapi.lib dbghelp.lib /SUBSYSTEM:WINDOWS /DEBUG /OPT:REF /OPT:ICF || exit /b 1
 rem Technic packs of the web builder (geometry, read as they are)
 if not exist "%OUT%\assets\brickit\technic" mkdir "%OUT%\assets\brickit\technic"
 xcopy /Y /Q /D docs\brickit\web\technic\g*.wasm "%OUT%\assets\brickit\technic\" >nul

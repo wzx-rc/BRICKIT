@@ -11,7 +11,7 @@ std::shared_ptr<void> pdfBackendOpen(const std::wstring& path, std::vector<std::
     CFURLRef url = CFURLCreateFromFileSystemRepresentation(nullptr, (const UInt8*)p.c_str(), (CFIndex)p.size(), false);
     CGPDFDocumentRef doc = url ? CGPDFDocumentCreateWithURL(url) : nullptr;
     if (url) CFRelease(url);
-    if (!doc) { error = "fichier PDF illisible"; return nullptr; }
+    if (!doc) { error = "unreadable PDF file"; return nullptr; }
     const size_t n = CGPDFDocumentGetNumberOfPages(doc);
     for (size_t i = 1; i <= n; ++i) {
         CGRect r = CGPDFPageGetBoxRect(CGPDFDocumentGetPage(doc, i), kCGPDFCropBox);

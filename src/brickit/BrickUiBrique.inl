@@ -110,12 +110,22 @@ void BrickApp::stHeaderBrique() {
     // the pills: Hub, Construire, Peindre, Mécanique, Notice
     const bool notice = m_pManual.visible;
     struct P { const char* ico; const char* label; bool on; int id; };
-    const P ps[5] = {{BQ_HOME, "Hub", hubOn, 0}, {BQ_BUILD, "Construire", !hubOn && !m_mechOn && !m_paintMode && !notice, 1},
-                     {BQ_PAINT, "Peindre", !hubOn && m_paintMode && !m_mechOn, 2}, {BQ_MECH, "Mécanique", !hubOn && m_mechOn, 3}, {BQ_BOOK, "Notice", !hubOn && notice && !m_mechOn, 4}};
-    float x = LW + 16 * s;
+    const P ps[5] = {{BQ_HOME, "Hub", hubOn, 0}, {BQ_BUILD, "Build", !hubOn && !m_mechOn && !m_paintMode && !notice, 1},
+                     {BQ_PAINT, "Paint", !hubOn && m_paintMode && !m_mechOn, 2}, {BQ_MECH, "Mechanics", !hubOn && m_mechOn, 3}, {BQ_BOOK, "Instructions", !hubOn && notice && !m_mechOn, 4}};
     const float ph = 44 * s;
+    // a narrow screen (an iPad 11", 23/11/2026: « Mécanique » ran into undo / redo): the label of the active pill only
+    const bool compact = d.x < 1400 * s;
+    float x = LW + 16 * s;
+    {   // centred on the view (Wzx 24/11/2026), never over the logo nor the buttons of the right
+        float total = 0;
+        for (const P& p : ps) total += (!compact || p.on ? 22 * s + 22 * s + 8 * s + u.textW(14, p.label, true) : 44 * s) + 6 * s;
+        total -= 6 * s;
+        const float vmid = m_stageB.z > m_stageB.x + 100 ? (m_stageB.x + m_stageB.z) * 0.5f : d.x * 0.5f;
+        x = std::clamp(vmid - total * 0.5f, LW + 16 * s, std::max(LW + 16 * s, d.x - 420 * s - total));
+    }
     for (const P& p : ps) {
-        const float lw = u.textW(14, p.label, true), w = 22 * s + 22 * s + 8 * s + lw;
+        const bool label = !compact || p.on;
+        const float lw = u.textW(14, p.label, true), w = label ? 22 * s + 22 * s + 8 * s + lw : 44 * s;
         const ImVec2 o = bqEl(std::string("hdr") + std::to_string(p.id), p.label, ImVec4(x, cy - ph * 0.5f, x + w, cy + ph * 0.5f));
         const ImVec2 a(x + o.x, cy - ph * 0.5f + o.y), b(a.x + w, a.y + ph);
         const float pcy = (a.y + b.y) * 0.5f;
@@ -123,8 +133,9 @@ void BrickApp::stHeaderBrique() {
         if (p.on) bqYellow(dl, a, b, 13 * s, s, h);
         else if (h) dl->AddRectFilled(a, b, g_bq.hover, 13 * s);
         const ImU32 fg = p.on ? C_INK : C_TEXT;
-        stIcon(dl, p.ico, ImVec2(a.x + 22 * s + 0 * s, pcy), 21 * s, p.on ? C_INK : g_bq.navIdle, 2.0f * s);
-        u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
+        stIcon(dl, p.ico, ImVec2(label ? a.x + 22 * s : (a.x + b.x) * 0.5f, pcy), 21 * s, p.on ? C_INK : g_bq.navIdle, 2.0f * s);
+        if (label) u.text(ImVec2(a.x + 22 * s + 19 * s, pcy - u.fs(14) * 0.56f), 14, fg, p.label, true);
+        else if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", p.label);
         if (h && u.pressed) {
             switch (p.id) {
             case 0: m_popup = hubOn ? 0 : 8; m_hubStale = true; if (m_popup == 8) cloudRefreshList(); break;
@@ -140,7 +151,7 @@ void BrickApp::stHeaderBrique() {
     float rx = d.x - 14 * s;
     {   // the account: a yellow coin with the initial (Réglages › Cloud)
         const float r = 21 * s;
-        const ImVec2 o = bqEl("hdrAccount", "Compte", ImVec4(rx - 2 * r, cy - r, rx, cy + r));
+        const ImVec2 o = bqEl("hdrAccount", "Account", ImVec4(rx - 2 * r, cy - r, rx, cy + r));
         const ImVec2 c(rx - r + o.x, cy + o.y);
         const bool h = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) <= r * r;
         dl->AddCircleFilled(ImVec2(c.x, c.y + 2 * s), r + 2 * s, IM_COL32(0, 0, 0, 60), 32);
@@ -150,7 +161,7 @@ void BrickApp::stHeaderBrique() {
         if (m_cloud.signedIn() && !m_cloud.email().empty()) ini = std::string(1, (char)std::toupper((unsigned char)m_cloud.email()[0]));
         const float tw = u.textW(16, ini.c_str(), true);
         u.text(ImVec2(c.x - tw * 0.5f, c.y - u.fs(16) * 0.58f), 16, C_INK, ini.c_str(), true);
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_cloud.signedIn() ? ("Compte : " + m_cloud.email()).c_str() : "Se connecter au cloud");
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", m_cloud.signedIn() ? ("Account: " + m_cloud.email()).c_str() : "Sign in to the cloud");
         if (h && u.pressed) { m_popup = 5; m_setSec = kSetCloud; m_setScroll = 0; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
         rx -= 2 * r + 12 * s;
     }
@@ -167,18 +178,18 @@ void BrickApp::stHeaderBrique() {
         rx -= w + 10 * s;
         return h && u.pressed;
     };
-    if (roundBtn(BQ_EXPORT, "Exporter : ouvrir, enregistrer, LDraw, OBJ, notice", m_popup == 4, true)) { m_popup = m_popup == 4 ? 0 : 4; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
-    if (roundBtn(ST_SET, "Réglages (interface, rendu, lumière, thème)", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
-    if (roundBtn(ST_MORE, "Plus : grille, auto pivot, sécurité, animations, voxels, fenêtres, DEV", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 160 * s, H + 6 * s); }
-    if (roundBtn(ST_REDO, "Rétablir (Ctrl+Y)", false, !m_redo.empty())) redo();
-    if (roundBtn(ST_UNDO, "Annuler (Ctrl+Z)", false, !m_undo.empty() || m_holding)) undo();
+    if (roundBtn(BQ_EXPORT, "Export: open, save, LDraw, OBJ, instructions", m_popup == 4, true)) { m_popup = m_popup == 4 ? 0 : 4; m_popupAt = ImVec2(rx - 200 * s, H + 6 * s); }
+    if (roundBtn(ST_SET, "Settings (interface, render, light, theme)", m_popup == 5, true)) { m_popup = m_popup == 5 ? 0 : 5; m_popupAt = ImVec2(d.x - 660 * s, H + 6 * s); }
+    if (roundBtn(ST_MORE, "More: grid, auto pivot, safety, animations, voxels, windows, DEV", m_popup == 7, true)) { m_popup = m_popup == 7 ? 0 : 7; m_popupAt = ImVec2(rx - 160 * s, H + 6 * s); }
+    if (roundBtn(ST_REDO, "Redo (Ctrl+Y)", false, !m_redo.empty())) redo();
+    if (roundBtn(ST_UNDO, "Undo (Ctrl+Z)", false, !m_undo.empty() || m_holding)) undo();
 }
 
 // the width of the left column (the library docked on the left, the menu of the hub, the logo above them)
 float BrickApp::bqLeftW() const {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
-    if (m_libDock == 1 && !m_mechOn) return std::clamp(m_libW > 0 ? m_libW : 300 * s, 260 * s, d.x * 0.5f);
+    if (m_libDock == 1 && !m_mechOn && !m_sideLFold) return std::clamp(m_libW > 0 ? m_libW : 300 * s, 260 * s, d.x * 0.5f);
     return 250 * s;
 }
 
@@ -193,7 +204,7 @@ void BrickApp::stBriqueStage() {
     ImDrawList* dl = u.dl;
     // the right column (Scène, Couleurs), gaps around the view, its rounded corners
     auto inCol = [&](const char* id) { auto it = m_boxes.find(id); return it == m_boxes.end() || (it->second.x < 0 && (!it->second.hidden || m_editUi)); };   // (still in the column: not moved, not hidden)
-    const bool col = !m_mechOn && ((m_pColors.visible && inCol("colors")) || (m_pGroups.visible && inCol("groups")));
+    const bool col = !m_mechOn && !m_sideRFold && ((m_pColors.visible && inCol("colors")) || (m_pGroups.visible && inCol("groups")));
     const float RW = col ? 296 * s : g;
     m_bqColX = d.x - RW + g * 0.5f;
     m_bqColW = RW - g * 1.5f;
@@ -233,20 +244,20 @@ void BrickApp::stBriqueCorners() {
     const ImVec4 st = m_stageB;
     (void)d;
     // ---- the scene: its thumbnail, its name, saved / cloud; a click: the Hub
-    if (!bqHidden("scene")) {
+    if (false && !bqHidden("scene")) {   // (the scene card removed, Wzx 24/11/2026: the Hub tab opens the scenes)
         const float k = bqK("scene"), s = m_ui * k;
         Ui u = ui(s);
         if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
         const ImVec2 off = bqOff("scene");
-        const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+        const std::string nm = m_modelName.empty() ? std::string("My scene") : m_modelName;
         const std::wstring dir = scenesDir();
         const bool inLib = !m_scenePath.empty() && m_scenePath.size() > dir.size() && m_scenePath.compare(0, dir.size(), dir) == 0;
         std::string stt;
         ImU32 sc;
-        if (m_scenePath.empty()) { stt = "Pas encore enregistrée"; sc = C_DIM; }
-        else if (m_cloud.signedIn() && !m_cloudId.empty() && !m_cloudDirty) { stt = "Enregistrée · cloud à jour"; sc = IM_COL32(0x5b, 0xe0, 0x9b, 255); }
-        else if (m_cloudDirty) { stt = "Modifiée · envoi au cloud"; sc = C_ACCENT; }
-        else { stt = "Enregistrée"; sc = IM_COL32(0x5b, 0xe0, 0x9b, 255); }
+        if (m_scenePath.empty()) { stt = "Not saved yet"; sc = C_DIM; }
+        else if (m_cloud.signedIn() && !m_cloudId.empty() && !m_cloudDirty) { stt = "Saved · cloud up to date"; sc = IM_COL32(0x5b, 0xe0, 0x9b, 255); }
+        else if (m_cloudDirty) { stt = "Modified · uploading to the cloud"; sc = C_ACCENT; }
+        else { stt = "Saved"; sc = IM_COL32(0x5b, 0xe0, 0x9b, 255); }
         const float nw = std::max(u.textW(14, nm.c_str(), true), u.textW(10.5f, stt.c_str())) ;
         const float W = std::min(8 * s + 58 * s + 12 * s + nw + 34 * s, 360 * s), Hh = 54 * s;
         const ImVec2 a0(st.x + 14 * m_ui, st.y + 14 * m_ui), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
@@ -262,11 +273,12 @@ void BrickApp::stBriqueCorners() {
         u.text(ImVec2(tx + 12 * s, a.y + 30 * s), 10.5f, sc, stt.c_str());
         stIcon(u.dl, "FM5 8h14l-7 9z", ImVec2(b.x - 16 * s, (a.y + b.y) * 0.5f), 11 * s, C_DIM, 1.0f);
         const bool h = u.hover(a, b);
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Mes scènes : enregistrer, renommer, ouvrir, cloud");
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("My scenes: save, rename, open, cloud");
         if (h && u.pressed) { m_popup = 8; m_hubStale = true; cloudRefreshList(); }
         m_bqSceneY = b.y;
-        bqReg("scene", "Scène", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
-    } else m_bqSceneY = st.y;
+        g_bqSceneR = b.x;
+        bqReg("scene", "Scene", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
+    } else { m_bqSceneY = st.y; g_bqSceneR = st.x; }
     // ---- the render: Rapide / HQ / Ray tracing, HD (PC)
     if (!m_ipad && !bqHidden("render")) {
         const float k = bqK("render"), s = m_ui * k;
@@ -274,12 +286,17 @@ void BrickApp::stBriqueCorners() {
         if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
         const ImVec2 off = bqOff("render");
         struct R { const char* label; bool on; int id; const char* tip; };
-        const R rs[4] = {{"Rapide", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Temps réel rapide"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "Temps réel haute qualité : ombres, GI douce"},
-                         {"Ray tracing", pathTraced(), 2, "Rendu progressif réaliste (path tracing)"}, {"HD", m_highPoly, 3, "Pièces HD : arrondis lisses"}};
+        const R rs[5] = {{"Fast", m_rs.raster && m_quality == 0 && !m_rcMode, 0, "Fast real time"}, {"HQ", m_rs.raster && m_quality == 1 && !m_rcMode, 1, "High-quality real time: shadows, soft GI"},
+                         {"Ray tracing", pathTraced() && !m_rtDlss, 2, "Realistic progressive render (path tracing)"},
+                         {"Ray tracing DLSS", pathTraced() && m_rtDlss, 4, "Path tracing denoised by Open Image Denoise when still, NVIDIA DLSS Ray Reconstruction while moving"},
+                         {"HD", m_highPoly, 3, "HD parts: smooth curves"}};
         float W = 10 * s;
         for (const R& r : rs) W += u.textW(12, r.label, true) + 24 * s + 2 * s;
         const float Hh = 44 * s;
-        const ImVec2 a0(st.x + 14 * m_ui, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
+        // under the navigation buttons, right aligned on them (Wzx 25/11/2026); bottom left of the stage when there is no room
+        ImVec2 a0(st.x + 14 * m_ui, st.w - 14 * m_ui - Hh);
+        if (g_navBR.x > 0 && g_navBR.y + 10 * m_ui + Hh < st.w - 6 * m_ui) a0 = ImVec2(std::max(st.x + 14 * m_ui, g_navBR.x - W), g_navBR.y + 10 * m_ui);
+        const ImVec2 a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
         bqRaise(u.dl, a, b, 14 * s, s, C_HUD, 60);
         m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
         float xx = a.x + 5 * s;
@@ -296,7 +313,7 @@ void BrickApp::stBriqueCorners() {
             if (h && u.pressed) {
                 if (r.id == 3) setHighPoly(!m_highPoly);
                 else if (!r.on) {
-                    if (r.id == 2) { setRC(false); m_rs.raster = false; applyLook(); }
+                    if (r.id == 2 || r.id == 4) { setRC(false); m_rtDlss = r.id == 4; m_rs.raster = false; applyLook(); }
                     else { setRC(false); m_quality = r.id; m_rs.msaaSamples = m_quality ? 4 : 1; if (!m_rs.raster) { m_rs.raster = true; applyLook(); } }
                     m_renderer->resetAccumulation();
                     savePrefs();
@@ -304,7 +321,7 @@ void BrickApp::stBriqueCorners() {
             }
             xx += bw + 2 * s;
         }
-        bqReg("render", "Rendu", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
+        bqReg("render", "Render", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
     }
     // ---- Enregistrer
     if (!bqHidden("save")) {
@@ -312,17 +329,18 @@ void BrickApp::stBriqueCorners() {
         Ui u = ui(s);
         if (m_gui->fontBold && !g_thBold) u.bold = m_gui->fontBold;
         const ImVec2 off = bqOff("save");
-        const char* lab = "Enregistrer";
+        const char* lab = "Save";
         const float W = u.textW(15, lab, true) + 64 * s, Hh = 48 * s;
-        const ImVec2 a0(st.z - 14 * m_ui - W, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
+        const float navW = st.z - st.x < 900 * s ? 70 * s : 0;   // (a narrow stage: left of the navigation column, 23/11/2026)
+        const ImVec2 a0(st.z - 14 * m_ui - W - navW, st.w - 14 * m_ui - Hh), a(a0.x + off.x, a0.y + off.y), b(a.x + W, a.y + Hh);
         const bool h = u.hover(a, b);
         bqYellow(u.dl, a, b, 14 * s, s, h);
         stIcon(u.dl, BQ_SAVE, ImVec2(a.x + 24 * s, (a.y + b.y) * 0.5f - 1 * s), 20 * s, C_INK, 2.0f * s);
         u.text(ImVec2(a.x + 42 * s, (a.y + b.y) * 0.5f - u.fs(15) * 0.6f), 15, C_INK, lab, true);
         m_uiRects.push_back(ImVec4(a.x, a.y, b.x, b.y));
-        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Enregistrer dans Mes scènes (Ctrl+S)");
+        if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Save in My scenes (Ctrl+S)");
         if (h && u.pressed) saveNow();
-        bqReg("save", "Enregistrer", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
+        bqReg("save", "Save", ImVec4(a0.x, a0.y, a0.x + W, a0.y + Hh), ImVec4(a.x, a.y, b.x, b.y), false);
     }
 }
 
@@ -387,7 +405,7 @@ void BrickApp::stEditUi() {
             dl->AddLine(P(t), P(t + 0.0125f), IM_COL32(255, 201, 60, on || h ? 255 : 170), 2.0f * s);
         }
         // its name
-        const std::string lab = b.hidden ? b.label + " (masqué)" : b.label;
+        const std::string lab = b.hidden ? b.label + " (hidden)" : b.label;
         const float lw = u.textW(11, lab.c_str(), true) + 16 * s;
         const ImVec2 na(a.x, a.y - 24 * s < 0 ? a.y + 4 * s : a.y - 24 * s), nb(na.x + lw, na.y + 20 * s);
         dl->AddRectFilled(na, nb, IM_COL32(255, 201, 60, 255), 10 * s);
@@ -457,8 +475,8 @@ void BrickApp::stEditUi() {
     m_editEls.clear();
     // the banner: what it is, Réinitialiser, Terminer
     {
-        const char* t1 = "Édition de l'interface";
-        const char* t2 = "Glisse un bloc pour le déplacer, son coin pour le redimensionner, l'œil pour le masquer. Appui long : un seul bouton.";
+        const char* t1 = "Interface editing";
+        const char* t2 = "Drag a block to move it, its corner to resize it, the eye to hide it. Long press: a single button.";
         const float W = std::max(u.textW(16, t1, true), u.textW(11.5f, t2)) + 300 * s, Hh = 64 * s;
         const float hT = m_ipad ? kIpadTopStrip * s : 0;
         const ImVec2 a((d.x - W) * 0.5f, hT + 4 * s), b(a.x + W, a.y + Hh);   // (over the header: it does not move)
@@ -468,13 +486,13 @@ void BrickApp::stEditUi() {
         const ImVec2 fa(b.x - 132 * s, a.y + 12 * s), fb(b.x - 14 * s, b.y - 12 * s);
         const bool hf = u.hover(fa, fb);
         bqYellow(dl, fa, fb, 12 * s, s, hf);
-        u.text(ImVec2(fa.x + (fb.x - fa.x - u.textW(14, "Terminer", true)) * 0.5f, (fa.y + fb.y) * 0.5f - u.fs(14) * 0.58f), 14, C_INK, "Terminer", true);
+        u.text(ImVec2(fa.x + (fb.x - fa.x - u.textW(14, "Done", true)) * 0.5f, (fa.y + fb.y) * 0.5f - u.fs(14) * 0.58f), 14, C_INK, "Done", true);
         const ImVec2 ra(fa.x - 140 * s, fa.y), rb(fa.x - 10 * s, fb.y);
         const bool hr = u.hover(ra, rb);
         bqRaise(dl, ra, rb, 12 * s, s, hr ? C_CARD_HI : C_CARD, 40);
-        u.text(ImVec2(ra.x + (rb.x - ra.x - u.textW(13, "Réinitialiser", true)) * 0.5f, (ra.y + rb.y) * 0.5f - u.fs(13) * 0.58f), 13, C_TEXT, "Réinitialiser", true);
-        if (hf && u.pressed) { m_editUi = false; savePrefs(); toast("Interface enregistrée"); }
-        if (hr && u.pressed) { m_boxes.clear(); toast("Disposition par défaut"); }
+        u.text(ImVec2(ra.x + (rb.x - ra.x - u.textW(13, "Reset", true)) * 0.5f, (ra.y + rb.y) * 0.5f - u.fs(13) * 0.58f), 13, C_TEXT, "Reset", true);
+        if (hf && u.pressed) { m_editUi = false; savePrefs(); toast("Interface saved"); }
+        if (hr && u.pressed) { m_boxes.clear(); toast("Default layout"); }
         (void)clicked;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) { m_editUi = false; savePrefs(); }
@@ -508,7 +526,7 @@ void BrickApp::stHubPage() {
     auto demo = [&](int i) {
         keepOpen();
         if (i == 0) openOfficialHouse();
-        else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; }
+        else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Excavator and mechanisms"; }
         close = true;
     };
 
@@ -529,13 +547,13 @@ void BrickApp::stHubPage() {
         const bool h = u.hover(a, b) && !editing;
         bqYellow(dl, a, b, 14 * s, s, h);
         stIcon(dl, ST_NEW, ImVec2(a.x + 28 * s, (a.y + b.y) * 0.5f - 1 * s), 22 * s, C_INK, 3.0f * s);
-        u.text(ImVec2(a.x + 50 * s, (a.y + b.y) * 0.5f - u.fs(16) * 0.6f), 16, C_INK, "Nouvelle scène", true);
+        u.text(ImVec2(a.x + 50 * s, (a.y + b.y) * 0.5f - u.fs(16) * 0.6f), 16, C_INK, "New scene", true);
         if (h && u.pressed) { keepOpen(); newScene(); close = true; }
         y += 52 * s + 18 * s;
     }
     struct N { const char* ico; const char* label; int sec; int count; };
     const int nCloud = m_cloud.signedIn() ? (int)m_cloudList.size() : -1;
-    const N ns[4] = {{BQ_FOLDER, "Mes scènes", 0, (int)m_hubLocal.size()}, {BQ_CLOCK, "Récentes", 1, -1}, {BQ_CLOUD, "Cloud", 2, nCloud}, {BQ_DEMO, "Démos", 3, -1}};
+    const N ns[4] = {{BQ_FOLDER, "My scenes", 0, (int)m_hubLocal.size()}, {BQ_CLOCK, "Recent", 1, -1}, {BQ_CLOUD, "Cloud", 2, nCloud}, {BQ_DEMO, "Demos", 3, -1}};
     for (const N& n : ns) {
         const ImVec2 a(18 * s, y), b(LW - 18 * s, y + 44 * s);
         const bool on = m_hubSection == n.sec, h = u.hover(a, b) && !editing;
@@ -559,7 +577,7 @@ void BrickApp::stHubPage() {
     y += 22 * s;
     {
         struct M { const char* ico; const char* label; int id; };
-        const M ms[3] = {{ST_PRESET, "Presets", 0}, {ST_SET, "Réglages", 1}, {BQ_GRID, "Éditer l'interface", 2}};
+        const M ms[3] = {{ST_PRESET, "Presets", 0}, {ST_SET, "Settings", 1}, {BQ_GRID, "Edit the interface", 2}};
         for (const M& m : ms) {
             if (m.id == 2 && !g_brique) continue;
             const ImVec2 a(18 * s, y), b(LW - 18 * s, y + 44 * s);
@@ -592,17 +610,17 @@ void BrickApp::stHubPage() {
         const ImVec2 a(rx0, ry), b(rx1, ry + ch);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
         stIcon(dl, BQ_CLOUD, ImVec2(a.x + 34 * s, a.y + 34 * s), 34 * s, C_TEXT, 1.8f * s);
-        if (g_bq.upper) stTrack(u, ImVec2(a.x + 64 * s, a.y + 18 * s), 10, C_TEXT, "STOCKAGE", 2.0f * s); else u.text(ImVec2(a.x + 64 * s, a.y + 16 * s), 15, C_TEXT, "Stockage", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 64 * s, a.y + 18 * s), 10, C_TEXT, "STORAGE", 2.0f * s); else u.text(ImVec2(a.x + 64 * s, a.y + 16 * s), 15, C_TEXT, "Storage", true);
         char b1[96];
-        snprintf(b1, sizeof(b1), "%d scènes · %.1f Mo sur cet appareil", (int)m_hubLocal.size(), bytes / 1048576.0);
+        snprintf(b1, sizeof(b1), "%d scenes · %.1f MB on this device", (int)m_hubLocal.size(), bytes / 1048576.0);
         u.text(ImVec2(a.x + 64 * s, a.y + 38 * s), 11, C_DIM, b1);
         const bool in = m_cloud.signedIn();
-        std::string cl = !in ? std::string("Cloud : non connecté") : m_cloudSending ? std::string("Cloud : envoi…") : m_cloudDirty ? std::string("Cloud : envoi dans la minute") : "Cloud : " + std::to_string(m_cloudList.size()) + " scènes · à jour";
+        std::string cl = !in ? std::string("Cloud: not signed in") : m_cloudSending ? std::string("Cloud: uploading…") : m_cloudDirty ? std::string("Cloud: upload within a minute") : "Cloud: " + std::to_string(m_cloudList.size()) + " scenes · up to date";
         const ImU32 dot = !in ? C_FAINT : (m_cloudSending || m_cloudDirty) ? C_ACCENT : IM_COL32(0x5b, 0xe0, 0x9b, 255);
         dl->AddCircleFilled(ImVec2(a.x + 22 * s, a.y + 80 * s), 4 * s, dot, 12);
         u.text(ImVec2(a.x + 34 * s, a.y + 72 * s), 11.5f, C_TEXT, cl.c_str(), true);
         {   // Synchroniser / Se connecter
-            const char* lab = in ? "Synchroniser" : "Se connecter";
+            const char* lab = in ? "Sync" : "Sign in";
             const ImVec2 ba(a.x + 16 * s, b.y - 38 * s), bb(b.x - 16 * s, b.y - 10 * s);
             const bool h = u.hover(ba, bb) && !editing && !m_cloudSending;
             bqRaise(dl, ba, bb, 9 * s, s, h ? C_CARD_HI : C_CARD, 30);
@@ -619,12 +637,12 @@ void BrickApp::stHubPage() {
         const float ch = 150 * s;
         const ImVec2 a(rx0, ry), b(rx1, ry + ch);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
-        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "CONTINUER", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Continuer", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "CONTINUE", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Continue", true);
         const ImVec2 ta(a.x + 18 * s, a.y + 48 * s), tb(ta.x + 84 * s, ta.y + 60 * s);
         ImTextureID tex = inLib ? hubThumb(m_scenePath) : 0;
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0.05f, 0), ImVec2(0.95f, 1), IM_COL32_WHITE, 10 * s);
         else { dl->AddRectFilled(ta, tb, C_CARD, 10 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 30 * s, C_DIM, 1.2f * s); }
-        const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+        const std::string nm = m_modelName.empty() ? std::string("My scene") : m_modelName;
         const ImVec2 na(tb.x + 10 * s, ta.y), nb(b.x - 56 * s, ta.y + 28 * s);
         if (m_hubEdit == -2) {
             if (int r = bqEditField(u, na, nb, 13)) { const int i = m_hubEdit; m_hubEdit = -1; if (r == 1 && m_hubName[0]) hubRename(i, m_hubName); }
@@ -632,18 +650,18 @@ void BrickApp::stHubPage() {
             const bool hn = u.hover(na, nb) && !editing;
             if (hn) dl->AddRectFilled(na, nb, g_bq.hover, 7 * s);
             u.text(ImVec2(na.x + 4 * s, na.y + 4 * s), 14, C_TEXT, stFit(u, 14, nm, nb.x - na.x - 8 * s, true).c_str(), true);
-            if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Renommer");
+            if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Rename");
             if (hn && u.pressed) { m_hubEdit = -2; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", nm.c_str()); }
         }
         char info[64];
-        snprintf(info, sizeof(info), "%d pièces", (int)m_bricks.size());
+        snprintf(info, sizeof(info), "%d parts", (int)m_bricks.size());
         u.text(ImVec2(na.x + 4 * s, na.y + 30 * s), 11, C_DIM, stFit(u, 11, inLib ? std::string(info) + " · " + hubDate(hubFileTime(m_scenePath)) : std::string(info), nb.x - na.x - 8 * s, false).c_str());
         {   // the yellow play: back to the scene
             const ImVec2 pa(b.x - 52 * s, ta.y + 10 * s), pb(b.x - 14 * s, ta.y + 48 * s);
             const bool h = u.hover(pa, pb) && !editing;
             bqYellow(dl, pa, pb, 10 * s, s, h);
             stIcon(dl, BQ_PLAY, ImVec2((pa.x + pb.x) * 0.5f + 1 * s, (pa.y + pb.y) * 0.5f - 1 * s), 18 * s, C_INK, 1.0f);
-            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Reprendre la construction");
+            if (h && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Resume building");
             if (h && u.pressed) close = true;
         }
         {   // Enregistrer, Vignette
@@ -654,11 +672,11 @@ void BrickApp::stHubPage() {
             bqRaise(dl, sa, sb, 9 * s, s, hs ? C_CARD_HI : C_CARD, 30);
             bqRaise(dl, va, vb, 9 * s, s, hv ? C_CARD_HI : C_CARD, 30);
             stIcon(dl, BQ_SAVE, ImVec2(sa.x + 16 * s, (sa.y + sb.y) * 0.5f), 14 * s, C_TEXT, 1.6f * s);
-            u.text(ImVec2(sa.x + 30 * s, (sa.y + sb.y) * 0.5f - u.fs(11) * 0.58f), 11, C_TEXT, "Enregistrer", true);
+            u.text(ImVec2(sa.x + 30 * s, (sa.y + sb.y) * 0.5f - u.fs(11) * 0.58f), 11, C_TEXT, "Save", true);
             stIcon(dl, BQ_CAMERA, ImVec2(va.x + 16 * s, (va.y + vb.y) * 0.5f), 14 * s, C_TEXT, 1.6f * s);
-            u.text(ImVec2(va.x + 30 * s, (va.y + vb.y) * 0.5f - u.fs(11) * 0.58f), 11, C_TEXT, "Vignette", true);
+            u.text(ImVec2(va.x + 30 * s, (va.y + vb.y) * 0.5f - u.fs(11) * 0.58f), 11, C_TEXT, "Thumbnail", true);
             if (hs && u.pressed) { if (m_scenePath.empty() || inLib) hubSaveHere(); else saveNow(); }
-            if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("La vue 3D actuelle devient la vignette de la scène");
+            if (hv && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("The current 3D view becomes the scene thumbnail");
             if (hv && u.pressed) { if (inLib) m_thumbReq = m_scenePath; else hubSaveHere(); }
         }
         ry += ch + 16 * s;
@@ -666,9 +684,9 @@ void BrickApp::stHubPage() {
     {   // Outils rapides
         const ImVec2 a(rx0, ry), b(rx1, d.y - 18 * s);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
-        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "OUTILS RAPIDES", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Outils rapides", true);
+        if (g_bq.upper) stTrack(u, ImVec2(a.x + 18 * s, a.y + 18 * s), 10, C_TEXT, "QUICK TOOLS", 2.0f * s); else u.text(ImVec2(a.x + 18 * s, a.y + 14 * s), 17, C_TEXT, "Quick tools", true);
         struct Q { const char* ico; const char* label; int id; };
-        const Q qs[5] = {{BQ_CAMERA, m_ipad ? "Rendu HQ" : "Rendu photo", 0}, {BQ_BUILD, "Pièces", 1}, {BQ_PALETTE, "Couleurs", 2}, {BQ_BOOK, "Notice", 3}, {BQ_EXPORT, "Exporter", 4}};
+        const Q qs[5] = {{BQ_CAMERA, m_ipad ? "HQ render" : "Photo render", 0}, {BQ_BUILD, "Parts", 1}, {BQ_PALETTE, "Colours", 2}, {BQ_BOOK, "Instructions", 3}, {BQ_EXPORT, "Export", 4}};
         float qy = a.y + 48 * s;
         for (const Q& q : qs) {
             if (qy + 46 * s > b.y - 10 * s) break;
@@ -719,12 +737,12 @@ void BrickApp::stHubPage() {
         const float px = 26;
         float tx = a.x + 34 * s;
         const float ty = a.y + 26 * s;
-        dl->AddText(f, u.fs(px), ImVec2(tx, ty), C_TEXT, "Bienvenue dans ");
-        tx += f->CalcTextSizeA(u.fs(px), 1e9f, 0, "Bienvenue dans ").x;
+        dl->AddText(f, u.fs(px), ImVec2(tx, ty), C_TEXT, "Welcome to ");
+        tx += f->CalcTextSizeA(u.fs(px), 1e9f, 0, "Welcome to ").x;
         dl->AddText(f, u.fs(px), ImVec2(tx, ty), g_bq.brand, "BrickIt");
-        u.text(ImVec2(a.x + 36 * s, ty + u.fs(px) * 1.25f), 13.5f, g_bq.bannerSub, "Construire · Imaginer · Assembler · Rendre", true);
+        u.text(ImVec2(a.x + 36 * s, ty + u.fs(px) * 1.25f), 13.5f, g_bq.bannerSub, "Build · Imagine · Assemble · Render", true);
         struct B { const char* ico; const char* label; int id; };
-        const B bs[3] = {{ST_NEW, "Nouvelle scène", 0}, {BQ_DEMO, "Démos", 1}, {ST_OPEN, "Ouvrir…", 2}};
+        const B bs[3] = {{ST_NEW, "New scene", 0}, {BQ_DEMO, "Demos", 1}, {ST_OPEN, "Open…", 2}};
         float bx = a.x + 34 * s;
         const float bw = 118 * s, bhh = 68 * s, by = b.y - bhh - 20 * s;
         for (const B& bb0 : bs) {
@@ -752,7 +770,7 @@ void BrickApp::stHubPage() {
     {   // Mes scènes / Récentes / Cloud / Démos, in cards
         const ImVec2 a(mx0, my), b(mx1, d.y - 18 * s);
         bqRaise(dl, a, b, 18 * s, s, C_PANEL, 60);
-        const char* titles[4] = {"Mes scènes", "Récentes", "Cloud", "Démos"};
+        const char* titles[4] = {"My scenes", "Recent", "Cloud", "Demos"};
         stIcon(dl, m_hubSection == 2 ? BQ_CLOUD : m_hubSection == 3 ? BQ_DEMO : BQ_FOLDER, ImVec2(a.x + 30 * s, a.y + 30 * s), 24 * s, C_TEXT, 2.0f * s);
         if (g_bq.upper) stTrack(u, ImVec2(a.x + 52 * s, a.y + 30 * s - u.fs(11) * 0.55f), 11, C_TEXT, stUpper(titles[m_hubSection]).c_str(), 2.2f * s); else u.text(ImVec2(a.x + 52 * s, a.y + 30 * s - u.fs(18) * 0.6f), 18, C_TEXT, titles[m_hubSection], true);
         if (m_hubSection == 2 && m_cloud.signedIn()) {   // refresh
@@ -792,20 +810,20 @@ void BrickApp::stHubPage() {
             if (cd.kind == 0) {
                 const HubScene& sc = m_hubLocal[cd.i];
                 name = sc.name;
-                sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " pièces";
+                sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " parts";
                 tex = hubThumb(sc.path);
                 cur = sc.path == m_scenePath;
                 cloudMark = cur && !m_cloudId.empty();
             } else if (cd.kind == 1) {
                 const CloudScene& c = m_cloudList[cd.i];
-                name = c.name.empty() ? std::string("Ma scène") : c.name;
-                sub = Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces";
+                name = c.name.empty() ? std::string("My scene") : c.name;
+                sub = Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " parts";
                 cur = c.id == m_cloudId;
                 cloudMark = true;
                 ico = BQ_CLOUD;
             } else {
-                name = cd.i == 0 ? "Maison (démo)" : "Pelleteuse et mécanismes";
-                sub = cd.i == 0 ? "Le set 31153 et ses figurines" : "4 moteurs, 2 vérins";
+                name = cd.i == 0 ? "House (demo)" : "Excavator and mechanisms";
+                sub = cd.i == 0 ? "Set 31153 and its figures" : "4 motors, 2 cylinders";
                 ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
             }
             bqRaise(dl, ca, cb, 14 * s, s, h ? C_CARD_HI : C_CARD, 50);
@@ -817,7 +835,7 @@ void BrickApp::stHubPage() {
             }
             if (cur) dl->AddRect(ImVec2(ca.x - 1 * s, ca.y - 1 * s), ImVec2(cb.x + 1 * s, cb.y + 1 * s), C_ACCENT, 15 * s, 0, 3.0f * s);
             if (cur) {   // OUVERTE
-                const char* t = "OUVERTE";
+                const char* t = "OPEN";
                 const float w = stTrackW(u, 7, t, 1.2f * s, true) + 16 * s;
                 const ImVec2 pa(ta.x + 10 * s, ta.y + 10 * s), pb(pa.x + w, pa.y + 20 * s);
                 bqYellow(dl, pa, pb, 8 * s, s);
@@ -843,23 +861,23 @@ void BrickApp::stHubPage() {
                     bx -= 2 * r + 6 * s;
                     return hb && u.pressed;
                 };
-                if (rb(ST_DEL, cd.kind == 1 ? "Supprimer du cloud" : "Supprimer", true)) {
+                if (rb(ST_DEL, cd.kind == 1 ? "Delete from the cloud" : "Delete", true)) {
                     act = true;
                     if (cd.kind == 0) hubDelete(cd.i);
                     else {
                         const CloudScene cs = m_cloudList[cd.i];
-                        plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Supprimer « " + (cs.name.empty() ? std::string("Ma scène") : cs.name) + " » du cloud ?"), [this, cs] {
+                        plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Delete “" + (cs.name.empty() ? std::string("My scene") : cs.name) + "” from the cloud?"), [this, cs] {
                             m_cloud.remove(cs.id, [this, cs](bool ok, const std::string& err) {
-                                if (!ok) { toast("Cloud : " + err); return; }
+                                if (!ok) { toast("Cloud: " + err); return; }
                                 if (cs.id == m_cloudId) cloudForget();
-                                toast("Cloud : « " + cs.name + " » supprimée");
+                                toast("Cloud: “" + cs.name + "” deleted");
                                 cloudRefreshList();
                             });
                         });
                     }
                 }
-                if (cd.kind == 0 && rb(ST_DUP, "Dupliquer", false)) { act = true; hubDuplicate(cd.i); }
-                if (cd.kind == 0 && rb(ST_PEN, "Renommer", false)) { act = true; m_hubEdit = cd.i; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", name.c_str()); }
+                if (cd.kind == 0 && rb(ST_DUP, "Duplicate", false)) { act = true; hubDuplicate(cd.i); }
+                if (cd.kind == 0 && rb(ST_PEN, "Rename", false)) { act = true; m_hubEdit = cd.i; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", name.c_str()); }
             }
             if (act) continue;
             if (h && u.pressed) {   // open it
@@ -876,9 +894,9 @@ void BrickApp::stHubPage() {
         }
         dl->PopClipRect();
         if (cards.empty()) {
-            const char* t = m_hubSection <= 1 ? "Aucune scène enregistrée ici pour l'instant : « Enregistrer » range la scène ouverte dans Mes scènes, avec sa vignette."
-                          : !m_cloud.signedIn() ? "Connecte-toi (Stockage, à droite) pour retrouver tes scènes de l'iPad et du PC."
-                          : m_cloudListBusy ? "Chargement…" : !m_cloudListErr.empty() ? m_cloudListErr.c_str() : "Aucune scène dans le cloud pour l'instant.";
+            const char* t = m_hubSection <= 1 ? "No scene saved here yet: “Save” stores the open scene in My scenes, with its thumbnail."
+                          : !m_cloud.signedIn() ? "Sign in (Storage, on the right) to find your scenes from iPad and PC."
+                          : m_cloudListBusy ? "Loading…" : !m_cloudListErr.empty() ? m_cloudListErr.c_str() : "No scene in the cloud yet.";
             u.dl->AddText(u.font, u.fs(12), ImVec2(ga.x + 4 * s, ga.y + 8 * s), C_DIM, t, nullptr, gb.x - ga.x - 8 * s);
         }
         if (contentH > gb.y - ga.y) {
@@ -933,12 +951,12 @@ void BrickApp::stHubClassic() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImDrawList* dl = u.dl;
-    const ImU32 Y = IM_COL32(0xf7, 0xc5, 0x1e, 255), INK = IM_COL32(0x17, 0x17, 0x1a, 255), W = IM_COL32(0xec, 0xec, 0xee, 255), DIM = IM_COL32(0x8a, 0x8d, 0x95, 255);
+    const ImU32 Y = IM_COL32(0xf7, 0xc5, 0x1e, 255), INK = stSlate(IM_COL32(0x17, 0x17, 0x1a, 255)), W = IM_COL32(0xec, 0xec, 0xee, 255), DIM = IM_COL32(0x8a, 0x8d, 0x95, 255);
     const float top = m_uiRects.empty() ? 46 * s : m_uiRects[0].w;
     const bool editing = m_hubEdit != -1;
     bool close = false;
     m_uiRects.push_back(ImVec4(0, top, d.x, d.y));
-    dl->AddRectFilled(ImVec2(0, top), d, IM_COL32(0x13, 0x14, 0x17, 255));
+    dl->AddRectFilled(ImVec2(0, top), d, stSlate(IM_COL32(0x13, 0x14, 0x17, 255)));
     const std::wstring dir = scenesDir();
     const bool inLib = !m_scenePath.empty() && m_scenePath.size() > dir.size() && m_scenePath.compare(0, dir.size(), dir) == 0;
     auto keepOpen = [&] {
@@ -955,22 +973,22 @@ void BrickApp::stHubClassic() {
         const float v0 = std::clamp(0.55f - vh * 0.5f, 0.0f, std::max(0.0f, 1 - vh));
         dl->AddImage(bt, ba, bb, ImVec2(0, v0), ImVec2(1, std::min(1.0f, v0 + vh)));
     }
-    const ImU32 B0 = IM_COL32(0x13, 0x14, 0x17, 250), B1 = IM_COL32(0x13, 0x14, 0x17, 0);
-    dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, IM_COL32(0x13, 0x14, 0x17, 190), IM_COL32(0x13, 0x14, 0x17, 190), B0);
-    dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), IM_COL32(0x13, 0x14, 0x17, 190), B1, B1, IM_COL32(0x13, 0x14, 0x17, 190));
-    dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, IM_COL32(0x13, 0x14, 0x17, 255), IM_COL32(0x13, 0x14, 0x17, 255));
+    const ImU32 B0 = stSlate(IM_COL32(0x13, 0x14, 0x17, 250)), B1 = stSlate(IM_COL32(0x13, 0x14, 0x17, 0));
+    dl->AddRectFilledMultiColor(ba, ImVec2(d.x * 0.42f, bb.y), B0, stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), B0);
+    dl->AddRectFilledMultiColor(ImVec2(d.x * 0.42f, ba.y), ImVec2(d.x * 0.72f, bb.y), stSlate(IM_COL32(0x13, 0x14, 0x17, 190)), B1, B1, stSlate(IM_COL32(0x13, 0x14, 0x17, 190)));
+    dl->AddRectFilledMultiColor(ImVec2(0, bb.y - BH * 0.4f), bb, B1, B1, stSlate(IM_COL32(0x13, 0x14, 0x17, 255)), stSlate(IM_COL32(0x13, 0x14, 0x17, 255)));
     stTrack(u, ImVec2(X0, ba.y + 40 * s), 9, Y, "BRICKIT · BUILDER", 2.6f * s);
-    stTrack(u, ImVec2(X0, ba.y + 58 * s), 30, W, "MES SCÈNES", 3.2f * s);
-    stTrack(u, ImVec2(X0, ba.y + 58 * s + u.fs(30) * 1.3f), 10, IM_COL32(0xc4, 0xc6, 0xcc, 255), "CONSTRUIRE · ASSEMBLER · RENDRE", 2.4f * s);
+    stTrack(u, ImVec2(X0, ba.y + 58 * s), 30, W, "MY SCENES", 3.2f * s);
+    stTrack(u, ImVec2(X0, ba.y + 58 * s + u.fs(30) * 1.3f), 10, IM_COL32(0xc4, 0xc6, 0xcc, 255), "BUILD · ASSEMBLE · RENDER", 2.4f * s);
     {   // the four tiles
         struct Tl { const char* ico; const char* label; int id; };
-        const Tl ts[4] = {{ST_NEW, "NOUVELLE SCÈNE", 0}, {ST_OPEN, "OUVRIR…", 1}, {BQ_BOOK, "DEPUIS UNE NOTICE", 2}, {ST_PRESET, "PRESETS", 3}};
+        const Tl ts[4] = {{ST_NEW, "NEW SCENE", 0}, {ST_OPEN, "OPEN…", 1}, {BQ_BOOK, "FROM INSTRUCTIONS", 2}, {ST_PRESET, "PRESETS", 3}};
         const float tw = 150 * s, th = 92 * s, ty = bb.y - th - 24 * s;
         for (int k = 0; k < 4; ++k) {
             const ImVec2 qa(X0 + k * (tw + 10 * s), ty), qb(qa.x + tw, ty + th);
             const bool h = u.hover(qa, qb) && !editing;
             const bool main = k == 0;
-            dl->AddRectFilled(qa, qb, main ? (h ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y) : IM_COL32(0x13, 0x14, 0x17, h ? 235 : 190), 6 * s);
+            dl->AddRectFilled(qa, qb, main ? (h ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y) : stSlate(IM_COL32(0x13, 0x14, 0x17, h ? 235 : 190)), 6 * s);
             dl->AddRect(qa, qb, main ? Y : (h ? stA(Y, 0.8f) : IM_COL32(255, 255, 255, 26)), 6 * s, 0, 1.0f);
             stIcon(dl, ts[k].ico, ImVec2(qa.x + 26 * s, qa.y + 26 * s), 22 * s, main ? INK : Y, (main ? 2.4f : 1.7f) * s);
             stTrack(u, ImVec2(qa.x + 14 * s, qb.y - 26 * s), 8.5f, main ? INK : W, ts[k].label, 1.8f * s);
@@ -987,15 +1005,15 @@ void BrickApp::stHubClassic() {
     {   // the scene open, on the banner
         const float cw = 340 * s, ch = 100 * s;
         const ImVec2 ca(d.x - 28 * s - cw, bb.y - 24 * s - ch), cb(ca.x + cw, ca.y + ch);
-        dl->AddRectFilled(ca, cb, IM_COL32(0x13, 0x14, 0x17, 215), 6 * s);
+        dl->AddRectFilled(ca, cb, stSlate(IM_COL32(0x13, 0x14, 0x17, 215)), 6 * s);
         dl->AddRect(ca, cb, IM_COL32(255, 255, 255, 30), 6 * s, 0, 1.0f);
         const ImVec2 ta(ca.x + 12 * s, ca.y + 12 * s), tb(ta.x + 112 * s, cb.y - 12 * s);
         ImTextureID tex = inLib ? hubThumb(m_scenePath) : 0;
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0.05f, 0), ImVec2(0.95f, 1), IM_COL32_WHITE, 4 * s);
-        else { dl->AddRectFilled(ta, tb, IM_COL32(0x26, 0x28, 0x2d, 255), 4 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, DIM, 1.2f * s); }
+        else { dl->AddRectFilled(ta, tb, stSlate(IM_COL32(0x26, 0x28, 0x2d, 255)), 4 * s); stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), 34 * s, DIM, 1.2f * s); }
         const float tx = tb.x + 14 * s;
-        stTrack(u, ImVec2(tx, ca.y + 14 * s), 7.5f, DIM, "SCÈNE OUVERTE", 2.0f * s);
-        const std::string nm = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+        stTrack(u, ImVec2(tx, ca.y + 14 * s), 7.5f, DIM, "OPEN SCENE", 2.0f * s);
+        const std::string nm = m_modelName.empty() ? std::string("My scene") : m_modelName;
         if (m_hubEdit == -2) {
             if (int r = bqEditField(u, ImVec2(tx - 4 * s, ca.y + 28 * s), ImVec2(cb.x - 10 * s, ca.y + 52 * s), 13)) { const int i = m_hubEdit; m_hubEdit = -1; if (r == 1 && m_hubName[0]) hubRename(i, m_hubName); }
         } else {
@@ -1003,15 +1021,15 @@ void BrickApp::stHubClassic() {
             const bool hn = u.hover(na, nb) && !editing;
             if (hn) dl->AddRectFilled(na, nb, IM_COL32(255, 255, 255, 12), 4 * s);
             u.text(ImVec2(tx, ca.y + 30 * s), 13.5f, W, stFit(u, 13.5f, nm, cb.x - tx - 14 * s, true).c_str(), true);
-            if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Renommer");
+            if (hn && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("Rename");
             if (hn && u.pressed) { m_hubEdit = -2; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", nm.c_str()); }
         }
         const bool in = m_cloud.signedIn();
         char info[96];
-        snprintf(info, sizeof(info), "%d pièces · %s", (int)m_bricks.size(), !in ? "hors cloud" : m_cloudDirty || m_cloudSending ? "envoi au cloud" : "cloud à jour");
+        snprintf(info, sizeof(info), "%d parts · %s", (int)m_bricks.size(), !in ? "not in cloud" : m_cloudDirty || m_cloudSending ? "uploading" : "cloud up to date");
         dl->AddCircleFilled(ImVec2(tx + 3 * s, ca.y + 59 * s), 3 * s, !in ? DIM : (m_cloudDirty || m_cloudSending) ? Y : IM_COL32(0x4c, 0xbe, 0x6e, 255), 10);
         u.text(ImVec2(tx + 11 * s, ca.y + 52 * s), 9.5f, DIM, info);
-        const char* rl = "REPRENDRE ▸";
+        const char* rl = "RESUME ▸";
         const ImVec2 ra(tx, cb.y - 26 * s), rb(tx + stTrackW(u, 7.5f, rl, 1.8f * s, true) + 18 * s, cb.y - 10 * s);
         const bool hr = u.hover(ra, rb) && !editing;
         dl->AddRectFilled(ra, rb, hr ? IM_COL32(0xff, 0xd4, 0x3a, 255) : Y, 3 * s);
@@ -1021,9 +1039,9 @@ void BrickApp::stHubClassic() {
     // ======== the scenes
     float y = bb.y + 18 * s;
     {   // the tabs (a segmented pill) and the sort
-        const std::string t0 = "CET APPAREIL · " + std::to_string(m_hubLocal.size());
+        const std::string t0 = "THIS DEVICE · " + std::to_string(m_hubLocal.size());
         const std::string t1 = m_cloud.signedIn() ? "CLOUD · " + std::to_string(m_cloudList.size()) : std::string("CLOUD");
-        const char* labs[3] = {t0.c_str(), t1.c_str(), "DÉMOS"};
+        const char* labs[3] = {t0.c_str(), t1.c_str(), "DEMOS"};
         const int secOf[3] = {0, 2, 3};
         float w = 6 * s;
         for (const char* l : labs) w += stTrackW(u, 8, l, 1.6f * s, true) + 28 * s + 2 * s;
@@ -1040,7 +1058,7 @@ void BrickApp::stHubClassic() {
             if (h && u.pressed) { m_hubSection = secOf[k]; m_hubScroll = 0; if (secOf[k] == 2) cloudRefreshList(); else m_hubStale = true; }
             x += lw + 2 * s;
         }
-        stTrack(u, ImVec2(d.x - X0 - stTrackW(u, 8, "TRI : RÉCENTES", 2.0f * s, true), y + 15 * s - u.fs(8) * 0.55f), 8, DIM, "TRI : RÉCENTES", 2.0f * s);
+        stTrack(u, ImVec2(d.x - X0 - stTrackW(u, 8, "SORT: RECENT", 2.0f * s, true), y + 15 * s - u.fs(8) * 0.55f), 8, DIM, "SORT: RECENT", 2.0f * s);
         y += 30 * s + 14 * s;
     }
     struct Card { int kind; int i; };
@@ -1069,27 +1087,27 @@ void BrickApp::stHubClassic() {
         const char* ico = nullptr;
         if (cd.kind == 0) {
             const HubScene& sc = m_hubLocal[cd.i];
-            name = sc.name; sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " pièces"; tex = hubThumb(sc.path); cur = sc.path == m_scenePath;
+            name = sc.name; sub = hubDate(sc.mtime) + " · " + std::to_string(sc.bricks) + " parts"; tex = hubThumb(sc.path); cur = sc.path == m_scenePath;
         } else if (cd.kind == 1) {
             const CloudScene& c = m_cloudList[cd.i];
-            name = c.name.empty() ? std::string("Ma scène") : c.name; sub = Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " pièces"; cur = c.id == m_cloudId; ico = BQ_CLOUD;
+            name = c.name.empty() ? std::string("My scene") : c.name; sub = Cloud::localDate(c.updated) + " · " + std::to_string(c.bricks) + " parts"; cur = c.id == m_cloudId; ico = BQ_CLOUD;
         } else {
-            name = cd.i == 0 ? "Maison (démo)" : "Pelleteuse et mécanismes"; sub = cd.i == 0 ? "Le set 31153" : "4 moteurs, 2 vérins"; ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
+            name = cd.i == 0 ? "House (demo)" : "Excavator and mechanisms"; sub = cd.i == 0 ? "Set 31153" : "4 motors, 2 cylinders"; ico = cd.i == 0 ? "M4 11 12 4l8 7v9H4zM10 20v-5h4v5" : ST_MECH;
         }
         const ImVec2 ta(ca.x, ca.y), tb(cb.x, ca.y + thH);
-        dl->AddRectFilled(ca, cb, h ? IM_COL32(0x24, 0x25, 0x2a, 255) : IM_COL32(0x1c, 0x1d, 0x21, 255), 6 * s);
+        dl->AddRectFilled(ca, cb, h ? stSlate(IM_COL32(0x24, 0x25, 0x2a, 255)) : stSlate(IM_COL32(0x1c, 0x1d, 0x21, 255)), 6 * s);
         if (tex) dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0.05f), ImVec2(1, 0.95f), IM_COL32_WHITE, 6 * s, ImDrawFlags_RoundCornersTop);
         else {
-            dl->AddRectFilled(ta, tb, IM_COL32(0x22, 0x23, 0x28, 255), 6 * s, ImDrawFlags_RoundCornersTop);
+            dl->AddRectFilled(ta, tb, stSlate(IM_COL32(0x22, 0x23, 0x28, 255)), 6 * s, ImDrawFlags_RoundCornersTop);
             if (ico) stIcon(dl, ico, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.34f, DIM, 1.5f * s);
             else stPicto(dl, "brick", 2, 4, ImVec2((ta.x + tb.x) * 0.5f, (ta.y + tb.y) * 0.5f), thH * 0.42f, DIM, 1.2f * s);
         }
-        dl->AddRectFilled(ImVec2(ca.x, tb.y), ImVec2(cb.x, tb.y + 3 * s), cur ? Y : IM_COL32(0x3a, 0x3c, 0x42, 255));
+        dl->AddRectFilled(ImVec2(ca.x, tb.y), ImVec2(cb.x, tb.y + 3 * s), cur ? Y : stSlate(IM_COL32(0x3a, 0x3c, 0x42, 255)));
         dl->AddRect(ca, cb, cur ? Y : IM_COL32(255, 255, 255, h ? 40 : 20), 6 * s, 0, cur ? 1.5f * s : 1.0f);
         if (cur) {
-            const float w = stTrackW(u, 6.5f, "OUVERTE", 1.6f * s, true) + 14 * s;
+            const float w = stTrackW(u, 6.5f, "OPEN", 1.6f * s, true) + 14 * s;
             dl->AddRectFilled(ImVec2(ta.x + 8 * s, ta.y + 8 * s), ImVec2(ta.x + 8 * s + w, ta.y + 24 * s), Y, 3 * s);
-            stTrack(u, ImVec2(ta.x + 15 * s, ta.y + 16 * s - u.fs(6.5f) * 0.55f), 6.5f, INK, "OUVERTE", 1.6f * s);
+            stTrack(u, ImVec2(ta.x + 15 * s, ta.y + 16 * s - u.fs(6.5f) * 0.55f), 6.5f, INK, "OPEN", 1.6f * s);
         }
         const float ny = tb.y + 12 * s;
         if (cd.kind == 0 && m_hubEdit == cd.i) {
@@ -1103,28 +1121,28 @@ void BrickApp::stHubClassic() {
             auto rb = [&](const char* icon, const char* tip, bool danger) {
                 const ImVec2 c(bx, by);
                 const bool hb = (u.mouse.x - c.x) * (u.mouse.x - c.x) + (u.mouse.y - c.y) * (u.mouse.y - c.y) < r * r && !editing;
-                dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : IM_COL32(0x3a, 0x3c, 0x42, 245)) : IM_COL32(10, 11, 13, 215), 24);
+                dl->AddCircleFilled(c, r, hb ? (danger ? IM_COL32(200, 50, 45, 235) : stSlate(IM_COL32(0x3a, 0x3c, 0x42, 245))) : stSlate(IM_COL32(10, 11, 13, 215)), 24);
                 stIcon(dl, icon, c, r * 1.05f, W, 1.5f * s);
                 if (hb && ImGui::GetIO().MouseDownDuration[0] < 0) ImGui::SetTooltip("%s", tip);
                 bx -= 2 * r + 6 * s;
                 return hb && u.pressed;
             };
-            if (rb(ST_DEL, cd.kind == 1 ? "Supprimer du cloud" : "Supprimer", true)) {
+            if (rb(ST_DEL, cd.kind == 1 ? "Delete from the cloud" : "Delete", true)) {
                 act = true;
                 if (cd.kind == 0) hubDelete(cd.i);
                 else {
                     const CloudScene cs = m_cloudList[cd.i];
-                    plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Supprimer « " + (cs.name.empty() ? std::string("Ma scène") : cs.name) + " » du cloud ?"), [this, cs] {
+                    plat::confirm(L"Supprimer du cloud", plat::fromUtf8("Delete “" + (cs.name.empty() ? std::string("My scene") : cs.name) + "” from the cloud?"), [this, cs] {
                         m_cloud.remove(cs.id, [this, cs](bool ok, const std::string& err) {
-                            if (!ok) { toast("Cloud : " + err); return; }
+                            if (!ok) { toast("Cloud: " + err); return; }
                             if (cs.id == m_cloudId) cloudForget();
                             cloudRefreshList();
                         });
                     });
                 }
             }
-            if (cd.kind == 0 && rb(ST_DUP, "Dupliquer", false)) { act = true; hubDuplicate(cd.i); }
-            if (cd.kind == 0 && rb(ST_PEN, "Renommer", false)) { act = true; m_hubEdit = cd.i; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", name.c_str()); }
+            if (cd.kind == 0 && rb(ST_DUP, "Duplicate", false)) { act = true; hubDuplicate(cd.i); }
+            if (cd.kind == 0 && rb(ST_PEN, "Rename", false)) { act = true; m_hubEdit = cd.i; m_hubEditFocus = true; snprintf(m_hubName, sizeof(m_hubName), "%s", name.c_str()); }
         }
         if (act) continue;
         if (h && u.pressed) {
@@ -1137,16 +1155,16 @@ void BrickApp::stHubClassic() {
             } else {
                 keepOpen();
                 if (cd.i == 0) openOfficialHouse();
-                else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Pelleteuse et mécanismes"; }
+                else { newScene(); buildExcavatorDemo(); rebuildScene(); frameAll(); m_scene.camera.pitch = radians(24.0f); m_scene.camera.yaw = radians(-30.0f); m_modelName = "Excavator and mechanisms"; }
             }
             close = true;
         }
     }
     dl->PopClipRect();
     if (cards.empty()) {
-        const char* t = m_hubSection <= 1 ? "Aucune scène enregistrée ici pour l'instant : « Enregistrer » range la scène ouverte dans Mes scènes, avec sa vignette."
-                      : !m_cloud.signedIn() ? "Connecte-toi (Réglages › Cloud) pour retrouver tes scènes de l'iPad et du PC."
-                      : m_cloudListBusy ? "Chargement…" : "Aucune scène dans le cloud pour l'instant.";
+        const char* t = m_hubSection <= 1 ? "No scene saved here yet: “Save” stores the open scene in My scenes, with its thumbnail."
+                      : !m_cloud.signedIn() ? "Sign in (Settings › Cloud) to find your scenes from iPad and PC."
+                      : m_cloudListBusy ? "Loading…" : "No scene in the cloud yet.";
         dl->AddText(u.font, u.fs(11), ImVec2(ga.x, ga.y + 4 * s), DIM, t, nullptr, gb.x - ga.x);
     }
     if (ImTextureID br = themeTex("brique/bricks.png")) {   // the yellow bricks, in the corner

@@ -40,7 +40,7 @@ void BrickApp::bacAdd(int part, int color, float x, float y) {
 // one thumbnail per selected brick, in a row after the last ones (Wzx: 10 pieces = 10 thumbnails)
 void BrickApp::bacAddSelection() {
     const std::vector<int> s = selection();
-    if (s.empty()) { toast("Sélectionne d'abord des briques"); return; }
+    if (s.empty()) { toast("Select some bricks first"); return; }
     float x = 20, y = 20;
     if (!m_bac.empty()) { y = m_bac.back().y; x = m_bac.back().x + 96; }
     const float wrap = m_bacRect.z > 0 ? std::max(120.0f, m_bacRect.z / (m_ui * m_bacZoom) - 110) : 300.0f;   // (the visible width)
@@ -50,7 +50,7 @@ void BrickApp::bacAddSelection() {
         x += 96;
     }
     char t[80];
-    snprintf(t, sizeof(t), "%d pièce%s ajoutée%s au bac", (int)s.size(), s.size() > 1 ? "s" : "", s.size() > 1 ? "s" : "");
+    snprintf(t, sizeof(t), "%d part%s added%s to the tray", (int)s.size(), s.size() > 1 ? "s" : "", s.size() > 1 ? "s" : "");
     toast(t);
 }
 

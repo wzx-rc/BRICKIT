@@ -828,14 +828,17 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
     // the least recently used goes: the interface has 256 texture slots in all (engine ImGuiLayer), shared with the
     // font atlas of ImGui. 900 thumbnails used them up as soon as the Studio drawer had shown ~230 parts: the cards went
     // empty and the font atlas, growing when the Réglages opened, got a slot already taken (all the text garbled).
-    if (m_lazyThumbs.size() >= 90) {
+    auto dropOldest = [&]() {   // the least recently drawn goes (not one drawn this frame)
+        if (m_lazyThumbs.empty()) return false;
         auto old = m_lazyThumbs.begin();
         for (auto q = m_lazyThumbs.begin(); q != m_lazyThumbs.end(); ++q)
             if (q->second.second < old->second.second) old = q;
         if (old->second.second >= m_frame) return false;   // all of them on screen this frame: none can go (the others next frames)
         m_gui->releaseTexture(old->second.first);
         m_lazyThumbs.erase(old);
-    }
+        return true;
+    };
+    if (m_lazyThumbs.size() >= 600 && !dropOldest()) return false;
     // reduced to the size the cards draw it at (88 pt, the image zoomed x 1.5-1.6: ~140 pt of image), Wzx 09/11/2026:
     // « la brique aliase quand l'image est réduite pour fit les dimensions du thumb »
     const int T = std::clamp((int)std::lround(140 * m_ui * std::clamp(m_stCardScale, 0.6f, 2.0f)), 64, 512);
@@ -847,7 +850,8 @@ bool BrickApp::lazyThumb(int part, ImTextureID& tex) {
         rgba.swap(small);
     }
     tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);
-    if (!tex) return false;   // (no slot left: not kept, tried again later)
+    if (!tex && dropOldest()) tex = m_gui->createTexture(rgba.data(), (uint32_t)w, (uint32_t)h);   // (no slot: an old one goes)
+    if (!tex) return false;   // (still none: tried again later)
     m_lazyThumbs[part] = {tex, m_frame};
     return true;
 }

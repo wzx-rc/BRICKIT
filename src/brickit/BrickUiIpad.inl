@@ -72,18 +72,18 @@ static ImU32 partTint(const Color& c) {
 // the usual LDraw colours in French (the others keep their LDraw name)
 static const char* colorFr(const std::string& n) {
     static const std::pair<const char*, const char*> t[] = {
-        {"Black", "Noir"}, {"White", "Blanc"}, {"Red", "Rouge"}, {"Blue", "Bleu"}, {"Yellow", "Jaune"}, {"Green", "Vert"},
-        {"Bright_Green", "Vert vif"}, {"Dark_Green", "Vert foncé"}, {"Tan", "Beige"}, {"Dark_Tan", "Beige foncé"},
-        {"Light_Bluish_Grey", "Gris clair"}, {"Dark_Bluish_Grey", "Gris foncé"}, {"Light_Grey", "Gris clair ancien"}, {"Dark_Grey", "Gris foncé ancien"},
-        {"Reddish_Brown", "Brun rougeâtre"}, {"Brown", "Brun"}, {"Dark_Brown", "Brun foncé"}, {"Orange", "Orange"}, {"Dark_Orange", "Orange foncé"},
-        {"Bright_Light_Orange", "Orange clair"}, {"Bright_Light_Yellow", "Jaune clair"}, {"Lime", "Citron vert"}, {"Olive_Green", "Vert olive"},
-        {"Sand_Green", "Vert sable"}, {"Medium_Blue", "Bleu moyen"}, {"Dark_Blue", "Bleu foncé"}, {"Dark_Azure", "Azur foncé"},
-        {"Medium_Azure", "Azur moyen"}, {"Bright_Light_Blue", "Bleu clair"}, {"Sand_Blue", "Bleu sable"}, {"Dark_Turquoise", "Turquoise foncé"},
-        {"Dark_Red", "Rouge foncé"}, {"Dark_Pink", "Rose foncé"}, {"Bright_Pink", "Rose vif"}, {"Magenta", "Magenta"}, {"Medium_Lavender", "Lavande"},
-        {"Dark_Purple", "Violet foncé"}, {"Medium_Nougat", "Nougat moyen"}, {"Nougat", "Nougat"}, {"Light_Nougat", "Nougat clair"},
-        {"Pearl_Gold", "Or perle"}, {"Flat_Silver", "Argent mat"}, {"Trans_Clear", "Transparent"}, {"Trans_Black", "Fumé"},
-        {"Trans_Red", "Rouge transparent"}, {"Trans_Dark_Blue", "Bleu transparent"}, {"Trans_Light_Blue", "Bleu clair transparent"},
-        {"Trans_Green", "Vert transparent"}, {"Trans_Yellow", "Jaune transparent"}, {"Trans_Orange", "Orange transparent"}, {"Chrome_Silver", "Chrome"}};
+        {"Black", "Black"}, {"White", "White"}, {"Red", "Red"}, {"Blue", "Blue"}, {"Yellow", "Yellow"}, {"Green", "Green"},
+        {"Bright_Green", "Bright green"}, {"Dark_Green", "Dark green"}, {"Tan", "Beige"}, {"Dark_Tan", "Dark tan"},
+        {"Light_Bluish_Grey", "Light bluish grey"}, {"Dark_Bluish_Grey", "Dark bluish grey"}, {"Light_Grey", "Old light grey"}, {"Dark_Grey", "Old dark grey"},
+        {"Reddish_Brown", "Reddish brown"}, {"Brown", "Brown"}, {"Dark_Brown", "Dark brown"}, {"Orange", "Orange"}, {"Dark_Orange", "Dark orange"},
+        {"Bright_Light_Orange", "Light orange"}, {"Bright_Light_Yellow", "Light yellow"}, {"Lime", "Lime"}, {"Olive_Green", "Olive green"},
+        {"Sand_Green", "Sand green"}, {"Medium_Blue", "Medium blue"}, {"Dark_Blue", "Dark blue"}, {"Dark_Azure", "Dark azure"},
+        {"Medium_Azure", "Medium azure"}, {"Bright_Light_Blue", "Light blue"}, {"Sand_Blue", "Sand blue"}, {"Dark_Turquoise", "Dark turquoise"},
+        {"Dark_Red", "Dark red"}, {"Dark_Pink", "Dark pink"}, {"Bright_Pink", "Bright pink"}, {"Magenta", "Magenta"}, {"Medium_Lavender", "Lavender"},
+        {"Dark_Purple", "Dark purple"}, {"Medium_Nougat", "Medium nougat"}, {"Nougat", "Nougat"}, {"Light_Nougat", "Light nougat"},
+        {"Pearl_Gold", "Pearl gold"}, {"Flat_Silver", "Flat silver"}, {"Trans_Clear", "Transparent"}, {"Trans_Black", "Smoke"},
+        {"Trans_Red", "Trans red"}, {"Trans_Dark_Blue", "Trans dark blue"}, {"Trans_Light_Blue", "Trans light blue"},
+        {"Trans_Green", "Trans green"}, {"Trans_Yellow", "Trans yellow"}, {"Trans_Orange", "Trans orange"}, {"Chrome_Silver", "Chrome"}};
     std::string k = n;
     for (char& ch : k) if (ch == ' ') ch = '_';
     for (auto& e : t) if (k == e.first) return e.second;
@@ -92,13 +92,13 @@ static const char* colorFr(const std::string& n) {
 // a short French name of a part from its LDraw title: « Brick 4 x 4 x 1 Round with Rounded Top » -> « Brique 4×4×1 ronde »
 static std::string partFr(const std::string& label) {
     static const std::pair<const char*, const char*> nouns[] = {
-        {"Brick", "Brique"}, {"Plate", "Plaque"}, {"Tile", "Tuile"}, {"Slope", "Pente"}, {"Wedge", "Biseau"}, {"Arch", "Arche"},
-        {"Cylinder", "Cylindre"}, {"Cone", "Cône"}, {"Dish", "Parabole"}, {"Baseplate", "Plaque de base"}, {"Bracket", "Équerre"},
-        {"Panel", "Panneau"}, {"Door", "Porte"}, {"Window", "Fenêtre"}, {"Glass", "Vitre"}, {"Fence", "Clôture"}, {"Wheel", "Roue"},
-        {"Tyre", "Pneu"}, {"Hinge", "Charnière"}, {"Bar", "Barre"}, {"Plant", "Plante"}, {"Ladder", "Échelle"}, {"Support", "Support"},
-        {"Turntable", "Plateau tournant"}, {"Antenna", "Antenne"}, {"Flag", "Drapeau"}, {"Rock", "Rocher"}, {"Container", "Conteneur"}};
+        {"Brick", "Brick"}, {"Plate", "Plate"}, {"Tile", "Tile"}, {"Slope", "Slope"}, {"Wedge", "Wedge"}, {"Arch", "Arch"},
+        {"Cylinder", "Cylinder"}, {"Cone", "Cone"}, {"Dish", "Dish"}, {"Baseplate", "Baseplate"}, {"Bracket", "Bracket"},
+        {"Panel", "Panel"}, {"Door", "Door"}, {"Window", "Window"}, {"Glass", "Glass"}, {"Fence", "Fence"}, {"Wheel", "Wheel"},
+        {"Tyre", "Tyre"}, {"Hinge", "Hinge"}, {"Bar", "Bar"}, {"Plant", "Plant"}, {"Ladder", "Scale"}, {"Support", "Support"},
+        {"Turntable", "Turntable"}, {"Antenna", "Antenna"}, {"Flag", "Flag"}, {"Rock", "Rock"}, {"Container", "Container"}};
     static const std::pair<const char*, const char*> adjs[] = {
-        {"Round", "ronde"}, {"Curved", "incurvée"}, {"Inverted", "inversée"}, {"Corner", "d'angle"}, {"Modified", "modifiée"},
+        {"Round", "ronde"}, {"Curved", "curved"}, {"Inverted", "inverted"}, {"Corner", "corner"}, {"Modified", "modified"},
         {"Double", "double"}, {"Triple", "triple"}};
     std::vector<std::string> w;
     for (size_t i = 0; i < label.size();) {
@@ -129,7 +129,7 @@ static std::string partFr(const std::string& label) {
         for (auto& a : adjs) if (w[j] == a.first) { adj += " "; adj += a.second; }
     return out + adj;
 }
-static const char* kFamilyFr[9] = {"Blancs et gris", "Rouges et roses", "Jaunes et oranges", "Verts", "Bleus", "Violets", "Terres", "Transparentes", "Métal"};
+static const char* kFamilyFr[9] = {"Whites and greys", "Reds and pinks", "Yellows and oranges", "Greens", "Blues", "Purples", "Earths", "Transparent", "Metal"};
 
 // ================================================================== UI kit 2.0 (docs/brickit/ui_kit/KIT.md, 08/11/2026)
 // The « menu compact » screen of maquette v5 validated by Wzx (« Exactement ça »): a translucent HUD (cream pebbles 78 %,
@@ -315,7 +315,6 @@ void BrickApp::kitColors() {
 
 std::string BrickApp::colorNameFr(int index) {
     kitColors();
-    for (const KitColor& kc : m_kitColorList) if (kc.index == index) return kc.nom;
     if (index < 0 || index >= (int)m_lib.palette.size()) return "";
     return colorFr(m_lib.palette[index].name);
 }
@@ -503,7 +502,7 @@ static void dashedRRect(ImDrawList* dl, ImVec2 a, ImVec2 b, float rad, ImU32 col
 
 // the scene name for the pill (the file name, « Ma scène » for a new one)
 static std::string sceneTitle(const std::wstring& path) {
-    if (path.empty()) return "Ma scène";
+    if (path.empty()) return "My scene";
     std::wstring n = path.substr(path.find_last_of(L"\\/") + 1);
     for (const wchar_t* ext : {L".v3d.json", L".json", L".ldr", L".mpd"}) {
         const size_t l = wcslen(ext);
@@ -558,7 +557,7 @@ void BrickApp::drawUiIpad() {
         onTop(4, [&] { ipadNuancier(); });
         onTop(6, [&] { ipadColorRing(); });
         if (m_paintMode && !m_mechOn && !m_libOpen && !m_paletteOpen)
-            kitLabel(ImGui::GetWindowDrawList(), ImVec2(d.x * 0.5f, d.y - 18 * m_ui - 72 * m_ui - 44 * m_ui), m_pipette ? "Pipette · touche une brique pour prendre sa couleur" : "Peindre · touche ou glisse sur les briques");
+            kitLabel(ImGui::GetWindowDrawList(), ImVec2(d.x * 0.5f, d.y - 18 * m_ui - 72 * m_ui - 44 * m_ui), m_pipette ? "Eyedropper · touch a brick to take its colour" : "Paint · touch or swipe over the bricks");
     }
     g_uiBlock = false;
     ipadHub();
@@ -595,15 +594,15 @@ void BrickApp::ipadTopBar() {
                 if ((name[k] == 'x' || name[k] == 'X') && std::isdigit((unsigned char)name[k - 1]) && std::isdigit((unsigned char)name[k + 1])) { name.replace(k, 1, " \xC3\x97 "); k += 3; }
             detail = "· " + colorNameFr(br.color) + " · " + m_lib.parts[br.part].name;
         } else if (sel.size() > 1) {
-            name = std::to_string(sel.size()) + " pièces";
-            detail = "· sélection";
+            name = std::to_string(sel.size()) + " parts";
+            detail = "· selection";
         }
         ImU32 dot = T_VERT;
         const bool scene = sel.empty();
         if (scene) {
             name = m_modelName.empty() ? sceneTitle(m_scenePath) : m_modelName;
             const bool in = m_cloud.signedIn(), busy = m_cloudDirty || m_cloudSending;
-            detail = "· " + std::to_string(m_bricks.size()) + " pièces · enregistrée" + (!in ? "" : busy ? " · envoi au cloud" : " · cloud à jour");
+            detail = "· " + std::to_string(m_bricks.size()) + " parts · saved" + (!in ? "" : busy ? " · uploading" : " · cloud up to date");
             if (in && busy) dot = IM_COL32(0xe8, 0xc0, 0x4a, 255);
         }
         const float pn = 16 * s, pd = 14 * s;
@@ -832,8 +831,8 @@ void BrickApp::ipadMoreMenu(ImVec2 bubble) {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     struct Item { const char* icon; const char* label; int act; };
-    const Item items[5] = {{"supprimer", "Supprimer", 0}, {"grouper", "Grouper la sélection", 1}, {"isoler", m_focusDim ? "Ne plus isoler" : "Isoler", 2},
-                           {"pipette", "Prendre sa couleur", 3}, {"fiche", "Fiche de la pièce", 4}};
+    const Item items[5] = {{"supprimer", "Delete", 0}, {"grouper", "Group the selection", 1}, {"isoler", m_focusDim ? "Stop isolating" : "Isolate", 2},
+                           {"pipette", "Take its colour", 3}, {"fiche", "Part sheet", 4}};
     const float W = 282 * s, pad = 11 * s, H = 2 * pad + 5 * 50 * s;
     ImVec2 a(bubble.x - 4 * s, bubble.y + 32 * s - H);
     a.x = std::min(a.x, d.x - 16 * s - W);
@@ -850,7 +849,7 @@ void BrickApp::ipadMoreMenu(ImVec2 bubble) {
             case 0: deleteSelected(); break;
             case 1: groupSelected(); break;
             case 2: m_focusDim = !m_focusDim; syncObjects(); break;
-            case 3: if (m_selected >= 0) { m_color = m_bricks[m_selected].color; toast("Couleur prise : " + colorNameFr(m_color)); } break;
+            case 3: if (m_selected >= 0) { m_color = m_bricks[m_selected].color; toast("Colour picked: " + colorNameFr(m_color)); } break;
             case 4: if (m_selected >= 0) m_infoPart = m_bricks[m_selected].part; break;
             }
             m_moreOpen = false;
@@ -866,18 +865,18 @@ void BrickApp::ipadMoreMenu(ImVec2 bubble) {
 struct KitTab { const char* label; const char* key; const char* icon; std::vector<const char*> cats; std::vector<const char*> parts; };
 static const std::vector<KitTab>& kitTabs() {
     static const std::vector<KitTab> t = {
-        {"Récentes", "recent", "recentes", {}, {}}, {"Favoris", "fav", "favoris", {}, {}},
-        {"Briques", "Briques", nullptr, {"Brick"}, {"3001"}}, {"Plaques", "Plaques", nullptr, {"Plate", "Tile", "Baseplate"}, {"3020", "3022"}},
-        {"Pentes", "Pentes", nullptr, {"Slope", "Wedge"}, {"3040b", "3039", "3040"}},
-        {"Rondes", "Rondes", nullptr, {"Cylinder", "Cone", "Dish", "Sphere", "Arch"}, {"3062b", "6143", "3941"}},
+        {"Recent", "recent", "recentes", {}, {}}, {"Favourites", "fav", "favoris", {}, {}},
+        {"Bricks", "Bricks", nullptr, {"Brick"}, {"3001"}}, {"Plates", "Plates", nullptr, {"Plate", "Tile", "Baseplate"}, {"3020", "3022"}},
+        {"Slopes", "Slopes", nullptr, {"Slope", "Wedge"}, {"3040b", "3039", "3040"}},
+        {"Round", "Round", nullptr, {"Cylinder", "Cone", "Dish", "Sphere", "Arch"}, {"3062b", "6143", "3941"}},
         {"Technic", "Technic", "technic", {"Technic", "Electric", "Znap", "Constraction", "Constraction Accessory"}, {}},
-        {"Fenêtres", "Fenêtres", "fenetre", {"Window", "Door", "Glass"}, {}},
+        {"Windows", "Windows", "fenetre", {"Window", "Door", "Glass"}, {}},
         {"Nature", "Nature", "nature", {"Plant", "Animal", "Rock"}, {}},
-        {"Mécanique", "Mécanique", nullptr, {"Hinge", "Turntable", "Bar", "Lever", "Winch", "Crane", "Grab", "Magnet", "Conveyor", "Screw", "Rack", "Hose", "Tap"}, {"3937", "2429"}},
-        {"Véhicules", "Véhicules", nullptr, {"Wheel", "Tyre", "Car", "Vehicle", "Train", "Monorail", "Boat", "Plane", "Wing", "Tail", "Propeller", "Cockpit", "Windscreen", "Exhaust", "Tractor", "Trailer", "Tipper", "Forklift"}, {"4624", "6014"}},
-        {"Bâtiment", "Bâtiment", nullptr, {"Bracket", "Panel", "Fence", "Ladder", "Staircase", "Support", "Platform", "Garage", "Container", "Roadsign", "Flag", "Antenna"}, {"3185", "4215b", "87552"}},
-        {"Personnages", "Personnages", nullptr, {"Minifig", "Minifig Accessory", "Minifig Footwear", "Minifig Headwear", "Minifig Hipwear", "Minifig Neckwear", "Figure", "Figure Accessory", "Arm"}, {"3626b", "3626c", "973"}},
-        {"Autres", "Autres", nullptr, {"Duplo", "Scala", "Belville", "Clikits", "Homemaker", "Freestyle", "Sticker", "Sheet Cardboard", "Sheet Fabric", "Sheet Plastic", "Obsolete", "Pov-RAY"}, {"3437", "6474"}}};
+        {"Mechanics", "Mechanics", nullptr, {"Hinge", "Turntable", "Bar", "Lever", "Winch", "Crane", "Grab", "Magnet", "Conveyor", "Screw", "Rack", "Hose", "Tap"}, {"3937", "2429"}},
+        {"Vehicles", "Vehicles", nullptr, {"Wheel", "Tyre", "Car", "Vehicle", "Train", "Monorail", "Boat", "Plane", "Wing", "Tail", "Propeller", "Cockpit", "Windscreen", "Exhaust", "Tractor", "Trailer", "Tipper", "Forklift"}, {"4624", "6014"}},
+        {"Building", "Building", nullptr, {"Bracket", "Panel", "Fence", "Ladder", "Staircase", "Support", "Platform", "Garage", "Container", "Roadsign", "Flag", "Antenna"}, {"3185", "4215b", "87552"}},
+        {"Characters", "Characters", nullptr, {"Minifig", "Minifig Accessory", "Minifig Footwear", "Minifig Headwear", "Minifig Hipwear", "Minifig Neckwear", "Figure", "Figure Accessory", "Arm"}, {"3626b", "3626c", "973"}},
+        {"Others", "Others", nullptr, {"Duplo", "Scala", "Belville", "Clikits", "Homemaker", "Freestyle", "Sticker", "Sheet Cardboard", "Sheet Fabric", "Sheet Plastic", "Obsolete", "Pov-RAY"}, {"3437", "6474"}}};
     return t;
 }
 
@@ -971,7 +970,7 @@ void BrickApp::ipadDrawer() {
         char buf[128];
         snprintf(buf, sizeof(buf), "%s", m_search.c_str());
         ImGui::SetNextItemWidth(-1);
-        if (ImGui::InputTextWithHint("##q", "3001, brique 2x4…", buf, sizeof(buf))) { m_search = buf; m_searchOpen = !m_search.empty(); m_cardsScroll = 0; }
+        if (ImGui::InputTextWithHint("##q", "3001, brick 2x4…", buf, sizeof(buf))) { m_search = buf; m_searchOpen = !m_search.empty(); m_cardsScroll = 0; }
         ImGui::PopFont();
         ImGui::End();
         ImGui::PopStyleColor(5);
@@ -993,11 +992,11 @@ void BrickApp::ipadDrawer() {
         x += w + 6 * s;
         return u.released && u.hover(ca, cb) && u.hover(qa, qb) && !swipeTaken(2) && m_swipeDragged != 2;
     };
-    if (m_searchOpen) { std::string t = "Recherche « " + m_search + " »"; kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_DOUX, t.c_str()); }
+    if (m_searchOpen) { std::string t = "Search “" + m_search + "”"; kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_DOUX, t.c_str()); }
     else if (crSubCount() > 0) {
-        if (chip("Tout", m_stSub < 0)) { m_stSub = -1; m_cardsScroll = 0; }
+        if (chip("All", m_stSub < 0)) { m_stSub = -1; m_cardsScroll = 0; }
         for (int j = 0; j < crSubCount(); ++j) if (chip(crSubLabel(j), m_stSub == j)) { m_stSub = j; m_cardsScroll = 0; }
-    } else kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_PALE, m_stFam == "recent" ? "Les dernières pièces posées" : "Appui long sur une pièce pour l'ajouter aux favoris");
+    } else kTextC(u.dl, x + 4 * s, y + chipH * 0.5f, 14 * s, T_BRUN_PALE, m_stFam == "recent" ? "The last parts placed" : "Long press a part to add it to favourites");
     u.dl->PopClipRect();
     swipeRow(2, qa, qb, m_catScroll, m_catVel, std::max(0.0f, x - chipStart - (qb.x - qa.x)), true);
     {   // the size of the cards: a slider between a small and a big brick (Wzx 22/11/2026: « slider de taille »)
@@ -1034,7 +1033,7 @@ void BrickApp::ipadDrawer() {
     const int taken = m_libPress >= 0 ? m_libPress : (m_holding ? m_libSel : -1);
     u.dl->PushClipRect(ca, cb, true);
     if (parts.empty())
-        kTextC(u.dl, ca.x + 4 * s, ca.y + 24 * s, 15 * s, T_BRUN_PALE, m_searchOpen ? "Aucune pièce pour cette recherche" : m_stFam == "recent" ? "Les pièces que tu poses apparaîtront ici" : m_stFam == "fav" ? "Aucun favori pour l'instant" : "Aucune pièce ici");
+        kTextC(u.dl, ca.x + 4 * s, ca.y + 24 * s, 15 * s, T_BRUN_PALE, m_searchOpen ? "No part for this search" : m_stFam == "recent" ? "The parts you place will appear here" : m_stFam == "fav" ? "No favourites yet" : "No part here");
     for (int k = 0; k < (int)parts.size(); ++k) {
         const int c = k / rows, r = k % rows;
         const ImVec2 pa(ca.x + c * (cw + cgap) - m_cardsScroll, y + r * (ch + cgap)), pb(pa.x + cw, pa.y + ch);
@@ -1085,7 +1084,7 @@ void BrickApp::ipadDrawer() {
     }
     // the part in hand: « Brique 2 × 4 · s'emboîte ici » under it
     if (m_holding && m_libSel >= 0 && m_libSel < (int)m_lib.parts.size() && m_holdPos.y < a.y - 40 * s)
-        kitLabel(ImGui::GetForegroundDrawList(), ImVec2(m_holdPos.x, std::min(m_holdPos.y + 46 * s, a.y - 18 * s)), partFr(m_lib.parts[m_libSel].label) + (m_blockedMaterial >= 0 ? " · ne tient pas ici" : " · s'emboîte ici"));
+        kitLabel(ImGui::GetForegroundDrawList(), ImVec2(m_holdPos.x, std::min(m_holdPos.y + 46 * s, a.y - 18 * s)), partFr(m_lib.parts[m_libSel].label) + (m_blockedMaterial >= 0 ? " · doesn't fit here" : " · snaps here"));
 }
 
 // ------------------------------------------------------------------ 11. the Nuancier (328 pt on the right)
@@ -1141,7 +1140,7 @@ void BrickApp::ipadNuancier() {
     const ImVec2 a(d.x - 58 * s - W, 22 * s), b(a.x + W, std::min(a.y + H, d.y - 22 * s));
     kitSheet(u.dl, a, b);
     float y = a.y + pad;
-    kTextC(u.dl, a.x + pad, y + 19 * s, 20 * s, T_BRUN, "Nuancier", true);
+    kTextC(u.dl, a.x + pad, y + 19 * s, 20 * s, T_BRUN, "Swatches", true);
     {   // close and the eyedropper (the colour of the selected brick)
         const float D = 38 * s;
         const ImVec2 cx(b.x - pad - D * 0.5f, y + D * 0.5f), cp(cx.x - D - 6 * s, y + D * 0.5f);
@@ -1151,7 +1150,7 @@ void BrickApp::ipadNuancier() {
     y += 38 * s + 14 * s;
     {
         g_segFullW = W - 2 * pad;
-        const int k = kitSegmented(u, ImVec2(a.x + pad, y), 38 * s, {"Toutes", "Dans la scène", "Pour la pièce"}, m_paletteFilter, false);
+        const int k = kitSegmented(u, ImVec2(a.x + pad, y), 38 * s, {"All", "In the scene", "For the part"}, m_paletteFilter, false);
         if (k >= 0) m_paletteFilter = k;
     }
     y += 38 * s + 12 * s;
@@ -1185,13 +1184,13 @@ void BrickApp::ipadHomeMenu() {
     const float s = m_ui;
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     struct Item { const char* icon; const char* label; const char* note; int act; };
-    const std::vector<Item> items = {{"ajouter", "Nouvelle scène", nullptr, 0}, {"ouvrir", "Ouvrir", "Fichiers", 1}, {"enregistrer", "Enregistrer une copie", nullptr, 2},
-                                     {"image", "Partager une image", nullptr, 5}, {"notice", m_reading ? "Fermer la notice" : "Lire une notice", ".ldr .mpd", 4},
-                                     {"couleur", "Thème Studio", "comme sur PC", 6}, {"enregistrer", "Envoyer un rapport", "bug, plantage", 7}};
+    const std::vector<Item> items = {{"ajouter", "New scene", nullptr, 0}, {"ouvrir", "Open", "Files", 1}, {"enregistrer", "Save a copy", nullptr, 2},
+                                     {"image", "Share an image", nullptr, 5}, {"notice", m_reading ? "Close the instructions" : "Read instructions", ".ldr .mpd", 4},
+                                     {"couleur", "Studio theme", "as on PC", 6}, {"enregistrer", "Send a report", "bug, crash", 7}};
     struct Seg { const char* label; std::vector<const char*> opts; int cur; int id; };
     const int q = m_renderScale > 0.95f ? 2 : m_renderScale > 0.8f ? 1 : 0;
-    const std::vector<Seg> segs = {{"Qualité", {"Économie", "Normale", "Belle"}, q, 0}, {"Lumière", {"Matin", "Midi", "Soir"}, m_lightPreset, 1},
-                                   {"Grille", {"Oui", "Non"}, m_build.gridSnap ? 0 : 1, 2}, {"Construire au stylet\nseulement", {"Oui", "Auto"}, m_pencilOnly ? 0 : 1, 3}};
+    const std::vector<Seg> segs = {{"Quality", {"Saver", "Normal", "Beauty"}, q, 0}, {"Light", {"Morning", "Noon", "Evening"}, m_lightPreset, 1},
+                                   {"Grille", {"Yes", "No"}, m_build.gridSnap ? 0 : 1, 2}, {"Build with the pencil\nonly", {"Yes", "Auto"}, m_pencilOnly ? 0 : 1, 3}};
     const float W = 380 * s, pad = 12 * s, segH = 50 * s;
     const float H = pad + items.size() * 50 * s + 17 * s + (segs.size() - 1) * segH + 62 * s + 10 * s;
     m_uiRects.push_back(ImVec4(0, 0, d.x, d.y));   // a tap outside closes
@@ -1241,13 +1240,13 @@ void BrickApp::ipadHomeMenu() {
 void BrickApp::shareImage() {
     std::vector<uint8_t> img;
     uint32_t w = 0, h = 0;
-    if (!m_renderer->readViewport(img, w, h) || !w || !h) { toast("Image indisponible"); return; }
+    if (!m_renderer->readViewport(img, w, h) || !w || !h) { toast("Image unavailable"); return; }
     SYSTEMTIME st;
     GetLocalTime(&st);
     wchar_t name[64];
     swprintf(name, 64, L"BrickIt %04d-%02d-%02d %02dh%02d.png", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
     plat::saveFileDialog(L"Image PNG (*.png)\0*.png\0", L"png", name, [this, img, w, h](const std::wstring& p) {
-        if (!p.empty() && savePng(p, img, w, h)) toast("Image enregistrée");
+        if (!p.empty() && savePng(p, img, w, h)) toast("Image saved");
     });
 }
 
@@ -1286,10 +1285,10 @@ void BrickApp::ipadNewScene() {
     const float H = pad + 44 * s + 16 * s + cardH + 30 * s + 22 * s + thH + 34 * s + pad - 8 * s;
     const ImVec2 a((d.x - W) * 0.5f, std::max(20 * s, (d.y - H) * 0.42f)), b(a.x + W, a.y + H);
     kitSheet(u.dl, a, b);
-    kTextC(u.dl, a.x + pad, a.y + pad + 22 * s, 28 * s, T_BRUN, "Nouvelle scène", true);
+    kTextC(u.dl, a.x + pad, a.y + pad + 22 * s, 28 * s, T_BRUN, "New scene", true);
     if (kitGalet(u, ImVec2(b.x - pad - 19 * s, a.y + pad + 22 * s), 38 * s, "fermer", 3)) { m_newSceneOpen = false; return; }
     struct Card { const char* title; const char* sub; int act; };
-    const Card cards[3] = {{"Plaque verte", "32 × 32 tenons, lumière du matin", 0}, {"Sol libre", "Rien sur la scène", 1}, {"Depuis une notice", "Fichier .mpd officiel, étape par étape", 2}};
+    const Card cards[3] = {{"Green baseplate", "32 × 32 studs, morning light", 0}, {"Open floor", "Nothing in the scene", 1}, {"From instructions", "Official .mpd file, step by step", 2}};
     float y = a.y + pad + 44 * s + 16 * s, x = a.x + pad;
     for (const Card& c : cards) {
         const ImVec2 ca(x, y), cb(x + cardW, y + cardH);
@@ -1330,7 +1329,7 @@ void BrickApp::ipadNewScene() {
     }
     // Reprendre: the scene in progress, the official house
     y += cardH + 30 * s;
-    kText(u.dl, ImVec2(a.x + pad, y), 13 * s, T_BRUN_PALE, "REPRENDRE");
+    kText(u.dl, ImVec2(a.x + pad, y), 13 * s, T_BRUN_PALE, "RESUME");
     y += 22 * s;
     x = a.x + pad;
     for (int k = 0; k < 2; ++k) {
@@ -1397,6 +1396,6 @@ void BrickApp::newScene(int kind) {
     if (m_bricks.empty()) { m_scene.camera.target = float3(0, 0, 0); m_scene.camera.distance = 60; }
     m_scene.camera.pitch = radians(32.0f);
     touchCamera();
-    toast("Nouvelle scène");
+    toast("New scene");
 }
 

@@ -46,10 +46,10 @@ void BrickApp::cloudSend() {
     if (m_cloudId.empty()) { m_cloudId = Cloud::newId(); m_cloudVer = 0; savePrefs(); }
     CloudScene meta;
     meta.id = m_cloudId;
-    meta.name = m_modelName.empty() ? std::string("Ma scène") : m_modelName;
+    meta.name = m_modelName.empty() ? std::string("My scene") : m_modelName;
     meta.bricks = (int)m_bricks.size();
     m_cloudSending = true;
-    m_cloudMsg = "envoi…";
+    m_cloudMsg = "uploading…";
     const int changes = m_cloudChanges;
     const std::string id = m_cloudId;
     m_cloud.upload(meta, m_build.toJson(m_scene.camera), m_cloudVer, [this, changes, id, key, meta](int res, int ver, const std::string& err) {
@@ -61,19 +61,19 @@ void BrickApp::cloudSend() {
             if (m_cloudChanges == changes) m_cloudDirty = false;
             m_cloudOkAt = ImGui::GetTime();
             m_cloudSendAt = m_cloudOkAt + 60;
-            m_cloudMsg = "à jour";
+            m_cloudMsg = "up to date";
             savePrefs();
         } else if (res == 1) {   // changed on the other device too: this one goes on as a copy, sent at once
             m_cloudId = Cloud::newId();
             m_cloudVer = 0;
             m_cloudSentKey.clear();
-            m_modelName = meta.name + " (copie " + plat::deviceName() + ")";
+            m_modelName = meta.name + " (copy " + plat::deviceName() + ")";
             m_cloudDirty = true;
             m_cloudDirtyAt = 0;
             m_cloudSendAt = 0;
-            toast("Cloud : cette scène a aussi changé sur l'autre appareil. Ta version continue en copie : « " + m_modelName + " »");
+            toast("Cloud: this scene also changed on the other device. Your version continues as a copy: “" + m_modelName + "”");
         } else {
-            m_cloudMsg = "envoi impossible : " + err;
+            m_cloudMsg = "upload failed: " + err;
             m_cloudDirtyAt = ImGui::GetTime() + 15;   // (tried again later)
         }
     });
@@ -100,7 +100,7 @@ void BrickApp::cloudOpen(const CloudScene& c, bool fromPoll) {
     m_cloudChecking = true;
     m_cloud.download(c.id, [this, c, fromPoll](bool ok, const std::string& json, const std::string& err) {
         m_cloudChecking = false;
-        if (!ok) { toast("Cloud : " + err); return; }
+        if (!ok) { toast("Cloud: " + err); return; }
         if (fromPoll && (m_cloudDirty || c.id != m_cloudId || m_holding)) return;   // (changed here meanwhile: the conflict at the next send)
         if (!loadSceneText(json, c.name, !fromPoll)) return;
         m_cloudId = c.id;
@@ -108,10 +108,10 @@ void BrickApp::cloudOpen(const CloudScene& c, bool fromPoll) {
         m_cloudSentKey = m_build.toJson(vp3d::Camera());
         m_cloudDirty = false;
         m_cloudOkAt = ImGui::GetTime();
-        m_cloudMsg = "à jour";
+        m_cloudMsg = "up to date";
         savePrefs();
-        toast(fromPoll ? "Cloud : scène mise à jour depuis " + (c.device.empty() ? std::string("l'autre appareil") : c.device)
-                       : "Cloud : « " + c.name + " » ouverte");
+        toast(fromPoll ? "Cloud: scene updated from " + (c.device.empty() ? std::string("the other device") : c.device)
+                       : "Cloud: “" + c.name + "” opened");
     });
 }
 
@@ -126,8 +126,9 @@ bool BrickApp::loadSceneText(const std::string& text, const std::string& name, b
         m_selected = -1;
         m_multi.clear();
         m_scenePath.clear();
-        m_modelName = name == "Ma scène" ? std::string() : name;
+        m_modelName = name == "My scene" ? std::string() : name;
         rebuildScene();
+        applySceneLook(text);
         autosave();
     }
     m_cloudLoading = false;

@@ -91,8 +91,35 @@ struct Options {
     int stSub = -2;
     int libDock = -1, libClassic = -1, highPoly = -1;   // (--high-poly 0|1)   // (captures: --lib-dock 0|1|2, --lib-classic 0|1)
     int manualDock = -1; float manualW = 0, manualH = 0;   // --manual-dock 0|1|2, --manual-size w h (points; captures)
+    float bgLin = -1, bgK = -1;   // --bg-lin: the background colour (linear grey), calibration
+    float ptSss = -1;
+    float ptSun = -1;
+    float ptEnvSpec = -1;
+    float ptSky = -1;   // --pt-sky: without HDRI, the sky of the path tracer (the HQ hemisphere light) x this   // --pt-envspec: the HDRI in the sharp reflections of the path tracer (x)   // --pt-sun: the sun of the path tracer against the HQ one
+    float ptCoat = -1, ptCoatRough = -1, ptRough = -1, ptSpec = -1;   // --pt-coat, --pt-coatr, --pt-rough, --pt-spec: the ABS of the path tracer (calibration)   // --pt-sss: the random-walk subsurface of the path tracer (off by default since 23/11/2026)
+    float ptHdri = 0;   // --pt-hdri: the HDRI of the path tracer against the raster HQ (calibration)
+    float ptGlassRough = -1, ptGlassTrans = -1;   // --pt-glass-rough r, --pt-glass-trans t: the glass of the path tracer (calibration)
+    float ptSunR = -1, ptSunB = -1;   // --pt-sun-tint r,b: the sun of the path tracer under the procedural sky, its red and blue x (calibration)
+    float ptSkySat = -1, ptFloorSpec = -1;   // --pt-sky-sat k: the saturation of the gradient sky of the path tracer; --pt-floor-spec k: the sheen of its floor (calibration)
+    float glare = -1, bloomPt = -1;   // --glare g, --bloom-pt b: the glare, the bloom of the Ray tracing (captures)
+    int glassAbsorb = -1;   // --glass-absorb 0/1: the glass absorbed by its thickness (Ray tracing)
+    int studio = -1, studioShader = -1;   // --studio 0/1, --studio-plastic 0/1: the studio stage, the studio plastic (captures)
+    bool studioBrick = false;             // --studio-brick: the lookdev scene of the yellow brick (BrickStudio.cpp)
+    std::wstring studioSave;              // --studio-save <file>: that scene written to this file (frame 12)
+    float studioBase = -1;   // --studio-base g: the studio plastic with this grey as its colour and no SSS (calibration: 0 = its reflections alone)
+    int wideGamut = -1;      // --wide-gamut 0/1
+    float studioFp = -1, clayAlbedo = -1; // --studio-fp k: the strength of the fingerprints map; --clay-albedo a: the grey of the clay render, linear, no SSS (calibration)
+    bool noUserLights = false;            // --no-user-lights: the lights of the Lighting panel off (calibration)
+    int renderPanel = 0;    // --render-panel 1: the Render Settings panel open (captures); 2: its sections folded
+    float ptGround = -1;   // --pt-ground g: the light from below under the procedural sky (g x the horizon), calibration
+    bool matRubber = false;   // --mat-rubber: the Material panel on the rubber (captures)
+    float ptSssAll = -1;   // --pt-sss-all k: the subsurface of every plastic in path tracing, x k (calibration; default: the SSS setting of Réglages › Lumière)
+    float ptSunSky = -1;   // --pt-sun-sky k: the sun of the path tracer under the procedural sky (calibration)
+    float ptFloor = -1; // --pt-floor k: the floor's albedo in path tracing with the procedural sky (calibration)
+    float ptExposure = 0;   // --pt-exposure: the exposure of the path tracer against the raster HQ (calibration)
     std::string ux;   // --ux grey | black | kit (captures: the interface, apart from the theme)
-    bool stPaint = false, stGroups = false;   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
+    bool stPaint = false, stGroups = false, colorsMin = false;
+    int sideFold = -1;   // --side-fold: 1 the left panel folded, 2 the right column, 3 both (captures)   // (--colors-min: the panel Couleur reduced)   // --st-paint, --st-groups: the mode Peindre, the panel Groupes (captures)
     float cardScale = 0;   // --card-scale k: the size of the cards of the drawer (captures)
     int stPopup = 0;       // --st-popup N: a popup of the Studio header open (8: the scene menu) (captures)        // --st-sub N: its category (-1: Toutes) (captures)
     int cardSheet = -1;    // --card-sheet N: the sheet of the card N of the drawer shown (captures)
@@ -147,6 +174,7 @@ struct Options {
     float floatX = 0, floatY = 0;
     std::string ttBase, ttTop;
     std::string mouseTest;
+    std::wstring partsTest;     // --parts-test <file>: every part of the drawer built for real (BrickUiCreme.inl), then quit
     bool mechTests = false;     // --mechtests: the battery of mechanics tests, then quit
     int quality = -1;
     bool settings = false;
@@ -161,6 +189,11 @@ struct Options {
     std::wstring cloudSelfTest;   // --cloud-selftest <file>: a sign-in with a wrong password (the network, the answer of Supabase), then quits
     std::wstring ptTrace;       // --pt-trace <file>      // --settings: the settings panel open (captures)           // --quality 0 | 1      // --mouse-test marquee | gizmo | ring | mech  // --turntable-test <base> <top>: mechanics self-test
     std::string devRoundtrip;
+    float bevelUser = -1;       // --bevel-radius r: the bevel radius setting (0..5)
+    bool ptDlss = false;        // --pt-dlss: the Ray tracing DLSS mode (with --pt)
+    int lcTest = 0;             // --lc-test N: lights and cameras (1 a light selected, 2 a camera selected: its preview, 3 looked through) for captures
+    std::string matEdit;        // --mat-edit id,r,g,b,metal,trans,rough: a Material panel edit (captures)
+    std::wstring wzxOut;        // --wzx-export <WZX Engine project>: the model as a WZX Engine scene (OBJ + .wzx) then quit
     std::wstring mayaOut;       // --maya <file.zip>: export the scene to Maya then quit (tests)   // --dev-roundtrip <part>: OBJ export / import self-test
     int libCategory = -1;     // --cat N
     bool focusDim = false;    // --focus
@@ -253,6 +286,7 @@ private:
         float3 hitPoint;
         float sx = 0, sy = 0, moved = 0;
         bool tap = false;
+        bool penEmpty = false;        // the Pencil on the empty view: held still, it draws the selection rectangle (Wzx 22/11/2026)
         bool paint = false;           // TG_MOUSE in the view: the Pinceau / Pipette (a second finger turns it into the camera)
         bool second = false, rotated = false;   // a second finger while a brick is in hand: swipe turns / tilts, tap turns
         uint64_t secondId = 0;
@@ -391,6 +425,8 @@ private:
     // apart from the Thème (Classique, Brique, Crème: the colours), each theme on each interface. Réglages › Interface,
     // the hub of the kit. 0 Grey (the layout of Brique), 1 Black (the layout of Classique), 2 Crème (the touch kit)
     int m_ux = 0;
+    bool m_clsBarDrag = false, m_cardsBarDrag = false;   // the scroll bars of the library taken
+    double m_perfInput = 0, m_perfAnim = 0;   // --perf-trace: ms of the input (camera, edit) and of the animations
     float m_kitLibFrac = 0.36f;   // the height of the drawer of the kit (its grip), part of the screen
     // UI kit 2.0 (docs/brickit/ui_kit/KIT.md): the kit's images, colours and drawing components
     struct KitColor { int ldraw = 0; std::string nom, famille; int index = -1; };
@@ -555,6 +591,7 @@ private:
     struct MayaStats { int bricks = 0, parts = 0, bodies = 0, joints = 0, cmds = 0; std::vector<std::string> fails; double coupling = 0; };
     bool mayaExportScript(std::string& py, MayaStats& st, std::string& err);
     void mayaExportScene(const std::wstring& forcedPath = std::wstring());
+    bool wzxExport(const std::wstring& projectDir, const std::string& name, std::string& report);   // BrickWzxExport.cpp
     void mayaWriteZip(const std::wstring& path, const std::wstring& forcedPath, const std::string& zip, const std::string& py,
                       const std::string& nm, const MayaStats& st);   // (after the file dialog)
 
@@ -590,6 +627,7 @@ private:
     bool m_manPageDrag = false;
     float m_manPageScale = 1.0f;      // the size of the pages in the Notice (its slider, 0.5 to 1)
     std::unique_ptr<PdfReader> m_pdf;
+    float m_pdfWheel = 0;   // (the wheel over the page: a page per notch)
     bool m_pdfOn = false, m_pdfOpening = false, m_pdfScrollSmooth = false, m_prefsDirty = false;
     std::string m_pdfName, m_pdfMsg;
     int m_pdfPage = 1, m_pdfScrollTo = 0, m_bigScrollTo = 0;
@@ -607,6 +645,7 @@ private:
     void mouseTestFrame();
     void runMechTests();   // BrickMechTests.cpp (--mechtests)
     std::vector<MouseStep> m_mouseScript;
+    int m_mtGrab0 = -1, m_mtGrabWant = -1;   // (--mouse-test pivot)
     Brick m_mtBefore;
     std::vector<double> m_mtQ;
     int m_mtBrick = -1;
@@ -740,6 +779,7 @@ private:
 
 #ifdef _WIN32
     HWND m_hwnd = nullptr;
+    bool m_offscreen = false;   // captures and tests: the window off the desktop, not activated
 #endif
     Options m_opt;
     std::wstring m_exeDir;
@@ -755,10 +795,104 @@ private:
     std::vector<int> m_partMesh;       // part -> scene mesh (-1 = not uploaded)
     std::vector<int> m_colorMaterial;  // palette index -> scene material
     std::vector<int> m_dimMaterial;    // palette index -> same material at 50 % (focus mode)
+    std::vector<int> m_rubberMaterial, m_rubberDim;   // palette index -> the rubber of the tyres (and its 50 % copy)
+    std::vector<Material> m_rubberOrig, m_rubberFactory;   // (factory: as Stage.cpp makes them, the Reset of the Material panel)
+    std::vector<int8_t> m_partRubber;  // part -> 1 rubber, 0 not, -1 not known yet
     std::vector<int> m_tintMaterial;   // Mechanical mode: one material per body (Couleurs par corps)
     int m_blockedMaterial = -1;        // brick in hand that cannot be dropped (red ghost)
     int m_ghostMaterial = -1, m_ghostBlockedMaterial = -1;
     int m_rimLight = -1;
+    // ---- Lighting and Camera panels (Wzx 24/11/2026, BrickLights.cpp): area lights and cameras of the user, a list each,
+    // their settings, handles in the view (move, rotate; W / H of a light), a camera looked through or shown in a preview
+    struct UserLight {
+        std::string name = "Area light";
+        float3 pos{0, 30, 0};
+        float4 rot{0, 0, 0, 1};         // its frame without target: x the width edge, y the height edge, z where it shines
+        float w = 12, h = 12;           // cm
+        float3 color{1, 1, 1};          // sRGB
+        float intensity = 25;           // radiance
+        bool visible = true;
+        bool targetOn = false;
+        float3 target{0, 0, 0};
+        float3 dir() const;
+        float3 upv() const;
+    };
+    struct UserCam {
+        std::string name = "Camera";
+        Camera cam;          // its pose and lens (orbit form: target, yaw, pitch, distance, fovY)
+        bool locked = false; // looked through: the view does not move
+        bool targetOn = false;   // aimed at a point (cam.target), kept when the camera moves
+    };
+    std::vector<UserLight> m_lights;
+    std::vector<UserCam> m_cams;
+    int m_firstUserLight = 0;     // m_scene.lights: the stage's first, then the user's
+    int m_selLight = -1, m_selCam = -1;   // the one picked in the panels or the view (one at a time)
+    bool m_lightPanel = false, m_camPanel = false;
+    int m_inCam = -1;             // the view looks through this camera
+    Camera m_perspSave;           // the perspective view, back when the camera is left
+    struct ObjDrag { int kind = -1, axis = 0; float3 p0, q0, axv, hit0; float4 rot0{0, 0, 0, 1}; float yaw0 = 0, pitch0 = 0, w0 = 0, h0 = 0; ImVec2 m0, c0; };
+    ObjDrag m_od, m_odHover;
+    bool m_odDragging = false;
+    int m_lcRename = -1, m_lcRenameKind = 0;   // the row renamed (kind 0 light, 1 camera)
+    int m_lcMenu = -1, m_lcMenuKind = 0;       // right click on a row: Rename, Delete
+    ImVec2 m_lcMenuAt;
+    ImTextureID m_pipTex = 0;
+    double m_pipT = 0;
+    std::string m_pipKey;
+    int m_lcDrag = -1;            // slider of the panels being dragged
+    // Render Settings (Wzx 24/11/2026): a floating panel with every setting of the render and the lighting
+    bool m_renderPanel = false, m_rsMove = false;
+    ImVec2 m_rsPos{-1, -1}, m_rsGrab;   // its right edge from the right of the window and its top, interface units (x < 0: its default place)
+    float m_rsScroll = 0, m_rsH = 0;
+    unsigned m_rsFold = 1u << 6;       // its folded sections (bit = section; Radiance Cascades folded at first)
+    int m_rsDrag = -1;
+    // the studio stage and the look a scene keeps (BrickStudio.cpp)
+    bool m_wideGamut = false;   // the scene rendered in ACEScg primaries (Render Settings › Image; RenderSettings::wideGamut)
+    float3 gamut(const float3& linSrgb) const;   // a colour of the scene: as it is, or in ACEScg when m_wideGamut
+    bool m_studio = false, m_studioShader = false;   // the cyclo stage; the studio plastic (fingerprints, no varnish)
+    bool m_sceneLook = false;                         // the open scene came with a lookdev block (its lights, cameras, materials)
+    int m_cycloObj = -1, m_fpTex = -1;
+    bool m_fpLoaded = false;
+    vp3d::Texture m_fpImage;
+    float3 m_studioCyclo{0, 0, 0};
+    float m_studioCycloK = 1.0f;
+    float m_studioFloorY = -1e30f;                    // (> -1e20: the scene says where its cyclo is, m_studioCyclo)
+    struct EnvKeep { std::wstring hdri; float rot = 0, intensity = 0.55f; int tonemapper = 0, engine = 1; } m_keep;
+    bool m_envKept = false;                           // the environment of the user kept aside while a studio scene is open
+    std::string m_pendingLook;                        // the scene text whose lookdev block is applied once the stage is up
+    std::wstring studioFile(const wchar_t* name) const;
+    void ensureStudioTex();
+    void setStudio(bool on);
+    float studioScale(float3* centre) const;
+    void studioRig(const float3& c, float k);
+    bool m_studioAuto = false;   // the softboxes came with the stage switch (they go with it)
+    void studioLook();
+    bool hasSceneLook() const;
+    std::string sceneLookJson() const;
+    std::string sceneJson() const;
+    void applySceneLook(const std::string& text);
+    void studioBrickScene();
+    void addLight();
+    void addCamera();
+    void deleteLight(int i);
+    void deleteCamera(int i);
+    void duplicateLightOrCamera();   // Ctrl+D on a selected light / camera: a copy, a little aside, selected
+    void syncLights();            // m_lights into m_scene.lights (and the renderers)
+    void enterCamera(int i);
+    void exitCamera();
+    void frameCamera(int i);
+    bool camLocked() const { return m_inCam >= 0 && m_inCam < (int)m_cams.size() && m_cams[m_inCam].locked; }
+    void camFollowView();         // looked through and free: the camera follows the view
+    float3 lcPivot(int kind, int i) const;
+    void lcAxes(int kind, int i, float3& o, float3 ax[3]) const;   // the local frame of a light (U, V, its normal) or a camera (right, up, forward)
+    ObjDrag pickObj(float sx, float sy) const;   // a handle of the selected light / camera, or the icon of one (kind 9)
+    bool objInput(ImVec2 mp);     // the view's clicks on lights, cameras and their handles; true when it took the mouse
+    void drawObjOverlay();
+    void pipRender();             // the preview of the selected camera (offscreen, a few times a second)
+    void stLightPanel();
+    void stCamPanel();
+    void stRenderPanel();   // the floating Render Settings panel (BrickUiRender.inl)
+    void stLcButtons(Ui& u, ImVec2 a, float bw, float s);
     bool m_startMaximized = false;
     bool m_cornell = false;
     int m_adaptiveSpp = 1;             // path tracing samples per frame (adaptive, see frame)            // --cornell: the WZX Engine Cornell box instead of bricks
@@ -849,7 +983,7 @@ private:
     LARGE_INTEGER m_perfT0{}, m_perfA{}, m_perfB{}, m_perfD{}, m_perfE{}, m_perfT1{}, m_perfF{};   // (--perf-trace)
     float m_setScroll = 0;
     // ---- the cloud (BrickCloud.cpp, Cloud.h; Wzx 14/11/2026: the scenes between the iPad and the PC)
-    static constexpr int kSetCloud = 8;   // Réglages › Cloud (its section)
+    static constexpr int kSetCloud = 5;   // Réglages › Cloud (its section)
     Cloud m_cloud;
     std::string m_cloudId, m_cloudSentKey, m_cloudMsg, m_cloudAuthMsg, m_cloudListErr;
     int m_cloudVer = 0, m_cloudChanges = 0;
@@ -914,7 +1048,11 @@ private:
     ImVec2 m_editP0{0, 0};
     UiBox m_editB0;
     int m_hubSection = 0;                          // the hub page: 0 Mes scènes, 1 Récentes, 2 Cloud, 3 Démos
-    float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0;
+    float m_bqColX = 0, m_bqColW = 0, m_bqSceneY = 0, m_bqGroupsY = 0, m_bqGroupsTop = 0;
+    float m_colScroll = 0, m_colContentH = 0;
+    float m_stColCol = 0;   // Studio: the width of the right column of Colour (0: none)   // the swatches of Colour scrolled
+    bool m_grpDrag = false;   // Studio: the grip of Groups held
+    ImVec2 m_grpDrag0{0, 0}, m_grpDragP{0, 0};
     ImVec4 m_stageB{0, 0, 0, 0};                    // the 3D view inset in its frame (this frame)
     void stHeaderBrique();
     void stBriqueStage();
@@ -943,7 +1081,8 @@ private:
     void ipadTools();
     bool ipadAngles(ImVec2 above);
     void crTurn(int dir = 1);
-    void crFrame();                // Recadrer: the selection in the middle, closer (all the scene without one)
+    void crFrame();
+    void partsTest(const std::wstring& outPath);                // Recadrer: the selection in the middle, closer (all the scene without one)
     void ipadColorRing();          // a long press on a brick: all the colours in rings around it
     void crSwatch(ImDrawList* dl, ImVec2 p, float r, int color, bool current, float alpha);
     bool m_crRing = false, m_crRingSticky = false;
@@ -1093,6 +1232,7 @@ private:
     float m_themeTabH = 0;            // height of the Thème tab, as drawn last frame
     bool m_selHud = true;             // Réglages › HUD de sélection (on by default, apart from the iPad ring)
     bool m_pipette = false;           // the pipette of the HUD: the next brick clicked gives its colour
+    bool m_matPick = false;           // the pipette of the Material panel: the next brick clicked gives its material to edit
     std::map<std::string, ImTextureID> m_pcIcons;
     bool pcDarkNow();
     ImTextureID pcIcon(const char* name, bool white);
@@ -1111,6 +1251,8 @@ private:
     int m_arcPage = 0;
     ImVec2 m_arcPress;
     bool m_stillAA = false;           // Réglages › Anti-aliasing au repos (HQ: jittered frames accumulated while still)
+    float m_bloomPT = 0.24f, m_glare = 0.0f;   // Render Settings: the bloom of the Ray tracing (its own, Wzx 24/11/2026), the glare
+    bool m_glassAbsorb = false;   // Render Settings: the glass absorbed by its thickness (Ray tracing)
     float m_dof = 0.0f, m_bloom = 0.0f;   // Réglages › Lumière › Profondeur de champ / Bloom (0 = off)
     int m_focusMode = 0;              // Réglages › Lumière › Mise au point: 0 auto (the selection / held brick), 1 centre of the screen, 2 manual
     float m_focusManual = 40.0f;      // manual focus distance (cm)
@@ -1119,9 +1261,34 @@ private:
     float m_renderScale = 1.0f;       // Réglages › Échelle de rendu (1, 0.85, 0.75, 0.67)
     float m_selOutline = 0.22f, m_selFill = 0.15f;   // Réglages › Lumière: Contour / Voile de sélection
     float m_lumColumnH = 0.0f;        // Réglages: height of the Lumière column drawn last frame
+    float m_bevelUser = 0.5f;         // Réglages › Rendu › Bevel radius, 0..5 (0.5 = the BrickIt bevel as made: RenderSettings::bevelScale 1)
     float m_hqSSSStrength = 1.0f;     // Réglages › Lumière › SSS (HQ): strength 0..2 (0 = off)
     bool m_softGIHold = true;   // Réglages › Lumière › Figer la GI pendant le déplacement: the probes held while a brick is carried
-    bool m_giLookdev = false;                 // (not saved: a test view, off at the next launch)
+    bool m_giLookdev = false;
+    bool m_ptLook = false;
+    bool m_lightDragged = false;
+    bool m_swatchFlat = false;
+    bool m_sideLFold = false, m_sideRFold = false;   // the left panel (the library docked on the left) / the right column folded (its arrow)
+    void stSideTabs();                // Settings › Interface › Colour swatches: the flat squares (else the 1x1 brick seen from above)
+    std::string m_libStateKey;                // the library as the user left it (saved when it changes)              // Shift + right drag turned the light (saved on release)                    // the materials of the path tracer applied (glossier ABS, applyLook)                 // (not saved: a test view, off at the next launch)
+    EnvImagePtr m_hdriImg;   // the environment image of the view (the HDRI file, or the procedural sky)
+    std::vector<Material> m_colorMaterialFactory;   // the palette materials as BrickIt makes them (the « Reset » of the Material panel)
+    // Material panel (Wzx 24/11/2026): the edits of a colour's material (colour, metalness, transparency, roughness), by
+    // LDraw colour id; they apply to every brick of that colour, now and later, and are kept in the preferences
+    struct MatEdit { float3 srgb{1, 1, 1}; float metal = 0, trans = 0, rough = 0.24f; float sss = -1, sssScale = 1; float3 ap1{-1, -1, -1}; float spec = 0.5f; };   // (ap1.x >= 0: the colour given in ACEScg, linear; srgb is then its nearest sRGB)   // sss < 0: the factory subsurface (none in path tracing)
+    std::map<int, MatEdit> m_matEdits;
+    std::map<int, MatEdit> m_sceneMats;               // the materials edited for this scene only (over m_matEdits)
+    const MatEdit* editOf(int colourKey) const { auto s = m_sceneMats.find(colourKey); if (s != m_sceneMats.end()) return &s->second; auto p = m_matEdits.find(colourKey); return p != m_matEdits.end() ? &p->second : nullptr; }
+    void studioPlastic(vp3d::Material& m, const MatEdit* e);
+    int m_matDrag = -1;
+    bool m_matRubber = false;   // the Material panel edits the rubber of the colour (tyres), not its plastic
+    static constexpr int kRubberKey = 100000;   // m_matEdits: the rubber of colour id is at kRubberKey + id
+    int matKey(int colorIndex) const { return m_lib.palette[colorIndex].id + (m_matRubber ? kRubberKey : 0); }
+    void applyMatEdits();                    // m_matEdits over the factory materials, then the lookdev / path tracer looks
+    MatEdit matEditOf(int colorIndex) const; // the edit of a colour, or its factory values
+    void setMatEdit(int colorIndex, const MatEdit& e);
+    void resetMatEdit(int colorIndex);
+    float stMaterial(Ui& u, ImVec2 a, ImVec2 b);   // the Material section under the swatches; its height
     std::vector<Material> m_colorMaterialOrig;   // the palette materials as made, restored when the lookdev ends
     uint64_t m_giBoundsVersionSoft = ~0ull;
     float3 m_softLo{0, 0, 0}, m_softHi{0, 0, 0};
@@ -1130,6 +1297,10 @@ private:
     void setRC(bool on);
     bool userSession() const;   // not a test / demo / capture run: the preferences and the autosave may be written
     bool pathTraced() const { return !m_rs.raster && !m_rcMode; }
+    // Ray tracing DLSS (Wzx 24/11/2026: « les deux versions dans BrickIt avant de valider »): the same path tracer, its
+    // image denoised by Intel Open Image Denoise while the view is still and by NVIDIA DLSS Ray Reconstruction while it
+    // moves (WZX Engine main); Ray tracing keeps its a-trous filter
+    bool m_rtDlss = false;
     struct PanelState { bool visible = true, collapsed = false, floating = false; float x = 0, y = 0; };
     // grip of the library / brick actions: click folds, click-drag undocks into a floating window, dropped on the
     // bottom edge (library) or a side edge (actions) it docks again (web: dockable panels)
@@ -1153,6 +1324,21 @@ private:
     bool m_sheetOpen = false;          // « Scène partagée » sheet
     std::string m_sheetText;
     bool m_pivotEdit = false;          // P
+    // W, the centre sphere of the gizmo (Wzx 24/11/2026): choose the pivot. The axes hide, the voxels of the brick appear
+    // (one after the other), the other bricks at 50 %; a click, or a drag over the voxels then release, sets the pivot
+    // the sphere of W pressed (Wzx 24/11/2026): held still 0.35 s, the choice of the pivot; dragged, the free move with the
+    // gizmo still shown on the brick
+    bool m_sphPress = false, m_freeFromSphere = false;
+    ImVec2 m_sphPressAt{0, 0};
+    double m_sphPressT = 0;
+    bool m_pivotPick = false, m_pivotPickPressed = false;   // (pressed: a press since it opened; the click that opened it does not choose)
+    int m_pivotPickBrick = -1, m_pivotHot = -1;
+    double m_pivotPickT0 = 0, m_pivotDoneT = -1;
+    float3 m_pivotDoneAt{0, 0, 0};
+    void pivotPickBegin();
+    void pivotPickEnd(bool apply);
+    void pivotPickInput(ImVec2 mp, bool inView);
+    void drawPivotPick();
     int m_voxStep = 0;                 // V: voxels hidden / shown
 
     // Mechanical mode

@@ -46,23 +46,23 @@ static uint32_t onAccent(uint32_t acc) { return luma(acc) > 0.42f ? 0x15161a : 0
 // ------------------------------------------------------------------ the themes
 
 static const std::vector<Accent> kLego = {
-    {"Jaune LEGO", 0xf2cd37}, {"Orange", 0xfe8a18}, {"Rouge", 0xc91a09}, {"Bleu", 0x0055bf}, {"Vert", 0x237841}, {"Azur", 0x36aebf}};
+    {"LEGO yellow", 0xf2cd37}, {"Orange", 0xfe8a18}, {"Red", 0xc91a09}, {"Blue", 0x0055bf}, {"Green", 0x237841}, {"Azure", 0x36aebf}};
 
 const std::vector<Def>& themes() {
     static std::vector<Def> d = {
-        {"classic", "Classic", "L'interface sombre d'origine, accents LEGO.", 1,
+        {"classic", "Black", "Black, LEGO yellow and white.", 1,
          {{"anthracite", "Anthracite", 0, 0, 0x25262b}},
-         {{"Jaune", 0xf7c51e}, {"Orange", 0xfe8a18}, {"Rouge", 0xc91a09}, {"Bleu", 0x0055bf}, {"Vert", 0x237841}, {"Azur", 0x36aebf}}},
+         {{"Yellow", 0xf7c51e}, {"Orange", 0xfe8a18}, {"Red", 0xc91a09}, {"Blue", 0x0055bf}, {"Green", 0x237841}, {"Azure", 0x36aebf}}},
         // the « Brique » interface (Wzx 15/11/2026, canvas JBtw2wBYiTVRTg7JuzaXc5): slate panels in relief, the yellow of
         // the brick in gradient on what is active, round type (Fredoka); its own layout (BrickUiBrique.inl)
-        {"brique", "Brique", "Ardoise en relief, boutons jaunes, police ronde : Hub et Construire.", 1,
-         {{"ardoise", "Ardoise", 0, 0, 0x282d37}},
-         {{"Jaune", 0xffc93c}, {"Orange", 0xff9f1c}, {"Bleu", 0x5b8def}, {"Vert", 0x3dd68c}}},
+        {"brique", "Slate", "Blue slate and brick yellow.", 1,
+         {{"ardoise", "Slate", 0, 0, 0x282d37}},
+         {{"Yellow", 0xffc93c}, {"Orange", 0xff9f1c}, {"Blue", 0x5b8def}, {"Green", 0x3dd68c}}},
         // Crème (Wzx 22/11/2026): the cream touch kit of the iPad, rebuilt on the layout of Brique (all its functions, the
         // library of today); Galet, the same a little less cream (warm greys)
-        {"creme", "Crème", "Le kit crème de l'iPad : galets, bulles brunes autour de la brique, dock, tiroir.", 0,
-         {{"creme", "Crème", 0, 0, 0xf1e7d8}},
-         {{"Espresso", 0x4a3b30}, {"Jaune", 0xe2a300}, {"Terracotta", 0xc0603a}, {"Sauge", 0x5c8a68}, {"Bleu", 0x3d6fb6}}},
+        {"creme", "Cream", "Warm cream and soft brown.", 0,
+         {{"creme", "Cream", 0, 0, 0xf1e7d8}},
+         {{"Espresso", 0x4a3b30}, {"Yellow", 0xe2a300}, {"Terracotta", 0xc0603a}, {"Sage", 0x5c8a68}, {"Blue", 0x3d6fb6}}},
     };
     static bool swatches = false;
     if (!swatches) {   // the swatch of an oklch tint: its grey at mid lightness, a little more saturated so that it shows

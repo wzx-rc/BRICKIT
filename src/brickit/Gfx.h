@@ -41,7 +41,8 @@ public:
     virtual uint64_t rasterTriangles() const = 0;
     virtual float giUpdateMs() const = 0;
     virtual float giBlendMs() const = 0;
-    virtual bool pathTracing() const = 0;   // false on the iPad: raster only, the PT settings are ignored
+    virtual bool pathTracing() const = 0;
+    virtual long deviceRemoved() const { return 0; }   // (crash reports: S_OK, or why the GPU device was removed)   // false on the iPad: raster only, the PT settings are ignored
 };
 
 // Dear ImGui on top of the renderer: platform frame, draw, textures for thumbnails.

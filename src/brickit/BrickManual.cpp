@@ -108,7 +108,7 @@ void BrickApp::pdfOpen(const std::wstring& path, const std::string& name, bool s
     m_pdfSizes.clear();
     m_pdfName = name;
     m_pdfOpening = true;
-    m_pdfMsg = "Ouverture du PDF…";
+    m_pdfMsg = "Opening the PDF…";
     m_pdfOn = true;   // view.hidden = false; pdfmode
     m_pdf->open(src);
     savePrefs();
@@ -119,7 +119,7 @@ void BrickApp::pdfPump() {
     if (!m_pdf) return;
     if (m_pdfOpening) {
         std::string err;
-        if (m_pdf->failed(&err)) { m_pdfOpening = false; m_pdfMsg = "PDF illisible : " + err; return; }
+        if (m_pdf->failed(&err)) { m_pdfOpening = false; m_pdfMsg = "Unreadable PDF: " + err; return; }
         if (m_pdf->ready()) {
             m_pdfOpening = false;
             m_pdfMsg.clear();
@@ -128,7 +128,7 @@ void BrickApp::pdfPump() {
             m_pdfPage = std::clamp(m_pdfPage, 1, std::max(1, (int)m_pdfSizes.size()));
             m_pdfScrollTo = m_pdfPage;   // requestAnimationFrame(() => scrollPdfTo(mpdf.page, false))
             m_pdfScrollSmooth = false;
-            toast("PDF importé : " + std::to_string(m_pdfSizes.size()) + " pages");
+            toast("PDF imported: " + std::to_string(m_pdfSizes.size()) + " pages");
         }
     }
     PdfReader::Image img;

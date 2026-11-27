@@ -2,6 +2,8 @@
 #include "vp3d/MeshGen.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace brickit {
 
@@ -20,6 +22,51 @@ int addGround(Scene& scene, float size, bool grid, bool visible) {
     o.material = scene.addMaterial(g);
     o.selectable = false;
     o.visible = visible;
+    return scene.addObject(o);
+}
+
+// The cyclorama of the studio stage (BrickIt 24/11/2026, after the lookdev scene of Wzx in Maya: its Background, 49.6 cm
+// wide, 27.4 deep, 23.5 high, the model near the middle of the floor): the floor at y = 0 from z = 13.5 to the corner,
+// a quarter of a circle, the wall at z = -13.9. One unit mesh (scaled by the stage for bigger models), smooth normals.
+int addCyclo(Scene& scene) {
+    const float W = 24.8f, zFront = 13.5f, zWall = -13.9f, H = 23.5f, Rc = 6.0f;
+    struct P { float z, y, nz, ny; };
+    std::vector<P> prof;
+    prof.push_back({zFront, 0, 0, 1});
+    const int N = 24;
+    for (int i = 0; i <= N; ++i) {
+        const float a = (float)i / N * 1.5707963f;
+        prof.push_back({zWall + Rc - Rc * std::sin(a), Rc - Rc * std::cos(a), std::sin(a), std::cos(a)});
+    }
+    prof.push_back({zWall, H, 1, 0});
+    MeshData m;
+    for (const P& p : prof)
+        for (int s = 0; s < 2; ++s) {
+            Vertex v;
+            v.pos = float3(s ? W : -W, p.y, p.z);
+            v.nrm = float3(0, p.ny, p.nz);
+            v.uv = float2(0, 0);
+            m.vertices.push_back(v);
+        }
+    for (uint32_t i = 0; i + 1 < (uint32_t)prof.size(); ++i) {
+        const uint32_t a = i * 2, b = a + 1, c = a + 2, d = a + 3;   // a (-W, i), b (+W, i), c (-W, i + 1), d (+W, i + 1)
+        m.addTri(a, b, d);
+        m.addTri(a, d, c);
+    }
+    m.quadEdges();
+    Material g;
+    g.name = "Cyclo";
+    g.baseColor = float3(0.365f);   // (its Arnold shader: base 0.73 x a grey of 0.5)
+    g.roughness = 0.2f;
+    g.specular = 0.5f;
+    g.flags = 16u;   // MAT_FLAG_FRESNEL
+    Object o;
+    o.name = "Cyclo";
+    o.part = "GROUND";
+    o.mesh = scene.addMesh("cyclo", m);
+    o.material = scene.addMaterial(g);
+    o.selectable = false;
+    o.visible = false;
     return scene.addObject(o);
 }
 
@@ -75,6 +122,36 @@ std::vector<int> addPaletteMaterials(Scene& scene, const Library& lib, bool sss)
         out.push_back(scene.addMaterial(m));
     }
     return out;
+}
+
+// Tyres (Wzx 24/11/2026: « un shader plus mat et SSS pour les pneus »): rubber has no varnish and a wide dull highlight;
+// light goes a little into it, which softens the tread and the sidewall. The black of LDraw (#1B2A34) is bluish: the
+// rubber black is a neutral dark grey; the other colours a little less saturated (the rubber is never as vivid as ABS).
+std::vector<int> addRubberMaterials(Scene& scene, const Library& lib, bool sss) {
+    std::vector<int> out;
+    for (const Color& c : lib.palette) {
+        Material m;
+        m.name = c.name + " (rubber)";
+        float3 lin(srgbToLinear(c.srgb.x), srgbToLinear(c.srgb.y), srgbToLinear(c.srgb.z));
+        const float lum = 0.2126f * lin.x + 0.7152f * lin.y + 0.0722f * lin.z;
+        m.baseColor = lum < 0.04f ? float3(0.021f, 0.021f, 0.022f) : lin * 0.75f + float3(lum * 0.25f);
+        m.roughness = 0.58f;   // (Wzx 24/11/2026: « un poil moins mat, une légère spéculaire visible »; 0.8 / 0.3 before)
+        m.specular = 0.45f;
+        m.coat = 0.0f;
+        m.bevelRadius = 0.0245f;
+        m.flags |= 4u;   // (MAT_FLAG_VCOLOR: printed tyres)
+        if (sss) {
+            m.subsurface = 0.45f;
+            m.sssRadius = (m.baseColor * 0.5f + float3(0.5f)) * 0.12f;
+        }
+        out.push_back(scene.addMaterial(m));
+    }
+    return out;
+}
+
+bool isRubberPart(const Part& p) {
+    auto starts = [&](const char* w) { return p.label.rfind(w, 0) == 0; };
+    return p.category == "Tyre" || starts("Tyre") || starts("Tire") || p.label.find("Rubber") != std::string::npos;
 }
 
 } // namespace brickit

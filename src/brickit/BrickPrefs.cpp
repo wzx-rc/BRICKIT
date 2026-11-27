@@ -74,17 +74,17 @@ void BrickApp::saveDefaultPrefs() {
     if (u.empty()) return;
     CreateDirectoryW(u.substr(0, u.find_last_of(L'\\')).c_str(), nullptr);
     writeText(u, prefsJson());
-    toast("Réglages enregistrés comme réglages par défaut");
+    toast("Settings saved as defaults");
 }
 
 void BrickApp::resetToDefaultPrefs() {
     std::string t;
-    if (!readDefaultPrefs(t)) { toast("Pas de réglages par défaut"); return; }
+    if (!readDefaultPrefs(t)) { toast("No default settings"); return; }
     applyPrefs(t);
     applyLook();
     m_renderer->resetAccumulation();
     savePrefs();
-    toast("Réglages par défaut rétablis");
+    toast("Default settings restored");
 }
 
 void BrickApp::savePrefs() {
@@ -138,9 +138,21 @@ std::string BrickApp::prefsJson() {
         j += std::string(", \"highPoly\": ") + (m_highPoly ? "true" : "false");
         j += ", \"libDock\": " + std::to_string(m_libDock) + ", \"libH\": " + std::to_string(m_libH) + ", \"libW\": " + std::to_string(m_libW);
         j += std::string(", \"libClassic\": ") + (m_libClassic ? "true" : "false");
+        j += std::string(", \"swatchFlat\": ") + (m_swatchFlat ? "true" : "false");
+        j += std::string(", \"sideLFold\": ") + (m_sideLFold ? "true" : "false") + ", \"sideRFold\": " + (m_sideRFold ? "true" : "false");
+        {   // the library as left (Wzx 24/11/2026: « auto mémorise le choix user du panneau Library »)
+            std::string open;
+            for (const std::string& f : m_clsOpen) open += (open.empty() ? "" : ",") + f;
+            j += ", \"stFam\": " + jstr(m_stFam) + ", \"stSub\": " + std::to_string(m_stSub) + ", \"clsOpen\": " + jstr(open);
+            j += std::string(", \"clsTechnic\": ") + (m_clsTechnic ? "true" : "false");
+            j += std::string(", \"trayFolded\": ") + (m_pTray.collapsed ? "true" : "false");
+        }
         j += ", \"paintGroup\": ";
         j += m_paintGroup ? "true" : "false";
         j += std::string(", \"bevel\": ") + (m_rs.bevel ? "true" : "false");
+        j += ", \"bevelRadius\": " + std::to_string(m_bevelUser);
+        j += std::string(", \"renderPanel\": ") + (m_renderPanel ? "true" : "false") + ", \"rsX\": " + std::to_string(m_rsPos.x) + ", \"rsY\": " + std::to_string(m_rsPos.y) + ", \"rsFold\": " + std::to_string(m_rsFold);
+        j += ", \"bloomPT\": " + std::to_string(m_bloomPT) + ", \"glare\": " + std::to_string(m_glare) + std::string(", \"glassAbsorb\": ") + (m_glassAbsorb ? "true" : "false");
         j += ", \"appIcon\": " + std::to_string(m_appIcon);
         j += ", \"ghostCol\": " + std::to_string(m_ghostCol) + ", \"ghostAlpha\": " + std::to_string(m_ghostAlphaPref) + ", \"ghostGlow\": " + std::to_string(m_ghostGlow);
         j += ", \"hideDeco\": ";
@@ -155,6 +167,17 @@ std::string BrickApp::prefsJson() {
         j += jstr(narrowW(m_hdriPath)) + ", \"custom\": [";
         for (size_t i = 0; i < m_hdriCustom.size(); ++i) j += (i ? ", " : "") + jstr(narrowW(m_hdriCustom[i]));
         j += "]},";
+    }
+    {   // the Material panel's edits (by LDraw colour id)
+        j += "\"materials\": [";
+        bool first = true;
+        for (const auto& [id, e] : m_matEdits) {
+            char mb[200];
+            snprintf(mb, sizeof(mb), "%s{\"id\": %d, \"c\": [%.4f, %.4f, %.4f], \"metal\": %.3f, \"trans\": %.3f, \"rough\": %.3f, \"sss\": %.3f, \"sssScale\": %.3f, \"spec\": %.3f}", first ? "" : ", ", id, e.srgb.x, e.srgb.y, e.srgb.z, e.metal, e.trans, e.rough, e.sss, e.sssScale, e.spec);
+            j += mb;
+            first = false;
+        }
+        j += "],";
     }
     j += "\"recentParts\": " + names(m_recent) + ", \"favParts\": " + names(m_fav) + "}\n";
     return j;
@@ -195,6 +218,19 @@ void BrickApp::applyPrefs(const std::string& t) {
     list("recentParts", m_recent);
     list("favParts", m_fav);
     {   // Réglages > Lumière
+        m_matEdits.clear();
+        for (const app::Json& mj : p["materials"].a) {
+            MatEdit e;
+            const app::Json& c = mj["c"];
+            if (c.type == app::Json::Array && c.a.size() == 3) e.srgb = float3((float)c[0].num(1), (float)c[1].num(1), (float)c[2].num(1));
+            e.metal = (float)mj["metal"].num(0);
+            e.trans = (float)mj["trans"].num(0);
+            e.rough = (float)mj["rough"].num(0.24);
+            e.sss = (float)mj["sss"].num(-1);
+            e.sssScale = (float)mj["sssScale"].num(1);
+            e.spec = (float)mj["spec"].num(0.5);
+            m_matEdits[(int)mj["id"].num(-1)] = e;
+        }
         const app::Json& lt = p["light"];
         if (lt.type == app::Json::Object) {
             if (lt["rotation"].type == app::Json::Number) m_hdriRotDeg = (float)lt["rotation"].n;
@@ -239,6 +275,13 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["hideDeco"].type == app::Json::Bool) m_hideDeco = tj["hideDeco"].b;
         if (tj["paintGroup"].type == app::Json::Bool) m_paintGroup = tj["paintGroup"].b;
         if (tj["bevel"].type == app::Json::Bool) m_rs.bevel = tj["bevel"].b;
+        if (tj["renderPanel"].type == app::Json::Bool) m_renderPanel = tj["renderPanel"].b;
+        if (tj["rsX"].type == app::Json::Number && tj["rsY"].type == app::Json::Number) m_rsPos = ImVec2((float)tj["rsX"].n, (float)tj["rsY"].n);
+        if (tj["rsFold"].type == app::Json::Number) m_rsFold = (unsigned)tj["rsFold"].n;
+        if (tj["bloomPT"].type == app::Json::Number) m_bloomPT = std::clamp((float)tj["bloomPT"].n, 0.0f, 1.0f);
+        if (tj["glare"].type == app::Json::Number) m_glare = std::clamp((float)tj["glare"].n, 0.0f, 1.0f);
+        if (tj["glassAbsorb"].type == app::Json::Bool) m_glassAbsorb = tj["glassAbsorb"].b;
+        if (tj["bevelRadius"].type == app::Json::Number) { m_bevelUser = std::clamp((float)tj["bevelRadius"].n, 0.0f, 5.0f); m_rs.bevelScale = m_bevelUser / 0.5f; }
         if (tj["ghostCol"].type == app::Json::Number) m_ghostCol = std::clamp((int)tj["ghostCol"].n, 0, 5);
         if (tj["ghostAlpha"].type == app::Json::Number) m_ghostAlphaPref = std::clamp((float)tj["ghostAlpha"].n, 0.05f, 1.0f);
         if (tj["appIcon"].type == app::Json::Number) m_appIcon = std::clamp((int)tj["appIcon"].n, 0, 1);
@@ -249,7 +292,19 @@ void BrickApp::applyPrefs(const std::string& t) {
         if (tj["libH"].type == app::Json::Number) m_libH = std::max(0.0f, (float)tj["libH"].n);
         if (tj["libW"].type == app::Json::Number) m_libW = std::max(0.0f, (float)tj["libW"].n);
         if (tj["libClassic"].type == app::Json::Bool) m_libClassic = tj["libClassic"].b;
-        if (tj["studioUi"].type == app::Json::Bool) m_studioUi = tj["studioUi"].b;
+        if (tj["swatchFlat"].type == app::Json::Bool) m_swatchFlat = tj["swatchFlat"].b;
+        if (tj["sideLFold"].type == app::Json::Bool) m_sideLFold = tj["sideLFold"].b;
+        if (tj["sideRFold"].type == app::Json::Bool) m_sideRFold = tj["sideRFold"].b;
+        if (tj["stFam"].type == app::Json::String && !tj["stFam"].str().empty()) m_stFam = tj["stFam"].str();
+        if (tj["stSub"].type == app::Json::Number) m_stSub = (int)tj["stSub"].n;
+        if (tj["clsTechnic"].type == app::Json::Bool) m_clsTechnic = tj["clsTechnic"].b;
+        if (tj["trayFolded"].type == app::Json::Bool) m_pTray.collapsed = tj["trayFolded"].b;
+        if (tj["clsOpen"].type == app::Json::String) {
+            m_clsOpen.clear();
+            const std::string o = tj["clsOpen"].str();
+            for (size_t p = 0, q; p <= o.size(); p = q + 1) { q = o.find(',', p); if (q == std::string::npos) q = o.size(); if (q > p) m_clsOpen.insert(o.substr(p, q - p)); }
+        }
+        if (tj["studioUi"].type == app::Json::Bool) m_studioUi = true;   // (Legacy removed 23/11/2026: always the Studio interfaces)
         else m_themeId = "brique";   // (the first launch of the Studio interface: Brique)
         if (p["brique01"].type != app::Json::Bool) { m_themeId = "brique"; m_studioUi = true; m_libDock = 1; m_libW = 0; m_pGroups.visible = true; }   // (Wzx 15/11/2026: the Brique interface, once)
         for (const auto& [id, v] : p["uiBoxes"].o) {
@@ -309,7 +364,7 @@ void BrickApp::autosave() {
     if (m_cornell) return;
     manualDirty();   // the steps change with the scene
     cloudNoteChange();   // (sent to the cloud a few seconds later)
-    if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", m_build.toJson(m_scene.camera));
+    if (userSession() && m_autosaveOn && !m_autosaveGuard) writeText(m_exeDir + L"\\brickit_scene.v3d.json", sceneJson());
 }
 
 bool BrickApp::restoreAutosave() {
@@ -317,6 +372,7 @@ bool BrickApp::restoreAutosave() {
     // no scene of a last session: the default scene (assets\\brickit\\default_scene.v3d.json, the official house 31153)
     if (!readText(m_exeDir + L"\\brickit_scene.v3d.json", t) && !readText(m_exeDir + L"\\assets\\brickit\\default_scene.v3d.json", t)) return false;
     if (!m_build.fromJson(t, &m_scene.camera, &msg) || m_bricks.empty()) return false;
+    m_pendingLook = t;   // (its lookdev block, once the stage is up)
     toast(msg);
     // parts of the last session not found (the full library missing, 06/11/2026: the autosave was rewritten without
     // them): the file is kept as it is, a copy made, and the autosave stays off for this session
@@ -324,7 +380,7 @@ bool BrickApp::restoreAutosave() {
         m_autosaveGuard = true;
         writeText(m_exeDir + L"\\brickit_scene.v3d.json.complet.bak", t);
         char b[200];
-        snprintf(b, sizeof(b), "%d pièces de la dernière scène introuvables (bibliothèque complète absente ?) : la scène enregistrée n'est pas écrasée", m_build.lastSkipped);
+        snprintf(b, sizeof(b), "%d parts of the last scene not found (full library missing?): the saved scene is not overwritten", m_build.lastSkipped);
         toast(b);
     }
     return true;
@@ -361,7 +417,7 @@ void BrickApp::writeStartLog() {
              (int)m_bricks.size(), m_autosaveGuard ? " (incomplete: autosave kept)" : "");
     o = b;
     writeText(m_exeDir + L"\\brickit_start.log", o);
-    if (m_lib.fullDir.empty()) toast("Bibliothèque complète introuvable (dossier utilisateur \\BrickIt\\full) : seules les pièces de base sont là");
+    if (m_lib.fullDir.empty()) toast("Full library not found (user folder \\BrickIt\\full): only the base parts are available");
 }
 
 // The scene of a first launch (sampleScene of the web).
@@ -434,7 +490,7 @@ void BrickApp::cycleGrab() {
         updateHeld(mp.x, mp.y);
     }
     char t[96];
-    snprintf(t, sizeof(t), "Pivot d'accroche : voxel %d / %d", g + 1, (int)p.voxels.size());
+    snprintf(t, sizeof(t), "Grab pivot: voxel %d / %d", g + 1, (int)p.voxels.size());
     toast(t);
     autosave();
 }
