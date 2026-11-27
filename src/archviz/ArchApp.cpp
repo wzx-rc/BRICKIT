@@ -71,6 +71,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& o) {
         else if (a == L"--script") o.script = nextA();
         else if (a == L"--demo") o.demo = true;
         else if (a == L"--clean") o.clean = true;
+        else if (a == L"--save-to") o.saveTo = next();
         else if (a == L"--cam") { o.camYaw = std::stof(next()); o.camPitch = std::stof(next()); o.camDist = std::stof(next()); }
         else if (a.size() && a[0] != L'-') o.file = a;
     }
@@ -95,7 +96,7 @@ bool ArchApp::initCommon(const Options& opt, std::unique_ptr<brickit::GfxRendere
     brickit::plat::makeDir(dir + L"/models");
     scanAssets(dir + L"/models", m_assets);
     bool loaded = false;
-    if (!opt.file.empty()) loaded = load(opt.file);
+    if (!opt.file.empty()) { loaded = load(opt.file); if (loaded) m_savePath = opt.file; }   // (an opened building is saved in its own file)
     else if (!opt.demo && opt.shotPath.empty()) loaded = load(m_savePath);
     if (!loaded) m_b = Building::demoHouse();
     m_b.update();
@@ -1830,7 +1831,7 @@ void ArchApp::frame() {
     else if (m_view == kViewPlan) { m_rp = ImVec4(0, 0, ds.x, ds.y); m_r3 = ImVec4(0, 0, 0, 0); }
     else { m_rp = ImVec4(0, 0, split, ds.y); m_r3 = ImVec4(split + 1, 0, ds.x, ds.y); }
     if (m_frame == 1) frameAll();
-    if (m_frame == 2 && !m_opt.script.empty()) runScript();
+    if (m_frame == 2 && !m_opt.script.empty()) { runScript(); if (!m_opt.saveTo.empty()) save(m_opt.saveTo); }
 
     m_uiHover = io.WantCaptureMouse;
     if (!m_opt.clean) drawUi();
