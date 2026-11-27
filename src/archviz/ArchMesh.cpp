@@ -75,15 +75,13 @@ static void floorPrism(MeshData& m, const std::vector<float2>& poly, float y0, f
 }
 
 void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap& map) {
-    const Environment env = scene.env;
-    const Camera cam = scene.camera;
-    const SunLight sun = scene.sun;
-    const float gridScale = scene.gridScale;
-    const uint32_t gridLine = scene.gridLine;
-    const float3 gridFade = scene.gridFade;
-    scene = Scene();
-    scene.env = env; scene.camera = cam; scene.sun = sun;
-    scene.gridScale = gridScale; scene.gridLine = gridLine; scene.gridFade = gridFade;
+    // everything of the building is rebuilt; the assets (head of the meshes / materials, the textures) stay
+    scene.objects.clear();
+    scene.meshes.resize(std::min((size_t)map.keepMeshes, scene.meshes.size()));
+    scene.meshNames.resize(scene.meshes.size());
+    scene.materials.resize(std::min((size_t)map.keepMaterials, scene.materials.size()));
+    scene.lods.clear();
+    ++scene.geometryVersion;
     scene.unitsPerMeter = 1.0f;
 
     auto mat = [&](const char* name, int hex, float rough, float bevel = 0.0f) {
@@ -114,6 +112,8 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     map.ground = scene.addObject(go);
 
     map.wallObject.assign(B.walls.size(), -1);
+    map.frameObject.assign(B.walls.size(), -1);
+    map.mWall = mWall; map.mWallSel = mWallSel; map.mFrame = mFrame; map.mFrameSel = mFrameSel;
     for (int w = 0; w < (int)B.walls.size(); ++w) {
         const Wall& W = B.walls[w];
         if (!W.alive) continue;
@@ -160,7 +160,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         wo.material = w == o.selectedWall ? mWallSel : mWall;
         map.wallObject[w] = scene.addObject(wo);
         const bool frameSel = w == o.selectedOpeningWall;
-        if (!fr.vertices.empty()) { Object x; x.name = wo.name + " frames"; x.part = "FRAME"; x.mesh = scene.addMesh(x.name, std::move(fr)); x.material = frameSel ? mFrameSel : mFrame; scene.addObject(x); }
+        if (!fr.vertices.empty()) { Object x; x.name = wo.name + " frames"; x.part = "FRAME"; x.mesh = scene.addMesh(x.name, std::move(fr)); x.material = frameSel ? mFrameSel : mFrame; map.frameObject[w] = scene.addObject(x); }
         if (!glass.vertices.empty()) { Object x; x.name = wo.name + " glass"; x.part = "GLASS"; x.mesh = scene.addMesh(x.name, std::move(glass)); x.material = mGlass; scene.addObject(x); }
         if (!door.vertices.empty()) { Object x; x.name = wo.name + " doors"; x.part = "DOOR"; x.mesh = scene.addMesh(x.name, std::move(door)); x.material = mDoor; scene.addObject(x); }
     }
@@ -190,6 +190,43 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         fo.material = mFloor[fm];
         scene.addObject(fo);
         (void)mSlab;
+    }
+    // the items: one object per part of their asset
+    map.itemObjects.assign(B.items.size(), {0, 0});
+    for (int i = 0; i < (int)B.items.size(); ++i) {
+        const Item& it = B.items[i];
+        if (it.level > o.activeLevel || !o.assets) continue;
+        const AssetInfo* a = nullptr;
+        for (const AssetInfo& x : *o.assets) if (x.slug == it.asset && x.firstMesh >= 0) a = &x;
+        if (!a) continue;
+        map.itemObjects[i] = {(int)scene.objects.size(), a->partCount};
+        for (int k = 0; k < a->partCount; ++k) {
+            Object ob;
+            ob.name = a->name + " " + std::to_string(i);
+            ob.part = "ITEM";
+            ob.mesh = a->firstMesh + k;
+            ob.material = a->firstMaterial + k;
+            scene.addObject(ob);
+        }
+        placeItem(scene, map, B, i);
+    }
+}
+
+void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
+    for (int w = 0; w < (int)map.wallObject.size(); ++w) {
+        if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
+        if (w < (int)map.frameObject.size() && map.frameObject[w] >= 0) scene.objects[map.frameObject[w]].material = w == o.selectedOpeningWall ? map.mFrameSel : map.mFrame;
+    }
+}
+
+void placeItem(Scene& scene, const SceneMap& map, const Building& B, int item) {
+    if (item < 0 || item >= (int)map.itemObjects.size()) return;
+    const Item& it = B.items[item];
+    const float e = B.levels[std::clamp(it.level, 0, (int)B.levels.size() - 1)].elevation + 0.02f + it.elev;   // (on the floor finish)
+    for (int k = 0; k < map.itemObjects[item].second; ++k) {
+        Object& ob = scene.objects[map.itemObjects[item].first + k];
+        ob.position = world(it.p, e);
+        ob.yaw = it.yaw;
     }
 }
 

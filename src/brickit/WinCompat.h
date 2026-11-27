@@ -136,6 +136,7 @@ inline int sprintf_s(char (&dst)[N], const char* fmt, A... a) { return std::snpr
 #define sscanf_s sscanf
 #define fscanf_s fscanf
 #define swscanf_s swscanf
+inline void OutputDebugStringA(const char*) {}   // (the debugger output of Windows: nothing here)
 inline int gmtime_s(std::tm* out, const std::time_t* t) { return gmtime_r(t, out) ? 0 : 1; }
 inline int localtime_s(std::tm* out, const std::time_t* t) { return localtime_r(t, out) ? 0 : 1; }
 inline DWORD GetCurrentDirectoryW(DWORD size, wchar_t* buf) {

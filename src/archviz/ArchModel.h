@@ -84,8 +84,19 @@ struct Joint {                // derived: the piece of wall where 3 or more wall
     float height = 0;
 };
 
+struct Item {                 // a piece of furniture / an object placed on a level (an asset of the library)
+    std::string asset;        // slug of the asset (its folder in the library)
+    float2 p;                 // plan position of its centre
+    float yaw = 0;            // radians, counter-clockwise in the plan
+    float elev = 0;           // above the floor of its level
+    int level = 0;
+    float2 size{1, 1};        // footprint (width x depth, metres) and height, copied from the asset when placed: the
+    float height = 1;         // plan and the picking work without the asset loaded
+};
+
 struct Building {
     std::vector<Level> levels;
+    std::vector<Item> items;
     std::vector<Node> nodes;
     std::vector<Wall> walls;
     std::vector<RoomLabel> labels;

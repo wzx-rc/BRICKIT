@@ -33,10 +33,12 @@ struct Options {
     std::wstring file;              // building to open
     bool demo = false;              // the demo house, not the last session
     float camYaw = -1000, camPitch = -1000, camDist = -1;
+    std::string env;                // studio | sun (the sky HDRI with its sun), default: sun where the path tracer runs
+    float sunRot = -1;              // degrees, rotation of the sky around the building
 };
 void parseOptions(const std::vector<std::wstring>& args, Options& o);
 
-enum Tool { kSelect = 0, kRoom, kWall, kWindowTool, kDoorTool, kToolCount };
+enum Tool { kSelect = 0, kRoom, kWall, kWindowTool, kDoorTool, kToolCount, kPlace = kToolCount };   // kPlace: an object of the library (Furnish)
 enum View { kView3D = 0, kViewSplit, kViewPlan };
 
 class ArchApp {
@@ -74,6 +76,14 @@ private:
     int m_quality = 0;              // 0 HQ (raster + soft GI), 1 ray tracing, 2 RT DLSS (OIDN still, DLSS moving)
     double m_lastMove = -10;
     void setupLook();
+    // environment: 0 the soft studio (maquette look), 1 the sky HDRI with its sun (realistic)
+    int m_env = 0;
+    float m_envRot = 200;           // degrees
+    vp3d::EnvImagePtr m_envImg[2];
+    bool m_envHasSun[2] = {false, false};
+    float m_envSunAz[2] = {0, 0}, m_envSunEl[2] = {0, 0};
+    void applyEnv();
+    float m_camKey[10] = {};        // the view of the last frame (a new view restarts the path tracer)
     void renderSettings(vp3d::RenderSettings& rs);
 
     // ---- views
@@ -94,8 +104,20 @@ private:
     float m_wallThick = 0.30f, m_wallHeight = 2.70f;
     float m_winW = 1.20f, m_winH = 1.35f, m_winSill = 0.90f, m_doorW = 0.90f, m_doorH = 2.10f;
     int m_newFloor = 0;
-    // selection: 0 none, 1 wall, 2 opening, 3 room
-    int m_selKind = 0, m_selWall = -1, m_selOp = -1, m_selRoom = -1;
+    // selection: 0 none, 1 wall, 2 opening, 3 room, 4 item (furniture)
+    int m_selKind = 0, m_selWall = -1, m_selOp = -1, m_selRoom = -1, m_selItem = -1;
+    bool m_selDirty = false;        // the selection tint changed (no geometry to rebuild)
+    // furnish: the library of objects (dataDir/ArchViz/models), the one being placed
+    int m_step = 0;                 // 0 Build, 1 Furnish
+    std::vector<AssetInfo> m_assets;
+    int m_placeAsset = -1;
+    float m_placeYaw = 0;
+    float2 m_placeAt, m_moveOff;
+    void ensureAssets();            // loads the assets of the items into the scene (before a rebuild)
+    float2 snapItem(const Item& it, float2 p, bool free) const;   // 5 cm, flush against the walls nearby
+    int itemAt(float2 p) const;
+    void addItem(int asset, float2 p, float yaw);
+    void touched();                 // an item moved: saved, nothing rebuilt
     // hover
     int m_hoverView = 0;            // 0 none, 1 3D, 2 plan
     ImVec2 m_mouse;

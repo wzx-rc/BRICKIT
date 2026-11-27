@@ -419,6 +419,13 @@ std::string Building::toJson() const {
         snprintf(b, sizeof b, "%s\n    {\"x\": %.4f, \"y\": %.4f, \"name\": \"%s\", \"floor\": %d, \"level\": %d}", k++ ? "," : "", l.p.x, l.p.y, l.name.c_str(), l.floor, l.level);
         s += b;
     }
+    s += "\n  ],\n  \"items\": [";
+    k = 0;
+    for (const Item& it : items) {
+        snprintf(b, sizeof b, "%s\n    {\"asset\": \"%s\", \"x\": %.4f, \"y\": %.4f, \"yaw\": %.5f, \"elev\": %.4f, \"level\": %d, \"w\": %.4f, \"d\": %.4f, \"h\": %.4f}", k++ ? "," : "",
+                 it.asset.c_str(), it.p.x, it.p.y, it.yaw, it.elev, it.level, it.size.x, it.size.y, it.height);
+        s += b;
+    }
     s += "\n  ]\n}\n";
     return s;
 }
@@ -446,6 +453,14 @@ bool Building::fromJson(const std::string& text) {
     }
     for (const app::Json& r : j["rooms"].a)
         B.labels.push_back({float2((float)r["x"].num(), (float)r["y"].num()), r["name"].str("Room"), (int)r["floor"].num(), (int)r["level"].num(), true});
+    for (const app::Json& r : j["items"].a) {
+        Item it;
+        it.asset = r["asset"].str();
+        it.p = float2((float)r["x"].num(), (float)r["y"].num());
+        it.yaw = (float)r["yaw"].num(); it.elev = (float)r["elev"].num(); it.level = (int)r["level"].num();
+        it.size = float2((float)r["w"].num(1), (float)r["d"].num(1)); it.height = (float)r["h"].num(1);
+        if (!it.asset.empty()) B.items.push_back(it);
+    }
     *this = B;
     update();
     return true;

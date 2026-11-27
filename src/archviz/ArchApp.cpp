@@ -66,6 +66,8 @@ void parseOptions(const std::vector<std::wstring>& args, Options& o) {
         else if (a == L"--ui-scale") o.uiScale = std::stof(next());
         else if (a == L"--view") o.view = nextA();
         else if (a == L"--quality") o.quality = nextA();
+        else if (a == L"--env") o.env = nextA();
+        else if (a == L"--sun-rot") o.sunRot = std::stof(next());
         else if (a == L"--script") o.script = nextA();
         else if (a == L"--demo") o.demo = true;
         else if (a == L"--cam") { o.camYaw = std::stof(next()); o.camPitch = std::stof(next()); o.camDist = std::stof(next()); }
@@ -89,6 +91,8 @@ bool ArchApp::initCommon(const Options& opt, std::unique_ptr<brickit::GfxRendere
     const std::wstring dir = brickit::plat::dataDir() + L"/ArchViz";
     brickit::plat::makeDir(dir);
     m_savePath = dir + L"/last.archviz.json";
+    brickit::plat::makeDir(dir + L"/models");
+    scanAssets(dir + L"/models", m_assets);
     bool loaded = false;
     if (!opt.file.empty()) loaded = load(opt.file);
     else if (!opt.demo && opt.shotPath.empty()) loaded = load(m_savePath);
@@ -144,22 +148,12 @@ void ArchApp::setupLook() {
     e.top = linHex(0xcfe3f5);
     e.horizon = linHex(0xf2f6fa);
     e.bottom = linHex(0xdfe5ec);
-    e.visibleToCamera = false;
     e.hemiSky = linHex(0xcfe3f5);
     e.hemiGround = linHex(0xdfe3e8);
     e.hemiIntensity = 0.5f;
-    auto img = std::make_shared<EnvImage>();
-    std::string err;
-    const std::wstring hdr = m_exeDir + L"/assets/hdri/studio_small_09_2k.hdr";
-    if (!brickit::plat::fileExists(hdr) || !loadEnvImage(hdr, *img, &err)) makeProceduralSky(*img);
-    e.hdri = img;
-    e.hdriIntensity = 1.0f;
-    e.hdriRotation = radians(200.0f);
-    m_scene.sun.enabled = true;
-    const float az = radians(135.0f), el = radians(38.0f);
-    m_scene.sun.direction = normalize(float3(std::cos(el) * std::cos(az), std::sin(el), std::cos(el) * std::sin(az)));
-    m_scene.sun.color = linHex(0xfff3e4);
-    m_scene.sun.intensity = 3.0f;
+    m_env = m_opt.env == "studio" ? 0 : m_opt.env == "sun" ? 1 : (m_r->pathTracing() ? 1 : 0);
+    m_envRot = m_opt.sunRot >= 0 ? m_opt.sunRot : (m_env == 1 ? 250.0f : 200.0f);
+    applyEnv();
     m_scene.gridScale = 1.0f;
     m_scene.gridLine = (34u << 24) | (0xa8u << 16) | (0x96u << 8) | 0x8au;
     m_scene.gridFade = float3(6, -4.5f, 14);
@@ -180,6 +174,49 @@ void ArchApp::setupLook() {
     m_rs.idPass = false;
     m_rs.selectionStyle = 2;
     m_rs.editorGrid = 0.0f;
+}
+
+// The environment: its HDRI (read once), turned around the building, and the sun where the image has its own (the
+// brightest spot when it stands out, as BrickIt), so that the traced sun shadows follow the sky.
+void ArchApp::applyEnv() {
+    Environment& e = m_scene.env;
+    const int k = m_env;
+    if (!m_envImg[k]) {
+        auto img = std::make_shared<EnvImage>();
+        std::string err;
+        const std::wstring hdr = m_exeDir + (k == 1 ? L"/assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr" : L"/assets/hdri/studio_small_09_2k.hdr");
+        if (!brickit::plat::fileExists(hdr) || !loadEnvImage(hdr, *img, &err)) makeProceduralSky(*img);
+        float peak = 0;
+        double mean = 0;
+        uint32_t px = 0, py = 0;
+        for (uint32_t y = 0; y < img->height; ++y)
+            for (uint32_t x = 0; x < img->width; ++x) {
+                const float3 c = img->texel(x, y);
+                const float l = 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z;
+                mean += l;
+                if (l > peak) { peak = l; px = x; py = y; }
+            }
+        mean /= std::max(1.0, (double)img->width * img->height);
+        m_envHasSun[k] = img->width > 0 && peak > 12.0f * (float)mean;
+        m_envSunAz[k] = ((px + 0.5f) / std::max(1u, img->width) - 0.5f) * 2.0f * kPi;
+        m_envSunEl[k] = kPi * 0.5f - (py + 0.5f) / std::max(1u, img->height) * kPi;
+        m_envImg[k] = img;
+    }
+    e.hdri = m_envImg[k];
+    e.hdriIntensity = 1.0f;
+    e.hdriRotation = radians(m_envRot);
+    e.visibleToCamera = k == 1;   // the sky behind the building; the studio keeps the plain background of the maquette
+    m_scene.sun.enabled = true;
+    if (m_envHasSun[k]) {
+        const float phi = m_envSunAz[k] + radians(m_envRot), el = std::clamp(m_envSunEl[k], radians(15.0f), radians(75.0f));
+        m_scene.sun.direction = normalize(float3(std::sin(phi) * std::cos(el), std::sin(el), -std::cos(phi) * std::cos(el)));
+    } else {
+        const float az = radians(135.0f + m_envRot - 200.0f), el = radians(38.0f);
+        m_scene.sun.direction = normalize(float3(std::cos(el) * std::cos(az), std::sin(el), std::cos(el) * std::sin(az)));
+    }
+    m_scene.sun.color = linHex(k == 1 ? 0xfff1e0 : 0xfff3e4);
+    m_scene.sun.intensity = k == 1 ? 3.4f : 3.0f;
+    if (m_r) m_r->resetAccumulation();
 }
 
 void ArchApp::renderSettings(RenderSettings& rs) {
@@ -259,7 +296,7 @@ void ArchApp::undo() {
     m_redo.push_back(m_b.toJson());
     m_b.fromJson(m_undo.back());
     m_undo.pop_back();
-    m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1;
+    m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     m_level = std::min(m_level, (int)m_b.levels.size() - 1);
     edited();
 }
@@ -269,7 +306,7 @@ void ArchApp::redo() {
     m_undo.push_back(m_b.toJson());
     m_b.fromJson(m_redo.back());
     m_redo.pop_back();
-    m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1;
+    m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     edited();
 }
 
@@ -280,7 +317,84 @@ void ArchApp::edited() {
     if (m_opt.shotPath.empty()) save(m_savePath);
 }
 
+void ArchApp::touched() {
+    m_r->resetAccumulation();
+    m_lastMove = ImGui::GetTime();
+    if (m_opt.shotPath.empty()) save(m_savePath);
+}
+
 void ArchApp::toast(const std::string& s) { m_toast = s; m_toastT = ImGui::GetTime(); }
+
+// ---------------------------------------------------------------------------- furnish: the objects of the library
+
+// The assets used by the items and not in the scene yet: read once, kept at the head of the scene (the building is
+// rebuilt after them).
+void ArchApp::ensureAssets() {
+    for (const Item& it : m_b.items) {
+        for (AssetInfo& a : m_assets) {
+            if (a.slug != it.asset || a.firstMesh >= 0 || a.partCount < 0) continue;
+            m_scene.objects.clear();
+            m_scene.meshes.resize(m_map.keepMeshes);
+            m_scene.meshNames.resize(m_map.keepMeshes);
+            m_scene.materials.resize(m_map.keepMaterials);
+            std::string err;
+            if (!loadAsset(a, m_scene, &err)) { a.partCount = -1; toast(err); }   // (-1: not tried again)
+            m_map.keepMeshes = (int)m_scene.meshes.size();
+            m_map.keepMaterials = (int)m_scene.materials.size();
+            m_sceneDirty = true;
+        }
+    }
+}
+
+int ArchApp::itemAt(float2 p) const {
+    int best = -1;
+    float bestArea = 1e30f;
+    for (int i = 0; i < (int)m_b.items.size(); ++i) {
+        const Item& it = m_b.items[i];
+        if (it.level != m_level) continue;
+        const float2 ax(std::cos(it.yaw), std::sin(it.yaw)), d = p - it.p;
+        if (std::fabs(dot2(d, ax)) > it.size.x * 0.5f + m_tol * 0.3f || std::fabs(dot2(d, perp(ax))) > it.size.y * 0.5f + m_tol * 0.3f) continue;
+        const float area = it.size.x * it.size.y;
+        if (area < bestArea) { bestArea = area; best = i; }
+    }
+    return best;
+}
+
+float2 ArchApp::snapItem(const Item& it, float2 p, bool free) const {
+    if (free) return p;
+    p = float2(std::round(p.x / 0.05f) * 0.05f, std::round(p.y / 0.05f) * 0.05f);
+    const float2 ax(std::cos(it.yaw), std::sin(it.yaw)), ay = perp(ax);
+    const float hx = it.size.x * 0.5f, hy = it.size.y * 0.5f;
+    for (int pass = 0; pass < 2; ++pass)   // (twice: a corner has two walls)
+        for (int w = 0; w < (int)m_b.walls.size(); ++w) {
+            const Wall& W = m_b.walls[w];
+            if (!W.alive || m_b.nodes[W.a].level != it.level) continue;
+            const WallGeom& g = m_b.geom[w];
+            const float along = dot2(p - g.a, g.u), d = dot2(p - g.a, g.n);
+            const float extU = hx * std::fabs(dot2(ax, g.u)) + hy * std::fabs(dot2(ay, g.u));
+            if (along < -extU * 0.5f || along > g.len + extU * 0.5f) continue;
+            const float ext = hx * std::fabs(dot2(ax, g.n)) + hy * std::fabs(dot2(ay, g.n));
+            const float gap = std::fabs(d) - W.thickness * 0.5f - ext;
+            if (gap < 0.20f && gap > -ext) p = p + g.n * ((d >= 0 ? 1.0f : -1.0f) * -gap);   // flush against the face
+        }
+    return p;
+}
+
+void ArchApp::addItem(int asset, float2 p, float yaw) {
+    if (asset < 0 || asset >= (int)m_assets.size()) return;
+    const AssetInfo& a = m_assets[asset];
+    pushUndo();
+    Item it;
+    it.asset = a.slug;
+    it.yaw = yaw;
+    it.level = m_level;
+    it.size = float2(a.size.x, a.size.z);
+    it.height = a.size.y;
+    it.p = p;
+    m_b.items.push_back(it);
+    m_selKind = 4; m_selWall = m_selOp = m_selRoom = -1; m_selItem = (int)m_b.items.size() - 1;
+    edited();
+}
 
 // ---------------------------------------------------------------------------- view transforms
 
@@ -461,7 +575,13 @@ void ArchApp::commitRoom(float2 a, float2 b) {
 }
 
 void ArchApp::pickSelect(float2 p) {
-    m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1;
+    m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
+    m_selDirty = true;
+    if (m_step == 1) {   // Furnish: the objects (the walls are edited in Build)
+        const int it = itemAt(p);
+        if (it >= 0) { m_selKind = 4; m_selItem = it; }
+        return;
+    }
     float along;
     const int w = m_b.wallAt(p, m_level, m_tol * 0.6f, &along);
     if (w >= 0) {
@@ -473,10 +593,16 @@ void ArchApp::pickSelect(float2 p) {
         const int r = m_b.roomAt(p, m_level);
         if (r >= 0) { m_selKind = 3; m_selRoom = r; }
     }
-    m_sceneDirty = true;
 }
 
 void ArchApp::deleteSelection() {
+    if (m_selKind == 4 && m_selItem >= 0 && m_selItem < (int)m_b.items.size()) {
+        pushUndo();
+        m_b.items.erase(m_b.items.begin() + m_selItem);
+        m_selKind = 0; m_selItem = -1;
+        edited();
+        return;
+    }
     if (m_selKind == 1 && m_selWall >= 0) { pushUndo(); m_b.removeWall(m_selWall); m_b.compact(); }
     else if (m_selKind == 2 && m_selWall >= 0) { pushUndo(); m_b.removeOpening(m_selWall, m_selOp); }
     else if (m_selKind == 3 && m_selRoom >= 0) {   // a room: its name (the walls stay, they may be shared)
@@ -486,7 +612,7 @@ void ArchApp::deleteSelection() {
         m_b.labels[l].alive = false;
         m_b.compact();
     } else return;
-    m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1;
+    m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     edited();
 }
 
@@ -591,16 +717,28 @@ void ArchApp::toolInput() {
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S)) { save(m_savePath); toast("Saved"); }
         if (!io.KeyCtrl) {
             if (ImGui::IsKeyPressed(ImGuiKey_V)) { m_tool = kSelect; m_drawing = false; }
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) { m_tool = kRoom; m_drawing = false; }
-            if (ImGui::IsKeyPressed(ImGuiKey_W)) { m_tool = kWall; m_drawing = false; }
-            if (ImGui::IsKeyPressed(ImGuiKey_N)) { m_tool = kWindowTool; m_drawing = false; }
-            if (ImGui::IsKeyPressed(ImGuiKey_D)) { m_tool = kDoorTool; m_drawing = false; }
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) { m_tool = kRoom; m_drawing = false; m_step = 0; }
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) { m_tool = kWall; m_drawing = false; m_step = 0; }
+            if (ImGui::IsKeyPressed(ImGuiKey_N)) { m_tool = kWindowTool; m_drawing = false; m_step = 0; }
+            if (ImGui::IsKeyPressed(ImGuiKey_D)) { m_tool = kDoorTool; m_drawing = false; m_step = 0; }
+            // an object turned: Q / E by 15 degrees, with Shift by 90
+            const float turn = (ImGui::IsKeyPressed(ImGuiKey_Q) ? 1.0f : 0.0f) - (ImGui::IsKeyPressed(ImGuiKey_E) ? 1.0f : 0.0f);
+            if (turn != 0) {
+                const float a = turn * radians(io.KeyShift ? 90.0f : 15.0f);
+                if (m_tool == kPlace) m_placeYaw += a;
+                else if (m_selKind == 4 && m_selItem >= 0 && m_selItem < (int)m_b.items.size()) {
+                    pushUndo();
+                    m_b.items[m_selItem].yaw += a;
+                    placeItem(m_scene, m_map, m_b, m_selItem);
+                    touched();
+                }
+            }
             if (ImGui::IsKeyPressed(ImGuiKey_F)) frameAll();
             if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) deleteSelection();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             if (m_drawing) m_drawing = false;
-            else { m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1; m_sceneDirty = true; }
+            else { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; if (m_tool == kPlace) m_tool = kSelect; }
         }
         if ((ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) && m_tool == kWall) m_drawing = false;
         // digits while drawing: the exact length / size
@@ -645,7 +783,12 @@ void ArchApp::toolInput() {
             pickSelect(m_raw);
             m_pressAt = m_mouse;
             m_moving = false;
-            if (m_selKind == 1 || m_selKind == 2) {
+            if (m_selKind == 4) {
+                pushUndo();
+                m_moving = true;
+                m_dragged = false;
+                m_moveOff = m_b.items[m_selItem].p - m_raw;
+            } else if (m_selKind == 1 || m_selKind == 2) {
                 pushUndo();
                 m_moving = true;
                 m_dragged = false;
@@ -657,7 +800,13 @@ void ArchApp::toolInput() {
         if (m_moving && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             const float dpx = std::hypot(m_mouse.x - m_pressAt.x, m_mouse.y - m_pressAt.y);
             if (dpx > 5 * m_ui) m_dragged = true;
-            if (m_dragged) {
+            if (m_dragged && m_selKind == 4) {   // an object: its transform alone, nothing rebuilt
+                Item& it = m_b.items[m_selItem];
+                it.p = snapItem(it, m_raw + m_moveOff, io.KeyShift);
+                placeItem(m_scene, m_map, m_b, m_selItem);
+                m_r->resetAccumulation();
+                m_lastMove = ImGui::GetTime();
+            } else if (m_dragged) {
                 m_b.fromJson(m_undo.back());   // from the state at the press: no drift
                 const WallGeom g = m_b.geom[m_selWall];
                 if (m_selKind == 1) {
@@ -679,9 +828,19 @@ void ArchApp::toolInput() {
         }
         if (m_moving && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
             m_moving = false;
-            if (m_dragged) edited();
-            else m_undo.pop_back();
+            if (!m_dragged) m_undo.pop_back();
+            else if (m_selKind == 4) touched();
+            else edited();
         }
+        break;
+    }
+    case kPlace: {
+        if (m_placeAsset < 0 || m_placeAsset >= (int)m_assets.size()) { m_tool = kSelect; break; }
+        Item it;
+        it.yaw = m_placeYaw; it.level = m_level;
+        it.size = float2(m_assets[m_placeAsset].size.x, m_assets[m_placeAsset].size.z);
+        m_placeAt = snapItem(it, m_raw, io.KeyShift);
+        if (lclick) { addItem(m_placeAsset, m_placeAt, m_placeYaw); m_tool = kSelect; }
         break;
     }
     case kRoom: {
@@ -912,6 +1071,29 @@ void ArchApp::drawPlan(ImDrawList* dl) {
             if (osel) poly({P(s0, t + 0.05f), P(s1, t + 0.05f), P(s1, -t - 0.05f), P(s0, -t - 0.05f)}, 0, kAccent, 2 * m_ui);
         }
     }
+    // the objects: their footprint, the front marked
+    auto itemRect = [&](float2 c, float yaw, float2 size, ImU32 fill, ImU32 stroke, float th, const char* label) {
+        const float2 ax(std::cos(yaw), std::sin(yaw)), ay = perp(ax);
+        const float2 hx = ax * (size.x * 0.5f), hy = ay * (size.y * 0.5f);
+        poly({c - hx - hy, c + hx - hy, c + hx + hy, c - hx + hy}, fill, stroke, th);
+        dl->AddLine(planToScreen(c - hx * 0.6f - hy * 0.86f), planToScreen(c + hx * 0.6f - hy * 0.86f), stroke, th);   // its front (asset -Y)
+        if (label && m_planScale * std::min(size.x, size.y) > 46 * m_ui) {
+            const ImVec2 ts = fr->CalcTextSizeA(fsm, FLT_MAX, 0, label), sc = planToScreen(c);
+            dl->AddText(fr, fsm, ImVec2(sc.x - ts.x * 0.5f, sc.y - ts.y * 0.5f), kInk2, label);
+        }
+    };
+    for (int i = 0; i < (int)m_b.items.size(); ++i) {
+        const Item& it = m_b.items[i];
+        if (it.level != m_level) continue;
+        const bool sel = m_selKind == 4 && m_selItem == i;
+        const char* name = it.asset.c_str();
+        for (const AssetInfo& a : m_assets) if (a.slug == it.asset) name = a.name.c_str();
+        itemRect(it.p, it.yaw, it.size, sel ? IM_COL32(220, 231, 255, 235) : IM_COL32(255, 255, 255, 215), sel ? kAccent : IM_COL32(110, 118, 132, 255), (sel ? 2.0f : 1.0f) * m_ui, name);
+    }
+    if (m_tool == kPlace && m_hoverView != 0 && m_placeAsset >= 0 && m_placeAsset < (int)m_assets.size()) {
+        const AssetInfo& a = m_assets[m_placeAsset];
+        itemRect(m_placeAt, m_placeYaw, float2(a.size.x, a.size.z), IM_COL32(240, 138, 28, 50), kDraw, 1.6f * m_ui, a.name.c_str());
+    }
     // room names
     for (const Room& Rm : m_b.rooms) {
         if (Rm.level != m_level || m_planScale < 14) continue;
@@ -1062,6 +1244,20 @@ void ArchApp::draw3DOverlay(ImDrawList* dl) {
         for (int i = 0; i < 4; ++i) { dl->AddLine(hi[i], hi[(i + 1) % 4], stroke, 1.2f * m_ui); dl->AddLine(lo[i], hi[i], stroke, 1.0f * m_ui); dl->AddLine(lo[i], lo[(i + 1) % 4], alpha(stroke, 0.5f), 1.0f * m_ui); }
     };
     const float H = m_b.levels[m_level].height;
+    {   // the object selected / being placed: its box
+        auto itemBox = [&](float2 c, float yaw, float2 size, float h, ImU32 fill, ImU32 top, ImU32 stroke) {
+            const float2 hx = float2(std::cos(yaw), std::sin(yaw)) * (size.x * 0.5f);
+            ghostBox(c - hx, c + hx, size.y * 0.5f, 0.02f, 0.02f + h, fill, top, stroke);
+        };
+        if (m_selKind == 4 && m_selItem >= 0 && m_selItem < (int)m_b.items.size() && m_b.items[m_selItem].level == m_level) {
+            const Item& it = m_b.items[m_selItem];
+            itemBox(it.p, it.yaw, it.size, it.height, 0, 0, alpha(kAccent, 0.9f));
+        }
+        if (m_tool == kPlace && m_hoverView != 0 && m_placeAsset >= 0 && m_placeAsset < (int)m_assets.size()) {
+            const AssetInfo& a = m_assets[m_placeAsset];
+            itemBox(m_placeAt, m_placeYaw, float2(a.size.x, a.size.z), a.size.y, IM_COL32(240, 138, 28, 40), IM_COL32(240, 138, 28, 70), kDraw);
+        }
+    }
     if (m_drawing && m_tool == kWall) {
         ghostBox(m_start, m_cur, m_wallThick * 0.5f, 0, H, IM_COL32(240, 138, 28, 60), IM_COL32(240, 138, 28, 140), kDraw);
         ImVec2 p;
@@ -1251,8 +1447,16 @@ void ArchApp::drawUi() {
         for (const char* s : steps) w += ImGui::CalcTextSize(s).x + 20 * k;
         ImGui::SetNextWindowPos(ImVec2(ds.x * 0.5f, M), 0, ImVec2(0.5f, 0));
         ImGui::Begin("##steps", nullptr, fl);
-        int cur = 0;
-        if (segButtons("steps", steps, 4, cur, k, bold) && cur != 0) toast("Furnish, Light and Render come in the next versions");
+        int cur = m_step;
+        if (segButtons("steps", steps, 4, cur, k, bold)) {
+            if (cur >= 2) toast("Light and Render come in the next versions");
+            else if (cur != m_step) {
+                m_step = cur;
+                m_tool = kSelect; m_drawing = false; m_edit = kEditNone;
+                m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true;
+                
+            }
+        }
         ImGui::End();
     }
 
@@ -1267,6 +1471,14 @@ void ArchApp::drawUi() {
         static const char* q[] = {"HQ", "Ray tracing", "RT DLSS"};
         int qq = m_quality;
         if (segButtons("quality", q, 3, qq, k, bold) && qq != m_quality) { m_quality = qq; m_r->resetAccumulation(); }
+        // the light: the soft studio or the sky with its sun, turned around the building
+        static const char* envs[] = {"Studio", "Sun sky"};
+        int ev = m_env;
+        if (segButtons("env", envs, 2, ev, k, bold) && ev != m_env) { m_env = ev; applyEnv(); }
+        ImGui::SameLine(0, 10 * k);
+        ImGui::SetNextItemWidth(170 * k);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3 * k);
+        if (ImGui::SliderFloat("##sunrot", &m_envRot, 0.0f, 360.0f, "Sun  %.0f\xc2\xb0")) applyEnv();
     }
     ImGui::End();
 
@@ -1280,7 +1492,7 @@ void ArchApp::drawUi() {
             ImGui::PushID(i);
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const ImVec2 sz(150 * k, 32 * k);
-            if (ImGui::InvisibleButton("lv", sz)) { m_level = i; m_drawing = false; m_selKind = 0; m_selWall = m_selOp = m_selRoom = -1; m_sceneDirty = true; }
+            if (ImGui::InvisibleButton("lv", sz)) { m_level = i; m_drawing = false; m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_sceneDirty = true; }
             const bool on = i == m_level;
             if (on) {
                 dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), kWhite, 9 * k);
@@ -1303,6 +1515,35 @@ void ArchApp::drawUi() {
     }
     ImGui::End();
 
+    // ---- left: the library of objects (Furnish)
+    if (m_step == 1) {
+        ImGui::SetNextWindowPos(ImVec2(M, 90 * k + (m_b.levels.size() * 32 + 78) * k));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(236 * k, 0), ImVec2(236 * k, ds.y * 0.62f));
+        ImGui::Begin("##library", nullptr, fl & ~ImGuiWindowFlags_NoScrollbar & ~ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "LIBRARY");
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        if (m_assets.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "No object yet.\nConverted models go in\nBrickIt/ArchViz/models.");
+        for (int i = 0; i < (int)m_assets.size(); ++i) {
+            const AssetInfo& a = m_assets[i];
+            ImGui::PushID(i);
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const ImVec2 sz(216 * k, 40 * k);
+            if (ImGui::InvisibleButton("a", sz)) { m_tool = kPlace; m_placeAsset = i; m_drawing = false; m_selKind = 0; m_selItem = -1; m_selDirty = true; }
+            const bool on = m_tool == kPlace && m_placeAsset == i;
+            if (on) {
+                dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), kWhite, 9 * k);
+                dl->AddRect(p, ImVec2(p.x + sz.x, p.y + sz.y), alpha(kAccent, 0.45f), 9 * k, 0, 1.2f * k);
+            } else if (ImGui::IsItemHovered()) dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), kHollow, 9 * k);
+            const float fs = ImGui::GetFontSize();
+            dl->AddText(on && bold ? bold : ImGui::GetFont(), fs, ImVec2(p.x + 10 * k, p.y + 4 * k), on ? kInk : kInk2, a.name.c_str());
+            char sub[96];
+            snprintf(sub, sizeof sub, "%.2f x %.2f x %.2f m  \xc2\xb7  %s", a.size.x, a.size.z, a.size.y, a.tris >= 1000000 ? (std::to_string(a.tris / 100000 / 10.0f).substr(0, 3) + " M tris").c_str() : (std::to_string(a.tris / 1000) + " k tris").c_str());
+            dl->AddText(ImGui::GetFont(), fs * 0.86f, ImVec2(p.x + 10 * k, p.y + 4 * k + fs + 1 * k), kInk3, sub);
+            ImGui::PopID();
+        }
+        ImGui::End();
+    }
+
     // ---- bottom: the tools
     {
         static const char* names[] = {"Select", "Room", "Wall", "Window", "Door"};
@@ -1310,7 +1551,7 @@ void ArchApp::drawUi() {
         ImGui::SetNextWindowPos(ImVec2((m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f), ds.y - M), 0, ImVec2(0.5f, 1));
         ImGui::Begin("##tools", nullptr, fl);
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        for (int i = 0; i < kToolCount; ++i) {
+        for (int i = 0; i < (m_step == 1 ? 1 : (int)kToolCount); ++i) {   // Furnish: Select, the objects come from the library
             ImGui::PushID(i);
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const ImVec2 sz(58 * k, 62 * k);
@@ -1334,7 +1575,7 @@ void ArchApp::drawUi() {
     }
 
     // ---- right: the inspector
-    ImGui::SetNextWindowPos(ImVec2(ds.x - M, 66 * k), 0, ImVec2(1, 0));
+    ImGui::SetNextWindowPos(ImVec2(ds.x - M, 106 * k), 0, ImVec2(1, 0));
     ImGui::SetNextWindowSizeConstraints(ImVec2(270 * k, 0), ImVec2(270 * k, ds.y));
     ImGui::Begin("##inspector", nullptr, fl);
     {
@@ -1346,7 +1587,41 @@ void ArchApp::drawUi() {
             ImGui::Spacing();
         };
         auto section = [&](const char* t) { ImGui::Spacing(); ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "%s", t); };
-        if (m_selKind == 1 && m_selWall >= 0 && m_selWall < (int)m_b.walls.size()) {
+        if (m_tool == kPlace && m_placeAsset >= 0 && m_placeAsset < (int)m_assets.size()) {
+            const AssetInfo& a = m_assets[m_placeAsset];
+            title(a.name.c_str(), "Click in the room to place it");
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%.2f x %.2f m, %.2f m high\n%d parts, %d textures", a.size.x, a.size.z, a.size.y, a.parts, a.textures);
+            section("PLACEMENT");
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Q / E turn it by 15\xc2\xb0 (Shift: 90\xc2\xb0).\nIt snaps against the walls,\nShift: free. Esc cancels.");
+        } else if (m_selKind == 4 && m_selItem >= 0 && m_selItem < (int)m_b.items.size()) {
+            Item& it = m_b.items[m_selItem];
+            const char* name = it.asset.c_str();
+            for (const AssetInfo& a : m_assets) if (a.slug == it.asset) name = a.name.c_str();
+            title(name, "Drag it to move it, Delete removes it");
+            section("POSITION");
+            Item e = it;
+            bool ch = false;
+            ch |= fieldM("X", &e.p.x, k, -1000.0f, 1000.0f);
+            ch |= fieldM("Y", &e.p.y, k, -1000.0f, 1000.0f);
+            ch |= fieldM("Above floor", &e.elev, k, 0.0f, 20.0f);
+            section("ROTATION");
+            float deg = std::round(e.yaw * 180.0f / kPi * 10.0f) / 10.0f;
+            deg = deg - 360.0f * std::floor(deg / 360.0f);
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%.0f\xc2\xb0", deg);
+            ImGui::SameLine(70 * k);
+            if (ImGui::Button("-90\xc2\xb0")) { e.yaw -= kPi * 0.5f; ch = true; }
+            ImGui::SameLine();
+            if (ImGui::Button("-15\xc2\xb0")) { e.yaw -= radians(15.0f); ch = true; }
+            ImGui::SameLine();
+            if (ImGui::Button("+15\xc2\xb0")) { e.yaw += radians(15.0f); ch = true; }
+            ImGui::SameLine();
+            if (ImGui::Button("+90\xc2\xb0")) { e.yaw += kPi * 0.5f; ch = true; }
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "Q / E turn it too (Shift: 90\xc2\xb0)");
+            if (ch) { pushUndo(); m_b.items[m_selItem] = e; placeItem(m_scene, m_map, m_b, m_selItem); touched(); }
+        } else if (m_step == 1) {
+            title("Furnish", "Pick an object in the library,\nthen click in a room");
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%d object(s) placed", (int)m_b.items.size());
+        } else if (m_selKind == 1 && m_selWall >= 0 && m_selWall < (int)m_b.walls.size()) {
             Wall& W = m_b.walls[m_selWall];
             title("Wall", "Drag it to move it, Delete removes it");
             section("SIZE");
@@ -1455,10 +1730,11 @@ void ArchApp::drawUi() {
     {
         const char* hint = "";
         switch (m_tool) {
-        case kSelect: hint = "Click to select  ·  drag to move  ·  Delete  ·  Ctrl+Z undo"; break;
+        case kSelect: hint = m_step == 1 ? "Click an object  ·  drag to move  ·  Q / E turn  ·  Delete  ·  Ctrl+Z undo" : "Click to select  ·  drag to move  ·  Delete  ·  Ctrl+Z undo"; break;
         case kRoom: hint = m_drawing ? "Release or click the opposite corner  ·  type the width, Tab, the depth" : "Drag a rectangle on the ground or in the plan"; break;
         case kWall: hint = m_drawing ? "Click the next point  ·  type a length  ·  double-click, Enter or right-click to finish" : "Click the first point of the wall"; break;
         case kWindowTool: case kDoorTool: hint = "Hover a wall and click  ·  Shift: no 5 cm snapping"; break;
+        case kPlace: hint = "Click to place  ·  Q / E turn  ·  Shift: free  ·  Esc cancels"; break;
         }
         ImFont* f = ImGui::GetFont();
         const float fs = ImGui::GetFontSize();
@@ -1511,6 +1787,20 @@ void ArchApp::runScript() {
         }
         else if (k == "select" && n == 3) { m_tool = kSelect; m_tol = 0.2f; pickSelect(float2(a, b)); }
         else if (k == "addroom" && n == 5) { commitRoom(float2(a, b), float2(cc, d)); }
+        else if (k == "item") {   // item slug x y yawDegrees
+            char slug[64] = {};
+            float x = 0, y = 0, yaw = 0;
+            if (sscanf(c.c_str(), " %*s %63s %f %f %f", slug, &x, &y, &yaw) >= 3)
+                for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; addItem(ai, float2(x, y), radians(yaw)); }
+        }
+        else if (k == "place") {   // place slug x y: the ghost of an object at the mouse
+            char slug[64] = {};
+            float x = 0, y = 0;
+            if (sscanf(c.c_str(), " %*s %63s %f %f", slug, &x, &y) >= 3)
+                for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; m_tool = kPlace; m_placeAsset = ai; m_placeAt = float2(x, y); m_hoverView = 2; }
+        }
+        else if (k == "step") { m_step = a >= 1 ? 1 : 0; m_tool = kSelect; }
+        else if (k == "deselect") { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; }
         else if (k == "addwall" && n == 5) { commitWall(float2(a, b), float2(cc, d)); }
         else if (k == "level" && n == 2) { m_level = std::clamp((int)a, 0, (int)m_b.levels.size() - 1); m_sceneDirty = true; }
         else if (k == "addlevel") { m_level = m_b.addLevel(); edited(); }
@@ -1543,14 +1833,17 @@ void ArchApp::frame() {
     cameraInput();
     if (m_opt.script.empty() || m_opt.shotPath.empty()) toolInput();   // (a scripted capture keeps its state)
 
-    if (m_sceneDirty) {
+    if (m_sceneDirty) ensureAssets();
+    if (m_sceneDirty || m_selDirty) {
         BuildOptions bo;
         bo.activeLevel = m_level;
         bo.selectedWall = m_selKind == 1 ? m_selWall : -1;
         bo.selectedOpeningWall = m_selKind == 2 ? m_selWall : -1;
         bo.selectedOpening = m_selKind == 2 ? m_selOp : -1;
-        buildScene(m_b, m_scene, bo, m_map);
-        m_sceneDirty = false;
+        bo.assets = &m_assets;
+        if (m_sceneDirty) buildScene(m_b, m_scene, bo, m_map);
+        else applySelection(m_scene, m_map, bo);   // (the tint alone: the meshes stay)
+        m_sceneDirty = m_selDirty = false;
         m_r->resetAccumulation();
     }
     ImDrawList* bg = ImGui::GetBackgroundDrawList();
@@ -1558,7 +1851,20 @@ void ArchApp::frame() {
     if (m_r3.z > m_r3.x) {
         RenderSettings rs;
         renderSettings(rs);
-        const vp3d::ViewRect vp{0, 0, std::max(16, (int)(m_r3.z - m_r3.x)), std::max(16, (int)(m_r3.w - m_r3.y))};
+        {   // a new view restarts the accumulation of the path tracer (else the old image stays, frozen over the new one)
+            const Camera& c = m_scene.camera;
+            const float key[10] = {c.target.x, c.target.y, c.target.z, c.yaw, c.pitch, c.distance, c.fovY, m_r3.z - m_r3.x, m_r3.w - m_r3.y, (float)m_quality};
+            if (std::memcmp(key, m_camKey, sizeof key) != 0) {
+                std::memcpy(m_camKey, key, sizeof key);
+                m_r->resetAccumulation();
+                if (m_frame > 3) m_lastMove = ImGui::GetTime();
+            }
+        }
+        // path tracing: half the resolution while the view moves (and 0.25 s after), as BrickIt; full size to converge
+        const bool moving = ImGui::GetTime() - m_lastMove < 0.25 && m_opt.shotPath.empty();
+        const float scale = (m_quality >= 1 && m_r->pathTracing() && moving) ? 0.5f : 1.0f;
+        renderSettings(rs);   // (after the view test: its "moving" is this frame's)
+        const vp3d::ViewRect vp{0, 0, std::max(16, (int)((m_r3.z - m_r3.x) * scale)), std::max(16, (int)((m_r3.w - m_r3.y) * scale))};
         m_r->renderToTexture(m_scene, rs, vp, -1);
         bg->AddImage(m_g->viewportTexture(), ImVec2(m_r3.x, m_r3.y), ImVec2(m_r3.z, m_r3.w));
         draw3DOverlay(bg);
