@@ -32,6 +32,7 @@ struct Options {
     std::string script;             // test states (see ArchApp::runScript)
     std::wstring file;              // building to open
     bool demo = false;              // the demo house, not the last session
+    bool clean = false;             // captures without the interface (render tests)
     float camYaw = -1000, camPitch = -1000, camDist = -1;
     std::string env;                // studio | sun (the sky HDRI with its sun), default: sun where the path tracer runs
     float sunRot = -1;              // degrees, rotation of the sky around the building

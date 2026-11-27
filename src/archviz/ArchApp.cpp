@@ -70,6 +70,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& o) {
         else if (a == L"--sun-rot") o.sunRot = std::stof(next());
         else if (a == L"--script") o.script = nextA();
         else if (a == L"--demo") o.demo = true;
+        else if (a == L"--clean") o.clean = true;
         else if (a == L"--cam") { o.camYaw = std::stof(next()); o.camPitch = std::stof(next()); o.camDist = std::stof(next()); }
         else if (a.size() && a[0] != L'-') o.file = a;
     }
@@ -1800,6 +1801,9 @@ void ArchApp::runScript() {
                 for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; m_tool = kPlace; m_placeAsset = ai; m_placeAt = float2(x, y); m_hoverView = 2; }
         }
         else if (k == "step") { m_step = a >= 1 ? 1 : 0; m_tool = kSelect; }
+        else if (k == "cam" && n == 4) { m_scene.camera.yaw = radians(a); m_scene.camera.pitch = radians(b); m_scene.camera.distance = cc; }   // cam yaw pitch distance
+        else if (k == "target" && n == 4) { m_scene.camera.target = world(float2(a, b), cc); }   // target x y height
+        else if (k == "fov" && n == 2) { m_scene.camera.fovY = radians(a); }
         else if (k == "deselect") { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; }
         else if (k == "addwall" && n == 5) { commitWall(float2(a, b), float2(cc, d)); }
         else if (k == "level" && n == 2) { m_level = std::clamp((int)a, 0, (int)m_b.levels.size() - 1); m_sceneDirty = true; }
@@ -1829,7 +1833,7 @@ void ArchApp::frame() {
     if (m_frame == 2 && !m_opt.script.empty()) runScript();
 
     m_uiHover = io.WantCaptureMouse;
-    drawUi();
+    if (!m_opt.clean) drawUi();
     cameraInput();
     if (m_opt.script.empty() || m_opt.shotPath.empty()) toolInput();   // (a scripted capture keeps its state)
 
@@ -1867,7 +1871,7 @@ void ArchApp::frame() {
         const vp3d::ViewRect vp{0, 0, std::max(16, (int)((m_r3.z - m_r3.x) * scale)), std::max(16, (int)((m_r3.w - m_r3.y) * scale))};
         m_r->renderToTexture(m_scene, rs, vp, -1);
         bg->AddImage(m_g->viewportTexture(), ImVec2(m_r3.x, m_r3.y), ImVec2(m_r3.z, m_r3.w));
-        draw3DOverlay(bg);
+        if (!m_opt.clean) draw3DOverlay(bg);
     }
     drawPlan(bg);
     if (m_view == kViewSplit) bg->AddLine(ImVec2(split + 0.5f, 0), ImVec2(split + 0.5f, ds.y), IM_COL32(20, 30, 50, 40), 1.0f);
