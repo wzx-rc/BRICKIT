@@ -189,7 +189,17 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         const int fm = R.label >= 0 ? std::clamp(B.labels[R.label].floor, 0, kFloorCount - 1) : kFloorConcrete;
         fo.material = mFloor[fm];
         scene.addObject(fo);
-        (void)mSlab;
+        if (o.ceilings && R.level == o.activeLevel) {   // closes the room: the light comes through the openings alone
+            const float top = e + B.levels[R.level].height;
+            MeshData c;
+            floorPrism(c, R.poly, top, top + 0.25f);
+            Object co;
+            co.name = "Ceiling " + std::to_string(r);
+            co.part = "CEILING";
+            co.mesh = scene.addMesh(co.name, std::move(c));
+            co.material = mSlab;
+            scene.addObject(co);
+        }
     }
     // the items: one object per part of their asset
     map.itemObjects.assign(B.items.size(), {0, 0});

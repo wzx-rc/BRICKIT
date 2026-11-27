@@ -108,6 +108,7 @@ private:
     int m_newFloor = 0;
     // selection: 0 none, 1 wall, 2 opening, 3 room, 4 item (furniture)
     int m_selKind = 0, m_selWall = -1, m_selOp = -1, m_selRoom = -1, m_selItem = -1;
+    bool m_ceiling = false;         // slabs over the rooms (interior renders), off for the open model view
     bool m_selDirty = false;        // the selection tint changed (no geometry to rebuild)
     // furnish: the library of objects (dataDir/ArchViz/models), the one being placed
     int m_step = 0;                 // 0 Build, 1 Furnish

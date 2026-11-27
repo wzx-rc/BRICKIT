@@ -1478,9 +1478,13 @@ void ArchApp::drawUi() {
         int ev = m_env;
         if (segButtons("env", envs, 2, ev, k, bold) && ev != m_env) { m_env = ev; applyEnv(); }
         ImGui::SameLine(0, 10 * k);
-        ImGui::SetNextItemWidth(170 * k);
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3 * k);
+        const float rowY = ImGui::GetCursorPosY();
+        ImGui::SetNextItemWidth(104 * k);
+        ImGui::SetCursorPosY(rowY + 3 * k);
         if (ImGui::SliderFloat("##sunrot", &m_envRot, 0.0f, 360.0f, "Sun  %.0f\xc2\xb0")) applyEnv();
+        ImGui::SameLine(0, 8 * k);
+        ImGui::SetCursorPosY(rowY + 3 * k);
+        if (ImGui::Checkbox("Ceiling", &m_ceiling)) m_sceneDirty = true;   // closed rooms: interior renders
     }
     ImGui::End();
 
@@ -1802,6 +1806,33 @@ void ArchApp::runScript() {
                 for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; m_tool = kPlace; m_placeAsset = ai; m_placeAt = float2(x, y); m_hoverView = 2; }
         }
         else if (k == "step") { m_step = a >= 1 ? 1 : 0; m_tool = kSelect; }
+        else if (k == "ceiling" && n == 2) { m_ceiling = a >= 1; m_sceneDirty = true; }
+        else if (k == "clear") { m_b.clear(); m_level = 0; edited(); }   // an empty building (prepared scenes)
+        else if (k == "height" && n == 2) { m_b.levels[m_level].height = m_wallHeight = a; }   // of the walls drawn next
+        else if (k == "thick" && n == 2) { m_wallThick = a; }
+        else if (k == "addop") {   // addop kind(0 window, 1 door, 2 sliding door) x y width height sill
+            float kind = 0, x = 0, y = 0, w = 1, h = 1, sill = 0, along = 0;
+            if (sscanf(c.c_str(), " %*s %f %f %f %f %f %f", &kind, &x, &y, &w, &h, &sill) == 6) {
+                const int wi = m_b.wallAt(float2(x, y), m_level, 0.2f, &along);
+                if (wi >= 0) {
+                    Opening o;
+                    o.kind = (int)kind; o.pos = along; o.width = w; o.height = h; o.sill = sill;
+                    m_b.clampOpening(wi, o);
+                    m_b.walls[wi].ops.push_back(o);
+                    edited();
+                }
+            }
+        }
+        else if (k == "label") {   // label name x y floor(0 wood, 1 tile, 2 concrete)
+            char name[64] = {};
+            float x = 0, y = 0, fl = 0;
+            if (sscanf(c.c_str(), " %*s %63s %f %f %f", name, &x, &y, &fl) == 4) {
+                const int room = m_b.roomAt(float2(x, y), m_level);   // (replaces the name the room already has)
+                for (RoomLabel& l : m_b.labels) if (l.alive && l.level == m_level && room >= 0 && m_b.roomAt(l.p, m_level) == room) l.alive = false;
+                m_b.labels.push_back({float2(x, y), name, (int)fl, m_level, true});
+                edited();
+            }
+        }
         else if (k == "cam" && n == 4) { m_scene.camera.yaw = radians(a); m_scene.camera.pitch = radians(b); m_scene.camera.distance = cc; }   // cam yaw pitch distance
         else if (k == "target" && n == 4) { m_scene.camera.target = world(float2(a, b), cc); }   // target x y height
         else if (k == "fov" && n == 2) { m_scene.camera.fovY = radians(a); }
@@ -1846,6 +1877,7 @@ void ArchApp::frame() {
         bo.selectedOpeningWall = m_selKind == 2 ? m_selWall : -1;
         bo.selectedOpening = m_selKind == 2 ? m_selOp : -1;
         bo.assets = &m_assets;
+        bo.ceilings = m_ceiling;
         if (m_sceneDirty) buildScene(m_b, m_scene, bo, m_map);
         else applySelection(m_scene, m_map, bo);   // (the tint alone: the meshes stay)
         m_sceneDirty = m_selDirty = false;

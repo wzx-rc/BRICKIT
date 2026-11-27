@@ -25,6 +25,7 @@ struct BuildOptions {
     int selectedWall = -1;   // tinted
     int selectedOpeningWall = -1, selectedOpening = -1;
     int selectedRoom = -1;
+    bool ceilings = false;   // a slab over the rooms of the active level (interior renders)
     const std::vector<AssetInfo>* assets = nullptr;   // the library (the items of the assets loaded are drawn)
 };
 
