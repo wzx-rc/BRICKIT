@@ -1,0 +1,110 @@
+{
+ "comment": "ArchViz test furniture (CGMood models in BRICKIT\\ARCHI_Models, not in git). blender -b --factory-startup --python tools\\archviz\\export_asset.py -- [--only slug]. Overrides: 'match' is a regex on 'object|material' (first match wins); color sRGB 0..1 multiplies the texture; texture relative to 'folder'; box_uv = metres per repeat of a box projection (objects without UVs). Budget: 15 textures in total.",
+ "root": "%USERPROFILE%\\Dropbox\\WZX\\WORKS\\TOOLS RD\\BRICKIT\\ARCHI_Models",
+ "models": [
+  {
+   "slug": "wardrobe", "name": "Sliding wardrobe",
+   "folder": "sliding-wardrobe-with-ps10-cinetto-system-22-cgmood", "source": "Shkaf_kupe_22.FBX", "unit": 1.0,
+   "materials": [
+    {"match": "^Cylinder.*\\|Metal_2$", "name": "rollers", "color": [0.12, 0.12, 0.13], "roughness": 0.4, "metallic": 1.0},
+    {"match": "\\|(korpus|Metal_2)$", "name": "maple", "texture": "Klen_Canyon.jpg", "roughness": 0.45},
+    {"match": "\\|serebro$", "name": "handles", "color": [0.80, 0.80, 0.82], "roughness": 0.25, "metallic": 1.0},
+    {"match": "\\|Metal$", "name": "rails", "color": [0.85, 0.85, 0.87], "roughness": 0.15, "metallic": 1.0},
+    {"match": "\\|Material #39$", "name": "basket_wire", "color": [0.85, 0.85, 0.87], "roughness": 0.2, "metallic": 1.0},
+    {"match": "\\|Material #38$", "name": "basket_dark", "color": [0.18, 0.18, 0.19], "roughness": 0.5},
+    {"match": "\\|Material #40$", "name": "basket_light", "color": [0.70, 0.70, 0.70], "roughness": 0.4}
+   ]
+  },
+  {
+   "slug": "chest", "name": "Wooden chest of drawers",
+   "folder": "wooden-chest-of-drawers-cgmood", "source": "Wooden chest of drawers_OBJ\\Wooden chest of drawers.obj", "unit": 0.001,
+   "materials": [
+    {"match": "handle\\|", "name": "handles", "color": [0.25, 0.20, 0.15], "roughness": 0.35, "metallic": 1.0},
+    {"match": "rattan\\|", "name": "rattan", "color": [0.74, 0.60, 0.42], "roughness": 0.7},
+    {"match": "\\|", "name": "wood", "texture": "Texture_wood_diff.jpg", "roughness": 0.45}
+   ]
+  },
+  {
+   "slug": "tvwall", "name": "TV wall",
+   "folder": "tv-wall-20-cgmood", "source": "tv20\\export\\tv20_.fbx", "unit": 1.0,
+   "materials": [
+    {"match": "\\|tv20_tvwall_stone$", "name": "marble", "texture": "tv20\\maps\\tv20_marble.jpg", "roughness": 0.15},
+    {"match": "\\|tv20_tvwall_03 - Default$", "name": "wood_slats", "texture": "tv20\\maps\\tvwall_wood.png", "roughness": 0.5},
+    {"match": "\\|tv20_book1$", "name": "book1", "texture": "tv20\\maps\\tvwall_book1.jpg", "roughness": 0.6},
+    {"match": "\\|tv20_book2(\\.001)?$", "name": "book2", "texture": "tv20\\maps\\tvwall_book2.jpg", "roughness": 0.6},
+    {"match": "\\|tv20_pic23$", "name": "books_grey", "texture": "tv20\\maps\\tvwall_books (3).jpg", "roughness": 0.6},
+    {"match": "\\|tv20_pic28$", "name": "books_black", "texture": "tv20\\maps\\tvwall_book (6).jpg", "roughness": 0.6},
+    {"match": "\\|tv20_(pic2|pic22|pic26)$", "name": "books_white", "color": [0.86, 0.85, 0.82], "roughness": 0.6},
+    {"match": "\\|tv20_(pic8|pic24|pic29)$", "name": "books_dark", "color": [0.20, 0.20, 0.21], "roughness": 0.6},
+    {"match": "\\|tv20_bookdr$", "name": "books_beige", "color": [0.72, 0.64, 0.52], "roughness": 0.6},
+    {"match": "\\|screen$", "name": "tv_screen", "color": [0.01, 0.01, 0.012], "roughness": 0.08},
+    {"match": "\\|frame$", "name": "tv_frame", "color": [0.03, 0.03, 0.03], "roughness": 0.4},
+    {"match": "\\|silver1$", "name": "tv_stand", "color": [0.55, 0.55, 0.56], "roughness": 0.3, "metallic": 1.0},
+    {"match": "\\|(tv20_tvwall_gold|tv20_tvwall7_golds|candle_gold|tv20_tvwall_19 - Default)$", "name": "gold", "color": [0.86, 0.70, 0.44], "roughness": 0.28, "metallic": 1.0},
+    {"match": "\\|tv20_tvwall7_silver$", "name": "silver", "color": [0.85, 0.85, 0.86], "roughness": 0.18, "metallic": 1.0},
+    {"match": "\\|(tv20_tvwall_phong1|tv20_tvwall_phong7|tv20_tvwall_Material #2147462390|Metal_mat01)$", "name": "black_ceramic", "color": [0.03, 0.03, 0.03], "roughness": 0.25},
+    {"match": "\\|(tv20_tvwall_01 - Default|12 - Default)$", "name": "white_ceramic", "color": [0.92, 0.91, 0.88], "roughness": 0.3},
+    {"match": "\\|Material #3$", "name": "oak_base", "color": [0.66, 0.48, 0.30], "roughness": 0.5},
+    {"match": "\\|09 - Default$", "name": "cabinet", "color": [0.80, 0.80, 0.78], "roughness": 0.55},
+    {"match": "\\|Material #2147462402$", "name": "cabinet_glass", "color": [0.03, 0.03, 0.035], "roughness": 0.05},
+    {"match": "\\|(glass|Glass_mat01(\\.001)?)$", "name": "glass", "color": [0.97, 0.98, 0.98], "roughness": 0.0, "transmission": 1.0, "ior": 1.5},
+    {"match": "\\|fabric1$", "name": "lampshade", "color": [0.93, 0.91, 0.86], "roughness": 0.9},
+    {"match": "\\|light$", "name": "bulb", "color": [1.0, 0.95, 0.85], "roughness": 0.4},
+    {"match": "\\|(cordd|plastik)$", "name": "cable", "color": [0.06, 0.06, 0.06], "roughness": 0.5},
+    {"match": "\\|Sand_mat01$", "name": "sand", "color": [0.78, 0.70, 0.56], "roughness": 0.9},
+    {"match": "\\|(Branch|dandelion|Wheat|driedPlant|leaf_ball)", "name": "dried_plants", "roughness": 0.8}
+   ]
+  },
+  {
+   "slug": "sofa", "name": "Linteloo Fabio sofa",
+   "folder": "linteloo-fabio-sofa-cgmood", "source": "Linteloo Fabio Sofa\\export\\Linteloo_Fabio_Sofa_2012__vray.obj", "unit": 0.001,
+   "keep": ["_1$"],
+   "materials": [
+    {"match": "^Fabio_Sofa", "name": "fabric", "texture": "Linteloo Fabio Sofa\\maps\\Linteloo_Fabio_Sofa_fabric2.jpg", "roughness": 0.9},
+    {"match": "^Fabio_Pillows", "name": "pillows", "color": [0.55, 0.55, 0.54], "roughness": 0.9},
+    {"match": "^Fabio_Blanket", "name": "throw", "color": [0.22, 0.21, 0.20], "roughness": 0.95}
+   ]
+  },
+  {
+   "slug": "bed", "name": "Vento Eiche Milieu bed",
+   "folder": "vento-eiche-milieu-bed-fstorm-cgmood", "source": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_export\\Vento_Eiche_Milieu_bed.FBX", "unit": 1.0,
+   "drop": ["^Rectangle009$"],
+   "materials": [
+    {"match": "\\|oak1$", "name": "oak", "texture": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_maps\\Vento_Eiche_Milieu_Color.jpg", "roughness": 0.45, "box_uv": 1.2},
+    {"match": "\\|Material #27470$", "name": "duvet", "texture": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_maps\\Vento_Eiche_Milieu_fabric_05.jpg", "color": [0.48, 0.48, 0.48], "roughness": 0.92},
+    {"match": "\\|Material #27515$", "name": "sheets", "texture": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_maps\\Vento_Eiche_Milieu_fabric_05.jpg", "color": [1.0, 1.0, 1.0], "roughness": 0.9},
+    {"match": "\\|(dunn_Material #27414|Material #300)$", "name": "pillows", "texture": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_maps\\Vento_Eiche_Milieu_fabric_05.jpg", "color": [0.80, 0.80, 0.79], "roughness": 0.9},
+    {"match": "\\|Material #2147467157$", "name": "throw", "texture": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_maps\\Vento_Eiche_Milieu_fabric_jaquard.jpg", "color": [1.0, 0.85, 0.72], "roughness": 0.95},
+    {"match": "\\|Material #2147467160$", "name": "blanket", "color": [0.36, 0.30, 0.26], "roughness": 0.95},
+    {"match": "\\|leather-1$", "name": "headboard", "color": [0.36, 0.36, 0.37], "roughness": 0.55},
+    {"match": "\\|black_dirt$", "name": "black_metal", "color": [0.035, 0.035, 0.035], "roughness": 0.45},
+    {"match": "\\|(rubber|14 - Default2|Material #4)$", "name": "black", "color": [0.03, 0.03, 0.03], "roughness": 0.5},
+    {"match": "\\|light$", "name": "bulb", "color": [1.0, 0.95, 0.85], "roughness": 0.4},
+    {"match": "\\|(mat08|Material #26|Material #39|Material #43|Material #49|Material #50|Material #51)$", "name": "books", "color": [0.82, 0.78, 0.70], "roughness": 0.7}
+   ]
+  },
+  {
+   "slug": "rocking_chair", "name": "Hollingsworth rocking chair",
+   "folder": "hollingsworth-rocking-chair-cgmood", "source": "Hollingsworth_Rocking_Chair.obj", "unit": 0.001,
+   "split_loose": 10000,
+   "materials": [
+    {"match": "^big_(0|4)\\|", "name": "throw_front", "color": [0.27, 0.26, 0.25], "roughness": 0.95},
+    {"match": "^big_(1|3|6|7)\\|", "name": "throw_back", "color": [0.47, 0.49, 0.52], "roughness": 0.95},
+    {"match": "^big_2\\|", "name": "pillow_yellow", "color": [0.86, 0.69, 0.33], "roughness": 0.9},
+    {"match": "^big_5\\|", "name": "pillow_green", "color": [0.62, 0.72, 0.64], "roughness": 0.9},
+    {"match": "\\|", "name": "rattan", "texture": "texture_and_maps\\Rattan_texture.jpg", "roughness": 0.55}
+   ]
+  },
+  {
+   "slug": "entrance_doors", "name": "Metal entrance door",
+   "folder": "metal-entrance-doors-cgmood", "source": "d4.obj", "unit": 0.001,
+   "materials": [
+    {"match": "^(panel_mdf|ceramic_panel002)\\|", "name": "walnut", "texture": "door 4\\Door 4 textures\\forest noce d.jpg", "roughness": 0.5, "box_uv": 1.0},
+    {"match": "^(door|framework|metal_frame\\d*|ceramic_panel\\d*|platband)\\|", "name": "black_oxide", "texture": "door 4\\Door 4 textures\\ossido nero d.jpg", "roughness": 0.45, "box_uv": 1.0},
+    {"match": "^glass\\|", "name": "glass", "color": [0.95, 0.96, 0.96], "roughness": 0.03, "transmission": 1.0, "ior": 1.5},
+    {"match": "^handle\\|", "name": "handle", "color": [0.82, 0.82, 0.83], "roughness": 0.22, "metallic": 1.0},
+    {"match": "^(hinge\\d*|block)\\|", "name": "black_metal", "color": [0.04, 0.04, 0.04], "roughness": 0.4, "metallic": 1.0}
+   ]
+  }
+ ]
+}
