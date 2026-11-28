@@ -7,7 +7,7 @@
 namespace archviz {
 
 const char* openingName(int k) { return k == kDoor ? "Door" : k == kSlider ? "Sliding door" : "Window"; }
-const char* floorName(int m) { return m == kFloorTile ? "Tiles" : m == kFloorConcrete ? "Concrete" : "Oak floor"; }
+const char* floorName(int m) { return m == kFloorTile ? "Tiles" : m == kFloorConcrete ? "Concrete" : m == kFloorCarpet ? "Carpet" : "Oak floor"; }
 
 float polyArea(const std::vector<float2>& p) {
     float a = 0;
@@ -396,7 +396,7 @@ int Building::wallAt(float2 p, int level, float tol, float* along) const {
 // --------------------------------------------------------------------------- JSON
 
 std::string Building::toJson() const {
-    std::string s = "{\n  \"format\": \"archviz-building\", \"version\": 1,\n  \"levels\": [";
+    std::string s = "{\n  \"format\": \"archviz-building\", \"version\": 1, \"ground\": " + std::to_string(ground) + ",\n  \"levels\": [";
     char b[512];
     for (size_t i = 0; i < levels.size(); ++i) {
         const Level& L = levels[i];
@@ -418,7 +418,8 @@ std::string Building::toJson() const {
     k = 0;
     for (const Wall& w : walls) {
         if (!w.alive || remap[w.a] < 0 || remap[w.b] < 0) continue;
-        snprintf(b, sizeof b, "%s\n    {\"a\": %d, \"b\": %d, \"thickness\": %.4f, \"height\": %.4f, \"openings\": [", k++ ? "," : "", remap[w.a], remap[w.b], w.thickness, w.height);
+        snprintf(b, sizeof b, "%s\n    {\"a\": %d, \"b\": %d, \"thickness\": %.4f, \"height\": %.4f, \"faceL\": [%d, %u, %.3f], \"faceR\": [%d, %u, %.3f], \"openings\": [", k++ ? "," : "",
+                 remap[w.a], remap[w.b], w.thickness, w.height, w.faceL.kind, w.faceL.color, w.faceL.tile, w.faceR.kind, w.faceR.color, w.faceR.tile);
         s += b;
         for (size_t i = 0; i < w.ops.size(); ++i) {
             const Opening& o = w.ops[i];
@@ -432,7 +433,8 @@ std::string Building::toJson() const {
     k = 0;
     for (const RoomLabel& l : labels) {
         if (!l.alive) continue;
-        snprintf(b, sizeof b, "%s\n    {\"x\": %.4f, \"y\": %.4f, \"name\": \"%s\", \"floor\": %d, \"level\": %d}", k++ ? "," : "", l.p.x, l.p.y, l.name.c_str(), l.floor, l.level);
+        snprintf(b, sizeof b, "%s\n    {\"x\": %.4f, \"y\": %.4f, \"name\": \"%s\", \"floor\": %d, \"level\": %d, \"floorColor\": %u, \"floorAngle\": %.2f, \"floorTile\": %.3f}", k++ ? "," : "", l.p.x, l.p.y, l.name.c_str(), l.floor, l.level,
+                 l.floorColor, l.floorAngle, l.floorTile);
         s += b;
     }
     s += "\n  ],\n  \"items\": [";
@@ -459,6 +461,7 @@ bool Building::fromJson(const std::string& text) {
     if (!app::Json::parse(text, j) || j["format"].str() != "archviz-building") return false;
     Building B;
     B.levels.clear();
+    B.ground = (int)j["ground"].num();
     for (const app::Json& l : j["levels"].a) {
         Level L;
         L.name = l["name"].str("Level"); L.elevation = (float)l["elevation"].num(); L.height = (float)l["height"].num(2.7);
@@ -473,6 +476,8 @@ bool Building::fromJson(const std::string& text) {
         W.a = (int)w["a"].num(); W.b = (int)w["b"].num();
         if (W.a < 0 || W.b < 0 || W.a >= (int)B.nodes.size() || W.b >= (int)B.nodes.size()) continue;
         W.thickness = (float)w["thickness"].num(0.3); W.height = (float)w["height"].num(2.7);
+        auto face = [](const app::Json& a, WallFace& F) { if (a.a.size() >= 3) { F.kind = (int)a[0].num(); F.color = (uint32_t)a[1].num(); F.tile = (float)a[2].num(0.2); } };
+        face(w["faceL"], W.faceL); face(w["faceR"], W.faceR);
         for (const app::Json& o : w["openings"].a) {
             Opening O;
             O.kind = (int)o["kind"].num(); O.pos = (float)o["pos"].num(1); O.width = (float)o["width"].num(1.2);
@@ -486,7 +491,11 @@ bool Building::fromJson(const std::string& text) {
         B.walls.push_back(W);
     }
     for (const app::Json& r : j["rooms"].a)
-        B.labels.push_back({float2((float)r["x"].num(), (float)r["y"].num()), r["name"].str("Room"), (int)r["floor"].num(), (int)r["level"].num(), true});
+    {
+        RoomLabel L{float2((float)r["x"].num(), (float)r["y"].num()), r["name"].str("Room"), (int)r["floor"].num(), (int)r["level"].num(), true};
+        L.floorColor = (uint32_t)r["floorColor"].num(); L.floorAngle = (float)r["floorAngle"].num(); L.floorTile = (float)r["floorTile"].num(0.6);
+        B.labels.push_back(L);
+    }
     for (const app::Json& r : j["items"].a) {
         Item it;
         it.asset = r["asset"].str();

@@ -108,6 +108,14 @@ private:
     float m_wallThick = 0.30f, m_wallHeight = 2.70f;
     float m_winW = 1.20f, m_winH = 1.35f, m_winSill = 0.90f, m_doorW = 0.90f, m_doorH = 2.10f;
     int m_newFloor = 0;
+    // the finishes (ArchMesh): the room on a side of a wall, the faces looking into a room; a colour being dragged in the
+    // picker makes one undo step
+    int roomBeside(int w, int side) const;
+    std::vector<std::pair<int, int>> roomFaces(int room) const;
+    std::vector<std::pair<int, int>> facadeFaces() const;   // the outer faces of the walls around rooms (every level)
+    bool m_colourLive = false;
+    int m_faceSide = 0;   // the face of the selected wall being edited (0: faceL)
+    bool finishEdit() { const bool first = !m_colourLive; m_colourLive = ImGui::IsAnyItemActive(); return first; }
     // selection: 0 none, 1 wall, 2 opening, 3 room, 4 item (furniture)
     int m_selKind = 0, m_selWall = -1, m_selOp = -1, m_selRoom = -1, m_selItem = -1;
     // ---- stairs (ArchStair.h): selection kind 5; the one being drawn (its foot pressed, the direction dragged)

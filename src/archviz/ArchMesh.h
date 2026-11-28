@@ -39,6 +39,8 @@ struct SceneMap {
     int mStairSel = -1;
     std::vector<int> stairMaterial;
     std::vector<std::pair<int, int>> itemObjects;   // per item: its first object and their count (0 = asset missing)
+    struct WallFaceObj { int obj = -1, wall = -1, material = 0; };   // the finished faces of the walls (tinted too)
+    std::vector<WallFaceObj> wallFaces;
     int ground = -1;
     int mWall = -1, mWallSel = -1, mFrame = -1, mFrameSel = -1;
     // The head of the scene a rebuild keeps: the meshes and the materials of the assets loaded (and every texture),

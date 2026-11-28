@@ -50,15 +50,28 @@ struct Node {
     bool alive = true;
 };
 
+enum FloorMat { kFloorWood = 0, kFloorTile = 1, kFloorConcrete = 2, kFloorCarpet = 3, kFloorCount };
+// The finish of a face of a wall: paint (a colour), tiles (their size, the colour of the tiles), brick, wood cladding,
+// concrete. color: sRGB 0xRRGGBB (0 = the default of the kind).
+enum WallFinish { kWallPaint = 0, kWallTiles, kWallBrick, kWallWood, kWallConcrete, kWallFinishCount };
+struct WallFace {
+    int kind = kWallPaint;
+    uint32_t color = 0;
+    float tile = 0.20f;
+    bool operator==(const WallFace& o) const { return kind == o.kind && color == o.color && tile == o.tile; }
+    bool operator!=(const WallFace& o) const { return !(*this == o); }
+};
+enum GroundKind { kGroundPlain = 0, kGroundGrass, kGroundGravel, kGroundPaving, kGroundCount };
+
 struct Wall {
     int a = -1, b = -1;
     float thickness = 0.30f;
     float height = 2.70f;
     std::vector<Opening> ops;
+    WallFace faceL, faceR;   // the finish of its two faces (L: the side of its left normal n)
     bool alive = true;
 };
 
-enum FloorMat { kFloorWood = 0, kFloorTile = 1, kFloorConcrete = 2, kFloorCount };
 const char* floorName(int m);
 
 // A room name placed in the plan: the room found around the point takes it (the faces are recomputed after every edit).
@@ -68,6 +81,9 @@ struct RoomLabel {
     int floor = kFloorWood;
     int level = 0;
     bool alive = true;
+    uint32_t floorColor = 0;   // tiles / carpet: their colour (sRGB 0xRRGGBB, 0 = the default)
+    float floorAngle = 0;      // parquet / tiles: the direction of the boards in the plan, degrees
+    float floorTile = 0.60f;   // tiles: their size (metres)
 };
 
 enum RoofType { kRoofNone = 0, kRoofFlat, kRoofGable, kRoofHip, kRoofShed, kRoofTypeCount };
@@ -141,6 +157,7 @@ struct Item {                 // a piece of furniture / an object placed on a le
 struct Building {
     std::vector<Level> levels;
     std::vector<Stair> stairs;
+    int ground = kGroundPlain;        // the ground outside
     std::vector<Item> items;
     std::vector<Node> nodes;
     std::vector<Wall> walls;

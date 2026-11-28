@@ -2,10 +2,12 @@
 #include "ArchJoinery.h"
 #include "ArchRoof.h"
 #include "ArchStair.h"
+#include "ArchTextures.h"
 #include "vp3d/MeshGen.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 namespace archviz {
 
@@ -40,13 +42,14 @@ static void box(MeshData& m, const Frame& f, float s0, float s1, float o0, float
     quad(m, f.P(s1, o0, z0), f.P(s1, o1, z0), f.P(s1, o1, z1), f.P(s1, o0, z1), U);
 }
 
-// A piece of wall between two cuts: each side has its own start / end (mitred ends), z0..z1.
-static void wallPiece(MeshData& m, const Frame& f, float t, float sl0, float sr0, float sl1, float sr1, float z0, float z1) {
+// A piece of wall between two cuts: each side has its own start / end (mitred ends), z0..z1. Its two faces go to mL / mR
+// (their finish), the top, the bottom and the ends to m.
+static void wallPiece(MeshData& m, MeshData& mL, MeshData& mR, const Frame& f, float t, float sl0, float sr0, float sl1, float sr1, float z0, float z1) {
     const float3 Y(0, 1, 0), N = f.N();
     const float3 L0b = f.P(sl0, t, z0), L1b = f.P(sl1, t, z0), L0t = f.P(sl0, t, z1), L1t = f.P(sl1, t, z1);
     const float3 R0b = f.P(sr0, -t, z0), R1b = f.P(sr1, -t, z0), R0t = f.P(sr0, -t, z1), R1t = f.P(sr1, -t, z1);
-    quad(m, L0b, L1b, L1t, L0t, N);
-    quad(m, R0b, R1b, R1t, R0t, -N);
+    quad(mL, L0b, L1b, L1t, L0t, N);
+    quad(mR, R0b, R1b, R1t, R0t, -N);
     quad(m, L0t, L1t, R1t, R0t, Y);
     if (z0 > 0.001f) quad(m, L0b, L1b, R1b, R0b, -Y);
     // end caps (slanted when mitred): normal away from the piece
@@ -60,7 +63,26 @@ static void wallPiece(MeshData& m, const Frame& f, float t, float sl0, float sr0
     cap(L1b, R1b, R1t, L1t, f.U());
 }
 
-static void floorPrism(MeshData& m, const std::vector<float2>& poly, float y0, float y1) {
+// Texture coordinates in metres / the size of one repeat: a face of a wall (along its axis, up from its floor), a floor
+// (the plan turned by angle degrees), the ground (the plan).
+static void uvWall(MeshData& m, const Frame& f, float metres, bool mirror) {
+    const float3 o = f.P(0, 0, 0), U = f.U();
+    const float k = 1.0f / std::max(0.01f, metres);
+    for (Vertex& v : m.vertices) {
+        const float s = dot(v.pos - o, U);
+        v.uv = float2((mirror ? -s : s) * k, -(v.pos.y - o.y) * k);
+    }
+}
+static void uvPlan(MeshData& m, float metres, float angleDeg, uint32_t from = 0) {
+    const float a = angleDeg * 3.14159265f / 180.0f, c = std::cos(a), s = std::sin(a), k = 1.0f / std::max(0.01f, metres);
+    for (size_t i = from; i < m.vertices.size(); ++i) {
+        Vertex& v = m.vertices[i];
+        const float x = v.pos.x, y = -v.pos.z;   // the plan
+        v.uv = float2((x * c + y * s) * k, (-x * s + y * c) * k);
+    }
+}
+
+static void floorPrism(MeshData& m,const std::vector<float2>& poly, float y0, float y1) {
     std::vector<int> tris;
     triangulate(poly, tris);
     const uint32_t base = (uint32_t)m.vertices.size();
@@ -134,7 +156,6 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     const int mFrame = mat("Alu anthracite", 0x3a4250, 0.35f, 0.004f);
     const int mFrameSel = mat("Frame selected", 0x7fa2ff, 0.35f, 0.004f);   // (a light accent: the handles show the selection)
     const int mDoor = mat("Oak door", 0xb88c5e, 0.55f, 0.004f);
-    const int mFloor[kFloorCount] = {mat("Oak floor", 0xc9a479, 0.45f), mat("Tiles", 0xd9d6cf, 0.3f), mat("Concrete", 0xb8b8b4, 0.8f)};
     const int mSlab = mat("Slab", 0xd2d2ce, 0.85f);
     Material gl;
     gl.name = "Glass"; gl.baseColor = float3(0.95f, 0.97f, 0.98f); gl.roughness = 0.0f; gl.transmission = 1.0f;
@@ -149,15 +170,56 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     hm.name = "Handle black"; hm.baseColor = lin(0x1b1c1e); hm.roughness = 0.35f; hm.metallic = 0.6f;
     const int mHandleBlack = scene.addMaterial(hm);
 
+    // The finishes (walls, floors, ground): one material per finish and colour, made when first used. A texture finish
+    // is the texture tinted by the colour (white by default); without room for its texture, a plain colour close to it.
+    struct Finish { const char* name; int tex; uint32_t tint, plain; float rough; };
+    static const Finish wallFin[kWallFinishCount] = {
+        {"Paint", -1, 0xeeebe4, 0xeeebe4, 0.85f}, {"Wall tiles", kTexTiles, 0xf4f4f0, 0xe8e8e4, 0.18f},
+        {"Brick", kTexBrick, 0xffffff, 0x9a5a44, 0.85f}, {"Wood cladding", kTexCladding, 0xffffff, 0xa57c55, 0.6f},
+        {"Wall concrete", kTexConcrete, 0xf2f2f0, 0xa8a8a4, 0.8f}};
+    static const Finish floorFin[kFloorCount] = {
+        {"Oak parquet", kTexParquet, 0xffffff, 0xc9a479, 0.42f}, {"Floor tiles", kTexTiles, 0xdedad2, 0xdedad2, 0.22f},
+        {"Floor concrete", kTexConcrete, 0xf0f0ee, 0xb8b8b4, 0.7f}, {"Carpet", kTexCarpet, 0x8d9096, 0x8d9096, 0.95f}};
+    static const Finish groundFin[kGroundCount] = {
+        {"Ground", -1, 0, 0, 0.9f}, {"Grass", kTexGrass, 0xffffff, 0x4f7a3a, 0.95f},
+        {"Gravel", kTexGravel, 0xffffff, 0x9c958a, 0.9f}, {"Paving", kTexPaving, 0xffffff, 0xa9a59e, 0.75f}};
+    std::vector<std::pair<uint64_t, int>> finCache;
+    auto finishMat = [&](int group, int kind, const Finish& F, uint32_t color) {
+        const uint64_t key = ((uint64_t)group << 40) | ((uint64_t)kind << 32) | color;
+        for (const auto& p : finCache) if (p.first == key) return p.second;
+        Material m;
+        m.name = F.name; m.roughness = F.rough;
+        const int tex = F.tex >= 0 ? buildTexture(scene, F.tex) : -1;
+        m.baseColorTex = tex;
+        m.baseColor = lin((int)(color ? color : tex >= 0 ? F.tint : F.plain));
+        const int id = scene.addMaterial(m);
+        finCache.push_back({key, id});
+        return id;
+    };
+    auto append = [](MeshData& to, const MeshData& from) {
+        const uint32_t base = (uint32_t)to.vertices.size();
+        to.vertices.insert(to.vertices.end(), from.vertices.begin(), from.vertices.end());
+        for (uint32_t i : from.indices) to.indices.push_back(base + i);
+    };
+
     Object go;
     go.name = "Ground"; go.part = "GROUND";
-    go.mesh = scene.addMesh("ground", makePlane(400.0f));
-    go.material = mGround;
+    {
+        const int gk = std::clamp(B.ground, 0, kGroundCount - 1);
+        MeshData gm = makePlane(400.0f);
+        if (gk == kGroundPlain) go.material = mGround;
+        else {
+            uvPlan(gm, buildTexMetres(groundFin[gk].tex), 0);
+            go.material = finishMat(2, gk, groundFin[gk], 0);
+        }
+        go.mesh = scene.addMesh("ground", std::move(gm));
+    }
     go.selectable = false;
     map.ground = scene.addObject(go);
 
     map.wallObject.assign(B.walls.size(), -1);
     map.frameObject.assign(B.walls.size(), -1);
+    map.wallFaces.clear();
     map.joinery.clear();
     map.leaves.clear();
     map.mWall = mWall; map.mWallSel = mWallSel; map.mFrame = mFrame; map.mFrameSel = mFrameSel;
@@ -169,7 +231,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         const WallGeom& G = B.geom[w];
         const Frame f{G.a, G.u, G.n, B.levels[lv].elevation};
         const float t = W.thickness * 0.5f, H = W.height;
-        MeshData m;
+        MeshData m, mL, mR;
         std::vector<int> order(W.ops.size());
         for (int i = 0; i < (int)order.size(); ++i) order[i] = i;
         std::sort(order.begin(), order.end(), [&](int a, int b) { return W.ops[a].pos < W.ops[b].pos; });
@@ -178,18 +240,36 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
             const Opening& op = W.ops[oi];
             const float s0 = op.pos - op.width * 0.5f, s1 = op.pos + op.width * 0.5f;
             const float z0 = op.sill, z1 = std::min(H, op.sill + op.height);
-            if (s0 > std::max(cl, cr) + 0.001f) wallPiece(m, f, t, cl, cr, s0, s0, 0, H);
-            if (z0 > 0.001f) wallPiece(m, f, t, s0, s0, s1, s1, 0, z0);
-            if (z1 < H - 0.001f) wallPiece(m, f, t, s0, s0, s1, s1, z1, H);
+            if (s0 > std::max(cl, cr) + 0.001f) wallPiece(m, mL, mR, f, t, cl, cr, s0, s0, 0, H);
+            if (z0 > 0.001f) wallPiece(m, mL, mR, f, t, s0, s0, s1, s1, 0, z0);
+            if (z1 < H - 0.001f) wallPiece(m, mL, mR, f, t, s0, s0, s1, s1, z1, H);
             cl = cr = s1;
         }
-        if (std::min(G.sL1, G.sR1) > std::max(cl, cr) - 0.001f || W.ops.empty()) wallPiece(m, f, t, cl, cr, G.sL1, G.sR1, 0, H);
+        if (std::min(G.sL1, G.sR1) > std::max(cl, cr) - 0.001f || W.ops.empty()) wallPiece(m, mL, mR, f, t, cl, cr, G.sL1, G.sR1, 0, H);
+        // the faces in plain plaster stay in the wall's mesh; a finished face is an object of its own
+        std::vector<std::pair<MeshData, int>> faces;
+        for (int side = 0; side < 2; ++side) {
+            MeshData& fm = side ? mR : mL;
+            const WallFace& F = side ? W.faceR : W.faceL;
+            if (F == WallFace{} || fm.vertices.empty()) { append(m, fm); continue; }
+            const int k = std::clamp(F.kind, 0, kWallFinishCount - 1);
+            if (wallFin[k].tex >= 0) uvWall(fm, f, k == kWallTiles ? 2.0f * std::max(0.05f, F.tile) : buildTexMetres(wallFin[k].tex), side == 1);
+            faces.push_back({std::move(fm), finishMat(0, k, wallFin[k], F.color)});
+        }
         Object wo;
         wo.name = "Wall " + std::to_string(w);
         wo.part = "WALL";
         wo.mesh = scene.addMesh(wo.name, std::move(m));
         wo.material = w == o.selectedWall ? mWallSel : mWall;
         map.wallObject[w] = scene.addObject(wo);
+        for (size_t fi = 0; fi < faces.size(); ++fi) {
+            Object fo;
+            fo.name = wo.name + " face " + std::to_string(fi);
+            fo.part = "WALL";
+            fo.mesh = scene.addMesh(fo.name, std::move(faces[fi].first));
+            fo.material = w == o.selectedWall ? mWallSel : faces[fi].second;
+            map.wallFaces.push_back({scene.addObject(fo), w, faces[fi].second});
+        }
         // the joinery of each opening: its fixed frame and its leaves, one object per piece and material (the leaves
         // move with Opening::open, placeJoinery)
         std::vector<JoineryPiece> pieces;
@@ -261,12 +341,14 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
             if (inside) hole = sg.footprint;
         }
         floorPrismHole(m, R.poly, hole, R.level == 0 ? e : e - 0.30f, e + 0.02f);
+        const RoomLabel* RL = R.label >= 0 ? &B.labels[R.label] : nullptr;
+        const int fm = RL ? std::clamp(RL->floor, 0, kFloorCount - 1) : kFloorConcrete;
+        uvPlan(m, fm == kFloorTile ? 2.0f * std::max(0.05f, RL->floorTile) : buildTexMetres(floorFin[fm].tex), RL ? RL->floorAngle : 0.0f);
         Object fo;
         fo.name = "Floor " + std::to_string(r);
         fo.part = "FLOOR";
         fo.mesh = scene.addMesh(fo.name, std::move(m));
-        const int fm = R.label >= 0 ? std::clamp(B.labels[R.label].floor, 0, kFloorCount - 1) : kFloorConcrete;
-        fo.material = mFloor[fm];
+        fo.material = finishMat(1, fm, floorFin[fm], RL ? RL->floorColor : 0);
         scene.addObject(fo);
         if (o.ceilings && R.level == o.activeLevel) {   // closes the room: the light comes through the openings alone
             const float top = e + B.levels[R.level].height;
@@ -355,6 +437,7 @@ void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
     for (int w = 0; w < (int)map.wallObject.size(); ++w) {
         if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
     }
+    for (const SceneMap::WallFaceObj& F : map.wallFaces) scene.objects[F.obj].material = F.wall == o.selectedWall ? map.mWallSel : F.material;
     for (int i = 0; i < (int)map.stairObject.size(); ++i)
         if (map.stairObject[i] >= 0) scene.objects[map.stairObject[i]].material = i == o.selectedStair ? map.mStairSel : map.stairMaterial[i];
     for (const SceneMap::JoineryObj& j : map.joinery)

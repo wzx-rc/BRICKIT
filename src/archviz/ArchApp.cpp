@@ -1184,7 +1184,7 @@ void ArchApp::drawPlan(ImDrawList* dl) {
             poly({g.aL, g.bL, g.bR, g.aR}, IM_COL32(31, 39, 51, 22), IM_COL32(31, 39, 51, 40), 1);
         }
     // rooms
-    static const ImU32 floorCol[kFloorCount] = {IM_COL32(246, 239, 228, 255), IM_COL32(238, 240, 242, 255), IM_COL32(232, 232, 230, 255)};
+    static const ImU32 floorCol[kFloorCount] = {IM_COL32(246, 239, 228, 255), IM_COL32(238, 240, 242, 255), IM_COL32(232, 232, 230, 255), IM_COL32(236, 234, 240, 255)};
     for (int r = 0; r < (int)m_b.rooms.size(); ++r) {
         const Room& Rm = m_b.rooms[r];
         if (Rm.level != m_level) continue;
@@ -1617,6 +1617,110 @@ static bool fieldM(const char* label, float* v, float ui, float lo = 0.01f, floa
     return false;
 }
 
+// ---- the finishes (walls, floors): a row of colour swatches (the first one is the default of the finish, stored as 0)
+// and a picker for any colour
+static ImVec4 hexCol(uint32_t c) { return ImVec4(((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f, 1.0f); }
+static bool colourRow(const char* id, uint32_t& c, const uint32_t* pr, int n, float ui) {
+    ImGui::PushID(id);
+    bool ch = false;
+    const uint32_t cur = c ? c : pr[0];
+    for (int i = 0; i < n; ++i) {
+        if (i) ImGui::SameLine(0, 4 * ui);
+        ImGui::PushID(i);
+        if (ImGui::ColorButton("##sw", hexCol(pr[i]), ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoAlpha, ImVec2(22 * ui, 22 * ui))) { c = i ? pr[i] : 0; ch = true; }
+        if (cur == pr[i]) ImGui::GetWindowDrawList()->AddRect(ImVec2(ImGui::GetItemRectMin().x - 2 * ui, ImGui::GetItemRectMin().y - 2 * ui),
+                                                              ImVec2(ImGui::GetItemRectMax().x + 2 * ui, ImGui::GetItemRectMax().y + 2 * ui), kAccent, 4 * ui, 0, 2 * ui);
+        ImGui::PopID();
+    }
+    ImGui::SameLine(0, 10 * ui);
+    float f[3] = {((cur >> 16) & 255) / 255.0f, ((cur >> 8) & 255) / 255.0f, (cur & 255) / 255.0f};
+    if (ImGui::ColorEdit3("##pick", f, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_PickerHueWheel)) {
+        auto b = [](float v) { return (uint32_t)std::clamp((int)std::lround(v * 255.0f), 0, 255); };
+        c = (b(f[0]) << 16) | (b(f[1]) << 8) | b(f[2]);
+        if (c == 0) c = 0x010101;   // (0 is the default)
+        ch = true;
+    }
+    ImGui::PopID();
+    return ch;
+}
+
+static const uint32_t kPaintColours[] = {0xeeebe4, 0xffffff, 0xd8d1c5, 0xb9c3ae, 0xc98a6c, 0x8e9ba8, 0x3f4246};
+static const uint32_t kTileColours[] = {0xf4f4f0, 0xcfd2d4, 0x2c2e31, 0x5f8f7f, 0x4f6f9a, 0xd9c7a8};
+static const uint32_t kTintColours[] = {0xffffff, 0xf2e4cf, 0xc9b9a6, 0x9a9a98, 0x6f5a4a};   // brick, wood, concrete: a tint
+static const uint32_t kFloorTileColours[] = {0xdedad2, 0xf2f1ee, 0xa9a6a0, 0x3a3b3d, 0xc9a98a, 0x7d8f86};
+static const uint32_t kCarpetColours[] = {0x8d9096, 0xd8cfc0, 0x6d7d6a, 0x3f4a5e, 0x8a5a4a};
+
+// the finish of a wall face: its kind, colour (or tint), the size of the tiles
+static bool faceUi(const char* id, WallFace& F, float ui, ImFont* bold) {
+    ImGui::PushID(id);
+    bool ch = false;
+    static const char* wk[] = {"Paint", "Tiles", "Brick", "Wood", "Concrete"};
+    int kind = std::clamp(F.kind, 0, kWallFinishCount - 1);
+    if (segButtons("kind", wk, kWallFinishCount, kind, ui, bold) && kind != F.kind) { F.kind = kind; F.color = 0; ch = true; }
+    if (F.kind == kWallPaint) ch |= colourRow("c", F.color, kPaintColours, (int)std::size(kPaintColours), ui);
+    else if (F.kind == kWallTiles) ch |= colourRow("c", F.color, kTileColours, (int)std::size(kTileColours), ui);
+    else ch |= colourRow("c", F.color, kTintColours, (int)std::size(kTintColours), ui);
+    if (F.kind == kWallTiles) ch |= fieldM("Tile size", &F.tile, ui, 0.05f, 1.2f);
+    ImGui::PopID();
+    return ch;
+}
+
+// the floor of a room: oak parquet (its direction), tiles (direction, size, colour), concrete, carpet (colour)
+static bool floorUi(RoomLabel& L, float ui, ImFont* bold) {
+    bool ch = false;
+    static const char* fl[] = {"Oak", "Tiles", "Concrete", "Carpet"};
+    int f = std::clamp(L.floor, 0, kFloorCount - 1);
+    if (segButtons("floor", fl, kFloorCount, f, ui, bold) && f != L.floor) { L.floor = f; L.floorColor = 0; ch = true; }
+    if (L.floor == kFloorWood || L.floor == kFloorTile) {
+        static const char* an[] = {"0\xc2\xb0", "45\xc2\xb0", "90\xc2\xb0", "135\xc2\xb0"};
+        int a = ((int)std::lround(L.floorAngle / 45.0f) % 4 + 4) % 4;
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), L.floor == kFloorWood ? "Boards" : "Laying");
+        ImGui::SameLine(70 * ui);
+        if (segButtons("angle", an, 4, a, ui, bold)) { L.floorAngle = a * 45.0f; ch = true; }
+    }
+    if (L.floor == kFloorTile) {
+        ch |= fieldM("Tile size", &L.floorTile, ui, 0.05f, 1.5f);
+        ch |= colourRow("fc", L.floorColor, kFloorTileColours, (int)std::size(kFloorTileColours), ui);
+    } else if (L.floor == kFloorCarpet) ch |= colourRow("fc", L.floorColor, kCarpetColours, (int)std::size(kCarpetColours), ui);
+    else ch |= colourRow("fc", L.floorColor, kTintColours, (int)std::size(kTintColours), ui);
+    return ch;
+}
+
+// The room on one side of a wall (side 0: its left normal, faceL) at mid length, -1 outside.
+int ArchApp::roomBeside(int w, int side) const {
+    const Wall& W = m_b.walls[w];
+    const WallGeom& G = m_b.geom[w];
+    const float2 p = (G.a + G.b) * 0.5f + G.n * ((side ? -1.0f : 1.0f) * (W.thickness * 0.5f + 0.05f));
+    const int lv = m_b.nodes[W.a].level;
+    for (int r = 0; r < (int)m_b.rooms.size(); ++r)
+        if (m_b.rooms[r].level == lv && pointInPoly(p, m_b.rooms[r].poly)) return r;
+    return -1;
+}
+
+// The faces of the walls around a room that look into it: (wall, side).
+std::vector<std::pair<int, int>> ArchApp::roomFaces(int room) const {
+    std::vector<std::pair<int, int>> out;
+    for (int w = 0; w < (int)m_b.walls.size(); ++w) {
+        if (!m_b.walls[w].alive || w >= (int)m_b.geom.size()) continue;
+        for (int side = 0; side < 2; ++side)
+            if (roomBeside(w, side) == room) out.push_back({w, side});
+    }
+    return out;
+}
+
+// The facade: the faces of the walls that look outside while their other side is a room.
+std::vector<std::pair<int, int>> ArchApp::facadeFaces() const {
+    std::vector<std::pair<int, int>> out;
+    for (int w = 0; w < (int)m_b.walls.size(); ++w) {
+        if (!m_b.walls[w].alive || w >= (int)m_b.geom.size()) continue;
+        const int r0 = roomBeside(w, 0), r1 = roomBeside(w, 1);
+        if (r0 < 0 && r1 >= 0) out.push_back({w, 0});
+        else if (r1 < 0 && r0 >= 0) out.push_back({w, 1});
+    }
+    return out;
+}
+
 void ArchApp::drawUi() {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 ds = io.DisplaySize;
@@ -1625,6 +1729,7 @@ void ArchApp::drawUi() {
                                 ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
     ImFont* bold = m_g->fontBold;
     const float M = 14 * k;
+    if (!ImGui::IsAnyItemActive()) m_colourLive = false;
 
     // ---- top left: the project
     ImGui::SetNextWindowPos(ImVec2(M, M));
@@ -1886,6 +1991,26 @@ void ArchApp::drawUi() {
             ImGui::SameLine();
             if (ImGui::Button("Interior 7")) { pushUndo(); m_b.walls[m_selWall].thickness = 0.07f; edited(); }
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "%d opening(s)", (int)W.ops.size());
+            // its two faces: named after the room each one looks into
+            section("FACES");
+            std::string nm[2];
+            for (int side = 0; side < 2; ++side) {
+                const int r = roomBeside(m_selWall, side);
+                const int lb = r >= 0 ? m_b.rooms[r].label : -1;
+                nm[side] = r < 0 ? "Outside" : lb >= 0 ? m_b.labels[lb].name : "Room";
+                if (nm[side].size() > 14) nm[side] = nm[side].substr(0, 13) + ".";
+            }
+            if (nm[0] == nm[1]) { nm[0] += " A"; nm[1] += " B"; }
+            const char* sides[2] = {nm[0].c_str(), nm[1].c_str()};
+            m_faceSide = std::clamp(m_faceSide, 0, 1);
+            segButtons("fside", sides, 2, m_faceSide, k, bold);
+            WallFace F = m_faceSide ? W.faceR : W.faceL;
+            if (faceUi("face", F, k, bold)) {
+                if (finishEdit()) pushUndo();
+                (m_faceSide ? m_b.walls[m_selWall].faceR : m_b.walls[m_selWall].faceL) = F;
+                edited();
+            }
+            if (ImGui::Button("Same on both faces")) { pushUndo(); Wall& w2 = m_b.walls[m_selWall]; (m_faceSide ? w2.faceL : w2.faceR) = F; edited(); }
         } else if (m_selKind == 2 && m_selWall >= 0 && m_selOp >= 0 && m_selOp < (int)m_b.walls[m_selWall].ops.size()) {
             Opening o = m_b.walls[m_selWall].ops[m_selOp];
             title(openingName(o.kind), "Drag it along the wall, Delete removes it");
@@ -2016,9 +2141,23 @@ void ArchApp::drawUi() {
                 ImGui::SetNextItemWidth(-1);
                 if (ImGui::InputText("##name", buf, sizeof buf, ImGuiInputTextFlags_EnterReturnsTrue)) { pushUndo(); L.name = buf; edited(); }
                 section("FLOOR");
-                static const char* fl3[] = {"Oak", "Tiles", "Concrete"};
-                int f = L.floor;
-                if (segButtons("floor", fl3, 3, f, k, bold) && f != L.floor) { pushUndo(); m_b.labels[Rm.label].floor = f; edited(); }
+                RoomLabel nl = L;
+                if (floorUi(nl, k, bold)) { if (finishEdit()) pushUndo(); m_b.labels[Rm.label] = nl; edited(); }
+            }
+            // the walls of the room: the faces looking into it (the other side keeps its own finish)
+            const std::vector<std::pair<int, int>> faces = roomFaces(m_selRoom);
+            if (!faces.empty()) {
+                section("WALLS OF THE ROOM");
+                const Wall& W0 = m_b.walls[faces[0].first];
+                WallFace F = faces[0].second ? W0.faceR : W0.faceL;
+                bool mixed = false;
+                for (const auto& fc : faces) mixed |= (fc.second ? m_b.walls[fc.first].faceR : m_b.walls[fc.first].faceL) != F;
+                if (faceUi("roomwalls", F, k, bold)) {
+                    if (finishEdit()) pushUndo();
+                    for (const auto& fc : faces) (fc.second ? m_b.walls[fc.first].faceR : m_b.walls[fc.first].faceL) = F;
+                    edited();
+                }
+                ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "%d wall face(s)%s", (int)faces.size(), mixed ? ", not all alike" : "");
             }
         } else if (m_tool == kRoom || m_tool == kWall) {
             title(m_tool == kRoom ? "New room" : "Wall", m_tool == kRoom ? "Drag a rectangle, or click two corners" : "Click points, double-click to finish");
@@ -2031,8 +2170,8 @@ void ArchApp::drawUi() {
             if (segButtons("preset", pr, 3, p, k, bold)) m_wallThick = p == 0 ? 0.30f : p == 1 ? 0.12f : 0.07f;
             if (m_tool == kRoom) {
                 section("FLOOR");
-                static const char* fl3[] = {"Oak", "Tiles", "Concrete"};
-                segButtons("nfloor", fl3, 3, m_newFloor, k, bold);
+                static const char* fl4[] = {"Oak", "Tiles", "Concrete", "Carpet"};
+                segButtons("nfloor", fl4, kFloorCount, m_newFloor, k, bold);
             }
             section("PRECISION");
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Type a value while drawing,\nTab for the next one, Enter.\nShift: no snapping.");
@@ -2078,6 +2217,22 @@ void ArchApp::drawUi() {
                 }
                 ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "Shown with Ceiling on (closed building).");
                 if (ch) { pushUndo(); m_b.levels[top] = L; edited(); }
+            }
+            if (m_step == 0) {   // the ground around the building
+                section("GROUND");
+                static const char* gk[] = {"Plain", "Grass", "Gravel", "Paving"};
+                int g = std::clamp(m_b.ground, 0, kGroundCount - 1);
+                if (segButtons("ground", gk, kGroundCount, g, k, bold) && g != m_b.ground) { pushUndo(); m_b.ground = g; edited(); }
+                const std::vector<std::pair<int, int>> fac = facadeFaces();
+                if (!fac.empty()) {   // the outer faces of every wall around the rooms at once
+                    section("FACADE");
+                    WallFace F = fac[0].second ? m_b.walls[fac[0].first].faceR : m_b.walls[fac[0].first].faceL;
+                    if (faceUi("facade", F, k, bold)) {
+                        if (finishEdit()) pushUndo();
+                        for (const auto& fc : fac) (fc.second ? m_b.walls[fc.first].faceR : m_b.walls[fc.first].faceL) = F;
+                        edited();
+                    }
+                }
             }
             }
         }
@@ -2240,6 +2395,28 @@ void ArchApp::runScript() {
                 if (v[4] >= 0) L.roofFinish = (int)v[4];
                 edited();
             }
+        }
+        else if (k == "ground" && n == 2) { m_b.ground = std::clamp((int)a, 0, kGroundCount - 1); edited(); }
+        else if (k == "floorset" && m_selKind == 3 && m_selRoom >= 0) {   // floorset kind angle tileSize colourHex: the selected room
+            int kind = 0; float ang = 0, tile = 0.6f; unsigned col = 0;
+            sscanf(c.c_str(), " %*s %d %f %f %x", &kind, &ang, &tile, &col);
+            int lb = m_b.rooms[m_selRoom].label;
+            if (lb < 0) { m_b.labels.push_back({m_b.rooms[m_selRoom].centre, "Room", kFloorWood, m_level, true}); lb = (int)m_b.labels.size() - 1; }
+            RoomLabel& L = m_b.labels[lb];
+            L.floor = std::clamp(kind, 0, kFloorCount - 1); L.floorAngle = ang; L.floorTile = tile; L.floorColor = col;
+            edited();
+        }
+        else if ((k == "roomwalls" && m_selKind == 3 && m_selRoom >= 0) || (k == "faceset" && m_selKind == 1 && m_selWall >= 0) || k == "facade") {
+            // roomwalls / facade kind tileSize colourHex (the faces looking into the selected room / outside);
+            // faceset side kind tileSize colourHex (the selected wall)
+            WallFace F;
+            int side = 0; unsigned col = 0;
+            if (k != "faceset") sscanf(c.c_str(), " %*s %d %f %x", &F.kind, &F.tile, &col);
+            else sscanf(c.c_str(), " %*s %d %d %f %x", &side, &F.kind, &F.tile, &col);
+            F.color = col;
+            if (k != "faceset") { for (const auto& fc : k == "facade" ? facadeFaces() : roomFaces(m_selRoom)) (fc.second ? m_b.walls[fc.first].faceR : m_b.walls[fc.first].faceL) = F; }
+            else { m_faceSide = side ? 1 : 0; (side ? m_b.walls[m_selWall].faceR : m_b.walls[m_selWall].faceL) = F; }
+            edited();
         }
         else if (k == "openall" && n == 2) {   // every opening this far open (0..1)
             for (Wall& Wl : m_b.walls) for (Opening& op : Wl.ops) op.setAllOpen(std::clamp(a, 0.0f, 1.0f));
