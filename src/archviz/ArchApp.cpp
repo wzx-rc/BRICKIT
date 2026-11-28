@@ -1595,7 +1595,10 @@ void ArchApp::drawUi() {
         const float rowY = ImGui::GetCursorPosY();
         ImGui::SetNextItemWidth(104 * k);
         ImGui::SetCursorPosY(rowY + 3 * k);
+        ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.18f, 0.42f, 1, 0.28f));   // (light: the value reads through it)
+        ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.18f, 0.42f, 1, 0.45f));
         if (ImGui::SliderFloat("##sunrot", &m_envRot, 0.0f, 360.0f, "Sun  %.0f\xc2\xb0")) applyEnv();
+        ImGui::PopStyleColor(2);
         ImGui::SameLine(0, 8 * k);
         ImGui::SetCursorPosY(rowY + 3 * k);
         if (ImGui::Checkbox("Ceiling", &m_ceiling)) m_sceneDirty = true;   // closed rooms: interior renders
@@ -1639,6 +1642,8 @@ void ArchApp::drawUi() {
     m_libRect = ImVec4(0, 0, 0, 0);
     if (m_step == 1) drawLibrary();
     const float libBottom = (m_step == 1 && m_libDock == 0) ? (m_libRect.w - m_libRect.y) + 8 * k : 0.0f;   // the room it takes
+    // (the tools only move up when the library reaches under them)
+    const float toolsUp = (libBottom > 0 && (m_toolsRect.z <= m_toolsRect.x || m_libRect.z > m_toolsRect.x - 8 * k)) ? libBottom : 0.0f;
     const float libRight = (m_step == 1 && m_libDock == 2) ? (m_libRect.z - m_libRect.x) + 8 * k : 0.0f;
 
     // ---- bottom: the tools
@@ -1654,7 +1659,7 @@ void ArchApp::drawUi() {
         const char* const* keys = m_step == 1 ? furnishKeys : buildKeys;
         const int toolCount = m_step == 1 ? 3 : 5;
         const float dockX = m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f;
-        ImGui::SetNextWindowPos(ImVec2(dockX, ds.y - M - libBottom), 0, ImVec2(0.5f, 1));
+        ImGui::SetNextWindowPos(ImVec2(dockX, ds.y - M - toolsUp), 0, ImVec2(0.5f, 1));
         ImGui::Begin("##tools", nullptr, fl);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 dockPos = ImGui::GetWindowPos(), dockSize = ImGui::GetWindowSize();

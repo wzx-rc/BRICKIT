@@ -78,7 +78,11 @@ void ArchApp::drawLibrary() {
     ImVec2 a, b;
     if (m_libDock == 1) { a = ImVec2(M, top); b = ImVec2(M + W, ds.y - M); }
     else if (m_libDock == 2) { a = ImVec2(ds.x - M - W, 106 * k); b = ImVec2(ds.x - M, ds.y - M); }
-    else { a = ImVec2(M, ds.y - M - H); b = ImVec2(ds.x - M, ds.y - M); }
+    else {   // (at the bottom: as wide as its cards need, no empty panel over the views)
+        const float need = (float)m_assets.size() * 90 * k + 40 * k;
+        a = ImVec2(M, ds.y - M - H);
+        b = ImVec2(std::min(ds.x - M, M + std::max(need, 560 * k)), ds.y - M);
+    }
     m_libRect = ImVec4(a.x, a.y, b.x, b.y);
 
     ImGui::SetNextWindowPos(a);
@@ -120,10 +124,10 @@ void ArchApp::drawLibrary() {
             const char* name = c < 0 ? "All" : cats[c].c_str();
             const bool on = c < 0 ? m_libCat.empty() : m_libCat == cats[c];
             const ImVec2 ts = ImGui::CalcTextSize(name);
-            const ImVec2 sz(ts.x + 18 * k, 24 * k);
+            const ImVec2 sz(ts.x + 14 * k, 24 * k);
             if (c >= 0) {
-                const float x = ImGui::GetItemRectMax().x + 5 * k;
-                if (x + sz.x <= right) ImGui::SameLine(0, 5 * k);
+                const float x = ImGui::GetItemRectMax().x + 4 * k;
+                if (x + sz.x <= right) ImGui::SameLine(0, 4 * k);
             }
             ImGui::PushID(c);
             const ImVec2 p = ImGui::GetCursorScreenPos();
@@ -131,7 +135,7 @@ void ArchApp::drawLibrary() {
             const bool hv = ImGui::IsItemHovered();
             dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), on ? kAccent : hv ? kHollow : IM_COL32(244, 246, 249, 255), 12 * k);
             if (!on) dl->AddRect(p, ImVec2(p.x + sz.x, p.y + sz.y), kLine, 12 * k);
-            dl->AddText(ImVec2(p.x + 9 * k, p.y + (sz.y - ts.y) * 0.5f), on ? kWhite : ink2, name);
+            dl->AddText(ImVec2(p.x + 7 * k, p.y + (sz.y - ts.y) * 0.5f), on ? kWhite : ink2, name);
             ImGui::PopID();
         }
     }
@@ -148,7 +152,7 @@ void ArchApp::drawLibrary() {
         ImDrawList* cdl = ImGui::GetWindowDrawList();
         const float avail = ImGui::GetContentRegionAvail().x - 10 * k, gap = 6 * k;   // (room for the scrollbar)
         const int cols = std::max(1, (int)std::floor((avail + gap) / (84 * k + gap)));
-        const float cw = std::floor((avail - gap * (cols - 1)) / cols), ch = cw + 38 * k;
+        const float cw = std::floor((avail - gap * (cols - 1)) / cols), ch = cw + 52 * k;
         if (m_assets.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ink2), "No object yet.\nConverted models go in\nBrickIt/ArchViz/models.");
         else if (shown.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ink2), "Nothing matches.");
         const float fs = ImGui::GetFontSize();
@@ -176,17 +180,27 @@ void ArchApp::drawLibrary() {
                 const ImTextureID tex = thumbOf(i);
                 if (tex) cdl->AddImage(tex, t0, t1);
                 else drawThumbFallback(cdl, t0, t1, as);
-                // its name (cut to the card), its size under it
-                std::string name = as.name;
+                // its name on two lines at most (cut beyond), its size under it
                 ImFont* f = bold ? bold : ImGui::GetFont();
                 const float nfs = fs * 0.92f, maxW = cw - 12 * k;
-                bool cut = false;
-                while (name.size() > 1 && f->CalcTextSizeA(nfs, FLT_MAX, 0, (name + (cut ? ".." : "")).c_str()).x > maxW) { name.pop_back(); cut = true; }
-                if (cut) name += "..";
-                cdl->AddText(f, nfs, ImVec2(p.x + 7 * k, p.y + cw - 2 * k), kInk, name.c_str());
+                auto width = [&](const std::string& t) { return f->CalcTextSizeA(nfs, FLT_MAX, 0, t.c_str()).x; };
+                std::string l1 = as.name, l2;
+                if (width(l1) > maxW) {   // the break at the last space that fits
+                    size_t cutAt = std::string::npos;
+                    for (size_t c = 0; c < as.name.size(); ++c) if (as.name[c] == ' ' && width(as.name.substr(0, c)) <= maxW) cutAt = c;
+                    if (cutAt == std::string::npos) { cutAt = as.name.size(); while (cutAt > 1 && width(as.name.substr(0, cutAt)) > maxW) --cutAt; l2 = as.name.substr(cutAt); }
+                    else l2 = as.name.substr(cutAt + 1);
+                    l1 = as.name.substr(0, cutAt);
+                    bool cut = false;
+                    while (l2.size() > 1 && width(l2 + (cut ? ".." : "")) > maxW) { l2.pop_back(); cut = true; }
+                    if (cut) l2 += "..";
+                }
+                const float ny = p.y + cw - 3 * k;
+                cdl->AddText(f, nfs, ImVec2(p.x + 7 * k, ny), kInk, l1.c_str());
+                if (!l2.empty()) cdl->AddText(f, nfs, ImVec2(p.x + 7 * k, ny + nfs + 1 * k), kInk, l2.c_str());
                 char sub[48];
                 snprintf(sub, sizeof sub, "%.2f x %.2f m", as.size.x, as.size.z);
-                cdl->AddText(ImGui::GetFont(), fs * 0.8f, ImVec2(p.x + 7 * k, p.y + cw - 2 * k + nfs + 2 * k), ink3, sub);
+                cdl->AddText(ImGui::GetFont(), fs * 0.8f, ImVec2(p.x + 7 * k, ny + 2 * (nfs + 1 * k) + 2 * k), ink3, sub);
             }
             if (hv && m_libPress < 0 && io.MouseDownDuration[0] < 0)
                 ImGui::SetTooltip("%s\n%.2f x %.2f m, %.2f m high\n%s\nClick: in hand  \xc2\xb7  drag it into a room  \xc2\xb7  hold: its sheet", as.name.c_str(), as.size.x, as.size.z, as.size.y,
@@ -258,7 +272,8 @@ void ArchApp::drawLibrary() {
     // ---- the sheet of an object (a card held): beside the library
     if (m_libInfo >= 0 && m_libInfo < (int)m_assets.size()) {
         const AssetInfo& as = m_assets[m_libInfo];
-        const ImVec2 at = m_libDock == 1 ? ImVec2(b.x + 8 * k, a.y) : m_libDock == 2 ? ImVec2(a.x - 8 * k, a.y) : ImVec2(a.x, a.y - 8 * k);
+        // (on the right the inspector sits beside the library: the sheet opens beyond it)
+        const ImVec2 at = m_libDock == 1 ? ImVec2(b.x + 8 * k, a.y) : m_libDock == 2 ? ImVec2(a.x - 8 * k - 278 * k, a.y) : ImVec2(a.x, a.y - 8 * k);
         ImGui::SetNextWindowPos(at, 0, m_libDock == 1 ? ImVec2(0, 0) : m_libDock == 2 ? ImVec2(1, 0) : ImVec2(0, 1));
         ImGui::Begin("##libsheet", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav);
         ImDrawList* sdl = ImGui::GetWindowDrawList();
@@ -272,8 +287,8 @@ void ArchApp::drawLibrary() {
         if (bold) ImGui::PushFont(bold, 0.0f);
         ImGui::TextUnformatted(as.name.c_str());
         if (bold) ImGui::PopFont();
-        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ink2), "%s\n%.2f x %.2f m, %.2f m high\n%s\n%d parts, %d textures", as.category.empty() ? "Other" : as.category.c_str(), as.size.x, as.size.z,
-                           as.size.y, trisText(as.tris).c_str(), as.parts, as.textures);
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ink2), "%s\n%.2f x %.2f m, %.2f m high\n%s\n%d part%s, %d texture%s", as.category.empty() ? "Other" : as.category.c_str(), as.size.x, as.size.z,
+                           as.size.y, trisText(as.tris).c_str(), as.parts, as.parts == 1 ? "" : "s", as.textures, as.textures == 1 ? "" : "s");
         ImGui::Spacing();
         if (ImGui::Button("Take it in hand", ImVec2(g, 0))) {
             m_tool = kPlace; m_placeAsset = m_libInfo; m_libInfo = -1;
