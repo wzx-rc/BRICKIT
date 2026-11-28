@@ -41,6 +41,9 @@ struct SceneMap {
     std::vector<std::pair<int, int>> itemObjects;   // per item: its first object and their count (0 = asset missing)
     struct WallFaceObj { int obj = -1, wall = -1, material = 0; };   // the finished faces of the walls (tinted too)
     std::vector<WallFaceObj> wallFaces;
+    std::vector<int> fixtureObject;   // per fixture: the object of its body (-1 = not in the scene)
+    std::vector<int> fixtureMaterial;
+    int mFixtureSel = -1;
     int ground = -1;
     int mWall = -1, mWallSel = -1, mFrame = -1, mFrameSel = -1;
     // The head of the scene a rebuild keeps: the meshes and the materials of the assets loaded (and every texture),
@@ -54,6 +57,7 @@ struct BuildOptions {
     int selectedOpeningWall = -1, selectedOpening = -1;
     int selectedRoom = -1;
     int selectedStair = -1;
+    int selectedFixture = -1;
     bool ceilings = false;   // a slab over the rooms of the active level (interior renders)
     const std::vector<AssetInfo>* assets = nullptr;   // the library (the items of the assets loaded are drawn)
 };

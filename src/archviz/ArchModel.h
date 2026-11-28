@@ -154,10 +154,34 @@ struct Item {                 // a piece of furniture / an object placed on a le
     float height = 1;         // plan and the picking work without the asset loaded
 };
 
+// A light fixture (ArchLight.h): on the ceiling, hanging (pendant), on a wall, a recessed spot, an LED strip. Its power
+// (lumens), colour temperature (kelvin), on / off. p: plan position (a wall light: against the face of its wall);
+// yaw: the direction it faces (wall light) or runs along (strip), radians in the plan; height: of its light above the
+// floor (0 = the default of the kind: under the ceiling, 0.9 m under it for a pendant, 1.8 m for a wall light).
+enum FixtureKind { kFixCeiling = 0, kFixPendant, kFixWall, kFixSpot, kFixStrip, kFixKindCount };
+struct Fixture {
+    int kind = kFixCeiling;
+    float2 p;
+    int level = 0;
+    float yaw = 0;
+    float height = 0;
+    float lumens = 800;
+    float kelvin = 3000;
+    float length = 1.2f;   // strip
+    bool on = true;
+    bool alive = true;
+};
+
 struct Building {
     std::vector<Level> levels;
     std::vector<Stair> stairs;
     int ground = kGroundPlain;        // the ground outside
+    std::vector<Fixture> fixtures;   // the lights (Light step)
+    // the site and the sun of the clock (Light step): latitude (degrees north), solar time, date; sunClock off = the sun
+    // of the sky image turned by the rotation slider
+    float latitude = 46.0f, sunHour = 16.0f;
+    int sunMonth = 6, sunDay = 21;
+    bool sunClock = false;
     std::vector<Item> items;
     std::vector<Node> nodes;
     std::vector<Wall> walls;

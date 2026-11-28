@@ -120,7 +120,7 @@ Texture make(int t) {
                 const float f = fbm(u, v, 4, seed, 5), dry = fbm(u, v, 2, seed + 5, 3), s = rnd(x, y, seed);
                 const float k = 0.78f + (f - 0.5f) * 0.45f + (s - 0.5f) * 0.4f;
                 const float d = std::clamp((dry - 0.45f) * 1.6f, 0.0f, 1.0f) * 0.6f + (s > 0.985f ? 0.5f : 0.0f);
-                im.set(x, y, (0.25f + d * 0.16f) * k, (0.34f + d * 0.04f) * k, (0.15f + d * 0.02f) * k);
+                im.set(x, y, (0.26f + d * 0.14f) * k, (0.33f + d * 0.04f) * k, (0.18f + d * 0.02f) * k);
             }
         break;
     case kTexGravel:   // pebbles on a jittered grid

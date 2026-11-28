@@ -1,5 +1,6 @@
 #include "ArchMesh.h"
 #include "ArchJoinery.h"
+#include "ArchLight.h"
 #include "ArchRoof.h"
 #include "ArchStair.h"
 #include "ArchTextures.h"
@@ -430,6 +431,31 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
             }
         }
     }
+    // the light fixtures: their body (one object each, tinted when selected) and their light
+    {
+        scene.lights.clear();
+        const int mFix[kFixKindCount] = {mat("Fixture white", 0xf1f1ee, 0.5f, 0.002f), mat("Pendant black", 0x232427, 0.4f), 0, 0, 0};
+        const int mAlu = mat("Fixture alu", 0xb9bcc0, 0.35f);
+        const int byKind[kFixKindCount] = {mFix[0], mFix[1], mFix[1], mFix[0], mAlu};
+        map.mFixtureSel = mat("Fixture selected", 0x9db6ff, 0.5f);
+        map.fixtureObject.assign(B.fixtures.size(), -1);
+        map.fixtureMaterial.assign(B.fixtures.size(), mFix[0]);
+        for (int i = 0; i < (int)B.fixtures.size(); ++i) {
+            const Fixture& fx = B.fixtures[i];
+            if (!fx.alive || fx.level > o.activeLevel) continue;
+            MeshData body;
+            AreaLight L;
+            buildFixture(B, fx, body, L);
+            map.fixtureMaterial[i] = byKind[std::clamp(fx.kind, 0, kFixKindCount - 1)];
+            Object fo;
+            fo.name = std::string(fixtureName(fx.kind)) + " " + std::to_string(i);
+            fo.part = "LIGHT";
+            fo.mesh = scene.addMesh(fo.name, std::move(body));
+            fo.material = i == o.selectedFixture ? map.mFixtureSel : map.fixtureMaterial[i];
+            map.fixtureObject[i] = scene.addObject(fo);
+            scene.lights.push_back(L);
+        }
+    }
     placeJoinery(scene, map, B);
 }
 
@@ -438,6 +464,8 @@ void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
         if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
     }
     for (const SceneMap::WallFaceObj& F : map.wallFaces) scene.objects[F.obj].material = F.wall == o.selectedWall ? map.mWallSel : F.material;
+    for (int i = 0; i < (int)map.fixtureObject.size(); ++i)
+        if (map.fixtureObject[i] >= 0) scene.objects[map.fixtureObject[i]].material = i == o.selectedFixture ? map.mFixtureSel : map.fixtureMaterial[i];
     for (int i = 0; i < (int)map.stairObject.size(); ++i)
         if (map.stairObject[i] >= 0) scene.objects[map.stairObject[i]].material = i == o.selectedStair ? map.mStairSel : map.stairMaterial[i];
     for (const SceneMap::JoineryObj& j : map.joinery)

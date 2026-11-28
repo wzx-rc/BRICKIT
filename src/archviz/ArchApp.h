@@ -42,6 +42,7 @@ void parseOptions(const std::vector<std::wstring>& args, Options& o);
 
 // kPlace: an object of the library in hand (Furnish); kMoveTool / kRotateTool: the manipulators of BrickIt on the objects
 enum Tool { kSelect = 0, kRoom, kWall, kWindowTool, kDoorTool, kStairTool, kToolCount, kPlace = kToolCount, kMoveTool, kRotateTool };
+constexpr int kLightTool = 30;   // the light tools: kLightTool + FixtureKind (their icons too)
 enum View { kView3D = 0, kViewSplit, kViewPlan };
 
 class ArchApp {
@@ -127,6 +128,24 @@ private:
     int stairAt(float2 p) const;
     void drawStairPlan(ImDrawList* dl, const Stair& s, ImU32 col, bool ghost);
     void drawRoofPlan(ImDrawList* dl);
+    // ---- the Light step (ArchLight.h, ArchLightUi.cpp): fixtures, selection kind 6; the one under the mouse of a
+    // light tool (kLightTool + kind); the exposure (auto: from the image shown, only brighter than 0 EV) and the sun
+    int m_selFixture = -1;
+    Fixture m_fixGhost;
+    bool m_fixGhostOk = false;
+    float2 m_fixOff;
+    int fixtureAt(float2 p) const;
+    Fixture placeFixture(int kind, float2 p, bool free) const;   // snapped (a wall light: against the nearest wall)
+    void drawFixturePlan(ImDrawList* dl, const Fixture& f, ImU32 col);
+    void lightInspector(float k, ImFont* bold);
+    void lightPanel(float k, ImFont* bold);
+    bool m_autoExposure = true;
+    bool m_night = false;              // the clock's sun is down: no sun from the sky image either
+    float m_ev = 0.0f;                 // exposure, EV above the default
+    double m_aeLast = 0;
+    int m_aeCalm = 0;                  // frames the auto exposure has not moved (a capture waits for it)
+    void autoExposure();               // after the frame is drawn: measures it, moves m_ev
+    void applySun();                   // the sun of the clock (Building::sunClock) or of the sky image
     bool m_ceiling = false;         // slabs over the rooms (interior renders), off for the open model view
     bool m_selDirty = false;        // the selection tint changed (no geometry to rebuild)
     // furnish: the library of objects (dataDir/ArchViz/models), the one being placed

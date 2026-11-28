@@ -14,4 +14,8 @@ static const ImU32 kWhite = IM_COL32(255, 255, 255, 255);
 inline bool inRect(ImVec2 p, const ImVec4& r) { return r.z > r.x && p.x >= r.x && p.y >= r.y && p.x < r.z && p.y < r.w; }
 inline ImU32 alpha(ImU32 c, float a) { return (c & 0x00FFFFFF) | ((ImU32)(std::clamp(a, 0.0f, 1.0f) * ((c >> 24) & 255)) << 24); }
 
+// ArchApp.cpp: a row of segment buttons (cur: the one on), a value in metres typed (Enter), clamped
+bool segButtons(const char* id, const char* const* items, int n, int& cur, float ui, ImFont* bold);
+bool fieldM(const char* label, float* v, float ui, float lo = 0.01f, float hi = 100.0f);
+
 } // namespace archviz

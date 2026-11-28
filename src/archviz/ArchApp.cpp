@@ -1,5 +1,6 @@
 #include "ArchApp.h"
 #include "ArchJoinery.h"
+#include "ArchLight.h"
 #include "ArchRoof.h"
 #include "ArchStair.h"
 #include "ArchUi.h"
@@ -154,7 +155,7 @@ void ArchApp::setupLook() {
     e.hemiIntensity = 0.5f;
     m_env = m_opt.env == "studio" ? 0 : m_opt.env == "sun" ? 1 : (m_r->pathTracing() ? 1 : 0);
     m_envRot = m_opt.sunRot >= 0 ? m_opt.sunRot : (m_env == 1 ? 250.0f : 200.0f);
-    applyEnv();
+    applySun();
     m_scene.gridScale = 1.0f;
     m_scene.gridLine = (34u << 24) | (0xa8u << 16) | (0x96u << 8) | 0x8au;
     m_scene.gridFade = float3(6, -4.5f, 14);
@@ -222,6 +223,8 @@ void ArchApp::applyEnv() {
 
 void ArchApp::renderSettings(RenderSettings& rs) {
     rs = m_rs;
+    rs.exposure = m_rs.exposure * std::exp2(m_ev);   // (the Light step: auto or manual)
+    if (m_night) rs.rasterEnvSun = false;   // (the HQ view would light the room with the sun of the sky image)
     const bool moving = ImGui::GetTime() - m_lastMove < 0.25 && m_opt.shotPath.empty();
     if (m_quality == 0) {   // HQ: the BrickIt HQ (raster, shadows / occlusion / reflections traced, rounded edges)
         rs.raster = true;
@@ -296,6 +299,7 @@ void ArchApp::undo() {
     if (m_undo.empty()) return;
     m_redo.push_back(m_b.toJson());
     m_b.fromJson(m_undo.back());
+    applySun();
     m_undo.pop_back();
     m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     m_level = std::min(m_level, (int)m_b.levels.size() - 1);
@@ -306,6 +310,7 @@ void ArchApp::redo() {
     if (m_redo.empty()) return;
     m_undo.push_back(m_b.toJson());
     m_b.fromJson(m_redo.back());
+    applySun();
     m_redo.pop_back();
     m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     edited();
@@ -660,6 +665,11 @@ void ArchApp::pickSelect(float2 p) {
         if (it >= 0) { m_selKind = 4; m_selItem = it; }
         return;
     }
+    if (m_step == 2) {   // Light: the fixtures
+        const int fx = fixtureAt(p);
+        if (fx >= 0) { m_selKind = 6; m_selFixture = fx; }
+        return;
+    }
     const int st = stairAt(p);   // the stairs first (they stand inside the rooms)
     if (st >= 0) { m_selKind = 5; m_selStair = st; return; }
     float along;
@@ -676,6 +686,13 @@ void ArchApp::pickSelect(float2 p) {
 }
 
 void ArchApp::deleteSelection() {
+    if (m_selKind == 6 && m_selFixture >= 0 && m_selFixture < (int)m_b.fixtures.size()) {
+        pushUndo();
+        m_b.fixtures.erase(m_b.fixtures.begin() + m_selFixture);
+        m_selKind = 0; m_selFixture = -1;
+        edited();
+        return;
+    }
     if (m_selKind == 5 && m_selStair >= 0 && m_selStair < (int)m_b.stairs.size()) {
         pushUndo();
         m_b.stairs.erase(m_b.stairs.begin() + m_selStair);
@@ -807,7 +824,9 @@ void ArchApp::toolInput() {
             if (ImGui::IsKeyPressed(ImGuiKey_V)) { m_tool = m_furnishTool = kSelect; m_drawing = false; }
             // Furnish: G moves, R turns (the manipulators); Build: R is the room
             if (ImGui::IsKeyPressed(ImGuiKey_G) && m_step == 1) m_tool = m_furnishTool = kMoveTool;
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) { if (m_step == 1) m_tool = m_furnishTool = kRotateTool; else { m_tool = kRoom; m_drawing = false; } }
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) { if (m_step == 1) m_tool = m_furnishTool = kRotateTool; else if (m_step == 0) { m_tool = kRoom; m_drawing = false; } }
+            if (m_step == 2 && m_edit == kEditNone)   // Light: 1..5 the tools of the fixtures
+                for (int i = 0; i < kFixKindCount; ++i) if (ImGui::IsKeyPressed((ImGuiKey)(ImGuiKey_1 + i))) m_tool = kLightTool + i;
             if (ImGui::IsKeyPressed(ImGuiKey_W)) { m_tool = kWall; m_drawing = false; m_step = 0; }
             if (ImGui::IsKeyPressed(ImGuiKey_N)) { m_tool = kWindowTool; m_drawing = false; m_step = 0; }
             if (ImGui::IsKeyPressed(ImGuiKey_D)) { m_tool = kDoorTool; m_drawing = false; m_step = 0; }
@@ -829,6 +848,7 @@ void ArchApp::toolInput() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             if (m_drawing) m_drawing = false;
+            else if (m_tool >= kLightTool) m_tool = kSelect;
             else { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; m_libInfo = -1; if (m_tool == kPlace) { m_tool = m_furnishTool; m_libDragPlace = false; } }
         }
         if ((ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) && m_tool == kWall) m_drawing = false;
@@ -905,6 +925,11 @@ void ArchApp::toolInput() {
                 m_moving = true;
                 m_dragged = false;
                 m_stairOff = m_b.stairs[m_selStair].p - m_raw;
+            } else if (m_selKind == 6) {
+                pushUndo();
+                m_moving = true;
+                m_dragged = false;
+                m_fixOff = m_b.fixtures[m_selFixture].p - m_raw;
             } else if (m_selKind == 1 || m_selKind == 2) {
                 pushUndo();
                 m_moving = true;
@@ -927,6 +952,13 @@ void ArchApp::toolInput() {
                 float2 q = m_raw + m_stairOff;
                 if (m_snapGrid && !io.KeyShift) q = float2(gridSnap(q.x), gridSnap(q.y));
                 m_b.stairs[m_selStair].p = q;
+                m_sceneDirty = true;
+                m_lastMove = ImGui::GetTime();
+            } else if (m_dragged && m_selKind == 6) {   // a fixture (a wall light slides along the walls)
+                Fixture& fx = m_b.fixtures[m_selFixture];
+                const Fixture p = placeFixture(fx.kind, m_raw + m_fixOff, io.KeyShift);
+                fx.p = p.p;
+                if (fx.kind == kFixWall) fx.yaw = p.yaw;
                 m_sceneDirty = true;
                 m_lastMove = ImGui::GetTime();
             } else if (m_dragged) {
@@ -979,6 +1011,18 @@ void ArchApp::toolInput() {
                 m_tool = kSelect;
                 edited();
             }
+        }
+        break;
+    }
+    case kLightTool + kFixCeiling: case kLightTool + kFixPendant: case kLightTool + kFixWall: case kLightTool + kFixSpot: case kLightTool + kFixStrip: {
+        const int kind = m_tool - kLightTool;
+        m_fixGhost = placeFixture(kind, m_raw, io.KeyShift);
+        m_fixGhostOk = kind != kFixWall || m_b.wallAt(m_raw, m_level, 0.8f) >= 0;
+        if (lclick && m_fixGhostOk) {   // (the tool stays: a row of spots)
+            pushUndo();
+            m_b.fixtures.push_back(m_fixGhost);
+            m_selKind = 6; m_selFixture = (int)m_b.fixtures.size() - 1;
+            edited();
         }
         break;
     }
@@ -1100,6 +1144,34 @@ void ArchApp::drawIcon(ImDrawList* dl, int k, ImVec2 c, float s, ImU32 col) {
         dl->AddCircleFilled(P(12, 12), 1.6f * u, col, 12);
         break;
     }
+    case kLightTool + kFixCeiling:   // a panel under the ceiling, its rays
+        dl->AddLine(P(3, 5), P(21, 5), col, th);
+        dl->AddRectFilled(P(6, 6), P(18, 9), col, 1.0f * u);
+        for (float x : {7.0f, 12.0f, 17.0f}) dl->AddLine(P(x, 12), P(x + (x - 12) * 0.35f, 19), col, th);
+        break;
+    case kLightTool + kFixPendant: {   // a shade on its cord
+        dl->AddLine(P(12, 2), P(12, 9), col, th);
+        ImVec2 p[] = {P(9.5f, 9), P(14.5f, 9), P(19, 16), P(5, 16)};
+        dl->AddConvexPolyFilled(p, 4, fill);
+        dl->AddPolyline(p, 4, col, ImDrawFlags_Closed, th);
+        dl->AddCircleFilled(P(12, 19), 1.8f * u, col, 10);
+        break;
+    }
+    case kLightTool + kFixWall:   // a wall, a sconce, its light
+        dl->AddLine(P(5, 3), P(5, 21), col, th);
+        dl->AddRectFilled(P(5, 9), P(10, 15), fill);
+        dl->AddRect(P(5, 9), P(10, 15), col, 0, 0, th);
+        for (float y : {7.0f, 12.0f, 17.0f}) dl->AddLine(P(13, 12 + (y - 12) * 0.4f), P(20, y), col, th);
+        break;
+    case kLightTool + kFixSpot:   // a recessed spot and its cone
+        dl->AddLine(P(3, 5), P(21, 5), col, th);
+        dl->AddRectFilled(P(9.5f, 5), P(14.5f, 7.5f), col);
+        dl->AddLine(P(10, 8), P(6, 20), col, th); dl->AddLine(P(14, 8), P(18, 20), col, th);
+        break;
+    case kLightTool + kFixStrip:   // a long thin strip, glowing
+        dl->AddRectFilled(P(3, 10.5f), P(21, 13.5f), col, 1.5f * u);
+        for (float x : {6.0f, 10.0f, 14.0f, 18.0f}) dl->AddLine(P(x, 16), P(x, 20), col, th);
+        break;
     case 10:   // undo
         dl->AddLine(P(9, 7), P(5, 11), col, th); dl->AddLine(P(5, 11), P(9, 15), col, th);
         dl->PathArcTo(P(14, 16), 5 * u, -1.5708f, 1.5708f); dl->PathStroke(col, 0, th);
@@ -1286,6 +1358,11 @@ void ArchApp::drawPlan(ImDrawList* dl) {
     for (int i = 0; i < (int)m_b.stairs.size(); ++i)
         if (m_b.stairs[i].alive && m_b.stairs[i].level == m_level) drawStairPlan(dl, m_b.stairs[i], m_selKind == 5 && m_selStair == i ? kAccent : kInk, false);
     if (m_tool == kStairTool && m_hoverView != 0) drawStairPlan(dl, m_stairGhost, kAccent, true);
+    // the light fixtures (faint outside the Light step), the one of a light tool
+    for (int i = 0; i < (int)m_b.fixtures.size(); ++i)
+        if (m_b.fixtures[i].alive && m_b.fixtures[i].level == m_level)
+            drawFixturePlan(dl, m_b.fixtures[i], m_selKind == 6 && m_selFixture == i ? kAccent : m_step == 2 ? kInk : alpha(kInk3, 0.6f));
+    if (m_tool >= kLightTool && m_hoverView != 0 && m_fixGhostOk) drawFixturePlan(dl, m_fixGhost, kAccent);
     drawRoofPlan(dl);
     // the objects: their footprint, the front marked
     auto itemRect = [&](float2 c, float yaw, float2 size, ImU32 fill, ImU32 stroke, float th, const char* label) {
@@ -1573,7 +1650,7 @@ void ArchApp::draw3DOverlay(ImDrawList* dl) {
 
 // ---------------------------------------------------------------------------- the interface
 
-static bool segButtons(const char* id, const char* const* items, int n, int& cur, float ui, ImFont* bold) {
+bool segButtons(const char* id, const char* const* items, int n, int& cur, float ui, ImFont* bold) {
     ImGui::PushID(id);
     bool changed = false;
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -1604,7 +1681,7 @@ static bool segButtons(const char* id, const char* const* items, int n, int& cur
     return changed;
 }
 
-static bool fieldM(const char* label, float* v, float ui, float lo = 0.01f, float hi = 100.0f) {
+bool fieldM(const char* label, float* v, float ui, float lo, float hi) {
     ImGui::AlignTextToFramePadding();
     ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%s", label);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 96 * ui - ImGui::GetStyle().ItemSpacing.x * 0 - 0);
@@ -1774,7 +1851,7 @@ void ArchApp::drawUi() {
         ImGui::Begin("##steps", nullptr, fl);
         int cur = m_step;
         if (segButtons("steps", steps, 4, cur, k, bold)) {
-            if (cur >= 2) toast("Light and Render come in the next versions");
+            if (cur >= 3) toast("Render comes in the next version");
             else if (cur != m_step) {
                 m_step = cur;
                 m_tool = kSelect; m_drawing = false; m_edit = kEditNone;
@@ -1799,14 +1876,14 @@ void ArchApp::drawUi() {
         // the light: the soft studio or the sky with its sun, turned around the building
         static const char* envs[] = {"Studio", "Sun sky"};
         int ev = m_env;
-        if (segButtons("env", envs, 2, ev, k, bold) && ev != m_env) { m_env = ev; applyEnv(); }
+        if (segButtons("env", envs, 2, ev, k, bold) && ev != m_env) { m_env = ev; applySun(); }
         ImGui::SameLine(0, 10 * k);
         const float rowY = ImGui::GetCursorPosY();
         ImGui::SetNextItemWidth(104 * k);
         ImGui::SetCursorPosY(rowY + 3 * k);
         ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.18f, 0.42f, 1, 0.28f));   // (light: the value reads through it)
         ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.18f, 0.42f, 1, 0.45f));
-        if (ImGui::SliderFloat("##sunrot", &m_envRot, 0.0f, 360.0f, "Sun  %.0f\xc2\xb0")) applyEnv();
+        if (ImGui::SliderFloat("##sunrot", &m_envRot, 0.0f, 360.0f, "Sun  %.0f\xc2\xb0")) applySun();
         ImGui::PopStyleColor(2);
         ImGui::SameLine(0, 8 * k);
         ImGui::SetCursorPosY(rowY + 3 * k);
@@ -1863,9 +1940,13 @@ void ArchApp::drawUi() {
         static const char* buildKeys[] = {"V", "R", "W", "N", "D", "S"};
         static const char* furnishNames[] = {"Select", "Move", "Rotate"};
         static const char* furnishKeys[] = {"V", "G", "R"};
-        const int* tools = m_step == 1 ? furnishTools : buildTools;
-        const char* const* names = m_step == 1 ? furnishNames : buildNames;
-        const char* const* keys = m_step == 1 ? furnishKeys : buildKeys;
+        // Light: Select and a tool per kind of fixture
+        static const int lightTools[] = {kSelect, kLightTool + kFixCeiling, kLightTool + kFixPendant, kLightTool + kFixWall, kLightTool + kFixSpot, kLightTool + kFixStrip};
+        static const char* lightNames[] = {"Select", "Ceiling", "Pendant", "Wall", "Spot", "Strip"};
+        static const char* lightKeys[] = {"V", "1", "2", "3", "4", "5"};
+        const int* tools = m_step == 1 ? furnishTools : m_step == 2 ? lightTools : buildTools;
+        const char* const* names = m_step == 1 ? furnishNames : m_step == 2 ? lightNames : buildNames;
+        const char* const* keys = m_step == 1 ? furnishKeys : m_step == 2 ? lightKeys : buildKeys;
         const int toolCount = m_step == 1 ? 3 : 6;
         const float dockX = m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f;
         ImGui::SetNextWindowPos(ImVec2(dockX, ds.y - M - toolsUp), 0, ImVec2(0.5f, 1));
@@ -1973,6 +2054,12 @@ void ArchApp::drawUi() {
                 if (segButtons("rotstep", rs, 4, cur, k, bold)) { m_rotStep = rv[cur]; savePrefs(); }
             }
             if (ch) { pushUndo(); m_b.items[m_selItem] = e; placeItem(m_scene, m_map, m_b, m_selItem); touched(); }
+        } else if (m_step == 2) {   // Light
+            if (m_selKind == 6 && m_selFixture >= 0 && m_selFixture < (int)m_b.fixtures.size()) lightInspector(k, bold);
+            else if (m_tool >= kLightTool) {
+                title(fixtureName(m_tool - kLightTool), m_tool == kLightTool + kFixWall ? "Click near a wall: it goes against it" : "Click to place, again for the next one");
+                ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Esc: back to Select.\nShift: off the grid.");
+            } else lightPanel(k, bold);
         } else if (m_step == 1) {
             title("Furnish", "Click an object of the library,\nor drag it into a room");
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%d object(s) placed", (int)m_b.items.size());
@@ -2337,7 +2424,7 @@ void ArchApp::runScript() {
             if (sscanf(c.c_str(), " %*s %63s %f %f", slug, &x, &y) >= 3)
                 for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; m_tool = kPlace; m_placeAsset = ai; m_placeAt = float2(x, y); m_hoverView = 2; }
         }
-        else if (k == "step") { m_step = a >= 1 ? 1 : 0; m_tool = kSelect; }
+        else if (k == "step") { m_step = std::clamp((int)a, 0, 2); m_tool = kSelect; }
         else if (k == "libdock" && n == 2) { m_libDock = std::clamp((int)a, 0, 2); m_step = 1; }   // 0 bottom, 1 left, 2 right
         else if (k == "libinfo" && n == 2) { m_libInfo = (int)a; m_step = 1; }
         else if (k == "selitem" && n == 2) { m_step = 1; m_selKind = 4; m_selItem = std::clamp((int)a, 0, (int)m_b.items.size() - 1); m_selDirty = true; }
@@ -2396,6 +2483,26 @@ void ArchApp::runScript() {
                 edited();
             }
         }
+        else if (k == "light") {   // light kind x y [lumens kelvin height on]: a fixture on the active level (selected)
+            float v[7] = {0, 0, 0, -1, -1, -1, -1};
+            sscanf(c.c_str(), " %*s %f %f %f %f %f %f %f", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6]);
+            Fixture f = placeFixture(std::clamp((int)v[0], 0, kFixKindCount - 1), float2(v[1], v[2]), true);
+            if (v[3] >= 0) f.lumens = v[3];
+            if (v[4] >= 0) f.kelvin = v[4];
+            if (v[5] > 0) f.height = v[5];
+            if (v[6] >= 0) f.on = v[6] > 0.5f;
+            m_b.fixtures.push_back(f);
+            m_step = 2; m_selKind = 6; m_selFixture = (int)m_b.fixtures.size() - 1;
+            edited();
+        }
+        else if (k == "lighttool" && n == 4) { m_step = 2; m_tool = kLightTool + std::clamp((int)a, 0, kFixKindCount - 1); m_hoverView = 2; m_fixGhost = placeFixture((int)a, float2(b, cc), true); m_fixGhostOk = true; }
+        else if (k == "lightsoff") { for (Fixture& f : m_b.fixtures) f.on = false; edited(); }
+        else if (k == "sunclock" && n >= 4) {   // sunclock hour month day [latitude]
+            m_b.sunClock = true; m_b.sunHour = a; m_b.sunMonth = (int)b; m_b.sunDay = (int)cc;
+            if (n >= 5) m_b.latitude = d;
+            applySun();
+        }
+        else if (k == "exposure" && n == 2) { m_autoExposure = a < -50; if (!m_autoExposure) m_ev = a; }   // exposure EV (-99: auto)
         else if (k == "ground" && n == 2) { m_b.ground = std::clamp((int)a, 0, kGroundCount - 1); edited(); }
         else if (k == "floorset" && m_selKind == 3 && m_selRoom >= 0) {   // floorset kind angle tileSize colourHex: the selected room
             int kind = 0; float ang = 0, tile = 0.6f; unsigned col = 0;
@@ -2542,6 +2649,7 @@ void ArchApp::frame() {
         bo.selectedOpeningWall = m_selKind == 2 ? m_selWall : -1;
         bo.selectedOpening = m_selKind == 2 ? m_selOp : -1;
         bo.selectedStair = m_selKind == 5 ? m_selStair : -1;
+        bo.selectedFixture = m_selKind == 6 ? m_selFixture : -1;
         bo.assets = &m_assets;
         bo.ceilings = m_ceiling;
         if (m_sceneDirty) buildScene(m_b, m_scene, bo, m_map);
@@ -2575,10 +2683,13 @@ void ArchApp::frame() {
     drawPlan(bg);
     if (m_view == kViewSplit) bg->AddLine(ImVec2(split + 0.5f, 0), ImVec2(split + 0.5f, ds.y), IM_COL32(20, 30, 50, 40), 1.0f);
     m_g->render(m_r3.z > m_r3.x);
+    const float evBefore = m_ev;
+    autoExposure();
+    if (std::fabs(m_ev - evBefore) < 0.05f) ++m_aeCalm; else m_aeCalm = 0;
     ++m_frame;
     if (!m_opt.shotPath.empty()) {
         const bool ready = (m_quality == 0 || !m_r->pathTracing()) ? m_frame >= m_opt.shotFrames : (int)m_r->sampleCount() >= m_opt.shotSpp;
-        if (ready && m_frame > 6) {
+        if (ready && m_frame > 6 && (!m_autoExposure || m_aeCalm >= 6 || m_frame > 240)) {
             std::vector<uint8_t> img;
             uint32_t w, h;
             if (m_r->readBackBuffer(img, w, h)) {

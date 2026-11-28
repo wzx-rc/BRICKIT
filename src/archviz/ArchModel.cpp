@@ -396,7 +396,9 @@ int Building::wallAt(float2 p, int level, float tol, float* along) const {
 // --------------------------------------------------------------------------- JSON
 
 std::string Building::toJson() const {
-    std::string s = "{\n  \"format\": \"archviz-building\", \"version\": 1, \"ground\": " + std::to_string(ground) + ",\n  \"levels\": [";
+    std::string s = "{\n  \"format\": \"archviz-building\", \"version\": 1, \"ground\": " + std::to_string(ground) + ",";
+    s += "\n  \"sun\": {\"clock\": " + std::to_string((int)sunClock) + ", \"latitude\": " + std::to_string(latitude) + ", \"hour\": " + std::to_string(sunHour) +
+         ", \"month\": " + std::to_string(sunMonth) + ", \"day\": " + std::to_string(sunDay) + "},\n  \"levels\": [";
     char b[512];
     for (size_t i = 0; i < levels.size(); ++i) {
         const Level& L = levels[i];
@@ -452,6 +454,14 @@ std::string Building::toJson() const {
                  k++ ? "," : "", st.p.x, st.p.y, st.yaw, st.type, st.level, st.width, st.rise, st.risers, (int)st.handrail, (int)st.open, (int)st.turnRight, st.finish);
         s += b;
     }
+    s += "\n  ],\n  \"lights\": [";
+    k = 0;
+    for (const Fixture& fx : fixtures) {
+        if (!fx.alive) continue;
+        snprintf(b, sizeof b, "%s\n    {\"kind\": %d, \"x\": %.4f, \"y\": %.4f, \"level\": %d, \"yaw\": %.5f, \"height\": %.3f, \"lumens\": %.1f, \"kelvin\": %.0f, \"length\": %.3f, \"on\": %d}",
+                 k++ ? "," : "", fx.kind, fx.p.x, fx.p.y, fx.level, fx.yaw, fx.height, fx.lumens, fx.kelvin, fx.length, (int)fx.on);
+        s += b;
+    }
     s += "\n  ]\n}\n";
     return s;
 }
@@ -462,6 +472,11 @@ bool Building::fromJson(const std::string& text) {
     Building B;
     B.levels.clear();
     B.ground = (int)j["ground"].num();
+    {
+        const app::Json& sn = j["sun"];
+        B.sunClock = sn["clock"].num() != 0; B.latitude = (float)sn["latitude"].num(46); B.sunHour = (float)sn["hour"].num(16);
+        B.sunMonth = (int)sn["month"].num(6); B.sunDay = (int)sn["day"].num(21);
+    }
     for (const app::Json& l : j["levels"].a) {
         Level L;
         L.name = l["name"].str("Level"); L.elevation = (float)l["elevation"].num(); L.height = (float)l["height"].num(2.7);
@@ -512,6 +527,13 @@ bool Building::fromJson(const std::string& text) {
         st.handrail = r["handrail"].num(1) != 0; st.open = r["open"].num() != 0; st.turnRight = r["turnRight"].num() != 0;
         st.finish = (int)r["finish"].num();
         B.stairs.push_back(st);
+    }
+    for (const app::Json& r : j["lights"].a) {
+        Fixture fx;
+        fx.kind = (int)r["kind"].num(); fx.p = float2((float)r["x"].num(), (float)r["y"].num()); fx.level = (int)r["level"].num();
+        fx.yaw = (float)r["yaw"].num(); fx.height = (float)r["height"].num(); fx.lumens = (float)r["lumens"].num(800);
+        fx.kelvin = (float)r["kelvin"].num(3000); fx.length = (float)r["length"].num(1.2); fx.on = r["on"].num(1) != 0;
+        B.fixtures.push_back(fx);
     }
     *this = B;
     update();
