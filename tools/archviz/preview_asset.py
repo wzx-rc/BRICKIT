@@ -1,5 +1,7 @@
 # Renders exported archviz-asset folders back in Blender (EEVEE, the asset's own colours / textures), to check them
-# without the engine: blender -b --factory-startup --python tools\archviz\preview_asset.py -- [--out dir] [slug ...]
+# without the engine: blender -b --factory-startup --python tools\archviz\preview_asset.py -- [--out dir] [--thumbs] [slug ...]
+# --thumbs: the library thumbnail of each asset instead, <asset folder>\thumb.png: 512 x 512, transparent background,
+# three-quarter front view (front = +Z of the asset), the object filling about 85 % of the frame, soft neutral light.
 import bpy, json, math, os, sys
 import numpy as np
 
@@ -8,6 +10,7 @@ MODELS = os.path.join(os.path.expanduser("~"), "BrickIt", "ArchViz", "models")
 out = args[args.index("--out") + 1] if "--out" in args else os.path.join(MODELS, "_previews")
 slugs = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] != "--out")]
 slugs = slugs or sorted(d for d in os.listdir(MODELS) if os.path.exists(os.path.join(MODELS, d, "asset.json")))
+THUMBS = "--thumbs" in args
 os.makedirs(out, exist_ok=True)
 
 
@@ -78,5 +81,46 @@ for slug in slugs:
     sc.render.resolution_x = sc.render.resolution_y = 700
     sc.view_settings.view_transform = 'Standard'
     sc.render.filepath = os.path.join(out, slug + ".png")
+    if THUMBS:
+        # the same camera direction (30 degrees to the left of the front, from slightly above), fitted to the bounding
+        # box, then backed off so the object fills ~85 % of the frame; soft key + neutral sky, transparent film
+        az, el = math.radians(-30), math.radians(14)
+        cam.rotation_euler = mathutils.Vector((-math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), -math.sin(el))).to_track_quat('-Z', 'Y').to_euler()
+        cam.data.lens = 60
+        corners = [mathutils.Vector((x, y, z)) for x in (-sx / 2, sx / 2) for y in (-sz / 2, sz / 2) for z in (0, sy)]
+        dg = bpy.context.evaluated_depsgraph_get()
+        loc, _ = cam.camera_fit_coords(dg, [c for v in corners for c in v])
+        fwd = cam.rotation_euler.to_matrix() @ mathutils.Vector((0, 0, -1))
+        cen = sum(corners, mathutils.Vector()) / 8
+        cam.location = cen - fwd * (cen - loc).length
+        from bpy_extras.object_utils import world_to_camera_view
+        sc.render.resolution_x = sc.render.resolution_y = 512
+        # the object's own points (a sample of its vertices), not its box: a wide, low bed fills the frame as a chair does
+        allv = []
+        for ob in sc.objects:
+            if ob.type == 'MESH' and len(ob.data.vertices):
+                co = np.empty(len(ob.data.vertices) * 3, np.float32); ob.data.vertices.foreach_get("co", co)
+                allv.append(co.reshape(-1, 3)[::max(1, len(ob.data.vertices) // 3000)])
+        sample = [mathutils.Vector(p) for p in np.concatenate(allv)]
+        tgt = cen.copy()
+        for _ in range(8):   # distance and centring until the object spans 85 % of the frame
+            bpy.context.view_layer.update()
+            pts = [world_to_camera_view(sc, cam, c) for c in sample]
+            x0, x1 = min(p.x for p in pts), max(p.x for p in pts)
+            y0, y1 = min(p.y for p in pts), max(p.y for p in pts)
+            span = max(x1 - x0, y1 - y0)
+            R = cam.rotation_euler.to_matrix()
+            d = (cam.location - tgt).length
+            half = d * (cam.data.sensor_width / 2) / cam.data.lens   # half the frame width at the target's distance
+            tgt = tgt + R @ mathutils.Vector(((x0 + x1 - 1) * half, (y0 + y1 - 1) * half, 0))
+            cam.location = tgt - fwd * (d * span / 0.85)
+        sun.data.energy = 2.2; sun.data.angle = math.radians(25)
+        sun.rotation_euler = (math.radians(45), 0, math.radians(-35))
+        w.node_tree.nodes["Background"].inputs[0].default_value = (0.9, 0.9, 0.9, 1); w.node_tree.nodes["Background"].inputs[1].default_value = 1.0
+        sc.render.film_transparent = True
+        sc.render.image_settings.file_format = 'PNG'
+        sc.render.image_settings.color_mode = 'RGBA'
+        sc.render.resolution_x = sc.render.resolution_y = 512
+        sc.render.filepath = os.path.join(folder, "thumb.png")
     bpy.ops.render.render(write_still=True)
     print("preview", sc.render.filepath, flush=True)

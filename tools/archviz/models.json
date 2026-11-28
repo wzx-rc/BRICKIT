@@ -3,7 +3,7 @@
  "root": "%USERPROFILE%\\Dropbox\\WZX\\WORKS\\TOOLS RD\\BRICKIT\\ARCHI_Models",
  "models": [
   {
-   "slug": "wardrobe", "name": "Sliding wardrobe",
+   "slug": "wardrobe", "category": "Storage", "name": "Sliding wardrobe",
    "folder": "sliding-wardrobe-with-ps10-cinetto-system-22-cgmood", "source": "Shkaf_kupe_22.FBX", "unit": 1.0,
    "materials": [
     {"match": "^Cylinder.*\\|Metal_2$", "name": "rollers", "color": [0.12, 0.12, 0.13], "roughness": 0.4, "metallic": 1.0},
@@ -16,7 +16,7 @@
    ]
   },
   {
-   "slug": "chest", "name": "Wooden chest of drawers",
+   "slug": "chest", "category": "Storage", "name": "Wooden chest of drawers",
    "folder": "wooden-chest-of-drawers-cgmood", "source": "Wooden chest of drawers_OBJ\\Wooden chest of drawers.obj", "unit": 0.001,
    "materials": [
     {"match": "handle\\|", "name": "handles", "color": [0.25, 0.20, 0.15], "roughness": 0.35, "metallic": 1.0},
@@ -25,7 +25,7 @@
    ]
   },
   {
-   "slug": "tvwall", "name": "TV wall",
+   "slug": "tvwall", "category": "Media", "name": "TV wall",
    "folder": "tv-wall-20-cgmood", "source": "tv20\\export\\tv20_.fbx", "unit": 1.0,
    "materials": [
     {"match": "\\|tv20_tvwall_stone$", "name": "marble", "texture": "tv20\\maps\\tv20_marble.jpg", "roughness": 0.15},
@@ -56,7 +56,7 @@
    ]
   },
   {
-   "slug": "sofa", "name": "Linteloo Fabio sofa",
+   "slug": "sofa", "category": "Seating", "name": "Linteloo Fabio sofa",
    "folder": "linteloo-fabio-sofa-cgmood", "source": "Linteloo Fabio Sofa\\export\\Linteloo_Fabio_Sofa_2012__vray.obj", "unit": 0.001,
    "keep": ["_1$"],
    "materials": [
@@ -66,7 +66,7 @@
    ]
   },
   {
-   "slug": "bed", "name": "Vento Eiche Milieu bed",
+   "slug": "bed", "category": "Beds", "name": "Vento Eiche Milieu bed",
    "folder": "vento-eiche-milieu-bed-fstorm-cgmood", "source": "Vento_Eiche_Milieu_bed_fstorm\\Vento_Eiche_Milieu_export\\Vento_Eiche_Milieu_bed.FBX", "unit": 1.0,
    "drop": ["^Rectangle009$"],
    "materials": [
@@ -84,7 +84,7 @@
    ]
   },
   {
-   "slug": "rocking_chair", "name": "Hollingsworth rocking chair",
+   "slug": "rocking_chair", "category": "Seating", "name": "Hollingsworth rocking chair",
    "folder": "hollingsworth-rocking-chair-cgmood", "source": "Hollingsworth_Rocking_Chair.obj", "unit": 0.001,
    "split_loose": 10000,
    "materials": [
@@ -96,7 +96,7 @@
    ]
   },
   {
-   "slug": "entrance_doors", "name": "Metal entrance door",
+   "slug": "entrance_doors", "category": "Doors", "name": "Metal entrance door",
    "folder": "metal-entrance-doors-cgmood", "source": "d4.obj", "unit": 0.001,
    "materials": [
     {"match": "^(panel_mdf|ceramic_panel002)\\|", "name": "walnut", "texture": "door 4\\Door 4 textures\\forest noce d.jpg", "roughness": 0.5, "box_uv": 1.0},

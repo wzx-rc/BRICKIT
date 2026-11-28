@@ -27,6 +27,7 @@ MANIFEST = arg("--manifest", os.path.join(HERE, "models.json"))
 OUT = arg("--out", os.path.join(os.path.expanduser("~"), "BrickIt", "ArchViz", "models"))
 ONLY = set(filter(None, (arg("--only", "") or "").split(",")))
 CHECK_ONLY = "--check-only" in args
+META_ONLY = "--meta-only" in args   # rewrite name / category in the existing asset.json files only
 MAX_TEX = 2048
 
 
@@ -249,7 +250,7 @@ def export_model(model, root):
     with open(os.path.join(folder, "mesh.bin"), "wb") as f:
         for b in blobs:
             f.write(b)
-    asset = {"format": "archviz-asset", "version": 1, "name": model.get("name", slug),
+    asset = {"format": "archviz-asset", "version": 1, "name": model.get("name", slug), "category": model.get("category", "Other"),
              "size": [round(s, 4) for s in size], "tris": int(ttot), "bin": "mesh.bin", "parts": parts}
     with open(os.path.join(folder, "asset.json"), "w", encoding="utf-8") as f:
         json.dump(asset, f, indent=1)
@@ -296,6 +297,15 @@ def main():
     ok, ntex = True, 0
     for m in man["models"]:
         if ONLY and m["slug"] not in ONLY:
+            continue
+        if META_ONLY:   # name / category of an exported asset, its mesh.bin and textures untouched
+            path = os.path.join(OUT, m["slug"], "asset.json")
+            a = json.load(open(path, encoding="utf-8"))
+            a["name"] = m.get("name", a.get("name", m["slug"]))
+            a["category"] = m.get("category", "Other")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(a, f, indent=1)
+            print("[%s] category %s" % (m["slug"], a["category"]), flush=True)
             continue
         if not CHECK_ONLY:
             try:
