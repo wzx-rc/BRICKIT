@@ -41,6 +41,7 @@ void scanAssets(const std::wstring& dir, std::vector<AssetInfo>& out) {
         app::Json j;
         if (!readFile(a.dir + L"/asset.json", text) || !app::Json::parse(text, j) || j["format"].str() != "archviz-asset") continue;
         a.name = j["name"].str(a.slug);
+        a.category = j["category"].str("");
         a.size = vec3(j["size"], float3(1, 1, 1));
         a.tris = (int)j["tris"].num();
         a.parts = (int)j["parts"].a.size();
@@ -48,6 +49,13 @@ void scanAssets(const std::wstring& dir, std::vector<AssetInfo>& out) {
         out.push_back(a);
     }
     std::sort(out.begin(), out.end(), [](const AssetInfo& x, const AssetInfo& y) { return x.name < y.name; });
+}
+
+bool loadThumb(const AssetInfo& a, std::vector<uint8_t>& rgba, int& w, int& h) {
+    std::string bytes;
+    for (const wchar_t* name : {L"/thumb.png", L"/thumb.jpg"})
+        if (readFile(a.dir + name, bytes) && brickit::image::decode((const uint8_t*)bytes.data(), bytes.size(), rgba, w, h) && w > 0 && h > 0) return true;
+    return false;
 }
 
 bool loadAsset(AssetInfo& a, Scene& scene, std::string* error) {

@@ -1,4 +1,5 @@
 #include "ArchApp.h"
+#include "ArchUi.h"
 #include "Platform.h"
 #include "Image.h"
 #include "vp3d/EnvImage.h"
@@ -11,18 +12,9 @@ namespace archviz {
 
 using namespace vp3d;
 
-// ---------------------------------------------------------------------------- palette (entre-deux, light)
-static const ImU32 kInk = IM_COL32(31, 39, 51, 255), kInk2 = IM_COL32(106, 115, 131, 255), kInk3 = IM_COL32(154, 162, 175, 255);
-static const ImU32 kAccent = IM_COL32(47, 107, 255, 255), kAccentSoft = IM_COL32(47, 107, 255, 40);
-static const ImU32 kDraw = IM_COL32(240, 138, 28, 255), kOk = IM_COL32(35, 120, 65, 255);
-static const ImU32 kLine = IM_COL32(225, 229, 235, 255), kHollow = IM_COL32(237, 240, 244, 255);
-static const ImU32 kWhite = IM_COL32(255, 255, 255, 255);
-
 static float3 linHex(int hex) {
     return float3(srgbToLinear(((hex >> 16) & 255) / 255.0f), srgbToLinear(((hex >> 8) & 255) / 255.0f), srgbToLinear((hex & 255) / 255.0f));
 }
-static bool inRect(ImVec2 p, const ImVec4& r) { return r.z > r.x && p.x >= r.x && p.y >= r.y && p.x < r.z && p.y < r.w; }
-static ImU32 alpha(ImU32 c, float a) { return (c & 0x00FFFFFF) | ((ImU32)(std::clamp(a, 0.0f, 1.0f) * ((c >> 24) & 255)) << 24); }
 static std::string fmtm(float v) { char b[32]; snprintf(b, sizeof b, "%.2f", v); return b; }
 
 static bool evalNumber(const char* s, float& out) {   // "3.2+0.15", "3,20", "320cm", "2400 mm"
@@ -95,6 +87,7 @@ bool ArchApp::initCommon(const Options& opt, std::unique_ptr<brickit::GfxRendere
     m_savePath = dir + L"/last.archviz.json";
     brickit::plat::makeDir(dir + L"/models");
     scanAssets(dir + L"/models", m_assets);
+    if (opt.shotPath.empty()) loadPrefs();   // (captures: the defaults)
     bool loaded = false;
     if (!opt.file.empty()) { loaded = load(opt.file); if (loaded) m_savePath = opt.file; }   // (an opened building is saved in its own file)
     else if (!opt.demo && opt.shotPath.empty()) loaded = load(m_savePath);
@@ -140,7 +133,10 @@ bool ArchApp::initCommon(const Options& opt, std::unique_ptr<brickit::GfxRendere
 
 void ArchApp::shutdownCommon() {
     if (m_opt.shotPath.empty()) save(m_savePath);
+    savePrefs();
     if (m_r) m_r->waitIdle();
+    if (m_g) for (ImTextureID t : m_thumbs) if (t) m_g->releaseTexture(t);
+    m_thumbs.clear();
     if (m_g) m_g->shutdown();
     if (m_r) m_r->shutdown();
 }
@@ -364,7 +360,7 @@ int ArchApp::itemAt(float2 p) const {
 
 float2 ArchApp::snapItem(const Item& it, float2 p, bool free) const {
     if (free) return p;
-    p = float2(std::round(p.x / 0.05f) * 0.05f, std::round(p.y / 0.05f) * 0.05f);
+    p = float2(gridSnap(p.x), gridSnap(p.y));
     const float2 ax(std::cos(it.yaw), std::sin(it.yaw)), ay = perp(ax);
     const float hx = it.size.x * 0.5f, hy = it.size.y * 0.5f;
     for (int pass = 0; pass < 2; ++pass)   // (twice: a corner has two walls)
@@ -440,9 +436,37 @@ void ArchApp::cameraInput() {
     else if (dragView == 0) dragView = inRect(io.MousePos, m_rp) ? 2 : inRect(io.MousePos, m_r3) ? 1 : 0;
     const int over = inRect(io.MousePos, m_rp) ? 2 : inRect(io.MousePos, m_r3) ? 1 : 0;
     Camera& cam = m_scene.camera;
+    const float kNear = 0.5f;   // the closest orbit: there the view is "inside" (it looks around from the eye and walks)
     if (over == 1 && io.MouseWheel != 0 && !m_uiHover) {
-        cam.distance = std::clamp(cam.distance * std::pow(0.88f, io.MouseWheel), 2.0f, 400.0f);
+        float3 r, u, f;
+        cam.basis(r, u, f);
+        if (io.MouseWheel > 0 && cam.distance <= kNear * 1.01f) {
+            cam.target = cam.target + f * (0.45f * io.MouseWheel);   // at the closest: the wheel walks forward
+        } else {
+            const float d0 = cam.distance;
+            cam.distance = std::clamp(d0 * std::pow(0.88f, io.MouseWheel), kNear, 400.0f);
+            if (cam.distance > kNear * 1.01f) cam.pitch = std::max(cam.pitch, radians(-20.0f));   // (out of a room: the eye back above the floor)
+            // towards the floor point under the mouse: the view closes in on what is pointed at (and so enters a room)
+            float2 hit;
+            if (io.MouseWheel > 0 && rayToPlan(io.MousePos, hit, m_b.levels[m_level].elevation)) {
+                const float3 h = world(hit, cam.target.y);
+                const float3 dlt = h - cam.target;
+                if (length(dlt) < d0 * 3.0f) cam.target = cam.target + dlt * (1.0f - cam.distance / d0);
+            }
+        }
         m_lastMove = ImGui::GetTime();
+    }
+    // arrow keys: walk on the floor (forward / back / sideways), Page Up / Down: the height of the eye
+    if (m_view != kViewPlan && !io.WantTextInput && !io.KeyCtrl) {
+        const float fwd = (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? 1.0f : 0.0f);
+        const float side = (ImGui::IsKeyDown(ImGuiKey_RightArrow) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? 1.0f : 0.0f);
+        const float up = (ImGui::IsKeyDown(ImGuiKey_PageUp) ? 1.0f : 0.0f) - (ImGui::IsKeyDown(ImGuiKey_PageDown) ? 1.0f : 0.0f);
+        if (fwd != 0 || side != 0 || up != 0) {
+            const float v = (io.KeyShift ? 6.0f : 2.2f) * std::min(io.DeltaTime, 0.05f);
+            const float3 f(-std::sin(cam.yaw), 0, -std::cos(cam.yaw)), r(std::cos(cam.yaw), 0, -std::sin(cam.yaw));
+            cam.target = cam.target + f * (fwd * v) + r * (side * v) + float3(0, up * v * 0.6f, 0);
+            m_lastMove = ImGui::GetTime();
+        }
     }
     if (over == 2 && io.MouseWheel != 0 && !m_uiHover) {
         const float2 before = screenToPlan(io.MousePos);
@@ -463,13 +487,50 @@ void ArchApp::cameraInput() {
         const float k = cam.distance * 0.0016f / m_ui;
         cam.target = cam.target - r * (md.x * k) + u * (md.y * k);
     } else {
+        const bool inside = cam.distance <= kNear * 1.01f;   // inside: the eye stays where it is, the view turns around it
+        const float3 eye = cam.eye();
         cam.yaw -= md.x * 0.006f;
-        cam.pitch = std::clamp(cam.pitch + md.y * 0.006f, radians(4.0f), radians(89.0f));
+        cam.pitch = std::clamp(cam.pitch + md.y * 0.006f, radians(inside ? -75.0f : -20.0f), radians(89.0f));
+        if (inside) cam.target = cam.target + (eye - cam.eye());
     }
     m_lastMove = ImGui::GetTime();
 }
 
 // ---------------------------------------------------------------------------- snapping
+
+float ArchApp::gridSnap(float v) const {
+    if (!m_snapGrid || m_gridStep <= 0 || ImGui::GetIO().KeyShift) return v;
+    return std::round(v / m_gridStep) * m_gridStep;
+}
+
+// The preferences of the interface (snapping, library): "key value" lines in ArchViz/prefs.txt.
+void ArchApp::loadPrefs() {
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, (brickit::plat::dataDir() + L"/ArchViz/prefs.txt").c_str(), L"rb") != 0 || !f) return;
+    char key[64];
+    float v;
+    while (fscanf(f, "%63s %f", key, &v) == 2) {
+        const std::string k = key;
+        if (k == "snapGrid") m_snapGrid = v != 0;
+        else if (k == "snapAlign") m_snapAlign = v != 0;
+        else if (k == "gridStep") m_gridStep = std::clamp(v, 0.01f, 5.0f);
+        else if (k == "rotStep") m_rotStep = std::clamp((int)v, 0, 90);
+        else if (k == "libDock") m_libDock = std::clamp((int)v, 0, 2);
+        else if (k == "libW") m_libW = std::clamp(v, 200.0f, 2000.0f);
+        else if (k == "libH") m_libH = std::clamp(v, 120.0f, 1200.0f);
+        else if (k == "libFold") m_libFold = v != 0;
+    }
+    fclose(f);
+}
+
+void ArchApp::savePrefs() {
+    if (!m_opt.shotPath.empty()) return;
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, (brickit::plat::dataDir() + L"/ArchViz/prefs.txt").c_str(), L"wb") != 0 || !f) return;
+    fprintf(f, "snapGrid %d\nsnapAlign %d\ngridStep %g\nrotStep %d\nlibDock %d\nlibW %g\nlibH %g\nlibFold %d\n", m_snapGrid ? 1 : 0, m_snapAlign ? 1 : 0, m_gridStep,
+            m_rotStep, m_libDock, m_libW, m_libH, m_libFold ? 1 : 0);
+    fclose(f);
+}
 
 float2 ArchApp::snap(float2 raw, bool hasRef, float2 ref) {
     m_guides.clear();
@@ -487,6 +548,15 @@ float2 ArchApp::snap(float2 raw, bool hasRef, float2 ref) {
     }
     if (bn >= 0) { m_snapLabel = "Endpoint"; return m_b.nodes[bn].p; }
     if (hasRef && len2(ref - raw) < tol) { m_snapLabel = "Start"; return ref; }
+    // (the alignment assistant, an option: the middles of the walls, the alignments with the corners, the angles)
+    if (m_snapAlign) {
+        for (int w = 0; w < (int)m_b.walls.size(); ++w) {
+            const Wall& W = m_b.walls[w];
+            if (!W.alive || m_b.nodes[W.a].level != m_level) continue;
+            const float2 mid = (m_b.nodes[W.a].p + m_b.nodes[W.b].p) * 0.5f;
+            if (len2(mid - raw) < tol * 0.8f) { m_snapLabel = "Midpoint"; return mid; }
+        }
+    }
     // 2. alignments with the nodes (and the start point)
     float2 p = raw;
     bool ax = false, ay = false;
@@ -496,11 +566,13 @@ float2 ArchApp::snap(float2 raw, bool hasRef, float2 ref) {
         if (std::fabs(raw.x - q.x) < bx) { bx = std::fabs(raw.x - q.x); p.x = q.x; ax = true; nx = q; }
         if (std::fabs(raw.y - q.y) < by) { by = std::fabs(raw.y - q.y); p.y = q.y; ay = true; ny = q; }
     };
-    for (const Node& n : m_b.nodes) if (n.alive && n.level == m_level) align(n.p);
-    if (hasRef) align(ref);
+    if (m_snapAlign) {
+        for (const Node& n : m_b.nodes) if (n.alive && n.level == m_level) align(n.p);
+        if (hasRef) align(ref);
+    }
     // 3. angle from the start (15 degrees)
     bool angled = false;
-    if (hasRef && !(ax && ay)) {
+    if (m_snapAlign && hasRef && !(ax && ay)) {
         const float2 d = raw - ref;
         const float L = len2(d);
         if (L > 0.05f) {
@@ -509,7 +581,7 @@ float2 ArchApp::snap(float2 raw, bool hasRef, float2 ref) {
             const float2 dir(std::cos(a), std::sin(a));
             const float2 proj = ref + dir * dot2(d, dir);
             if (len2(proj - raw) < tol * 1.2f) {
-                float l = std::round(dot2(d, dir) / 0.05f) * 0.05f;
+                float l = gridSnap(dot2(d, dir));
                 if (ax && std::fabs(dir.x) > 0.05f) l = (p.x - ref.x) / dir.x;        // the angle line meets the alignment
                 else if (ay && std::fabs(dir.y) > 0.05f) l = (p.y - ref.y) / dir.y;
                 p = ref + dir * l;
@@ -532,15 +604,15 @@ float2 ArchApp::snap(float2 raw, bool hasRef, float2 ref) {
         const int w = m_b.wallAt(raw, m_level, tol * 0.5f, &along);
         if (w >= 0) {
             const WallGeom& g = m_b.geom[w];
-            float s = std::round(along / 0.05f) * 0.05f;
-            s = std::clamp(s, 0.0f, g.len);
+            const float s = std::clamp(gridSnap(along), 0.0f, g.len);
             m_snapLabel = "On wall";
             return g.a + g.u * s;
         }
     }
     // 5. the grid (5 cm) on the free coordinates
-    if (!ax) p.x = std::round(raw.x / 0.05f) * 0.05f;
-    if (!ay) p.y = std::round(raw.y / 0.05f) * 0.05f;
+    if (!ax) p.x = gridSnap(raw.x);
+    if (!ay) p.y = gridSnap(raw.y);
+    if (!ax && !ay && m_snapGrid) m_snapLabel = "Grid";
     if (ax) { m_guides.push_back({nx, float2(nx.x, p.y)}); m_snapLabel = "Aligned"; }
     if (ay) { m_guides.push_back({ny, float2(p.x, ny.y)}); m_snapLabel = "Aligned"; }
     return p;
@@ -580,7 +652,8 @@ void ArchApp::pickSelect(float2 p) {
     m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1;
     m_selDirty = true;
     if (m_step == 1) {   // Furnish: the objects (the walls are edited in Build)
-        const int it = itemAt(p);
+        int it = m_hoverView == 1 ? itemAtRay(m_mouse) : -1;   // (3D: the box under the mouse, else its footprint)
+        if (it < 0) it = itemAt(p);
         if (it >= 0) { m_selKind = 4; m_selItem = it; }
         return;
     }
@@ -701,7 +774,8 @@ void ArchApp::toolInput() {
     m_mouse = io.MousePos;
     m_hoverView = 0;
     const float elev = m_b.levels[m_level].elevation;
-    if (!m_uiHover) {
+    // (an object dragged out of the library: Dear ImGui keeps the mouse while the button is down, the views take it back)
+    if (!m_uiHover || (m_libDragPlace && !inRect(m_mouse, m_libRect))) {
         if (inRect(m_mouse, m_rp)) {
             m_hoverView = 2;
             m_raw = screenToPlan(m_mouse);
@@ -718,8 +792,10 @@ void ArchApp::toolInput() {
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y)) redo();
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S)) { save(m_savePath); toast("Saved"); }
         if (!io.KeyCtrl) {
-            if (ImGui::IsKeyPressed(ImGuiKey_V)) { m_tool = kSelect; m_drawing = false; }
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) { m_tool = kRoom; m_drawing = false; m_step = 0; }
+            if (ImGui::IsKeyPressed(ImGuiKey_V)) { m_tool = m_furnishTool = kSelect; m_drawing = false; }
+            // Furnish: G moves, R turns (the manipulators); Build: R is the room
+            if (ImGui::IsKeyPressed(ImGuiKey_G) && m_step == 1) m_tool = m_furnishTool = kMoveTool;
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) { if (m_step == 1) m_tool = m_furnishTool = kRotateTool; else { m_tool = kRoom; m_drawing = false; } }
             if (ImGui::IsKeyPressed(ImGuiKey_W)) { m_tool = kWall; m_drawing = false; m_step = 0; }
             if (ImGui::IsKeyPressed(ImGuiKey_N)) { m_tool = kWindowTool; m_drawing = false; m_step = 0; }
             if (ImGui::IsKeyPressed(ImGuiKey_D)) { m_tool = kDoorTool; m_drawing = false; m_step = 0; }
@@ -740,7 +816,7 @@ void ArchApp::toolInput() {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             if (m_drawing) m_drawing = false;
-            else { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; if (m_tool == kPlace) m_tool = kSelect; }
+            else { m_selKind = 0; m_selWall = m_selOp = m_selRoom = m_selItem = -1; m_selDirty = true; m_libInfo = -1; if (m_tool == kPlace) { m_tool = m_furnishTool; m_libDragPlace = false; } }
         }
         if ((ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)) && m_tool == kWall) m_drawing = false;
         // digits while drawing: the exact length / size
@@ -757,8 +833,28 @@ void ArchApp::toolInput() {
                 openEdit(m_tool == kWall ? kEditLength : kEditWidth, ImVec2(m_mouse.x + 18 * m_ui, m_mouse.y + 14 * m_ui), "");
         }
     }
+    // an object dragged out of the library: dropped where the button is released (outside the views: put back)
+    if (m_libDragPlace && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        m_libDragPlace = false;
+        if (m_tool == kPlace && m_hoverView != 0 && m_placeAsset >= 0 && m_placeAsset < (int)m_assets.size()) {
+            Item it;
+            it.yaw = m_placeYaw; it.level = m_level;
+            it.size = float2(m_assets[m_placeAsset].size.x, m_assets[m_placeAsset].size.z);
+            addItem(m_placeAsset, snapItem(it, m_raw, io.KeyShift), m_placeYaw);
+        }
+        if (m_tool == kPlace) m_tool = m_furnishTool;
+        return;
+    }
+    if (gizmoInput()) { m_moving = false; return; }   // (the manipulator first: its handles are over the objects)
+    const bool furnishPick = m_step == 1 && (m_tool == kSelect || m_tool == kMoveTool || m_tool == kRotateTool);
     if (m_hoverView == 0) {
         if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) m_moving = false;
+        // (a view towards the horizon: no floor under the mouse, the objects are still picked)
+        if (furnishPick && !m_uiHover && inRect(m_mouse, m_r3) && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+            const int it = itemAtRay(m_mouse);
+            m_selKind = it >= 0 ? 4 : 0; m_selWall = m_selOp = m_selRoom = -1; m_selItem = it;
+            m_selDirty = true;
+        }
         return;
     }
     // a pill clicked: its value typed
@@ -780,7 +876,7 @@ void ArchApp::toolInput() {
     }
     const bool lclick = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt;
     switch (m_tool) {
-    case kSelect: {
+    case kSelect: case kMoveTool: case kRotateTool: {
         if (lclick) {
             pickSelect(m_raw);
             m_pressAt = m_mouse;
@@ -813,11 +909,11 @@ void ArchApp::toolInput() {
                 const WallGeom g = m_b.geom[m_selWall];
                 if (m_selKind == 1) {
                     float d = dot2(m_raw - g.a, g.n) - m_moveRef;
-                    if (!io.KeyShift) d = std::round(d / 0.05f) * 0.05f;
+                    d = gridSnap(d);
                     m_b.moveWall(m_selWall, d);
                 } else {
                     float d = dot2(m_raw - g.a, g.u) - m_moveRef;
-                    if (!io.KeyShift) d = std::round(d / 0.05f) * 0.05f;
+                    d = gridSnap(d);
                     Opening& o = m_b.walls[m_selWall].ops[m_selOp];
                     o.pos += d;
                     m_b.update();
@@ -842,7 +938,7 @@ void ArchApp::toolInput() {
         it.yaw = m_placeYaw; it.level = m_level;
         it.size = float2(m_assets[m_placeAsset].size.x, m_assets[m_placeAsset].size.z);
         m_placeAt = snapItem(it, m_raw, io.KeyShift);
-        if (lclick) { addItem(m_placeAsset, m_placeAt, m_placeYaw); m_tool = kSelect; }
+        if (lclick && !m_libDragPlace) { addItem(m_placeAsset, m_placeAt, m_placeYaw); m_tool = m_furnishTool; }
         break;
     }
     case kRoom: {
@@ -877,7 +973,7 @@ void ArchApp::toolInput() {
             o.height = m_tool == kDoorTool ? m_doorH : m_winH;
             o.sill = m_tool == kDoorTool ? 0 : m_winSill;
             if (o.kind == kWindow && o.width >= 2.4f) { o.kind = kSlider; o.sill = 0; o.height = 2.25f; }
-            o.pos = io.KeyShift ? m_hoverAlong : std::round(m_hoverAlong / 0.05f) * 0.05f;
+            o.pos = gridSnap(m_hoverAlong);
             m_b.clampOpening(m_hoverWall, o);
             const Wall& W = m_b.walls[m_hoverWall];
             bool overlap = false;
@@ -931,6 +1027,23 @@ void ArchApp::drawIcon(ImDrawList* dl, int k, ImVec2 c, float s, ImU32 col) {
         dl->AddLine(P(6, 20), P(6, 4), col, th); dl->AddLine(P(6, 4), P(16, 4), col, th); dl->AddLine(P(16, 4), P(16, 20), col, th);
         dl->AddLine(P(4, 20), P(20, 20), col, th); dl->AddCircleFilled(P(13.5f, 12.5f), 1.2f * u, col);
         break;
+    case kMoveTool:   // four arrows
+        for (int i = 0; i < 4; ++i) {
+            const float dx = i == 0 ? 1.0f : i == 1 ? -1.0f : 0.0f, dy = i == 2 ? 1.0f : i == 3 ? -1.0f : 0.0f;
+            dl->AddLine(P(12 + dx * 2.5f, 12 + dy * 2.5f), P(12 + dx * 8.5f, 12 + dy * 8.5f), col, th);
+            const ImVec2 t[3] = {P(12 + dx * 6 - dy * 2.6f, 12 + dy * 6 - dx * 2.6f), P(12 + dx * 9, 12 + dy * 9), P(12 + dx * 6 + dy * 2.6f, 12 + dy * 6 + dx * 2.6f)};
+            dl->AddPolyline(t, 3, col, 0, th);
+        }
+        dl->AddCircleFilled(P(12, 12), 1.6f * u, col, 12);
+        break;
+    case kRotateTool: {   // a ring with its arrow head
+        dl->PathArcTo(P(12, 12), 7.5f * u, 0.9f, 6.0f, 28);
+        dl->PathStroke(col, 0, th);
+        const ImVec2 t[3] = {P(15.2f, 3.6f), P(19.6f, 8.6f), P(13.4f, 9.6f)};
+        dl->AddPolyline(t, 3, col, 0, th);
+        dl->AddCircleFilled(P(12, 12), 1.6f * u, col, 12);
+        break;
+    }
     case 10:   // undo
         dl->AddLine(P(9, 7), P(5, 11), col, th); dl->AddLine(P(5, 11), P(9, 15), col, th);
         dl->PathArcTo(P(14, 16), 5 * u, -1.5708f, 1.5708f); dl->PathStroke(col, 0, th);
@@ -1350,6 +1463,7 @@ void ArchApp::draw3DOverlay(ImDrawList* dl) {
         }
     }
     (void)elev;
+    drawGizmo(dl);
     dl->PopClipRect();
 }
 
@@ -1521,47 +1635,36 @@ void ArchApp::drawUi() {
     }
     ImGui::End();
 
-    // ---- left: the library of objects (Furnish)
-    if (m_step == 1) {
-        ImGui::SetNextWindowPos(ImVec2(M, 90 * k + (m_b.levels.size() * 32 + 78) * k));
-        ImGui::SetNextWindowSizeConstraints(ImVec2(236 * k, 0), ImVec2(236 * k, ds.y * 0.62f));
-        ImGui::Begin("##library", nullptr, fl & ~ImGuiWindowFlags_NoScrollbar & ~ImGuiWindowFlags_NoScrollWithMouse);
-        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "LIBRARY");
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        if (m_assets.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "No object yet.\nConverted models go in\nBrickIt/ArchViz/models.");
-        for (int i = 0; i < (int)m_assets.size(); ++i) {
-            const AssetInfo& a = m_assets[i];
-            ImGui::PushID(i);
-            const ImVec2 p = ImGui::GetCursorScreenPos();
-            const ImVec2 sz(216 * k, 40 * k);
-            if (ImGui::InvisibleButton("a", sz)) { m_tool = kPlace; m_placeAsset = i; m_drawing = false; m_selKind = 0; m_selItem = -1; m_selDirty = true; }
-            const bool on = m_tool == kPlace && m_placeAsset == i;
-            if (on) {
-                dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), kWhite, 9 * k);
-                dl->AddRect(p, ImVec2(p.x + sz.x, p.y + sz.y), alpha(kAccent, 0.45f), 9 * k, 0, 1.2f * k);
-            } else if (ImGui::IsItemHovered()) dl->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), kHollow, 9 * k);
-            const float fs = ImGui::GetFontSize();
-            dl->AddText(on && bold ? bold : ImGui::GetFont(), fs, ImVec2(p.x + 10 * k, p.y + 4 * k), on ? kInk : kInk2, a.name.c_str());
-            char sub[96];
-            snprintf(sub, sizeof sub, "%.2f x %.2f x %.2f m  \xc2\xb7  %s", a.size.x, a.size.z, a.size.y, a.tris >= 1000000 ? (std::to_string(a.tris / 100000 / 10.0f).substr(0, 3) + " M tris").c_str() : (std::to_string(a.tris / 1000) + " k tris").c_str());
-            dl->AddText(ImGui::GetFont(), fs * 0.86f, ImVec2(p.x + 10 * k, p.y + 4 * k + fs + 1 * k), kInk3, sub);
-            ImGui::PopID();
-        }
-        ImGui::End();
-    }
+    // ---- the library of objects (Furnish): ArchLibrary.cpp
+    m_libRect = ImVec4(0, 0, 0, 0);
+    if (m_step == 1) drawLibrary();
+    const float libBottom = (m_step == 1 && m_libDock == 0) ? (m_libRect.w - m_libRect.y) + 8 * k : 0.0f;   // the room it takes
+    const float libRight = (m_step == 1 && m_libDock == 2) ? (m_libRect.z - m_libRect.x) + 8 * k : 0.0f;
 
     // ---- bottom: the tools
     {
-        static const char* names[] = {"Select", "Room", "Wall", "Window", "Door"};
-        static const char* keys[] = {"V", "R", "W", "N", "D"};
-        ImGui::SetNextWindowPos(ImVec2((m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f), ds.y - M), 0, ImVec2(0.5f, 1));
+        // Build: the tools of the walls; Furnish: Select and the manipulators (the objects come from the library)
+        static const int buildTools[] = {kSelect, kRoom, kWall, kWindowTool, kDoorTool}, furnishTools[] = {kSelect, kMoveTool, kRotateTool};
+        static const char* buildNames[] = {"Select", "Room", "Wall", "Window", "Door"};
+        static const char* buildKeys[] = {"V", "R", "W", "N", "D"};
+        static const char* furnishNames[] = {"Select", "Move", "Rotate"};
+        static const char* furnishKeys[] = {"V", "G", "R"};
+        const int* tools = m_step == 1 ? furnishTools : buildTools;
+        const char* const* names = m_step == 1 ? furnishNames : buildNames;
+        const char* const* keys = m_step == 1 ? furnishKeys : buildKeys;
+        const int toolCount = m_step == 1 ? 3 : 5;
+        const float dockX = m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f;
+        ImGui::SetNextWindowPos(ImVec2(dockX, ds.y - M - libBottom), 0, ImVec2(0.5f, 1));
         ImGui::Begin("##tools", nullptr, fl);
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        for (int i = 0; i < (m_step == 1 ? 1 : (int)kToolCount); ++i) {   // Furnish: Select, the objects come from the library
+        const ImVec2 dockPos = ImGui::GetWindowPos(), dockSize = ImGui::GetWindowSize();
+        m_toolsRect = ImVec4(dockPos.x, dockPos.y, dockPos.x + dockSize.x, dockPos.y + dockSize.y);
+        for (int ti = 0; ti < toolCount; ++ti) {
+            const int i = tools[ti];
             ImGui::PushID(i);
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const ImVec2 sz(58 * k, 62 * k);
-            if (ImGui::InvisibleButton("t", sz)) { m_tool = i; m_drawing = false; m_edit = kEditNone; }
+            if (ImGui::InvisibleButton("t", sz)) { m_tool = i; if (m_step == 1) m_furnishTool = i; m_drawing = false; m_edit = kEditNone; }
             const bool on = m_tool == i;
             const ImVec2 b0(p.x + 7 * k, p.y), b1(p.x + sz.x - 7 * k, p.y + 44 * k);
             if (on) {
@@ -1570,18 +1673,42 @@ void ArchApp::drawUi() {
                 dl->AddRect(b0, b1, IM_COL32(255, 255, 255, 80), 12 * k);
             } else if (ImGui::IsItemHovered()) dl->AddRectFilled(b0, b1, kHollow, 12 * k);
             drawIcon(dl, i, ImVec2((b0.x + b1.x) * 0.5f, (b0.y + b1.y) * 0.5f), 24 * k, on ? kWhite : IM_COL32(58, 66, 80, 255));
-            const ImVec2 ts = ImGui::CalcTextSize(names[i]);
-            dl->AddText(ImVec2(p.x + (sz.x - ts.x) * 0.5f, p.y + 46 * k), on ? kInk : kInk2, names[i]);
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s (%s)", names[i], keys[i]);
+            const ImVec2 ts = ImGui::CalcTextSize(names[ti]);
+            dl->AddText(ImVec2(p.x + (sz.x - ts.x) * 0.5f, p.y + 46 * k), on ? kInk : kInk2, names[ti]);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s (%s)", names[ti], keys[ti]);
             ImGui::PopID();
             ImGui::SameLine(0, 2 * k);
         }
         ImGui::Dummy(ImVec2(1, 1));
         ImGui::End();
+
+        // ---- beside the tools: the snapping options (the grid and its step, the alignment assistant)
+        ImGui::SetNextWindowPos(ImVec2(dockPos.x + dockSize.x + 8 * k, dockPos.y + dockSize.y), 0, ImVec2(0, 1));
+        ImGui::Begin("##snap", nullptr, fl);
+        {
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "SNAP");
+            bool ch = false;
+            ch |= ImGui::Checkbox("Grid", &m_snapGrid);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Points, lengths and moves land on the grid (Shift: free)");
+            ImGui::SameLine(0, 6 * k);
+            static const float steps[] = {0.05f, 0.10f, 0.25f, 0.50f, 1.00f};
+            static const char* stepNames[] = {"5 cm", "10 cm", "25 cm", "50 cm", "1 m"};
+            int cur = 1;
+            for (int i = 0; i < 5; ++i) if (std::fabs(steps[i] - m_gridStep) < 1e-3f) cur = i;
+            ImGui::SetNextItemWidth(78 * k);
+            if (ImGui::BeginCombo("##step", stepNames[cur])) {
+                for (int i = 0; i < 5; ++i) if (ImGui::Selectable(stepNames[i], i == cur)) { m_gridStep = steps[i]; ch = true; }
+                ImGui::EndCombo();
+            }
+            ch |= ImGui::Checkbox("Align assistant", &m_snapAlign);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Guides from the corners and the middles of the walls,\nangles by 15\xc2\xb0 from the last point");
+            if (ch) savePrefs();
+        }
+        ImGui::End();
     }
 
     // ---- right: the inspector
-    ImGui::SetNextWindowPos(ImVec2(ds.x - M, 106 * k), 0, ImVec2(1, 0));
+    ImGui::SetNextWindowPos(ImVec2(ds.x - M - libRight, 106 * k), 0, ImVec2(1, 0));
     ImGui::SetNextWindowSizeConstraints(ImVec2(270 * k, 0), ImVec2(270 * k, ds.y));
     ImGui::Begin("##inspector", nullptr, fl);
     {
@@ -1603,7 +1730,7 @@ void ArchApp::drawUi() {
             Item& it = m_b.items[m_selItem];
             const char* name = it.asset.c_str();
             for (const AssetInfo& a : m_assets) if (a.slug == it.asset) name = a.name.c_str();
-            title(name, "Drag it to move it, Delete removes it");
+            title(name, m_tool == kMoveTool ? "Arrows, squares or the centre sphere" : m_tool == kRotateTool ? "Drag the ring to turn it" : "Drag it to move it, Delete removes it");
             section("POSITION");
             Item e = it;
             bool ch = false;
@@ -1623,9 +1750,17 @@ void ArchApp::drawUi() {
             ImGui::SameLine();
             if (ImGui::Button("+90\xc2\xb0")) { e.yaw += kPi * 0.5f; ch = true; }
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "Q / E turn it too (Shift: 90\xc2\xb0)");
+            if (m_tool == kRotateTool) {   // the step of the ring, as BrickIt's Tourner
+                section("RING STEP");
+                static const char* rs[] = {"15\xc2\xb0", "45\xc2\xb0", "90\xc2\xb0", "Free"};
+                static const int rv[] = {15, 45, 90, 0};
+                int cur = 0;
+                for (int i = 0; i < 4; ++i) if (rv[i] == m_rotStep) cur = i;
+                if (segButtons("rotstep", rs, 4, cur, k, bold)) { m_rotStep = rv[cur]; savePrefs(); }
+            }
             if (ch) { pushUndo(); m_b.items[m_selItem] = e; placeItem(m_scene, m_map, m_b, m_selItem); touched(); }
         } else if (m_step == 1) {
-            title("Furnish", "Pick an object in the library,\nthen click in a room");
+            title("Furnish", "Click an object of the library,\nor drag it into a room");
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%d object(s) placed", (int)m_b.items.size());
         } else if (m_selKind == 1 && m_selWall >= 0 && m_selWall < (int)m_b.walls.size()) {
             Wall& W = m_b.walls[m_selWall];
@@ -1704,7 +1839,7 @@ void ArchApp::drawUi() {
             section("SIZE");
             if (m_tool == kWindowTool) { fieldM("Width", &m_winW, k, 0.3f, 6.0f); fieldM("Height", &m_winH, k, 0.3f, 3.0f); fieldM("Sill", &m_winSill, k, 0.0f, 2.0f); }
             else { fieldM("Width", &m_doorW, k, 0.5f, 3.0f); fieldM("Height", &m_doorH, k, 1.8f, 3.0f); }
-            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Snaps every 5 cm, Shift: free.");
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Snaps to the grid step, Shift: free.");
         } else {
             title("Select", "Click a wall, an opening or a room");
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Drag a wall to move it,\nan opening to slide it.\nClick a blue value to type it.");
@@ -1736,17 +1871,22 @@ void ArchApp::drawUi() {
     {
         const char* hint = "";
         switch (m_tool) {
-        case kSelect: hint = m_step == 1 ? "Click an object  ·  drag to move  ·  Q / E turn  ·  Delete  ·  Ctrl+Z undo" : "Click to select  ·  drag to move  ·  Delete  ·  Ctrl+Z undo"; break;
+        case kSelect: hint = m_step == 1 ? "Click an object  ·  drag to move  ·  G move, R rotate  ·  Delete  ·  wheel: closer, arrows: walk" : "Click to select  ·  drag to move  ·  Delete  ·  Ctrl+Z undo"; break;
         case kRoom: hint = m_drawing ? "Release or click the opposite corner  ·  type the width, Tab, the depth" : "Drag a rectangle on the ground or in the plan"; break;
         case kWall: hint = m_drawing ? "Click the next point  ·  type a length  ·  double-click, Enter or right-click to finish" : "Click the first point of the wall"; break;
-        case kWindowTool: case kDoorTool: hint = "Hover a wall and click  ·  Shift: no 5 cm snapping"; break;
-        case kPlace: hint = "Click to place  ·  Q / E turn  ·  Shift: free  ·  Esc cancels"; break;
+        case kWindowTool: case kDoorTool: hint = "Hover a wall and click  ·  Shift: no snapping"; break;
+        case kPlace: hint = m_libDragPlace ? "Release to drop it  ·  Shift: free" : "Click to place  ·  Q / E turn  ·  Shift: free  ·  Esc cancels"; break;
+        case kMoveTool: hint = "Arrows: along an axis  ·  squares: in a plane  ·  sphere: free on the floor  ·  Shift: no grid"; break;
+        case kRotateTool: hint = "Drag the ring  ·  Q / E turn by 15\xc2\xb0  ·  Shift: free angle"; break;
         }
         ImFont* f = ImGui::GetFont();
         const float fs = ImGui::GetFontSize();
         const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0, hint);
         ImDrawList* dl = ImGui::GetForegroundDrawList();
-        const ImVec2 a(M, ds.y - M - ts.y - 14 * k), b(M + ts.x + 20 * k, ds.y - M);
+        const float hx = (m_step == 1 && m_libDock == 1) ? m_libRect.z + 8 * k : M;   // (beside a library on the left)
+        float hy = ds.y - M - libBottom;
+        if (hx + ts.x + 20 * k > m_toolsRect.x - 8 * k && m_toolsRect.w > m_toolsRect.y) hy = m_toolsRect.y - 8 * k;   // (no room beside the tools: above them)
+        const ImVec2 a(hx, hy - ts.y - 14 * k), b(hx + ts.x + 20 * k, hy);
         dl->AddRectFilled(a, b, IM_COL32(31, 39, 51, 215), 9 * k);
         dl->AddText(f, fs, ImVec2(a.x + 10 * k, a.y + 7 * k), kWhite, hint);
         if (!m_toast.empty() && ImGui::GetTime() - m_toastT < 3.0) {
@@ -1806,6 +1946,10 @@ void ArchApp::runScript() {
                 for (int ai = 0; ai < (int)m_assets.size(); ++ai) if (m_assets[ai].slug == slug) { m_step = 1; m_tool = kPlace; m_placeAsset = ai; m_placeAt = float2(x, y); m_hoverView = 2; }
         }
         else if (k == "step") { m_step = a >= 1 ? 1 : 0; m_tool = kSelect; }
+        else if (k == "libdock" && n == 2) { m_libDock = std::clamp((int)a, 0, 2); m_step = 1; }   // 0 bottom, 1 left, 2 right
+        else if (k == "libinfo" && n == 2) { m_libInfo = (int)a; m_step = 1; }
+        else if (k == "selitem" && n == 2) { m_step = 1; m_selKind = 4; m_selItem = std::clamp((int)a, 0, (int)m_b.items.size() - 1); m_selDirty = true; }
+        else if (k == "snap" && n == 4) { m_snapGrid = a >= 1; m_gridStep = b; m_snapAlign = cc >= 1; }   // snap grid(0|1) step align(0|1)
         else if (k == "ceiling" && n == 2) { m_ceiling = a >= 1; m_sceneDirty = true; }
         else if (k == "clear") { m_b.clear(); m_level = 0; edited(); }   // an empty building (prepared scenes)
         else if (k == "height" && n == 2) { m_b.levels[m_level].height = m_wallHeight = a; }   // of the walls drawn next
@@ -1844,7 +1988,8 @@ void ArchApp::runScript() {
             char t[32] = {};
             sscanf(c.c_str(), " %*s %31s", t);
             const std::string tn = t;
-            m_tool = tn == "select" ? kSelect : tn == "wall" ? kWall : tn == "window" ? kWindowTool : tn == "door" ? kDoorTool : kRoom;
+            m_tool = tn == "select" ? kSelect : tn == "wall" ? kWall : tn == "window" ? kWindowTool : tn == "door" ? kDoorTool : tn == "move" ? kMoveTool : tn == "rotate" ? kRotateTool : kRoom;
+            if (m_tool == kMoveTool || m_tool == kRotateTool) { m_step = 1; m_furnishTool = m_tool; }
         }
     }
 }

@@ -12,7 +12,7 @@
 namespace archviz {
 
 struct AssetInfo {            // an entry of the library (asset.json read, the geometry not loaded yet)
-    std::string slug, name;
+    std::string slug, name, category;   // category: the tab of the library ("" = Other)
     std::wstring dir;
     vp3d::float3 size{1, 1, 1};
     int tris = 0, parts = 0, textures = 0;
@@ -27,5 +27,8 @@ void scanAssets(const std::wstring& dir, std::vector<AssetInfo>& out);
 // textures; no object). Textures beyond the limit of the renderer (MAX_TEXTURES) are left out: the material keeps its
 // colour. Fills firstMesh / firstMaterial / partCount.
 bool loadAsset(AssetInfo& a, vp3d::Scene& scene, std::string* error = nullptr);
+
+// The thumbnail of an asset (thumb.png beside its asset.json, transparent background): straight RGBA.
+bool loadThumb(const AssetInfo& a, std::vector<uint8_t>& rgba, int& w, int& h);
 
 } // namespace archviz
