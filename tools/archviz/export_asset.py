@@ -111,6 +111,31 @@ def save_texture(src, dst):
     return out
 
 
+def save_texture_alpha(src, opacity, dst):
+    """Base colour + an opacity map (black = hole) merged into one RGBA PNG (the alpha cutout of leaf cards)."""
+    img = bpy.data.images.load(src, check_existing=False)
+    op = bpy.data.images.load(opacity, check_existing=False)
+    w, h = img.size
+    k = min(1.0, MAX_TEX / max(w, h))
+    W, H = max(1, round(w * k)), max(1, round(h * k))
+    if (w, h) != (W, H):
+        img.scale(W, H)
+    if tuple(op.size) != (W, H):
+        op.scale(W, H)
+    px = np.empty(W * H * 4, np.float32); img.pixels.foreach_get(px)
+    pa = np.empty(W * H * 4, np.float32); op.pixels.foreach_get(pa)
+    px = px.reshape(-1, 4); px[:, 3] = pa.reshape(-1, 4)[:, :3].mean(axis=1)
+    out = bpy.data.images.new("rgba", W, H, alpha=True)
+    out.colorspace_settings.name = img.colorspace_settings.name
+    out.pixels.foreach_set(px.reshape(-1))
+    out.filepath_raw = dst
+    out.file_format = 'PNG'
+    out.save()
+    for i in (img, op, out):
+        bpy.data.images.remove(i)
+    return (W, H)
+
+
 def export_model(model, root):
     slug = model["slug"]
     base = os.path.join(root, model["folder"])
@@ -122,6 +147,7 @@ def export_model(model, root):
     unit = float(model.get("unit", 1.0))      # source units -> metres (after Blender's own import scaling)
     drop = [re.compile(p, re.IGNORECASE) for p in model.get("drop", [])]
     keep = [re.compile(p, re.IGNORECASE) for p in model.get("keep", [])]
+    xr = model.get("x_range")   # [x0, x1] in metres: only that part of the source (a row of plants in one file)
     dg = bpy.context.evaluated_depsgraph_get()
     groups = {}        # material key -> {"mat": spec, "P": [], "N": [], "UV": []}
     dropped, kept = [], []
@@ -169,20 +195,31 @@ def export_model(model, root):
             name = re.sub(r"[^A-Za-z0-9_]+", "_", mname).strip("_") or "part"
             boxs = 0.0
             tex = None
+            opacity = None
             if ov is not None:
                 for k in ("color", "roughness", "metallic", "transmission", "ior", "emission", "emissionStrength"):
                     if k in ov:
                         spec[k] = ov[k]
                 name = ov.get("name", name)
                 tex = ov.get("texture")
+                opacity = ov.get("opacity")          # an opacity map merged into the alpha (cutout)
+                if opacity:
+                    spec["alphaCutoff"] = float(ov.get("alphaCutoff", 0.5))
+                    spec["cutout"] = True
                 boxs = float(ov.get("box_uv", 0.0))
                 if tex and "color" not in ov:
                     spec["color"] = [1, 1, 1]
-            key = json.dumps([spec, tex], sort_keys=True)
-            g = groups.setdefault(key, {"name": name, "spec": spec, "tex": tex, "box": boxs, "P": [], "N": [], "UV": []})
+            key = json.dumps([spec, tex, opacity], sort_keys=True)
+            g = groups.setdefault(key, {"name": name, "spec": spec, "tex": tex, "opacity": opacity, "box": boxs, "P": [], "N": [], "UV": []})
             if boxs and not g["box"]:
                 g["box"] = boxs
-            sel = tl3[tm == mi].reshape(-1)
+            selt = tl3[tm == mi]
+            if xr is not None:   # one plant of a row: the triangles whose centre lies in [x0, x1] (metres, Blender X)
+                cx = (co[lv[selt]].astype(np.float64) @ R.T + M[:3, 3])[:, :, 0].mean(axis=1) * unit
+                selt = selt[(cx >= xr[0]) & (cx < xr[1])]
+                if len(selt) == 0:
+                    continue
+            sel = selt.reshape(-1)
             P = co[lv[sel]].astype(np.float64) @ R.T + M[:3, 3]
             Nn = cn[sel].astype(np.float64) @ Nm.T
             P *= unit
@@ -239,10 +276,14 @@ def export_model(model, root):
         mat = dict(g["spec"])
         if g["tex"]:
             srcp = os.path.join(base, g["tex"])
-            if srcp not in texmap:
-                fn = "tex_" + re.sub(r"[^A-Za-z0-9]+", "_", os.path.splitext(os.path.basename(srcp))[0]).strip("_").lower() + ".jpg"
-                texmap[srcp] = (fn, save_texture(srcp, os.path.join(folder, fn)))
-            mat["texture"] = texmap[srcp][0]
+            opp = os.path.join(base, g["opacity"]) if g.get("opacity") else None
+            if (srcp, opp) not in texmap:
+                stem = "tex_" + re.sub(r"[^A-Za-z0-9]+", "_", os.path.splitext(os.path.basename(srcp))[0]).strip("_").lower()
+                if opp:
+                    texmap[(srcp, opp)] = (stem + ".png", save_texture_alpha(srcp, opp, os.path.join(folder, stem + ".png")))
+                else:
+                    texmap[(srcp, opp)] = (stem + ".jpg", save_texture(srcp, os.path.join(folder, stem + ".jpg")))
+            mat["texture"] = texmap[(srcp, opp)][0]
         parts.append({"name": nm, "vertices": int(len(verts)), "indices": int(len(idx)), "material": mat})
         blobs.append(verts.tobytes())
         blobs.append(idx.tobytes())

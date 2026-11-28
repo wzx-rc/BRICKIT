@@ -57,6 +57,11 @@ for slug in slugs:
             mat.node_tree.links.new(t.outputs["Color"], mix.inputs[6])
             mix.inputs[7].default_value = col
             mat.node_tree.links.new(mix.outputs[2], b.inputs["Base Color"])
+            if m.get("alphaCutoff", 0) > 0:   # leaf cards: the texture's alpha cuts them (hard edge at the cutoff)
+                gt = mat.node_tree.nodes.new("ShaderNodeMath"); gt.operation = 'GREATER_THAN'
+                gt.inputs[1].default_value = m["alphaCutoff"]
+                mat.node_tree.links.new(t.outputs["Alpha"], gt.inputs[0])
+                mat.node_tree.links.new(gt.outputs[0], b.inputs["Alpha"])
         me.materials.append(mat)
     sx, sy, sz = a["size"]
     r = max(sx, sy, sz)

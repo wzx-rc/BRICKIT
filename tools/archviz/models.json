@@ -105,6 +105,26 @@
     {"match": "^handle\\|", "name": "handle", "color": [0.82, 0.82, 0.83], "roughness": 0.22, "metallic": 1.0},
     {"match": "^(hinge\\d*|block)\\|", "name": "black_metal", "color": [0.04, 0.04, 0.04], "roughness": 0.4, "metallic": 1.0}
    ]
+  },
+  {
+   "slug": "bush_a", "category": "Plants", "name": "Thuja dome",
+   "folder": "shaped-bush-plant-v06-cgmood", "source": "Obj.obj", "unit": 0.01, "x_range": [-3.2, -1.58],
+   "materials": [{"match": "\\|", "name": "leaves", "texture": "textures\\4_leaf_diff.jpg", "opacity": "textures\\4_leaf_opacity.jpg", "alphaCutoff": 0.5, "roughness": 0.6}]
+  },
+  {
+   "slug": "bush_b", "category": "Plants", "name": "Thuja column",
+   "folder": "shaped-bush-plant-v06-cgmood", "source": "Obj.obj", "unit": 0.01, "x_range": [-1.58, -0.1],
+   "materials": [{"match": "\\|", "name": "leaves", "texture": "textures\\4_leaf_diff.jpg", "opacity": "textures\\4_leaf_opacity.jpg", "alphaCutoff": 0.5, "roughness": 0.6}]
+  },
+  {
+   "slug": "bush_c", "category": "Plants", "name": "Thuja slim column",
+   "folder": "shaped-bush-plant-v06-cgmood", "source": "Obj.obj", "unit": 0.01, "x_range": [-0.1, 1.15],
+   "materials": [{"match": "\\|", "name": "leaves", "texture": "textures\\4_leaf_diff.jpg", "opacity": "textures\\4_leaf_opacity.jpg", "alphaCutoff": 0.5, "roughness": 0.6}]
+  },
+  {
+   "slug": "bush_d", "category": "Plants", "name": "Thuja low drum",
+   "folder": "shaped-bush-plant-v06-cgmood", "source": "Obj.obj", "unit": 0.01, "x_range": [1.15, 2.3],
+   "materials": [{"match": "\\|", "name": "leaves", "texture": "textures\\4_leaf_diff.jpg", "opacity": "textures\\4_leaf_opacity.jpg", "alphaCutoff": 0.5, "roughness": 0.6}]
   }
  ]
 }
