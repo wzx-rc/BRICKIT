@@ -1,4 +1,5 @@
 #include "ArchMesh.h"
+#include "ArchJoinery.h"
 #include "vp3d/MeshGen.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
@@ -103,6 +104,14 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     gl.name = "Glass"; gl.baseColor = float3(0.95f, 0.97f, 0.98f); gl.roughness = 0.0f; gl.transmission = 1.0f;
     gl.ior = 1.5f; gl.flags = MAT_FLAG_THIN;
     const int mGlass = scene.addMaterial(gl);
+    // joinery: the frames per finish, the panels of the doors, the handles
+    const int mFin[kFinishCount] = {mFrame, mat("PVC white", 0xeeeeea, 0.4f, 0.003f), mat("Oak joinery", 0xb88c5e, 0.5f, 0.003f), mat("Steel black", 0x24262a, 0.32f, 0.003f)};
+    const int mPanel[kFinishCount] = {mFrame, mFin[1], mDoor, mFin[3]};
+    Material hm;
+    hm.name = "Handle steel"; hm.baseColor = lin(0xc9c9c6); hm.roughness = 0.22f; hm.metallic = 1.0f;
+    const int mHandle = scene.addMaterial(hm);
+    hm.name = "Handle black"; hm.baseColor = lin(0x1b1c1e); hm.roughness = 0.35f; hm.metallic = 0.6f;
+    const int mHandleBlack = scene.addMaterial(hm);
 
     Object go;
     go.name = "Ground"; go.part = "GROUND";
@@ -113,6 +122,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
 
     map.wallObject.assign(B.walls.size(), -1);
     map.frameObject.assign(B.walls.size(), -1);
+    map.joinery.clear();
     map.mWall = mWall; map.mWallSel = mWallSel; map.mFrame = mFrame; map.mFrameSel = mFrameSel;
     for (int w = 0; w < (int)B.walls.size(); ++w) {
         const Wall& W = B.walls[w];
@@ -123,46 +133,56 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         const Frame f{G.a, G.u, G.n, B.levels[lv].elevation};
         const float t = W.thickness * 0.5f, H = W.height;
         MeshData m;
-        std::vector<Opening> ops = W.ops;
-        std::sort(ops.begin(), ops.end(), [](const Opening& a, const Opening& b) { return a.pos < b.pos; });
+        std::vector<int> order(W.ops.size());
+        for (int i = 0; i < (int)order.size(); ++i) order[i] = i;
+        std::sort(order.begin(), order.end(), [&](int a, int b) { return W.ops[a].pos < W.ops[b].pos; });
         float cl = G.sL0, cr = G.sR0;   // current start of each side
-        MeshData fr, glass, door;
-        for (const Opening& op : ops) {
+        for (int oi : order) {
+            const Opening& op = W.ops[oi];
             const float s0 = op.pos - op.width * 0.5f, s1 = op.pos + op.width * 0.5f;
             const float z0 = op.sill, z1 = std::min(H, op.sill + op.height);
             if (s0 > std::max(cl, cr) + 0.001f) wallPiece(m, f, t, cl, cr, s0, s0, 0, H);
             if (z0 > 0.001f) wallPiece(m, f, t, s0, s0, s1, s1, 0, z0);
             if (z1 < H - 0.001f) wallPiece(m, f, t, s0, s0, s1, s1, z1, H);
             cl = cr = s1;
-            // frame (6 cm profile, 7 cm deep, in the middle of the wall)
-            const float p = 0.06f, dd = 0.035f;
-            box(fr, f, s0, s0 + p, -dd, dd, z0, z1);
-            box(fr, f, s1 - p, s1, -dd, dd, z0, z1);
-            box(fr, f, s0 + p, s1 - p, -dd, dd, z1 - p, z1);
-            if (op.kind == kWindow || op.kind == kSlider) {
-                box(fr, f, s0 + p, s1 - p, -dd, dd, z0, z0 + p);
-                const int panes = op.kind == kSlider ? 3 : (op.width > 1.3f ? 2 : 1);
-                for (int k = 1; k < panes; ++k) {   // mullions
-                    const float sm = s0 + (s1 - s0) * k / panes;
-                    box(fr, f, sm - p * 0.5f, sm + p * 0.5f, -dd, dd, z0 + p, z1 - p);
-                }
-                // one thin pane (MAT_FLAG_THIN): a single surface, so a ray crosses the window in one bounce
-                quad(glass, f.P(s0 + p, 0, z0 + p), f.P(s1 - p, 0, z0 + p), f.P(s1 - p, 0, z1 - p), f.P(s0 + p, 0, z1 - p), f.N());
-            } else {
-                box(door, f, s0 + p, s1 - p, -0.02f, 0.02f, 0.0f, z1 - p);
-            }
         }
-        if (std::min(G.sL1, G.sR1) > std::max(cl, cr) - 0.001f || ops.empty()) wallPiece(m, f, t, cl, cr, G.sL1, G.sR1, 0, H);
+        if (std::min(G.sL1, G.sR1) > std::max(cl, cr) - 0.001f || W.ops.empty()) wallPiece(m, f, t, cl, cr, G.sL1, G.sR1, 0, H);
         Object wo;
         wo.name = "Wall " + std::to_string(w);
         wo.part = "WALL";
         wo.mesh = scene.addMesh(wo.name, std::move(m));
         wo.material = w == o.selectedWall ? mWallSel : mWall;
         map.wallObject[w] = scene.addObject(wo);
-        const bool frameSel = w == o.selectedOpeningWall;
-        if (!fr.vertices.empty()) { Object x; x.name = wo.name + " frames"; x.part = "FRAME"; x.mesh = scene.addMesh(x.name, std::move(fr)); x.material = frameSel ? mFrameSel : mFrame; map.frameObject[w] = scene.addObject(x); }
-        if (!glass.vertices.empty()) { Object x; x.name = wo.name + " glass"; x.part = "GLASS"; x.mesh = scene.addMesh(x.name, std::move(glass)); x.material = mGlass; scene.addObject(x); }
-        if (!door.vertices.empty()) { Object x; x.name = wo.name + " doors"; x.part = "DOOR"; x.mesh = scene.addMesh(x.name, std::move(door)); x.material = mDoor; scene.addObject(x); }
+        // the joinery of each opening: its fixed frame and its leaves, one object per piece and material (the leaves
+        // move with Opening::open, placeJoinery)
+        std::vector<JoineryPiece> pieces;
+        const float4 q = qFromBasis(f.U(), float3(0, 1, 0), -f.N());
+        for (int oi : order) {
+            const Opening& op = W.ops[oi];
+            buildJoinery(op, W.thickness, B.openingSide(w, op), pieces);
+            const float3 org = f.P(op.pos - op.width * 0.5f, 0, op.sill);
+            const bool sel = w == o.selectedOpeningWall && oi == o.selectedOpening;
+            const int fin = std::clamp(op.finish, 0, kFinishCount - 1);
+            for (int pi = 0; pi < (int)pieces.size(); ++pi) {
+                JoineryPiece& P = pieces[pi];
+                for (int mi = 0; mi < kJMatCount; ++mi) {
+                    if (P.mesh[mi].vertices.empty()) continue;
+                    const int base = mi == kJFrame ? mFin[fin] : mi == kJGlass ? mGlass : mi == kJPanel ? mPanel[fin] : (fin == kFinishBlack ? mHandleBlack : mHandle);
+                    Object x;
+                    x.name = wo.name + " opening " + std::to_string(oi) + " piece " + std::to_string(pi);
+                    x.part = mi == kJGlass ? "GLASS" : mi == kJPanel ? "DOOR" : "FRAME";
+                    x.mesh = scene.addMesh(x.name, std::move(P.mesh[mi]));
+                    x.material = sel && (mi == kJFrame || mi == kJPanel) ? mFrameSel : base;
+                    x.useRot = true;
+                    SceneMap::JoineryObj j;
+                    j.wall = w; j.op = oi; j.mat = mi; j.baseMaterial = base;
+                    j.origin = org; j.rot = q;
+                    j.pivot = P.pivot; j.axis = P.axis; j.slide = P.slide; j.angle = P.angle;
+                    j.obj = scene.addObject(x);
+                    map.joinery.push_back(j);
+                }
+            }
+        }
     }
     {   // joints of 3+ walls
         MeshData m;
@@ -220,13 +240,16 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         }
         placeItem(scene, map, B, i);
     }
+    placeJoinery(scene, map, B);
 }
 
 void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
     for (int w = 0; w < (int)map.wallObject.size(); ++w) {
         if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
-        if (w < (int)map.frameObject.size() && map.frameObject[w] >= 0) scene.objects[map.frameObject[w]].material = w == o.selectedOpeningWall ? map.mFrameSel : map.mFrame;
     }
+    for (const SceneMap::JoineryObj& j : map.joinery)
+        if (j.mat == kJFrame || j.mat == kJPanel)
+            scene.objects[j.obj].material = (j.wall == o.selectedOpeningWall && j.op == o.selectedOpening) ? map.mFrameSel : j.baseMaterial;
 }
 
 void placeItem(Scene& scene, const SceneMap& map, const Building& B, int item) {
@@ -237,6 +260,18 @@ void placeItem(Scene& scene, const SceneMap& map, const Building& B, int item) {
         Object& ob = scene.objects[map.itemObjects[item].first + k];
         ob.position = world(it.p, e);
         ob.yaw = it.yaw;
+    }
+}
+
+void placeJoinery(Scene& scene, const SceneMap& map, const Building& B, int wall, int op) {
+    for (const SceneMap::JoineryObj& j : map.joinery) {
+        if (wall >= 0 && (j.wall != wall || j.op != op)) continue;
+        if (j.wall < 0 || j.wall >= (int)B.walls.size() || j.op < 0 || j.op >= (int)B.walls[j.wall].ops.size() || j.obj < 0 || j.obj >= (int)scene.objects.size()) continue;
+        const float t = std::clamp(B.walls[j.wall].ops[j.op].open, 0.0f, 1.0f);
+        Object& ob = scene.objects[j.obj];
+        ob.useRot = true;
+        ob.rot = qNormalize(qMul(j.rot, qAxisAngle(j.axis, j.angle * t)));
+        ob.position = j.origin + qRot(j.rot, j.pivot + j.slide * t);
     }
 }
 

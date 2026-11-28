@@ -1,4 +1,5 @@
 #include "ArchApp.h"
+#include "ArchJoinery.h"
 #include "ArchUi.h"
 #include "Platform.h"
 #include "Image.h"
@@ -812,6 +813,7 @@ void ArchApp::toolInput() {
                 }
             }
             if (ImGui::IsKeyPressed(ImGuiKey_F)) frameAll();
+            if (ImGui::IsKeyPressed(ImGuiKey_O) && m_selKind == 2) toggleOpening(m_selWall, m_selOp);   // open / close the selected opening
             if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) deleteSelection();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -1169,19 +1171,59 @@ void ArchApp::drawPlan(ImDrawList* dl) {
             const ImU32 c = osel ? kAccent : kInk;
             auto L = [&](float2 a, float2 b, float th = 1.0f) { dl->AddLine(planToScreen(a), planToScreen(b), c, th * m_ui); };
             L(P(s0, t), P(s0, -t)); L(P(s1, t), P(s1, -t));
-            if (o.kind == kWindow) { L(P(s0, t), P(s1, t)); L(P(s0, -t), P(s1, -t)); L(P(s0, 0.03f), P(s1, 0.03f)); L(P(s0, -0.03f), P(s1, -0.03f)); }
-            else if (o.kind == kSlider) { L(P(s0, t), P(s1, t)); L(P(s0, -t), P(s1, -t)); L(P(s0, -0.04f), P(o.pos + 0.1f, -0.04f), 1.5f); L(P(o.pos - 0.1f, 0.04f), P(s1, 0.04f), 1.5f); }
-            else {   // door: leaf and swing inwards (side -n by default for the outer walls drawn counter-clockwise)
-                const float side = o.flip & 1 ? 1.0f : -1.0f;
-                const float2 hinge = P(s0, side * t), leaf = hinge + g.n * (side * o.width);
-                L(hinge, leaf, 1.4f);
-                const ImVec2 hs = planToScreen(hinge);
-                const float a0 = std::atan2(-(g.n.y * side), g.n.x * side), a1 = std::atan2(-g.u.y, g.u.x);
+            // the joinery symbol: glass lines, the swing of each leaf (side -n by default: inwards for the outer walls drawn
+            // counter-clockwise), the tracks and panels of the sliding ones (ArchJoinery: same leaves, hinges and sides)
+            const float side = m_b.openingSide(w, o);
+            const bool rightH = (o.flip & 2) != 0;
+            const int nl = joineryLeaves(o);
+            auto swing = [&](float sh, float sFree, float th) {   // a leaf hinged at sh whose free edge is at sFree when closed
+                const float2 hinge = P(sh, side * t), leaf = hinge + g.n * (side * std::fabs(sFree - sh));
+                L(hinge, leaf, th);
+                const float2 cdir = g.u * (sFree > sh ? 1.0f : -1.0f);
+                const float a0 = std::atan2(-(g.n.y * side), g.n.x * side), a1 = std::atan2(-cdir.y, cdir.x);
                 float d = a1 - a0;
                 while (d > kPi) d -= 2 * kPi;
                 while (d < -kPi) d += 2 * kPi;
-                dl->PathArcTo(hs, o.width * m_planScale, a0, a0 + d, 24);
+                dl->PathArcTo(planToScreen(hinge), std::fabs(sFree - sh) * m_planScale, a0, a0 + d, 24);
                 dl->PathStroke(alpha(c, 0.6f), 0, 1.0f * m_ui);
+            };
+            const bool slide = o.kind == kSlider || (o.kind == kWindow && o.style == kWinSliding);
+            if (slide) {
+                L(P(s0, t), P(s1, t)); L(P(s0, -t), P(s1, -t));
+                if (o.kind == kSlider && o.style == kSlidePocket) {   // the leaf and the arrow into the wall
+                    L(P(s0, 0), P(s1, 0), 1.6f);
+                    const float sa = rightH ? s1 : s0, sb = rightH ? s1 + 0.4f : s0 - 0.4f;
+                    L(P(sa, 0.02f), P(sb, 0.02f), 1.0f);
+                } else {
+                    const float pw = (o.width + (nl - 1) * 0.05f) / nl;
+                    for (int i = 0; i < nl; ++i) {
+                        const float a = s0 + i * (pw - 0.05f), off = (i - (nl - 1) * 0.5f) * 0.05f;
+                        L(P(a, off), P(a + pw, off), 1.5f);
+                    }
+                }
+            } else if (o.kind == kWindow) {
+                L(P(s0, t), P(s1, t)); L(P(s0, -t), P(s1, -t)); L(P(s0, 0.03f), P(s1, 0.03f)); L(P(s0, -0.03f), P(s1, -0.03f));
+                if (o.style == kWinCasement || o.style == kWinTiltTurn) {
+                    const float lw = o.width / nl;
+                    for (int i = 0; i < nl; ++i) {
+                        const bool left = nl == 2 ? i == 0 : !rightH;
+                        const float a = s0 + i * lw, b = a + lw;
+                        swing(left ? a : b, left ? b : a, 1.0f);
+                    }
+                }
+            } else {   // doors (an entrance door: its side light on the lock side)
+                float a = s0, b = s1;
+                if (o.style == kDoorEntrance) {
+                    const float sl = std::min(0.42f, o.width * 0.3f);
+                    if (rightH) { L(P(s0 + 0.03f, 0.03f), P(s0 + sl, 0.03f)); L(P(s0 + 0.03f, -0.03f), P(s0 + sl, -0.03f)); a = s0 + sl; }
+                    else { L(P(s1 - sl, 0.03f), P(s1 - 0.03f, 0.03f)); L(P(s1 - sl, -0.03f), P(s1 - 0.03f, -0.03f)); b = s1 - sl; }
+                }
+                const float lw = (b - a) / nl;
+                for (int i = 0; i < nl; ++i) {
+                    const bool left = nl == 2 ? i == 0 : !rightH;
+                    const float x0 = a + i * lw, x1 = x0 + lw;
+                    swing(left ? x0 : x1, left ? x1 : x0, 1.4f);
+                }
             }
             if (osel) poly({P(s0, t + 0.05f), P(s1, t + 0.05f), P(s1, -t - 0.05f), P(s0, -t - 0.05f)}, 0, kAccent, 2 * m_ui);
         }
@@ -1801,9 +1843,61 @@ void ArchApp::drawUi() {
                 if (kk == kDoor) { o.sill = 0; o.height = 2.10f; o.width = std::min(o.width, 1.0f); }
                 if (kk == kSlider) { o.sill = 0; o.height = 2.25f; o.width = std::max(o.width, 2.0f); }
                 if (kk == kWindow) { o.sill = 0.9f; o.height = 1.35f; }
+                o.style = 0; o.leaves = 0;
                 ch = true;
             }
-            if (o.kind == kDoor && ImGui::Button("Flip swing")) { o.flip ^= 1; ch = true; }
+            // joinery: the style of the kind, the leaves, the glazing bars, the finish, the hinge and swing sides
+            {
+                const char* styles[8];
+                const int ns = joineryStyleCount(o.kind);
+                for (int i = 0; i < ns; ++i) styles[i] = joineryStyleName(o.kind, i);
+                int st = std::clamp(o.style, 0, ns - 1);
+                if (segButtons("jstyle", styles, ns, st, k, bold) && st != o.style) { o.style = st; o.leaves = 0; ch = true; }
+                const int maxL = joineryMaxLeaves(o);
+                if (maxL > 1) {
+                    section(o.kind == kSlider || (o.kind == kWindow && o.style == kWinSliding) ? "PANELS" : "LEAVES");
+                    static const char* ln[] = {"Auto", "1", "2", "3", "4"};
+                    int cur = std::clamp(o.leaves, 0, maxL);
+                    if (segButtons("jleaves", ln, maxL + 1, cur, k, bold) && cur != o.leaves) { o.leaves = cur; ch = true; }
+                }
+                section("GLAZING BARS");
+                auto stepper = [&](const char* id, const char* label, int& v, int lo, int hi) {
+                    ImGui::PushID(id);
+                    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%s", label);
+                    ImGui::SameLine(90 * k);
+                    if (ImGui::Button("-", ImVec2(26 * k, 0)) && v > lo) { --v; ch = true; }
+                    ImGui::SameLine();
+                    ImGui::Text("%d", v);
+                    ImGui::SameLine();
+                    if (ImGui::Button("+", ImVec2(26 * k, 0)) && v < hi) { ++v; ch = true; }
+                    ImGui::PopID();
+                };
+                stepper("jcols", "Across", o.cols, 1, 8);
+                stepper("jrows", "Up", o.rows, 1, 8);
+                section("FINISH");
+                static const char* fn[] = {"Anthracite", "White", "Oak", "Black"};
+                int f = std::clamp(o.finish, 0, kFinishCount - 1);
+                if (segButtons("jfinish", fn, kFinishCount, f, k, bold) && f != o.finish) { o.finish = f; ch = true; }
+                section("OPENING");
+                const bool sliding = o.kind == kSlider || (o.kind == kWindow && o.style == kWinSliding);
+                if (!(o.kind == kWindow && o.style == kWinFixed)) {
+                    if (ImGui::Button(sliding ? ((o.flip & 2) ? "Slides right" : "Slides left") : ((o.flip & 2) ? "Hinged right" : "Hinged left"))) { o.flip ^= 2; ch = true; }
+                    ImGui::SameLine();
+                    if (ImGui::Button((o.flip & 1) ? "Opens outwards" : "Opens inwards")) { o.flip ^= 1; ch = true; }
+                    float pct = o.open * 100.0f;
+                    ImGui::SetNextItemWidth(150 * k);
+                    if (ImGui::SliderFloat("##jopen", &pct, 0.0f, 100.0f, "%.0f %% open")) {   // live, no rebuild
+                        m_b.walls[m_selWall].ops[m_selOp].open = o.open = std::clamp(pct / 100.0f, 0.0f, 1.0f);
+                        placeJoinery(m_scene, m_map, m_b, m_selWall, m_selOp);
+                        m_r->resetAccumulation();
+                        m_lastMove = ImGui::GetTime();
+                    }
+                    if (ImGui::IsItemDeactivatedAfterEdit() && m_opt.shotPath.empty()) save(m_savePath);
+                    ImGui::SameLine();
+                    if (ImGui::Button(o.open > 0.5f ? "Close" : "Open")) toggleOpening(m_selWall, m_selOp);
+                    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "O opens / closes it");
+                }
+            }
             if (ch) { pushUndo(); m_b.clampOpening(m_selWall, o); m_b.walls[m_selWall].ops[m_selOp] = o; edited(); }
         } else if (m_selKind == 3 && m_selRoom >= 0 && m_selRoom < (int)m_b.rooms.size()) {
             const Room& Rm = m_b.rooms[m_selRoom];
@@ -1959,6 +2053,30 @@ void ArchApp::runScript() {
         else if (k == "clear") { m_b.clear(); m_level = 0; edited(); }   // an empty building (prepared scenes)
         else if (k == "height" && n == 2) { m_b.levels[m_level].height = m_wallHeight = a; }   // of the walls drawn next
         else if (k == "thick" && n == 2) { m_wallThick = a; }
+        else if (k == "opset") {   // opset kind style leaves cols rows finish flip: the selected opening (select x y first)
+            float v[7] = {-1, -1, -1, -1, -1, -1, -1};
+            sscanf(c.c_str(), " %*s %f %f %f %f %f %f %f", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6]);
+            if (m_selKind == 2 && m_selWall >= 0 && m_selOp >= 0 && m_selOp < (int)m_b.walls[m_selWall].ops.size()) {
+                Opening& op = m_b.walls[m_selWall].ops[m_selOp];
+                if (v[0] >= 0) op.kind = (int)v[0];
+                if (v[1] >= 0) op.style = (int)v[1];
+                if (v[2] >= 0) op.leaves = (int)v[2];
+                if (v[3] >= 1) op.cols = (int)v[3];
+                if (v[4] >= 1) op.rows = (int)v[4];
+                if (v[5] >= 0) op.finish = (int)v[5];
+                if (v[6] >= 0) op.flip = (int)v[6];
+                m_b.clampOpening(m_selWall, op);
+                edited();
+            }
+        }
+        else if (k == "openall" && n == 2) {   // every opening this far open (0..1)
+            for (Wall& Wl : m_b.walls) for (Opening& op : Wl.ops) op.open = std::clamp(a, 0.0f, 1.0f);
+            placeJoinery(m_scene, m_map, m_b);
+        }
+        else if (k == "opopen" && n == 2 && m_selKind == 2 && m_selWall >= 0 && m_selOp >= 0) {
+            m_b.walls[m_selWall].ops[m_selOp].open = std::clamp(a, 0.0f, 1.0f);
+            placeJoinery(m_scene, m_map, m_b);
+        }
         else if (k == "addop") {   // addop kind(0 window, 1 door, 2 sliding door) x y width height sill
             float kind = 0, x = 0, y = 0, w = 1, h = 1, sill = 0, along = 0;
             if (sscanf(c.c_str(), " %*s %f %f %f %f %f %f", &kind, &x, &y, &w, &h, &sill) == 6) {
@@ -2001,6 +2119,36 @@ void ArchApp::runScript() {
 
 // ---------------------------------------------------------------------------- frame
 
+void ArchApp::toggleOpening(int wall, int op) {
+    if (wall < 0 || wall >= (int)m_b.walls.size() || op < 0 || op >= (int)m_b.walls[wall].ops.size()) return;
+    const float cur = m_b.walls[wall].ops[op].open;
+    for (OpAnim& a : m_opAnim)
+        if (a.wall == wall && a.op == op) { a.from = cur; a.to = a.to > 0.5f ? 0.0f : 1.0f; a.t0 = ImGui::GetTime(); return; }
+    m_opAnim.push_back({wall, op, cur, cur > 0.5f ? 0.0f : 1.0f, ImGui::GetTime()});
+}
+
+// The openings being opened / closed: their leaves move (placeJoinery), the path tracer starts again each frame.
+void ArchApp::animateOpenings() {
+    if (m_opAnim.empty()) return;
+    const double now = ImGui::GetTime();
+    bool done = false;
+    for (size_t i = 0; i < m_opAnim.size();) {
+        OpAnim& a = m_opAnim[i];
+        if (a.wall >= (int)m_b.walls.size() || a.op >= (int)m_b.walls[a.wall].ops.size()) { m_opAnim.erase(m_opAnim.begin() + i); continue; }
+        Opening& o = m_b.walls[a.wall].ops[a.op];
+        const float dur = (o.kind == kWindow ? 0.7f : 0.95f) * std::max(0.25f, std::fabs(a.to - a.from));
+        float t = std::clamp((float)((now - a.t0) / dur), 0.0f, 1.0f);
+        const float e = t * t * (3.0f - 2.0f * t);   // ease in and out
+        o.open = a.from + (a.to - a.from) * e;
+        placeJoinery(m_scene, m_map, m_b, a.wall, a.op);
+        if (t >= 1.0f) { m_opAnim.erase(m_opAnim.begin() + i); done = true; }
+        else ++i;
+    }
+    m_r->resetAccumulation();
+    m_lastMove = now;
+    if (done && m_opAnim.empty() && m_opt.shotPath.empty()) save(m_savePath);
+}
+
 void ArchApp::frame() {
     m_g->newFrame();
     ImGuiIO& io = ImGui::GetIO();
@@ -2020,6 +2168,7 @@ void ArchApp::frame() {
     if (m_opt.script.empty() || m_opt.shotPath.empty()) toolInput();   // (a scripted capture keeps its state)
 
     if (m_sceneDirty) ensureAssets();
+    animateOpenings();
     if (m_sceneDirty || m_selDirty) {
         BuildOptions bo;
         bo.activeLevel = m_level;

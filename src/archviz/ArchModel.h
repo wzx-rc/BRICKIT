@@ -28,7 +28,17 @@ struct Opening {
     float width = 1.2f;
     float height = 1.35f;
     float sill = 0.9f;     // height of the bottom above the floor (0 for doors)
-    int flip = 0;          // door: hinge side / swing side (plan symbol)
+    int flip = 0;          // bit 0: the leaves open to the other side of the wall, bit 1: hinged on the right (or the
+                           // panels stack to the right)
+    // Joinery (ArchJoinery.h): the style per kind (WindowStyle, DoorStyle, SliderStyle), the leaves / panels (0 =
+    // automatic by width), the glazing bars (lights across x up), the finish of the frames, how far it is set into the
+    // wall from its axis (metres, towards the side the leaves do not open to = +n), and how open it is (0..1).
+    int style = 0;
+    int leaves = 0;
+    int cols = 1, rows = 1;
+    int finish = 0;
+    float inset = 0.0f;
+    float open = 0.0f;
 };
 
 struct Node {
@@ -129,6 +139,9 @@ struct Building {
     void openingRange(int w, float& lo, float& hi) const;
     void clampOpening(int w, Opening& o) const;
     int roomAt(float2 p, int level) const;
+    // The side (in units of the wall's left normal n: +1 / -1) the leaves of an opening open to: into the room when the
+    // wall has a room on one side only, else -n; Opening::flip bit 0 turns it over.
+    float openingSide(int w, const Opening& o) const;
     int wallAt(float2 p, int level, float tol, float* along = nullptr) const;   // nearest wall within tol of its face
 
     std::string toJson() const;

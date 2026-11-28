@@ -363,6 +363,19 @@ void Building::clampOpening(int w, Opening& o) const {
     o.sill = std::clamp(o.sill, 0.0f, std::max(0.0f, H - 0.05f - o.height));
 }
 
+float Building::openingSide(int w, const Opening& o) const {
+    float side = -1.0f;
+    if (w >= 0 && w < (int)walls.size() && w < (int)geom.size()) {
+        const WallGeom& g = geom[w];
+        const int lv = nodes[walls[w].a].level;
+        const float2 c = g.a + g.u * o.pos;
+        const float d = walls[w].thickness * 0.5f + 0.15f;
+        const bool plus = roomAt(c + g.n * d, lv) >= 0, minus = roomAt(c - g.n * d, lv) >= 0;
+        if (plus && !minus) side = 1.0f;
+    }
+    return (o.flip & 1) ? -side : side;
+}
+
 int Building::roomAt(float2 p, int level) const {
     for (int r = 0; r < (int)rooms.size(); ++r) if (rooms[r].level == level && pointInPoly(p, rooms[r].poly)) return r;
     return -1;
@@ -407,7 +420,8 @@ std::string Building::toJson() const {
         s += b;
         for (size_t i = 0; i < w.ops.size(); ++i) {
             const Opening& o = w.ops[i];
-            snprintf(b, sizeof b, "%s{\"kind\": %d, \"pos\": %.4f, \"width\": %.4f, \"height\": %.4f, \"sill\": %.4f, \"flip\": %d}", i ? ", " : "", o.kind, o.pos, o.width, o.height, o.sill, o.flip);
+            snprintf(b, sizeof b, "%s{\"kind\": %d, \"pos\": %.4f, \"width\": %.4f, \"height\": %.4f, \"sill\": %.4f, \"flip\": %d, \"style\": %d, \"leaves\": %d, \"cols\": %d, \"rows\": %d, \"finish\": %d, \"inset\": %.4f, \"open\": %.3f}",
+                     i ? ", " : "", o.kind, o.pos, o.width, o.height, o.sill, o.flip, o.style, o.leaves, o.cols, o.rows, o.finish, o.inset, o.open);
             s += b;
         }
         s += "]}";
@@ -447,6 +461,8 @@ bool Building::fromJson(const std::string& text) {
             Opening O;
             O.kind = (int)o["kind"].num(); O.pos = (float)o["pos"].num(1); O.width = (float)o["width"].num(1.2);
             O.height = (float)o["height"].num(1.35); O.sill = (float)o["sill"].num(0.9); O.flip = (int)o["flip"].num();
+            O.style = (int)o["style"].num(); O.leaves = (int)o["leaves"].num(); O.cols = (int)o["cols"].num(1); O.rows = (int)o["rows"].num(1);
+            O.finish = (int)o["finish"].num(); O.inset = (float)o["inset"].num(); O.open = (float)o["open"].num();   // (older files: the defaults)
             W.ops.push_back(O);
         }
         B.walls.push_back(W);

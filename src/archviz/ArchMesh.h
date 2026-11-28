@@ -11,7 +11,18 @@ inline float3 world(float2 p, float h) { return float3(p.x, h, -p.y); }   // pla
 
 struct SceneMap {
     std::vector<int> wallObject;    // per wall: its object (-1 = not in the scene)
-    std::vector<int> frameObject;   // per wall: the frames of its openings (-1 = none)
+    std::vector<int> frameObject;   // per wall: the frames of its openings (-1 = none; unused since the joinery)
+    // The objects of the joinery (ArchJoinery): per piece and material, its opening, the frame of the opening in the
+    // world (origin at the left jamb on the sill, rotation of its local axes) and the motion of the piece.
+    struct JoineryObj {
+        int wall = -1, op = -1, obj = -1, mat = 0;   // mat: JoineryMat (the frame and the leaves take the selection tint)
+        int baseMaterial = 0;
+        vp3d::float3 origin{0, 0, 0};
+        vp3d::float4 rot{0, 0, 0, 1};
+        vp3d::float3 pivot{0, 0, 0}, axis{0, 1, 0}, slide{0, 0, 0};
+        float angle = 0;
+    };
+    std::vector<JoineryObj> joinery;
     std::vector<std::pair<int, int>> itemObjects;   // per item: its first object and their count (0 = asset missing)
     int ground = -1;
     int mWall = -1, mWallSel = -1, mFrame = -1, mFrameSel = -1;
@@ -34,5 +45,7 @@ void buildScene(const Building& B, vp3d::Scene& scene, const BuildOptions& o, Sc
 void applySelection(vp3d::Scene& scene, const SceneMap& map, const BuildOptions& o);
 // The position / rotation of the objects of an item after it moved (no geometry rebuilt).
 void placeItem(vp3d::Scene& scene, const SceneMap& map, const Building& B, int item);
+// The leaves of the openings at their Opening::open (no geometry rebuilt: the objects move). wall / op < 0: all.
+void placeJoinery(vp3d::Scene& scene, const SceneMap& map, const Building& B, int wall = -1, int op = -1);
 
 } // namespace archviz

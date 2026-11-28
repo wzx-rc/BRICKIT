@@ -123,6 +123,11 @@ private:
     int itemAt(float2 p) const;
     void addItem(int asset, float2 p, float yaw);
     void touched();                 // an item moved: saved, nothing rebuilt
+    // ---- joinery: the leaves of an opening opened / closed, animated (Opening::open, no geometry rebuilt)
+    struct OpAnim { int wall = -1, op = -1; float from = 0, to = 1; double t0 = 0; };
+    std::vector<OpAnim> m_opAnim;
+    void toggleOpening(int wall, int op);
+    void animateOpenings();
     int itemAtRay(ImVec2 s) const;  // 3D view: the object under the mouse (its box), -1 = none
 
     // ---- ArchGizmo.cpp: the move / rotate manipulators of BrickIt on the selected object (3D view). Move: three
