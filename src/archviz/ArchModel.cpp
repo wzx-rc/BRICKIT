@@ -420,8 +420,8 @@ std::string Building::toJson() const {
         s += b;
         for (size_t i = 0; i < w.ops.size(); ++i) {
             const Opening& o = w.ops[i];
-            snprintf(b, sizeof b, "%s{\"kind\": %d, \"pos\": %.4f, \"width\": %.4f, \"height\": %.4f, \"sill\": %.4f, \"flip\": %d, \"style\": %d, \"leaves\": %d, \"cols\": %d, \"rows\": %d, \"finish\": %d, \"inset\": %.4f, \"open\": %.3f}",
-                     i ? ", " : "", o.kind, o.pos, o.width, o.height, o.sill, o.flip, o.style, o.leaves, o.cols, o.rows, o.finish, o.inset, o.open);
+            snprintf(b, sizeof b, "%s{\"kind\": %d, \"pos\": %.4f, \"width\": %.4f, \"height\": %.4f, \"sill\": %.4f, \"flip\": %d, \"style\": %d, \"leaves\": %d, \"cols\": %d, \"rows\": %d, \"finish\": %d, \"inset\": %.4f, \"open\": %.3f, \"leafOpen\": [%.3f, %.3f, %.3f, %.3f]}",
+                     i ? ", " : "", o.kind, o.pos, o.width, o.height, o.sill, o.flip, o.style, o.leaves, o.cols, o.rows, o.finish, o.inset, o.open, o.leafOpen[0], o.leafOpen[1], o.leafOpen[2], o.leafOpen[3]);
             s += b;
         }
         s += "]}";
@@ -463,6 +463,8 @@ bool Building::fromJson(const std::string& text) {
             O.height = (float)o["height"].num(1.35); O.sill = (float)o["sill"].num(0.9); O.flip = (int)o["flip"].num();
             O.style = (int)o["style"].num(); O.leaves = (int)o["leaves"].num(); O.cols = (int)o["cols"].num(1); O.rows = (int)o["rows"].num(1);
             O.finish = (int)o["finish"].num(); O.inset = (float)o["inset"].num(); O.open = (float)o["open"].num();   // (older files: the defaults)
+            O.setAllOpen(O.open);
+            for (size_t k = 0; k < 4 && k < o["leafOpen"].a.size(); ++k) O.leafOpen[k] = (float)o["leafOpen"][(int)k].num();
             W.ops.push_back(O);
         }
         B.walls.push_back(W);

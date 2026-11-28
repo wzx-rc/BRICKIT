@@ -42,6 +42,12 @@ int joineryMaxLeaves(const Opening& o) {
     }
 }
 
+void joinerySyncOpen(Opening& o) {
+    float m = 0;
+    for (int i = 0; i < std::min(joineryLeaves(o), 4); ++i) m = std::max(m, std::fabs(o.leafOpen[i]));
+    o.open = m;
+}
+
 int joineryLeaves(const Opening& o) {
     const int lo = minLeaves(o), hi = joineryMaxLeaves(o);
     if (o.leaves > 0) return std::clamp(o.leaves, lo, hi);
@@ -159,6 +165,8 @@ void buildJoinery(const Opening& o, float wallThickness, float sideN, std::vecto
                 const bool toRight = n == 2 ? i == 1 : hingeRight;
                 pull(p.mesh[kJHandle], toRight ? x0 + 0.05f : x1 - 0.05f, (iy0 + iy1) * 0.5f, zc + sz * d * 0.5f, sz);
                 p.slide = float3(toRight ? lw - 0.06f : -(lw - 0.06f), 0, 0);
+                p.leaf = i; p.handleKind = 1;
+                p.anchor = float3(toRight ? x0 + 0.05f : x1 - 0.05f, (iy0 + iy1) * 0.5f, zc + sz * (d * 0.5f + 0.06f));
                 addMoving(p);
             }
         } else {        // bypass: panels on their own tracks, stacked onto the first (or the last) when open
@@ -172,6 +180,8 @@ void buildJoinery(const Opening& o, float wallThickness, float sideN, std::vecto
                 const int anchor = hingeRight ? n - 1 : 0;
                 if (i != anchor) pull(p.mesh[kJHandle], i > anchor ? x0 + 0.05f : x1 - 0.05f, (iy0 + iy1) * 0.5f, zt + sz * d * 0.5f, sz);
                 p.slide = float3((anchor - i) * (pw - ov), 0, 0);
+                p.leaf = i; p.handleKind = 1;
+                p.anchor = float3(i > anchor ? x0 + 0.05f : x1 - 0.05f, (iy0 + iy1) * 0.5f, zt + sz * (d * 0.5f + 0.06f));
                 if (i == anchor) out.push_back(std::move(p));
                 else addMoving(p);
             }
@@ -194,6 +204,8 @@ void buildJoinery(const Opening& o, float wallThickness, float sideN, std::vecto
                 p.pivot = float3(x0, iy1, zc - sz * d * 0.5f);
                 p.axis = float3(1, 0, 0);
                 p.angle = sz * 32.0f * kDeg;
+                p.leaf = i; p.handleKind = 2;
+                p.anchor = float3((x0 + x1) * 0.5f, iy0 + 0.07f, zc + sz * (d * 0.5f + 0.06f));
                 addMoving(p);
                 continue;
             }
@@ -201,15 +213,18 @@ void buildJoinery(const Opening& o, float wallThickness, float sideN, std::vecto
                 const float hx = leftHinge ? x1 - r * 0.5f : x0 + r * 0.5f;
                 handle(p.mesh[kJHandle], hx, iy0 + (iy1 - iy0) * 0.5f, zc + sz * d * 0.5f, sz, false, 0);
             }
-            if (o.style == kWinTiltTurn) {   // the sash with the handle tilts in at the top (the other one stays)
-                if (!hasHandle) { out.push_back(std::move(p)); continue; }
-                p.pivot = float3(x0, iy0, zc + sz * d * 0.5f);
-                p.axis = float3(1, 0, 0);
-                p.angle = sz * 13.0f * kDeg;
-            } else {   // casement: around its hinge stile, into the side sz
-                p.pivot = float3(leftHinge ? x0 : x1, iy0, zc + sz * d * 0.5f);
-                p.axis = float3(0, 1, 0);
-                p.angle = (leftHinge ? -sz : sz) * 90.0f * kDeg;
+            // casement (and the turn of a tilt & turn): around its hinge stile, into the side sz
+            p.pivot = float3(leftHinge ? x0 : x1, iy0, zc + sz * d * 0.5f);
+            p.axis = float3(0, 1, 0);
+            p.angle = (leftHinge ? -sz : sz) * 90.0f * kDeg;
+            p.leaf = i; p.handleKind = 0;
+            p.anchor = float3(leftHinge ? x1 - 0.09f : x0 + 0.09f, iy0 + (iy1 - iy0) * 0.5f, zc + sz * (d * 0.5f + 0.07f));
+            if (o.style == kWinTiltTurn && hasHandle) {   // the sash with the handle also tilts in at the top
+                p.hasTilt = true;
+                p.pivot2 = float3(x0, iy0, zc + sz * d * 0.5f);
+                p.axis2 = float3(1, 0, 0);
+                p.angle2 = sz * 13.0f * kDeg;
+                p.anchor2 = float3((x0 + x1) * 0.5f, iy1 - 0.07f, zc + sz * (d * 0.5f + 0.06f));
             }
             addMoving(p);
         }
@@ -253,6 +268,8 @@ void buildJoinery(const Opening& o, float wallThickness, float sideN, std::vecto
         p.pivot = float3(leftHinge ? x0 : x1, iy0, lz + sz * ld * 0.5f);
         p.axis = float3(0, 1, 0);
         p.angle = (leftHinge ? -sz : sz) * 92.0f * kDeg;
+        p.leaf = i; p.handleKind = 0;
+        p.anchor = float3(leftHinge ? x1 - 0.11f : x0 + 0.11f, std::min(1.02f, (iy1 - iy0) * 0.48f) + 0.16f, lz + sz * (ld * 0.5f + 0.08f));
         addMoving(p);
     }
     out.push_back(std::move(fixed));

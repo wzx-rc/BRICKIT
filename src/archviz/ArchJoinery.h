@@ -23,6 +23,7 @@ const char* joineryStyleName(int kind, int style);
 const char* joineryFinishName(int finish);
 int joineryLeaves(const Opening& o);           // the leaves / panels actually built (Opening::leaves 0 = automatic)
 int joineryMaxLeaves(const Opening& o);        // what the style allows (1: no choice)
+void joinerySyncOpen(Opening& o);              // Opening::open = the most open of its leaves (the inspector's slider)
 
 // Materials of the pieces (the scene gives one per finish)
 enum JoineryMat { kJFrame = 0, kJGlass, kJPanel, kJHandle, kJMatCount };
@@ -38,6 +39,16 @@ struct JoineryPiece {
     float angle = 0.0f;
     vp3d::float3 slide{0, 0, 0};
     bool moving = false;
+    // a moving piece is a leaf / sash / panel: its index in the opening (Opening::leafOpen), the kind of its handle in
+    // the views (0 an arc around the hinge, 1 an arrow along the track, 2 an arrow pushing it out: awning) and where
+    // the handle sits (local space of the opening, closed). Tilt & turn: open < 0 tilts it (second motion, its arrow
+    // at the top of the sash), open > 0 turns it.
+    int leaf = -1;
+    int handleKind = 0;
+    vp3d::float3 anchor{0, 0, 0};
+    bool hasTilt = false;
+    vp3d::float3 pivot2{0, 0, 0}, axis2{1, 0, 0}, anchor2{0, 0, 0};
+    float angle2 = 0.0f;
 };
 
 // The pieces of the joinery of an opening in a wall of that thickness; sideN: the side its leaves open to, in units of

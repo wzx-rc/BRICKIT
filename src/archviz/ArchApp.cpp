@@ -847,6 +847,7 @@ void ArchApp::toolInput() {
         if (m_tool == kPlace) m_tool = m_furnishTool;
         return;
     }
+    if (joineryInput()) { m_moving = false; return; }   // (the handles of the leaves of the selected opening first)
     if (gizmoInput()) { m_moving = false; return; }   // (the manipulator first: its handles are over the objects)
     const bool furnishPick = m_step == 1 && (m_tool == kSelect || m_tool == kMoveTool || m_tool == kRotateTool);
     if (m_hoverView == 0) {
@@ -1370,6 +1371,7 @@ void ArchApp::drawPlan(ImDrawList* dl) {
         const ImVec2 ts = fb->CalcTextSizeA(fs, FLT_MAX, 0, "N");
         dl->AddText(fb, fs, ImVec2(c.x - ts.x * 0.5f, c.y - ts.y * 0.5f + 3 * m_ui), kInk2, "N");
     }
+    drawLeafHandles(dl, true);   // the open / close handles of the selected opening, on its symbol
     dl->PopClipRect();
 }
 
@@ -1506,6 +1508,8 @@ void ArchApp::draw3DOverlay(ImDrawList* dl) {
     }
     (void)elev;
     drawGizmo(dl);
+    if (m_scriptHover.leaf >= 0 && !m_opt.script.empty()) m_leafHover = m_scriptHover;
+    drawLeafHandles(dl, false);
     dl->PopClipRect();
 }
 
@@ -1887,7 +1891,8 @@ void ArchApp::drawUi() {
                     float pct = o.open * 100.0f;
                     ImGui::SetNextItemWidth(150 * k);
                     if (ImGui::SliderFloat("##jopen", &pct, 0.0f, 100.0f, "%.0f %% open")) {   // live, no rebuild
-                        m_b.walls[m_selWall].ops[m_selOp].open = o.open = std::clamp(pct / 100.0f, 0.0f, 1.0f);
+                        m_b.walls[m_selWall].ops[m_selOp].setAllOpen(std::clamp(pct / 100.0f, 0.0f, 1.0f));
+                        o.setAllOpen(m_b.walls[m_selWall].ops[m_selOp].open);
                         placeJoinery(m_scene, m_map, m_b, m_selWall, m_selOp);
                         m_r->resetAccumulation();
                         m_lastMove = ImGui::GetTime();
@@ -2070,12 +2075,24 @@ void ArchApp::runScript() {
             }
         }
         else if (k == "openall" && n == 2) {   // every opening this far open (0..1)
-            for (Wall& Wl : m_b.walls) for (Opening& op : Wl.ops) op.open = std::clamp(a, 0.0f, 1.0f);
+            for (Wall& Wl : m_b.walls) for (Opening& op : Wl.ops) op.setAllOpen(std::clamp(a, 0.0f, 1.0f));
             placeJoinery(m_scene, m_map, m_b);
         }
         else if (k == "opopen" && n == 2 && m_selKind == 2 && m_selWall >= 0 && m_selOp >= 0) {
-            m_b.walls[m_selWall].ops[m_selOp].open = std::clamp(a, 0.0f, 1.0f);
+            m_b.walls[m_selWall].ops[m_selOp].setAllOpen(std::clamp(a, 0.0f, 1.0f));
             placeJoinery(m_scene, m_map, m_b);
+        }
+        else if (k == "leafopen" && n == 3 && m_selKind == 2 && m_selWall >= 0 && m_selOp >= 0) {   // leafopen i v (tilt & turn: v < 0 tilts)
+            m_b.walls[m_selWall].ops[m_selOp].leafOpen[std::clamp((int)a, 0, 3)] = std::clamp(b, -1.0f, 1.0f);
+            joinerySyncOpen(m_b.walls[m_selWall].ops[m_selOp]);
+            placeJoinery(m_scene, m_map, m_b);
+        }
+        else if (k == "handlehover" && n == 3) {   // handlehover leaf tilt: that handle shown hovered (captures)
+            m_leafHover.leaf = -1;
+            int seen = 0;
+            for (int i = 0; i < (int)m_map.leaves.size(); ++i)
+                if (m_map.leaves[i].wall == m_selWall && m_map.leaves[i].op == m_selOp && seen++ == (int)a) { m_leafHover.leaf = i; m_leafHover.tilt = b > 0.5f; }
+            m_scriptHover = m_leafHover;
         }
         else if (k == "addop") {   // addop kind(0 window, 1 door, 2 sliding door) x y width height sill
             float kind = 0, x = 0, y = 0, w = 1, h = 1, sill = 0, along = 0;
@@ -2119,12 +2136,15 @@ void ArchApp::runScript() {
 
 // ---------------------------------------------------------------------------- frame
 
-void ArchApp::toggleOpening(int wall, int op) {
+void ArchApp::toggleOpening(int wall, int op, int leaf, bool tilt) {
     if (wall < 0 || wall >= (int)m_b.walls.size() || op < 0 || op >= (int)m_b.walls[wall].ops.size()) return;
-    const float cur = m_b.walls[wall].ops[op].open;
-    for (OpAnim& a : m_opAnim)
-        if (a.wall == wall && a.op == op) { a.from = cur; a.to = a.to > 0.5f ? 0.0f : 1.0f; a.t0 = ImGui::GetTime(); return; }
-    m_opAnim.push_back({wall, op, cur, cur > 0.5f ? 0.0f : 1.0f, ImGui::GetTime()});
+    const Opening& o = m_b.walls[wall].ops[op];
+    const float cur = leaf < 0 ? o.open : o.leafOpen[std::min(leaf, 3)];
+    const float full = tilt ? -1.0f : 1.0f;
+    const float to = std::fabs(cur) > 0.5f ? 0.0f : full;
+    for (size_t i = 0; i < m_opAnim.size(); ++i)   // (one animation per leaf: a new one replaces it)
+        if (m_opAnim[i].wall == wall && m_opAnim[i].op == op && (m_opAnim[i].leaf == leaf || leaf < 0 || m_opAnim[i].leaf < 0)) { m_opAnim.erase(m_opAnim.begin() + i); --i; }
+    m_opAnim.push_back({wall, op, leaf, cur, to, ImGui::GetTime()});
 }
 
 // The openings being opened / closed: their leaves move (placeJoinery), the path tracer starts again each frame.
@@ -2139,7 +2159,9 @@ void ArchApp::animateOpenings() {
         const float dur = (o.kind == kWindow ? 0.7f : 0.95f) * std::max(0.25f, std::fabs(a.to - a.from));
         float t = std::clamp((float)((now - a.t0) / dur), 0.0f, 1.0f);
         const float e = t * t * (3.0f - 2.0f * t);   // ease in and out
-        o.open = a.from + (a.to - a.from) * e;
+        const float val = a.from + (a.to - a.from) * e;
+        if (a.leaf < 0) o.setAllOpen(val);
+        else { o.leafOpen[std::min(a.leaf, 3)] = val; joinerySyncOpen(o); }
         placeJoinery(m_scene, m_map, m_b, a.wall, a.op);
         if (t >= 1.0f) { m_opAnim.erase(m_opAnim.begin() + i); done = true; }
         else ++i;

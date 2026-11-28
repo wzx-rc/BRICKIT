@@ -14,15 +14,27 @@ struct SceneMap {
     std::vector<int> frameObject;   // per wall: the frames of its openings (-1 = none; unused since the joinery)
     // The objects of the joinery (ArchJoinery): per piece and material, its opening, the frame of the opening in the
     // world (origin at the left jamb on the sill, rotation of its local axes) and the motion of the piece.
-    struct JoineryObj {
-        int wall = -1, op = -1, obj = -1, mat = 0;   // mat: JoineryMat (the frame and the leaves take the selection tint)
-        int baseMaterial = 0;
+    // A leaf / sash / panel of an opening: its motion, its handle and its box (local space of the opening, closed).
+    struct JoineryLeaf {
+        int wall = -1, op = -1, leaf = 0, handleKind = 0;
         vp3d::float3 origin{0, 0, 0};
         vp3d::float4 rot{0, 0, 0, 1};
         vp3d::float3 pivot{0, 0, 0}, axis{0, 1, 0}, slide{0, 0, 0};
         float angle = 0;
+        bool hasTilt = false;
+        vp3d::float3 pivot2{0, 0, 0}, axis2{1, 0, 0}, anchor{0, 0, 0}, anchor2{0, 0, 0};
+        float angle2 = 0;
+        vp3d::float3 bmin{0, 0, 0}, bmax{0, 0, 0};
+    };
+    struct JoineryObj {
+        int wall = -1, op = -1, obj = -1, mat = 0;   // mat: JoineryMat (the frame takes the selection tint)
+        int baseMaterial = 0;
+        int leaf = -1;                               // index in leaves (-1: the fixed frame of the opening)
+        vp3d::float3 origin{0, 0, 0};
+        vp3d::float4 rot{0, 0, 0, 1};
     };
     std::vector<JoineryObj> joinery;
+    std::vector<JoineryLeaf> leaves;
     std::vector<std::pair<int, int>> itemObjects;   // per item: its first object and their count (0 = asset missing)
     int ground = -1;
     int mWall = -1, mWallSel = -1, mFrame = -1, mFrameSel = -1;
@@ -47,5 +59,9 @@ void applySelection(vp3d::Scene& scene, const SceneMap& map, const BuildOptions&
 void placeItem(vp3d::Scene& scene, const SceneMap& map, const Building& B, int item);
 // The leaves of the openings at their Opening::open (no geometry rebuilt: the objects move). wall / op < 0: all.
 void placeJoinery(vp3d::Scene& scene, const SceneMap& map, const Building& B, int wall = -1, int op = -1);
+// A leaf at open = t (Opening::leafOpen): the position and rotation of its objects; world point of a local point p
+// (space of the opening, closed) = pos + qRot(rot, p - L.pivot).
+void leafTransform(const SceneMap::JoineryLeaf& L, float t, vp3d::float3& pos, vp3d::float4& rot);
+vp3d::float3 leafPoint(const SceneMap::JoineryLeaf& L, float t, const vp3d::float3& p);
 
 } // namespace archviz

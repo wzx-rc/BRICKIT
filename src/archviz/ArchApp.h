@@ -124,10 +124,22 @@ private:
     void addItem(int asset, float2 p, float yaw);
     void touched();                 // an item moved: saved, nothing rebuilt
     // ---- joinery: the leaves of an opening opened / closed, animated (Opening::open, no geometry rebuilt)
-    struct OpAnim { int wall = -1, op = -1; float from = 0, to = 1; double t0 = 0; };
+    struct OpAnim { int wall = -1, op = -1, leaf = -1; float from = 0, to = 1; double t0 = 0; };   // leaf -1: all of them
     std::vector<OpAnim> m_opAnim;
-    void toggleOpening(int wall, int op);
+    void toggleOpening(int wall, int op, int leaf = -1, bool tilt = false);
     void animateOpenings();
+    // ---- ArchJoineryUi.cpp: the open / close handles of the leaves of the selected opening (3D view and plan)
+    struct LeafHandle { int leaf = -1; bool tilt = false; bool plan = false; };   // leaf: index in m_map.leaves
+    struct LeafDrag { LeafHandle h; ImVec2 press; float start = 0; bool moved = false, active = false; };
+    LeafHandle m_leafHover;
+    LeafDrag m_leafDrag;
+    LeafHandle m_scriptHover;       // (captures: a handle shown hovered)
+    bool leafHandleScreen(int li, bool tilt, bool plan, float t, ImVec2& out) const;
+    LeafHandle pickLeafHandle(ImVec2 s) const;
+    int leafAtRay(ImVec2 s) const;  // 3D view: the leaf under the mouse (its box), -1 = none
+    void leafDragTo(ImVec2 s);
+    bool joineryInput();            // true: the mouse belongs to a handle this frame
+    void drawLeafHandles(ImDrawList* dl, bool plan);
     int itemAtRay(ImVec2 s) const;  // 3D view: the object under the mouse (its box), -1 = none
 
     // ---- ArchGizmo.cpp: the move / rotate manipulators of BrickIt on the selected object (3D view). Move: three

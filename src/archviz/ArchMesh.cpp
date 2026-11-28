@@ -96,7 +96,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     const int mWall = mat("Plaster", 0xeeebe4, 0.85f);
     const int mWallSel = mat("Plaster selected", 0xb9cdf5, 0.85f);
     const int mFrame = mat("Alu anthracite", 0x3a4250, 0.35f, 0.004f);
-    const int mFrameSel = mat("Frame selected", 0x2f6bff, 0.35f, 0.004f);
+    const int mFrameSel = mat("Frame selected", 0x7fa2ff, 0.35f, 0.004f);   // (a light accent: the handles show the selection)
     const int mDoor = mat("Oak door", 0xb88c5e, 0.55f, 0.004f);
     const int mFloor[kFloorCount] = {mat("Oak floor", 0xc9a479, 0.45f), mat("Tiles", 0xd9d6cf, 0.3f), mat("Concrete", 0xb8b8b4, 0.8f)};
     const int mSlab = mat("Slab", 0xd2d2ce, 0.85f);
@@ -123,6 +123,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
     map.wallObject.assign(B.walls.size(), -1);
     map.frameObject.assign(B.walls.size(), -1);
     map.joinery.clear();
+    map.leaves.clear();
     map.mWall = mWall; map.mWallSel = mWallSel; map.mFrame = mFrame; map.mFrameSel = mFrameSel;
     for (int w = 0; w < (int)B.walls.size(); ++w) {
         const Wall& W = B.walls[w];
@@ -165,6 +166,20 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
             const int fin = std::clamp(op.finish, 0, kFinishCount - 1);
             for (int pi = 0; pi < (int)pieces.size(); ++pi) {
                 JoineryPiece& P = pieces[pi];
+                int leafIdx = -1;
+                if (P.moving && P.leaf >= 0) {
+                    SceneMap::JoineryLeaf L;
+                    L.wall = w; L.op = oi; L.leaf = std::min(P.leaf, 3); L.handleKind = P.handleKind;
+                    L.origin = org; L.rot = q;
+                    L.pivot = P.pivot; L.axis = P.axis; L.slide = P.slide; L.angle = P.angle;
+                    L.hasTilt = P.hasTilt; L.pivot2 = P.pivot2; L.axis2 = P.axis2; L.angle2 = P.angle2;
+                    L.anchor = P.anchor; L.anchor2 = P.anchor2;
+                    float3 mn(1e9f, 1e9f, 1e9f), mx(-1e9f, -1e9f, -1e9f);
+                    for (const MeshData& md : P.mesh) { if (md.vertices.empty()) continue; float3 a, b; md.bounds(a, b); mn = float3(std::min(mn.x, a.x), std::min(mn.y, a.y), std::min(mn.z, a.z)); mx = float3(std::max(mx.x, b.x), std::max(mx.y, b.y), std::max(mx.z, b.z)); }
+                    L.bmin = mn + P.pivot; L.bmax = mx + P.pivot;
+                    leafIdx = (int)map.leaves.size();
+                    map.leaves.push_back(L);
+                }
                 for (int mi = 0; mi < kJMatCount; ++mi) {
                     if (P.mesh[mi].vertices.empty()) continue;
                     const int base = mi == kJFrame ? mFin[fin] : mi == kJGlass ? mGlass : mi == kJPanel ? mPanel[fin] : (fin == kFinishBlack ? mHandleBlack : mHandle);
@@ -172,12 +187,11 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
                     x.name = wo.name + " opening " + std::to_string(oi) + " piece " + std::to_string(pi);
                     x.part = mi == kJGlass ? "GLASS" : mi == kJPanel ? "DOOR" : "FRAME";
                     x.mesh = scene.addMesh(x.name, std::move(P.mesh[mi]));
-                    x.material = sel && (mi == kJFrame || mi == kJPanel) ? mFrameSel : base;
+                    x.material = sel && mi == kJFrame && !P.moving ? mFrameSel : base;   // (the frame only: the handles show the rest)
                     x.useRot = true;
                     SceneMap::JoineryObj j;
                     j.wall = w; j.op = oi; j.mat = mi; j.baseMaterial = base;
-                    j.origin = org; j.rot = q;
-                    j.pivot = P.pivot; j.axis = P.axis; j.slide = P.slide; j.angle = P.angle;
+                    j.origin = org; j.rot = q; j.leaf = leafIdx;
                     j.obj = scene.addObject(x);
                     map.joinery.push_back(j);
                 }
@@ -248,7 +262,7 @@ void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
         if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
     }
     for (const SceneMap::JoineryObj& j : map.joinery)
-        if (j.mat == kJFrame || j.mat == kJPanel)
+        if (j.mat == kJFrame && j.leaf < 0)
             scene.objects[j.obj].material = (j.wall == o.selectedOpeningWall && j.op == o.selectedOpening) ? map.mFrameSel : j.baseMaterial;
 }
 
@@ -263,16 +277,34 @@ void placeItem(Scene& scene, const SceneMap& map, const Building& B, int item) {
     }
 }
 
+void leafTransform(const SceneMap::JoineryLeaf& L, float t, float3& pos, float4& rot) {
+    if (t < 0 && L.hasTilt) {   // tilt & turn, tilted: around its bottom rail
+        const float4 qt = qAxisAngle(L.axis2, L.angle2 * std::min(1.0f, -t));
+        rot = qNormalize(qMul(L.rot, qt));
+        pos = L.origin + qRot(L.rot, L.pivot2 + qRot(qt, L.pivot - L.pivot2));
+        return;
+    }
+    t = std::clamp(t, 0.0f, 1.0f);
+    rot = qNormalize(qMul(L.rot, qAxisAngle(L.axis, L.angle * t)));
+    pos = L.origin + qRot(L.rot, L.pivot + L.slide * t);
+}
+
+float3 leafPoint(const SceneMap::JoineryLeaf& L, float t, const float3& p) {
+    float3 pos;
+    float4 rot;
+    leafTransform(L, t, pos, rot);
+    return pos + qRot(rot, p - L.pivot);
+}
+
 void placeJoinery(Scene& scene, const SceneMap& map, const Building& B, int wall, int op) {
     for (const SceneMap::JoineryObj& j : map.joinery) {
         if (wall >= 0 && (j.wall != wall || j.op != op)) continue;
         if (j.wall < 0 || j.wall >= (int)B.walls.size() || j.op < 0 || j.op >= (int)B.walls[j.wall].ops.size() || j.obj < 0 || j.obj >= (int)scene.objects.size()) continue;
-        const float t = std::clamp(B.walls[j.wall].ops[j.op].open, 0.0f, 1.0f);
         Object& ob = scene.objects[j.obj];
         ob.useRot = true;
-        ob.rot = qNormalize(qMul(j.rot, qAxisAngle(j.axis, j.angle * t)));
-        ob.position = j.origin + qRot(j.rot, j.pivot + j.slide * t);
+        if (j.leaf < 0 || j.leaf >= (int)map.leaves.size()) { ob.rot = j.rot; ob.position = j.origin; continue; }
+        const SceneMap::JoineryLeaf& L = map.leaves[j.leaf];
+        leafTransform(L, B.walls[j.wall].ops[j.op].leafOpen[L.leaf], ob.position, ob.rot);
     }
 }
-
 } // namespace archviz

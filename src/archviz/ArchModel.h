@@ -38,7 +38,10 @@ struct Opening {
     int cols = 1, rows = 1;
     int finish = 0;
     float inset = 0.0f;
-    float open = 0.0f;
+    float open = 0.0f;          // the inspector's slider: sets every leaf
+    // each leaf / sash / panel on its own (0 closed .. 1 open; a tilt & turn sash: -1 .. 0 tilted in)
+    float leafOpen[4] = {0, 0, 0, 0};
+    void setAllOpen(float v) { open = v; for (float& l : leafOpen) l = v; }
 };
 
 struct Node {
