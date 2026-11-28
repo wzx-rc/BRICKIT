@@ -1,5 +1,7 @@
 #include "ArchApp.h"
 #include "ArchJoinery.h"
+#include "ArchRoof.h"
+#include "ArchStair.h"
 #include "ArchUi.h"
 #include "Platform.h"
 #include "Image.h"
@@ -658,6 +660,8 @@ void ArchApp::pickSelect(float2 p) {
         if (it >= 0) { m_selKind = 4; m_selItem = it; }
         return;
     }
+    const int st = stairAt(p);   // the stairs first (they stand inside the rooms)
+    if (st >= 0) { m_selKind = 5; m_selStair = st; return; }
     float along;
     const int w = m_b.wallAt(p, m_level, m_tol * 0.6f, &along);
     if (w >= 0) {
@@ -672,6 +676,13 @@ void ArchApp::pickSelect(float2 p) {
 }
 
 void ArchApp::deleteSelection() {
+    if (m_selKind == 5 && m_selStair >= 0 && m_selStair < (int)m_b.stairs.size()) {
+        pushUndo();
+        m_b.stairs.erase(m_b.stairs.begin() + m_selStair);
+        m_selKind = 0; m_selStair = -1;
+        edited();
+        return;
+    }
     if (m_selKind == 4 && m_selItem >= 0 && m_selItem < (int)m_b.items.size()) {
         pushUndo();
         m_b.items.erase(m_b.items.begin() + m_selItem);
@@ -889,6 +900,11 @@ void ArchApp::toolInput() {
                 m_moving = true;
                 m_dragged = false;
                 m_moveOff = m_b.items[m_selItem].p - m_raw;
+            } else if (m_selKind == 5) {
+                pushUndo();
+                m_moving = true;
+                m_dragged = false;
+                m_stairOff = m_b.stairs[m_selStair].p - m_raw;
             } else if (m_selKind == 1 || m_selKind == 2) {
                 pushUndo();
                 m_moving = true;
@@ -906,6 +922,12 @@ void ArchApp::toolInput() {
                 it.p = snapItem(it, m_raw + m_moveOff, io.KeyShift);
                 placeItem(m_scene, m_map, m_b, m_selItem);
                 m_r->resetAccumulation();
+                m_lastMove = ImGui::GetTime();
+            } else if (m_dragged && m_selKind == 5) {   // a stair: moved on the grid
+                float2 q = m_raw + m_stairOff;
+                if (m_snapGrid && !io.KeyShift) q = float2(gridSnap(q.x), gridSnap(q.y));
+                m_b.stairs[m_selStair].p = q;
+                m_sceneDirty = true;
                 m_lastMove = ImGui::GetTime();
             } else if (m_dragged) {
                 m_b.fromJson(m_undo.back());   // from the state at the press: no drift
@@ -932,6 +954,31 @@ void ArchApp::toolInput() {
             if (!m_dragged) m_undo.pop_back();
             else if (m_selKind == 4) touched();
             else edited();
+        }
+        break;
+    }
+    case kStairTool: {   // press at the foot, drag the direction it climbs, release: the stair
+        m_stairGhost.level = m_level;
+        if (!m_stairDrawing) { m_stairGhost.p = m_cur; m_stairGhost.yaw = m_stairYaw; }
+        if (lclick && !m_stairDrawing) { m_stairDrawing = true; m_start = m_cur; m_pressAt = m_mouse; }
+        if (m_stairDrawing) {
+            m_stairGhost.p = m_start;
+            const float2 d = m_raw - m_start;
+            if (len2(d) > 0.25f) {
+                float yaw = std::atan2(d.y, d.x);
+                if (!io.KeyShift) yaw = std::round(yaw / radians(15.0f)) * radians(15.0f);
+                m_stairGhost.yaw = m_stairYaw = yaw;
+            }
+            if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                pushUndo();
+                Stair s = m_stairGhost;
+                s.alive = true;
+                m_b.stairs.push_back(s);
+                m_selKind = 5; m_selStair = (int)m_b.stairs.size() - 1;
+                m_stairDrawing = false;
+                m_tool = kSelect;
+                edited();
+            }
         }
         break;
     }
@@ -1020,6 +1067,12 @@ void ArchApp::drawIcon(ImDrawList* dl, int k, ImVec2 c, float s, ImU32 col) {
         for (float x : {9.0f, 15.0f}) dl->AddLine(P(x, 8), P(x, 12.5f), col, th);
         for (float x : {6.0f, 12.0f, 18.0f}) dl->AddLine(P(x, 12.5f), P(x, 17), col, th);
         break;
+    case kStairTool: {   // steps seen from the side
+        ImVec2 p[] = {P(3, 20), P(3, 16), P(8, 16), P(8, 12), P(13, 12), P(13, 8), P(18, 8), P(18, 4), P(21, 4), P(21, 20)};
+        dl->AddConcavePolyFilled(p, 10, fill);
+        dl->AddPolyline(p, 10, col, ImDrawFlags_Closed, th);
+        break;
+    }
     case kWindowTool:
         dl->AddRectFilled(P(5, 4), P(19, 20), fill, 1.5f * u);
         dl->AddRect(P(5, 4), P(19, 20), col, 1.5f * u, 0, th);
@@ -1229,6 +1282,11 @@ void ArchApp::drawPlan(ImDrawList* dl) {
             if (osel) poly({P(s0, t + 0.05f), P(s1, t + 0.05f), P(s1, -t - 0.05f), P(s0, -t - 0.05f)}, 0, kAccent, 2 * m_ui);
         }
     }
+    // the stairs of the level (the one being drawn), the roof over the top level
+    for (int i = 0; i < (int)m_b.stairs.size(); ++i)
+        if (m_b.stairs[i].alive && m_b.stairs[i].level == m_level) drawStairPlan(dl, m_b.stairs[i], m_selKind == 5 && m_selStair == i ? kAccent : kInk, false);
+    if (m_tool == kStairTool && m_hoverView != 0) drawStairPlan(dl, m_stairGhost, kAccent, true);
+    drawRoofPlan(dl);
     // the objects: their footprint, the front marked
     auto itemRect = [&](float2 c, float yaw, float2 size, ImU32 fill, ImU32 stroke, float th, const char* label) {
         const float2 ax(std::cos(yaw), std::sin(yaw)), ay = perp(ax);
@@ -1695,15 +1753,15 @@ void ArchApp::drawUi() {
     // ---- bottom: the tools
     {
         // Build: the tools of the walls; Furnish: Select and the manipulators (the objects come from the library)
-        static const int buildTools[] = {kSelect, kRoom, kWall, kWindowTool, kDoorTool}, furnishTools[] = {kSelect, kMoveTool, kRotateTool};
-        static const char* buildNames[] = {"Select", "Room", "Wall", "Window", "Door"};
-        static const char* buildKeys[] = {"V", "R", "W", "N", "D"};
+        static const int buildTools[] = {kSelect, kRoom, kWall, kWindowTool, kDoorTool, kStairTool}, furnishTools[] = {kSelect, kMoveTool, kRotateTool};
+        static const char* buildNames[] = {"Select", "Room", "Wall", "Window", "Door", "Stairs"};
+        static const char* buildKeys[] = {"V", "R", "W", "N", "D", "S"};
         static const char* furnishNames[] = {"Select", "Move", "Rotate"};
         static const char* furnishKeys[] = {"V", "G", "R"};
         const int* tools = m_step == 1 ? furnishTools : buildTools;
         const char* const* names = m_step == 1 ? furnishNames : buildNames;
         const char* const* keys = m_step == 1 ? furnishKeys : buildKeys;
-        const int toolCount = m_step == 1 ? 3 : 5;
+        const int toolCount = m_step == 1 ? 3 : 6;
         const float dockX = m_view == kViewSplit ? (m_r3.x + m_r3.z) * 0.5f : ds.x * 0.5f;
         ImGui::SetNextWindowPos(ImVec2(dockX, ds.y - M - toolsUp), 0, ImVec2(0.5f, 1));
         ImGui::Begin("##tools", nullptr, fl);
@@ -1904,6 +1962,46 @@ void ArchApp::drawUi() {
                 }
             }
             if (ch) { pushUndo(); m_b.clampOpening(m_selWall, o); m_b.walls[m_selWall].ops[m_selOp] = o; edited(); }
+        } else if (m_selKind == 5 && m_selStair >= 0 && m_selStair < (int)m_b.stairs.size()) {
+            Stair s = m_b.stairs[m_selStair];
+            title("Stairs", "Drag it to move it, Delete removes it");
+            const StairInfo I = stairInfo(m_b, s);
+            const bool good = I.blondel >= 0.60f && I.blondel <= 0.65f;
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%d risers of %.1f cm, treads %.1f cm", I.risers, I.riserH * 100, I.tread * 100);
+            ImGui::TextColored(good ? ImVec4(0.15f, 0.55f, 0.3f, 1) : ImVec4(0.75f, 0.45f, 0.1f, 1), "Blondel 2h + g = %.1f cm%s", I.blondel * 100, good ? " (comfortable)" : " (outside 60-65)");
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "Rise %.2f m (floor to floor)", I.rise);
+            bool ch = false;
+            section("TYPE");
+            static const char* st[] = {"Straight", "L", "U", "Spiral"};
+            int t = s.type;
+            if (segButtons("stype", st, kStairTypeCount, t, k, bold) && t != s.type) { s.type = t; ch = true; }
+            section("SIZE");
+            ch |= fieldM("Width", &s.width, k, 0.5f, 3.0f);
+            {
+                ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Risers");
+                ImGui::SameLine(90 * k);
+                if (ImGui::Button("-##r", ImVec2(26 * k, 0))) { s.risers = std::max(2, I.risers - 1); ch = true; }
+                ImGui::SameLine();
+                ImGui::Text("%d%s", I.risers, s.risers > 1 ? "" : " auto");
+                ImGui::SameLine();
+                if (ImGui::Button("+##r", ImVec2(26 * k, 0))) { s.risers = std::min(40, I.risers + 1); ch = true; }
+                ImGui::SameLine();
+                if (s.risers > 1 && ImGui::Button("Auto")) { s.risers = 0; ch = true; }
+            }
+            section("FINISH");
+            static const char* fn[] = {"Oak", "Concrete", "White"};
+            int fi = s.finish;
+            if (segButtons("sfinish", fn, kStairFinishCount, fi, k, bold) && fi != s.finish) { s.finish = fi; ch = true; }
+            ch |= ImGui::Checkbox("Handrail", &s.handrail);
+            ImGui::SameLine();
+            ch |= ImGui::Checkbox("Open risers", &s.open);
+            section("ORIENTATION");
+            if (s.type != kStairStraight && ImGui::Button(s.turnRight ? "Turns right" : "Turns left")) { s.turnRight = !s.turnRight; ch = true; }
+            if (s.type != kStairStraight) ImGui::SameLine();
+            if (ImGui::Button("-90\xc2\xb0")) { s.yaw -= kPi * 0.5f; ch = true; }
+            ImGui::SameLine();
+            if (ImGui::Button("+90\xc2\xb0")) { s.yaw += kPi * 0.5f; ch = true; }
+            if (ch) { pushUndo(); m_b.stairs[m_selStair] = s; edited(); }
         } else if (m_selKind == 3 && m_selRoom >= 0 && m_selRoom < (int)m_b.rooms.size()) {
             const Room& Rm = m_b.rooms[m_selRoom];
             char sub[64];
@@ -1945,8 +2043,43 @@ void ArchApp::drawUi() {
             else { fieldM("Width", &m_doorW, k, 0.5f, 3.0f); fieldM("Height", &m_doorH, k, 1.8f, 3.0f); }
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Snaps to the grid step, Shift: free.");
         } else {
+            if (m_tool == kStairTool) {
+                title("Stairs", "Press at the foot, drag the way it climbs");
+                static const char* st[] = {"Straight", "L", "U", "Spiral"};
+                segButtons("nstype", st, kStairTypeCount, m_stairGhost.type, k, bold);
+                fieldM("Width", &m_stairGhost.width, k, 0.5f, 3.0f);
+                const StairInfo I = stairInfo(m_b, m_stairGhost);
+                ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "%d risers of %.1f cm, Blondel %.1f cm", I.risers, I.riserH * 100, I.blondel * 100);
+            } else {
             title("Select", "Click a wall, an opening or a room");
             ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk2), "Drag a wall to move it,\nan opening to slide it.\nClick a blue value to type it.");
+            const int top = roofTopLevel(m_b);
+            if (top >= 0 && m_step == 0) {   // the roof over the top level
+                Level L = m_b.levels[top];
+                bool ch = false;
+                section(top == m_level ? "ROOF" : "ROOF (on the top level)");
+                static const char* rt[] = {"None", "Flat", "Gable", "Hip", "Shed"};
+                int r = L.roof;
+                if (segButtons("rtype", rt, kRoofTypeCount, r, k, bold) && r != L.roof) { L.roof = r; ch = true; }
+                if (L.roof >= kRoofGable) {
+                    ch |= fieldM("Slope (\xc2\xb0)", &L.roofSlope, k, 3.0f, 70.0f);
+                    ch |= fieldM("Overhang", &L.roofOverhang, k, 0.0f, 2.0f);
+                }
+                if (L.roof != kRoofNone) ch |= fieldM("Thickness", &L.roofThick, k, 0.05f, 0.8f);
+                if (L.roof == kRoofGable || L.roof == kRoofShed) {
+                    if (ImGui::Button(L.roofRidge ? "Ridge across" : "Ridge along")) { L.roofRidge ^= 1; ch = true; }
+                }
+                if (L.roof >= kRoofGable) {
+                    static const char* rf[] = {"Grey", "Red", "Zinc", "Slate"};
+                    int f2 = L.roofFinish;
+                    if (segButtons("rfinish", rf, kRoofFinishCount, f2, k, bold) && f2 != L.roofFinish) { L.roofFinish = f2; ch = true; }
+                    RoofGeom rg;
+                    if (buildRoof(m_b, top, rg) && !rg.rectangular) ImGui::TextColored(ImVec4(0.75f, 0.45f, 0.1f, 1), "Not a rectangle: the roof covers\nthe rectangle around the walls.");
+                }
+                ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kInk3), "Shown with Ceiling on (closed building).");
+                if (ch) { pushUndo(); m_b.levels[top] = L; edited(); }
+            }
+            }
         }
     }
     ImGui::End();
@@ -2074,6 +2207,40 @@ void ArchApp::runScript() {
                 edited();
             }
         }
+        else if (k == "addstair") {   // addstair x y yawDegrees type [width]: a stair on the active level, selected
+            float v[5] = {0, 0, 0, 0, 0.9f};
+            sscanf(c.c_str(), " %*s %f %f %f %f %f", &v[0], &v[1], &v[2], &v[3], &v[4]);
+            Stair s;
+            s.p = float2(v[0], v[1]); s.yaw = radians(v[2]); s.type = std::clamp((int)v[3], 0, kStairTypeCount - 1); s.width = v[4]; s.level = m_level;
+            m_b.stairs.push_back(s);
+            m_selKind = 5; m_selStair = (int)m_b.stairs.size() - 1;
+            edited();
+        }
+        else if (k == "stairset" && m_selKind == 5 && m_selStair >= 0) {   // stairset risers handrail open turnRight finish
+            float v[5] = {-1, -1, -1, -1, -1};
+            sscanf(c.c_str(), " %*s %f %f %f %f %f", &v[0], &v[1], &v[2], &v[3], &v[4]);
+            Stair& s = m_b.stairs[m_selStair];
+            if (v[0] >= 0) s.risers = (int)v[0];
+            if (v[1] >= 0) s.handrail = v[1] > 0.5f;
+            if (v[2] >= 0) s.open = v[2] > 0.5f;
+            if (v[3] >= 0) s.turnRight = v[3] > 0.5f;
+            if (v[4] >= 0) s.finish = (int)v[4];
+            edited();
+        }
+        else if (k == "roof") {   // roof type slope overhang ridge finish (the top level)
+            float v[5] = {-1, -1, -1, -1, -1};
+            sscanf(c.c_str(), " %*s %f %f %f %f %f", &v[0], &v[1], &v[2], &v[3], &v[4]);
+            const int top = roofTopLevel(m_b);
+            if (top >= 0) {
+                Level& L = m_b.levels[top];
+                if (v[0] >= 0) L.roof = (int)v[0];
+                if (v[1] >= 0) L.roofSlope = v[1];
+                if (v[2] >= 0) L.roofOverhang = v[2];
+                if (v[3] >= 0) L.roofRidge = (int)v[3];
+                if (v[4] >= 0) L.roofFinish = (int)v[4];
+                edited();
+            }
+        }
         else if (k == "openall" && n == 2) {   // every opening this far open (0..1)
             for (Wall& Wl : m_b.walls) for (Opening& op : Wl.ops) op.setAllOpen(std::clamp(a, 0.0f, 1.0f));
             placeJoinery(m_scene, m_map, m_b);
@@ -2197,6 +2364,7 @@ void ArchApp::frame() {
         bo.selectedWall = m_selKind == 1 ? m_selWall : -1;
         bo.selectedOpeningWall = m_selKind == 2 ? m_selWall : -1;
         bo.selectedOpening = m_selKind == 2 ? m_selOp : -1;
+        bo.selectedStair = m_selKind == 5 ? m_selStair : -1;
         bo.assets = &m_assets;
         bo.ceilings = m_ceiling;
         if (m_sceneDirty) buildScene(m_b, m_scene, bo, m_map);

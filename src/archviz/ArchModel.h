@@ -70,10 +70,41 @@ struct RoomLabel {
     bool alive = true;
 };
 
+enum RoofType { kRoofNone = 0, kRoofFlat, kRoofGable, kRoofHip, kRoofShed, kRoofTypeCount };
+enum RoofFinish { kRoofTilesGrey = 0, kRoofTilesRed, kRoofZinc, kRoofSlate, kRoofFinishCount };
+
 struct Level {
     std::string name;
     float elevation = 0.0f;   // top of the floor, metres
     float height = 2.70f;     // floor to ceiling
+    // the roof over this level when it is the top one (ArchRoof.h): type, slope (degrees), overhang past the walls,
+    // thickness, ridge across the long side instead of along it, finish
+    int roof = kRoofGable;
+    float roofSlope = 35.0f;
+    float roofOverhang = 0.40f;
+    float roofThick = 0.25f;
+    int roofRidge = 0;
+    int roofFinish = kRoofTilesGrey;
+};
+
+// A flight of stairs from a level to the next (ArchStair.h): its foot (the front of the first step, middle of its
+// width) and the direction it climbs, its shape, width, rise (0 = the height of its level + the slab above), risers
+// (0 = automatic: Blondel 2h + g = 63 cm), handrail, open risers, finish.
+enum StairType { kStairStraight = 0, kStairL, kStairU, kStairSpiral, kStairTypeCount };
+enum StairFinish { kStairOak = 0, kStairConcrete, kStairWhite, kStairFinishCount };
+struct Stair {
+    float2 p;
+    float yaw = 0;            // radians: the direction of the climb in the plan (0 = +x)
+    int type = kStairStraight;
+    int level = 0;
+    float width = 0.90f;
+    float rise = 0;
+    int risers = 0;
+    bool handrail = true;
+    bool open = false;
+    bool turnRight = false;   // L / U: the turn (spiral: clockwise)
+    int finish = kStairOak;
+    bool alive = true;
 };
 
 struct Room {                 // derived (computeRooms)
@@ -109,6 +140,7 @@ struct Item {                 // a piece of furniture / an object placed on a le
 
 struct Building {
     std::vector<Level> levels;
+    std::vector<Stair> stairs;
     std::vector<Item> items;
     std::vector<Node> nodes;
     std::vector<Wall> walls;

@@ -35,6 +35,9 @@ struct SceneMap {
     };
     std::vector<JoineryObj> joinery;
     std::vector<JoineryLeaf> leaves;
+    std::vector<int> stairObject;   // per stair: the object of its steps (-1 = not in the scene)
+    int mStairSel = -1;
+    std::vector<int> stairMaterial;
     std::vector<std::pair<int, int>> itemObjects;   // per item: its first object and their count (0 = asset missing)
     int ground = -1;
     int mWall = -1, mWallSel = -1, mFrame = -1, mFrameSel = -1;
@@ -48,6 +51,7 @@ struct BuildOptions {
     int selectedWall = -1;   // tinted
     int selectedOpeningWall = -1, selectedOpening = -1;
     int selectedRoom = -1;
+    int selectedStair = -1;
     bool ceilings = false;   // a slab over the rooms of the active level (interior renders)
     const std::vector<AssetInfo>* assets = nullptr;   // the library (the items of the assets loaded are drawn)
 };

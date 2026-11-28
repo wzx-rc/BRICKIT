@@ -399,7 +399,9 @@ std::string Building::toJson() const {
     std::string s = "{\n  \"format\": \"archviz-building\", \"version\": 1,\n  \"levels\": [";
     char b[512];
     for (size_t i = 0; i < levels.size(); ++i) {
-        snprintf(b, sizeof b, "%s\n    {\"name\": \"%s\", \"elevation\": %.4f, \"height\": %.4f}", i ? "," : "", levels[i].name.c_str(), levels[i].elevation, levels[i].height);
+        const Level& L = levels[i];
+        snprintf(b, sizeof b, "%s\n    {\"name\": \"%s\", \"elevation\": %.4f, \"height\": %.4f, \"roof\": %d, \"roofSlope\": %.2f, \"roofOverhang\": %.3f, \"roofThick\": %.3f, \"roofRidge\": %d, \"roofFinish\": %d}",
+                 i ? "," : "", L.name.c_str(), L.elevation, L.height, L.roof, L.roofSlope, L.roofOverhang, L.roofThick, L.roofRidge, L.roofFinish);
         s += b;
     }
     s += "\n  ],\n  \"nodes\": [";
@@ -440,6 +442,14 @@ std::string Building::toJson() const {
                  it.asset.c_str(), it.p.x, it.p.y, it.yaw, it.elev, it.level, it.size.x, it.size.y, it.height);
         s += b;
     }
+    s += "\n  ],\n  \"stairs\": [";
+    k = 0;
+    for (const Stair& st : stairs) {
+        if (!st.alive) continue;
+        snprintf(b, sizeof b, "%s\n    {\"x\": %.4f, \"y\": %.4f, \"yaw\": %.5f, \"type\": %d, \"level\": %d, \"width\": %.3f, \"rise\": %.3f, \"risers\": %d, \"handrail\": %d, \"open\": %d, \"turnRight\": %d, \"finish\": %d}",
+                 k++ ? "," : "", st.p.x, st.p.y, st.yaw, st.type, st.level, st.width, st.rise, st.risers, (int)st.handrail, (int)st.open, (int)st.turnRight, st.finish);
+        s += b;
+    }
     s += "\n  ]\n}\n";
     return s;
 }
@@ -449,7 +459,13 @@ bool Building::fromJson(const std::string& text) {
     if (!app::Json::parse(text, j) || j["format"].str() != "archviz-building") return false;
     Building B;
     B.levels.clear();
-    for (const app::Json& l : j["levels"].a) B.levels.push_back({l["name"].str("Level"), (float)l["elevation"].num(), (float)l["height"].num(2.7)});
+    for (const app::Json& l : j["levels"].a) {
+        Level L;
+        L.name = l["name"].str("Level"); L.elevation = (float)l["elevation"].num(); L.height = (float)l["height"].num(2.7);
+        L.roof = (int)l["roof"].num(kRoofGable); L.roofSlope = (float)l["roofSlope"].num(35); L.roofOverhang = (float)l["roofOverhang"].num(0.4);
+        L.roofThick = (float)l["roofThick"].num(0.25); L.roofRidge = (int)l["roofRidge"].num(); L.roofFinish = (int)l["roofFinish"].num();
+        B.levels.push_back(L);
+    }
     if (B.levels.empty()) B.levels.push_back({"Level 0", 0, 2.7f});
     for (const app::Json& n : j["nodes"].a) B.nodes.push_back({float2((float)n[0].num(), (float)n[1].num()), (int)n[2].num(), true});
     for (const app::Json& w : j["walls"].a) {
@@ -478,6 +494,15 @@ bool Building::fromJson(const std::string& text) {
         it.yaw = (float)r["yaw"].num(); it.elev = (float)r["elev"].num(); it.level = (int)r["level"].num();
         it.size = float2((float)r["w"].num(1), (float)r["d"].num(1)); it.height = (float)r["h"].num(1);
         if (!it.asset.empty()) B.items.push_back(it);
+    }
+    for (const app::Json& r : j["stairs"].a) {
+        Stair st;
+        st.p = float2((float)r["x"].num(), (float)r["y"].num());
+        st.yaw = (float)r["yaw"].num(); st.type = (int)r["type"].num(); st.level = (int)r["level"].num();
+        st.width = (float)r["width"].num(0.9); st.rise = (float)r["rise"].num(); st.risers = (int)r["risers"].num();
+        st.handrail = r["handrail"].num(1) != 0; st.open = r["open"].num() != 0; st.turnRight = r["turnRight"].num() != 0;
+        st.finish = (int)r["finish"].num();
+        B.stairs.push_back(st);
     }
     *this = B;
     update();

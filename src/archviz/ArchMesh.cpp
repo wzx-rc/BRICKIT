@@ -1,8 +1,11 @@
 #include "ArchMesh.h"
 #include "ArchJoinery.h"
+#include "ArchRoof.h"
+#include "ArchStair.h"
 #include "vp3d/MeshGen.h"
 #include "vp3d/shaders/Shared.h"
 #include <algorithm>
+#include <array>
 
 namespace archviz {
 
@@ -73,6 +76,39 @@ static void floorPrism(MeshData& m, const std::vector<float2>& poly, float y0, f
             const float2 n2 = -perp(norm2(b - a));   // CCW polygon: outside is to the right
             quad(m, world(a, y0), world(b, y0), world(b, y1), world(a, y1), world(n2, 0) - world(float2(0, 0), 0));
         }
+}
+
+// A floor slab with a hole (the opening of a stair from the level below): the hole joined to the outline by a bridge
+// (a weakly simple polygon for the ear clipping); without a usable bridge, the slab without its hole.
+static void floorPrismHole(MeshData& m, const std::vector<float2>& poly, std::vector<float2> hole, float y0, float y1) {
+    if (hole.size() < 3) { floorPrism(m, poly, y0, y1); return; }
+    if (polyArea(hole) > 0) std::reverse(hole.begin(), hole.end());   // clockwise inside the counter-clockwise outline
+    size_t bi = 0, bj = 0;
+    float bd = 1e30f;
+    for (size_t i = 0; i < poly.size(); ++i)
+        for (size_t j = 0; j < hole.size(); ++j) { const float d = len2(poly[i] - hole[j]); if (d < bd) { bd = d; bi = i; bj = j; } }
+    std::vector<float2> P;
+    for (size_t k = 0; k <= bi; ++k) P.push_back(poly[k]);
+    for (size_t t = 0; t <= hole.size(); ++t) P.push_back(hole[(bj + t) % hole.size()]);
+    P.push_back(poly[bi]);
+    for (size_t k = bi + 1; k < poly.size(); ++k) P.push_back(poly[k]);
+    std::vector<int> tris;
+    triangulate(P, tris);
+    if (tris.size() < 3 * (poly.size() + hole.size() - 2)) { floorPrism(m, poly, y0, y1); return; }
+    const uint32_t base = (uint32_t)m.vertices.size();
+    for (const float2& p : P) m.vertices.push_back({world(p, y1), float3(0, 1, 0), float2(p.x, p.y)});
+    for (size_t i = 0; i + 2 < tris.size(); i += 3) {
+        const float3 a = m.vertices[base + tris[i]].pos, b = m.vertices[base + tris[i + 1]].pos, c = m.vertices[base + tris[i + 2]].pos;
+        if (dot(cross(b - a, c - a), float3(0, 1, 0)) >= 0) m.addTri(base + tris[i], base + tris[i + 1], base + tris[i + 2]);
+        else m.addTri(base + tris[i], base + tris[i + 2], base + tris[i + 1]);
+    }
+    if (y1 - y0 > 0.001f)
+        for (const std::vector<float2>* ring : std::array<const std::vector<float2>*, 2>{&poly, &hole})
+            for (size_t i = 0; i < ring->size(); ++i) {
+                const float2 a = (*ring)[i], b = (*ring)[(i + 1) % ring->size()];
+                const float2 n2 = -perp(norm2(b - a));
+                quad(m, world(a, y0), world(b, y0), world(b, y1), world(a, y1), world(n2, 0) - world(float2(0, 0), 0));
+            }
 }
 
 void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap& map) {
@@ -215,7 +251,16 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         if (R.level > o.activeLevel) continue;
         const float e = B.levels[R.level].elevation;
         MeshData m;
-        floorPrism(m, R.poly, R.level == 0 ? e : e - 0.30f, e + 0.02f);
+        std::vector<float2> hole;   // the opening of a stair coming up from the level below
+        for (const Stair& st : B.stairs) {
+            if (!st.alive || st.level != R.level - 1 || !hole.empty()) continue;
+            StairGeom sg;
+            buildStair(B, st, sg);
+            bool inside = sg.footprint.size() == 4;
+            for (const float2& q : sg.footprint) inside = inside && pointInPoly(q, R.poly);
+            if (inside) hole = sg.footprint;
+        }
+        floorPrismHole(m, R.poly, hole, R.level == 0 ? e : e - 0.30f, e + 0.02f);
         Object fo;
         fo.name = "Floor " + std::to_string(r);
         fo.part = "FLOOR";
@@ -226,7 +271,7 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         if (o.ceilings && R.level == o.activeLevel) {   // closes the room: the light comes through the openings alone
             const float top = e + B.levels[R.level].height;
             MeshData c;
-            floorPrism(c, R.poly, top, top + 0.25f);
+            floorPrism(c, R.poly, top - 0.04f, top);   // (under the roof: nothing pokes through its eaves)
             Object co;
             co.name = "Ceiling " + std::to_string(r);
             co.part = "CEILING";
@@ -254,6 +299,55 @@ void buildScene(const Building& B, Scene& scene, const BuildOptions& o, SceneMap
         }
         placeItem(scene, map, B, i);
     }
+    // stairs (the levels shown), the roof over the top level (with the ceilings: the closed, finished building)
+    {
+        const int mStair[kStairFinishCount] = {mat("Stair oak", 0xb88c5e, 0.5f, 0.003f), mat("Stair concrete", 0xb5b3ae, 0.8f, 0.003f), mat("Stair white", 0xf0efec, 0.45f, 0.003f)};
+        const int mRail = mat("Rail black", 0x1e2024, 0.35f);
+        const int mStairSel = mat("Stair selected", 0x9db6ff, 0.5f, 0.003f);
+        map.stairObject.assign(B.stairs.size(), -1);
+        map.stairMaterial.assign(B.stairs.size(), mStair[0]);
+        map.mStairSel = mStairSel;
+        for (int i = 0; i < (int)B.stairs.size(); ++i) {
+            const Stair& st = B.stairs[i];
+            if (!st.alive || st.level > o.activeLevel) continue;
+            StairGeom sg;
+            buildStair(B, st, sg);
+            const int fin = mStair[std::clamp(st.finish, 0, kStairFinishCount - 1)];
+            map.stairMaterial[i] = fin;
+            Object so;
+            so.name = "Stair " + std::to_string(i);
+            so.part = "STAIR";
+            so.mesh = scene.addMesh(so.name, std::move(sg.steps));
+            so.material = i == o.selectedStair ? mStairSel : fin;
+            map.stairObject[i] = scene.addObject(so);
+            if (!sg.rail.vertices.empty()) {
+                Object ro;
+                ro.name = so.name + " rail"; ro.part = "STAIR";
+                ro.mesh = scene.addMesh(ro.name, std::move(sg.rail));
+                ro.material = mRail;
+                scene.addObject(ro);
+            }
+        }
+        const int top = roofTopLevel(B);
+        RoofGeom rg;
+        if (o.ceilings && top >= 0 && o.activeLevel >= top && buildRoof(B, top, rg)) {
+            const int fin = B.levels[top].roof == kRoofFlat ? mat("Roof gravel", 0x9f9c95, 0.9f) :
+                            std::array<int, kRoofFinishCount>{mat("Roof tiles grey", 0x3d4148, 0.7f), mat("Roof tiles red", 0x9c4f36, 0.72f),
+                                                              mat("Roof zinc", 0x8c9299, 0.4f), mat("Roof slate", 0x46505c, 0.6f)}[std::clamp(B.levels[top].roofFinish, 0, kRoofFinishCount - 1)];
+            Object ro;
+            ro.name = "Roof"; ro.part = "ROOF";
+            ro.mesh = scene.addMesh(ro.name, std::move(rg.roof));
+            ro.material = fin;
+            scene.addObject(ro);
+            if (!rg.walls.vertices.empty()) {
+                Object gw;
+                gw.name = "Roof walls"; gw.part = "WALL";
+                gw.mesh = scene.addMesh(gw.name, std::move(rg.walls));
+                gw.material = mWall;
+                scene.addObject(gw);
+            }
+        }
+    }
     placeJoinery(scene, map, B);
 }
 
@@ -261,6 +355,8 @@ void applySelection(Scene& scene, const SceneMap& map, const BuildOptions& o) {
     for (int w = 0; w < (int)map.wallObject.size(); ++w) {
         if (map.wallObject[w] >= 0) scene.objects[map.wallObject[w]].material = w == o.selectedWall ? map.mWallSel : map.mWall;
     }
+    for (int i = 0; i < (int)map.stairObject.size(); ++i)
+        if (map.stairObject[i] >= 0) scene.objects[map.stairObject[i]].material = i == o.selectedStair ? map.mStairSel : map.stairMaterial[i];
     for (const SceneMap::JoineryObj& j : map.joinery)
         if (j.mat == kJFrame && j.leaf < 0)
             scene.objects[j.obj].material = (j.wall == o.selectedOpeningWall && j.op == o.selectedOpening) ? map.mFrameSel : j.baseMaterial;

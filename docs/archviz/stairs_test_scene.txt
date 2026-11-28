@@ -1,0 +1,1 @@
+clear; height 2.7; thick 0.3; addroom 0 0 17 7; addstair 1.2 0.8 90 0 1.0; stairset -1 1 0 0 0; addstair 4.0 0.8 90 1 1.0; stairset -1 1 1 1 1; addstair 9.6 0.8 90 2 1.0; stairset -1 1 0 1 2; addstair 14.4 2.6 0 3 1.0; stairset -1 1 1 0 0; deselect

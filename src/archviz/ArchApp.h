@@ -41,7 +41,7 @@ struct Options {
 void parseOptions(const std::vector<std::wstring>& args, Options& o);
 
 // kPlace: an object of the library in hand (Furnish); kMoveTool / kRotateTool: the manipulators of BrickIt on the objects
-enum Tool { kSelect = 0, kRoom, kWall, kWindowTool, kDoorTool, kToolCount, kPlace = kToolCount, kMoveTool, kRotateTool };
+enum Tool { kSelect = 0, kRoom, kWall, kWindowTool, kDoorTool, kStairTool, kToolCount, kPlace = kToolCount, kMoveTool, kRotateTool };
 enum View { kView3D = 0, kViewSplit, kViewPlan };
 
 class ArchApp {
@@ -110,6 +110,15 @@ private:
     int m_newFloor = 0;
     // selection: 0 none, 1 wall, 2 opening, 3 room, 4 item (furniture)
     int m_selKind = 0, m_selWall = -1, m_selOp = -1, m_selRoom = -1, m_selItem = -1;
+    // ---- stairs (ArchStair.h): selection kind 5; the one being drawn (its foot pressed, the direction dragged)
+    int m_selStair = -1;
+    Stair m_stairGhost;
+    bool m_stairDrawing = false;
+    float m_stairYaw = 0;
+    float2 m_stairOff;
+    int stairAt(float2 p) const;
+    void drawStairPlan(ImDrawList* dl, const Stair& s, ImU32 col, bool ghost);
+    void drawRoofPlan(ImDrawList* dl);
     bool m_ceiling = false;         // slabs over the rooms (interior renders), off for the open model view
     bool m_selDirty = false;        // the selection tint changed (no geometry to rebuild)
     // furnish: the library of objects (dataDir/ArchViz/models), the one being placed
